@@ -128,7 +128,9 @@ def websocket_check(client):
     port = target.port or (443 if secure else 80)
     sock = socket.create_connection((target.hostname, port), timeout=30)
     if secure:
-        sock = ssl.create_default_context().wrap_socket(sock, server_hostname=target.hostname)
+        context = ssl.create_default_context()
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        sock = context.wrap_socket(sock, server_hostname=target.hostname)
     key = base64.b64encode(os.urandom(16)).decode()
     sock.sendall(
         (
