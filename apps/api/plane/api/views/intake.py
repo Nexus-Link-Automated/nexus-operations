@@ -166,6 +166,11 @@ class IntakeIssueListCreateAPIEndpoint(BaseAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Intake turned on without its default intake (e.g. through the public API):
+        # create it the way the web app does when intake is enabled, instead of failing below.
+        if intake is None:
+            intake = Intake.objects.create(name=f"{project.name} Intake", project=project, is_default=True)
+
         # Check for valid priority
         if request.data.get("issue", {}).get("priority", "none") not in [
             "low",
@@ -332,6 +337,11 @@ class IntakeIssueDetailAPIEndpoint(BaseAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Intake turned on without its default intake (e.g. through the public API):
+        # create it the way the web app does when intake is enabled, instead of failing below.
+        if intake is None:
+            intake = Intake.objects.create(name=f"{project.name} Intake", project=project, is_default=True)
+
         # Get the intake issue
         intake_issue = IntakeIssue.objects.get(
             issue_id=issue_id,
@@ -482,6 +492,11 @@ class IntakeIssueDetailAPIEndpoint(BaseAPIView):
                 {"error": "Intake is not enabled for this project enable it through the project's api"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # Intake turned on without its default intake (e.g. through the public API):
+        # create it the way the web app does when intake is enabled, instead of failing below.
+        if intake is None:
+            intake = Intake.objects.create(name=f"{project.name} Intake", project=project, is_default=True)
 
         # Get the intake issue
         intake_issue = IntakeIssue.objects.get(

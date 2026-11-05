@@ -42,6 +42,7 @@ from drf_spectacular.utils import (
 )
 
 # Module imports
+from plane.nexus.pql import PQLError, apply_pql
 from plane.api.serializers import (
     IssueAttachmentSerializer,
     IssueActivitySerializer,
@@ -389,16 +390,12 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
         Supports filtering, ordering, and field selection through query parameters.
         """
 
-        unsupported_filters = [param for param in ("pql", "filters") if request.GET.get(param)]
-        if unsupported_filters:
+        # Structured filters are not implemented; PQL (`pql`) is, by plane.nexus.pql.
+        if request.GET.get("filters"):
             return Response(
                 {
-                    "pql": (
-                        "PQL and structured filters are not supported on this Plane edition. "
-                        "Remove the pql/filters parameter and filter results client-side, or use "
-                        "a Plane edition that supports work item query filtering."
-                    ),
-                    "unsupported_parameters": unsupported_filters,
+                    "filters": "Structured filters are not supported. Use the pql parameter instead.",
+                    "unsupported_parameters": ["filters"],
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -466,6 +463,13 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
         if restricted_guest:
             issue_queryset = issue_queryset.filter(created_by=request.user)
             total_issue_queryset = total_issue_queryset.filter(created_by=request.user)
+
+        try:
+            pql = request.GET.get("pql")
+            issue_queryset = apply_pql(issue_queryset, pql, user=request.user, workspace_slug=slug)
+            total_issue_queryset = apply_pql(total_issue_queryset, pql, user=request.user, workspace_slug=slug)
+        except PQLError as exc:
+            return Response({"error": str(exc), "pql": [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
 
         # Priority Ordering
         if order_by_param == "priority" or order_by_param == "-priority":
