@@ -29,9 +29,19 @@ One feature group per file in `models/`, `serializers/`, `views/` and `urls/`:
 | `features` | workspace and project feature switches |
 | `customer` | customers, customer properties and values, customer requests, customer ↔ work item links |
 | `release` | releases, release labels and tags, changelogs, milestones, initiatives |
-| `work_item_type` | work item types, custom properties, options and values, templates, relation definitions |
+| `work_item_type` | work item types, custom properties, options and values, work item / page / project templates (one table, told apart by `template_type`), relation definitions (CE's `relates_to` and `duplicate` are listed first, with stable ids, flagged `is_built_in`) |
 | `page` | workspace and project pages, work item ↔ page links, collections, estimates |
 | `work_item` | workspace work-item list with PQL, count, archive, dependencies and relations, work logs, intake status, roles, workspace states |
+
+## Changes to stock `/api/v1` endpoints
+
+The MCP tools also call a few stock endpoints, changed in place:
+
+| Endpoint | Change |
+|---|---|
+| project, cycle and module work item lists | apply PQL through `plane.nexus.pql` |
+| `members/`, `members-lite/`, `project-members-lite/` | honour plane-sdk's member filters (`email`, `first_name`, `last_name`, `display_name`, `role_slug`, `is_active`, `is_bot`, `order_by`); they ignored them and returned everyone |
+| `work-items/<id>/relations/` (POST) | only links work items the caller may view, as GET already only lists them |
 
 ## Tests
 

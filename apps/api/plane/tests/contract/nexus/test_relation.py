@@ -303,3 +303,64 @@ class TestRelationSafety:
             assert res.status_code == 400 and "No work item with id" in res.data["error"]
             assert "hidden" not in str(res.data)
         assert not IssueRelation.objects.filter(related_issue=hidden).exists()
+
+
+@pytest.mark.contract
+class TestRelationDelete:
+    """DELETE .../work-item-relations/<related>/ removed every relation the pair shared."""
+
+    @pytest.fixture
+    def linked(self, client, project_url, workspace, pair):
+        x, t = pair
+        definition = WorkItemRelationDefinition.objects.create(
+            workspace=workspace, name="Implements", outward="implements", inward="implemented by"
+        )
+        for body in (
+            {"relation_definition_type": "relates_to", "relation_definition_id": str(uuid4())},
+            {"relation_definition_type": "implements", "relation_definition_id": str(definition.id)},
+        ):
+            res = client.post(rel_url(project_url, x), {**body, "work_item_ids": [str(t.id)]}, format="json")
+            assert res.status_code == 201, res.data
+        return x, t, definition
+
+    def test_more_than_one_relation_is_refused_with_the_list(self, client, project_url, linked):
+        x, t, definition = linked
+        res = client.delete(rel_url(project_url, x, t))
+        assert res.status_code == 409 and res.data["code"] == "AMBIGUOUS_RELATION"
+        builtin_id = work_item_views.BUILTIN_RELATION_DEFINITIONS["relates_to"]["id"]
+        assert builtin_id in res.data["error"] and str(definition.id) in res.data["error"]
+        assert IssueRelation.objects.filter(issue=x, related_issue=t).exists()
+        assert WorkItemCustomRelation.objects.filter(issue=x, related_issue=t).exists()
+
+    def test_the_named_relation_alone_is_removed(self, client, project_url, linked):
+        x, t, definition = linked
+        res = client.delete(rel_url(project_url, x, t) + f"?relation_definition_id={definition.id}")
+        assert res.status_code == 204
+        assert not WorkItemCustomRelation.objects.filter(issue=x, related_issue=t).exists()
+        assert IssueRelation.objects.filter(issue=x, related_issue=t, relation_type="relates_to").exists()
+        # One left, so no id is needed now.
+        assert client.delete(rel_url(project_url, t, x)).status_code == 204
+        assert not IssueRelation.objects.filter(issue=x, related_issue=t).exists()
+
+    def test_a_builtin_is_named_by_its_listed_id(self, client, project_url, linked):
+        x, t, _ = linked
+        builtin_id = work_item_views.BUILTIN_RELATION_DEFINITIONS["relates_to"]["id"]
+        assert client.delete(rel_url(project_url, x, t) + f"?relation_definition_id={builtin_id}").status_code == 204
+        assert not IssueRelation.objects.filter(issue=x, related_issue=t).exists()
+        assert WorkItemCustomRelation.objects.filter(issue=x, related_issue=t).exists()
+
+    def test_bad_or_unmatched_id(self, client, project_url, linked):
+        x, t, _ = linked
+        assert client.delete(rel_url(project_url, x, t) + "?relation_definition_id=nope").status_code == 400
+        assert client.delete(rel_url(project_url, x, t) + f"?relation_definition_id={uuid4()}").status_code == 404
+
+    def test_relations_to_hidden_items_cannot_be_deleted(self, client, project_url, workspace, pair):
+        x, _ = pair
+        stranger = User.objects.create(email=f"{uuid4().hex[:8]}@x.com", username=uuid4().hex[:12])
+        hidden = make_issue(make_project(workspace, stranger), "hidden")
+        IssueRelation.objects.create(issue=x, related_issue=hidden, relation_type="relates_to", project=x.project)
+        IssueRelation.objects.create(issue=hidden, related_issue=x, relation_type="blocked_by", project=x.project)
+        assert client.delete(rel_url(project_url, x, hidden)).status_code == 404
+        assert client.delete(dep_url(project_url, x, hidden)).status_code == 404
+        assert IssueRelation.objects.filter(related_issue=hidden).exists()
+        assert IssueRelation.objects.filter(issue=hidden).exists()

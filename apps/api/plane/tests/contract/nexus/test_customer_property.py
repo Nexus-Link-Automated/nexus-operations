@@ -231,3 +231,21 @@ class TestCustomerPropertyValues:
         assert guest_client.get(url).status_code == 403
         assert guest_client.post(url, body, format="json").status_code == 403
         assert outsider_client.get(url).status_code == 403
+
+
+@pytest.mark.contract
+class TestCustomerPropertyIsMulti:
+    def test_is_multi_can_be_changed(self, client, ws_url, sdk):
+        prop = _create(client, ws_url, display_name="Plans", property_type="TEXT")
+        res = client.patch(ws_url(f"customer-properties/{prop['id']}/"), {"is_multi": True}, format="json")
+        assert res.status_code == 200 and sdk(f"{M}.CustomerProperty", res.data)["is_multi"] is True
+
+    def test_is_multi_cannot_be_turned_off_under_multiple_values(self, client, ws_url, workspace, customer):
+        prop = _create(client, ws_url, display_name="Plans", property_type="TEXT", is_multi=True)
+        row = CustomerProperty.objects.get(pk=prop["id"])
+        for value in ("A", "B"):
+            CustomerPropertyValue.objects.create(workspace=workspace, customer=customer, property=row, value=value)
+        res = client.patch(ws_url(f"customer-properties/{prop['id']}/"), {"is_multi": False}, format="json")
+        assert res.status_code == 400 and "more than one value" in res.data["error"]
+        row.refresh_from_db()
+        assert row.is_multi is True

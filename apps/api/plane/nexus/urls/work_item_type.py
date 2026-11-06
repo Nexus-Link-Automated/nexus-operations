@@ -145,6 +145,34 @@ urlpatterns = [
         ["get", "patch", "delete"],
         "project-work-item-template",
     ),
+    # Page templates, at the workspace and in a project.
+    _route(WS + "pages/templates/", v.WorkspacePageTemplateListEndpoint, ["get", "post"], "page-templates"),
+    _route(
+        WS + "pages/templates/<uuid:template_id>/",
+        v.WorkspacePageTemplateDetailEndpoint,
+        ["get", "patch", "delete"],
+        "page-template",
+    ),
+    _route(
+        PROJECT + "pages/templates/",
+        v.ProjectPageTemplateListEndpoint,
+        ["get", "post"],
+        "project-page-templates",
+    ),
+    _route(
+        PROJECT + "pages/templates/<uuid:template_id>/",
+        v.ProjectPageTemplateDetailEndpoint,
+        ["get", "patch", "delete"],
+        "project-page-template",
+    ),
+    # Project templates, which live only at the workspace.
+    _route(WS + "projects/templates/", v.WorkspaceProjectTemplateListEndpoint, ["get", "post"], "project-templates"),
+    _route(
+        WS + "projects/templates/<uuid:template_id>/",
+        v.WorkspaceProjectTemplateDetailEndpoint,
+        ["get", "patch", "delete"],
+        "project-template",
+    ),
     # Relation definitions.
     _route(
         WS + "work-item-relation-definitions/",

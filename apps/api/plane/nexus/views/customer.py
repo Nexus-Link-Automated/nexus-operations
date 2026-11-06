@@ -468,6 +468,12 @@ class CustomerPropertyDetailAPIEndpoint(CustomerPropertyBaseView):
         new_type = request.data.get("property_type")
         if new_type and new_type != prop.property_type and prop.values.filter(deleted_at__isnull=True).exists():
             return self.error("property_type cannot change once customers hold values for this property.")
+        if request.data.get("is_multi") is False and prop.is_multi:
+            held = prop.values.filter(deleted_at__isnull=True).values("customer_id").annotate(n=Count("id"))
+            if held.filter(n__gt=1).exists():
+                return self.error(
+                    "is_multi cannot be turned off while a customer holds more than one value for this property."
+                )
         serializer = CustomerPropertySerializer(prop, data=request.data, partial=True)
         if not serializer.is_valid():
             return self.error(_first_error(serializer.errors))

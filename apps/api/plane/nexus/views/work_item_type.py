@@ -56,6 +56,7 @@ from plane.utils.permissions import (
 )
 
 from .base import NexusAPIView
+from .work_item import BUILTIN_RELATION_DEFINITIONS
 
 WORKSPACE_MANAGED = "workspace_managed"
 TEXT_FORMATS = ("single-line", "multi-line", "readonly")
@@ -1004,7 +1005,18 @@ def _save_template(template, body, *, partial):
     return template
 
 
-class _WorkspaceTemplateView(_View):
+class _TemplateKind:
+    """Which kind of template an endpoint serves. One table holds all three kinds,
+    told apart by template_type, so a page template id never resolves on a work
+    item route."""
+
+    template_type = "WORK_ITEM"
+
+    def templates(self, slug):
+        return WorkItemTemplate.objects.filter(workspace__slug=slug, template_type=self.template_type)
+
+
+class _WorkspaceTemplateView(_TemplateKind, _View):
     def get_permissions(self):
         if self.request.method in SAFE_METHODS:
             return [WorkspaceEntityPermission()]
@@ -1017,19 +1029,23 @@ class WorkspaceTemplateListEndpoint(_WorkspaceTemplateView):
         member_of = ProjectMember.objects.filter(workspace__slug=slug, member=request.user, is_active=True).values(
             "project_id"
         )
-        templates = WorkItemTemplate.objects.filter(workspace__slug=slug).filter(
+        templates = self.templates(slug).filter(
             Q(project__isnull=True) | Q(project_id__in=member_of, project__deleted_at__isnull=True)
         )
         return Response(WorkItemTemplateSerializer(templates, many=True).data)
 
     def post(self, request, slug):
-        template = _save_template(WorkItemTemplate(workspace=self.get_workspace()), _body(request), partial=False)
+        template = _save_template(
+            WorkItemTemplate(workspace=self.get_workspace(), template_type=self.template_type),
+            _body(request),
+            partial=False,
+        )
         return Response(WorkItemTemplateSerializer(template).data, status=status.HTTP_201_CREATED)
 
 
 class WorkspaceTemplateDetailEndpoint(_WorkspaceTemplateView):
     def _template(self, slug, template_id):
-        return get_object_or_404(WorkItemTemplate, workspace__slug=slug, project__isnull=True, pk=template_id)
+        return get_object_or_404(self.templates(slug), project__isnull=True, pk=template_id)
 
     def get(self, request, slug, template_id):
         return Response(WorkItemTemplateSerializer(self._template(slug, template_id)).data)
@@ -1043,7 +1059,7 @@ class WorkspaceTemplateDetailEndpoint(_WorkspaceTemplateView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class _ProjectTemplateView(_View):
+class _ProjectTemplateView(_TemplateKind, _View):
     def get_permissions(self):
         if self.request.method in SAFE_METHODS:
             return [ProjectEntityPermission()]
@@ -1053,13 +1069,15 @@ class _ProjectTemplateView(_View):
 class ProjectTemplateListEndpoint(_ProjectTemplateView):
     def get(self, request, slug, project_id):
         self.get_project()
-        templates = WorkItemTemplate.objects.filter(workspace__slug=slug, project_id=project_id)
+        templates = self.templates(slug).filter(project_id=project_id)
         return Response(WorkItemTemplateSerializer(templates, many=True).data)
 
     def post(self, request, slug, project_id):
         project = self.get_project()
         template = _save_template(
-            WorkItemTemplate(workspace_id=project.workspace_id, project=project), _body(request), partial=False
+            WorkItemTemplate(workspace_id=project.workspace_id, project=project, template_type=self.template_type),
+            _body(request),
+            partial=False,
         )
         return Response(WorkItemTemplateSerializer(template).data, status=status.HTTP_201_CREATED)
 
@@ -1067,7 +1085,7 @@ class ProjectTemplateListEndpoint(_ProjectTemplateView):
 class ProjectTemplateDetailEndpoint(_ProjectTemplateView):
     def _template(self, slug, project_id, template_id):
         self.get_project()
-        return get_object_or_404(WorkItemTemplate, workspace__slug=slug, project_id=project_id, pk=template_id)
+        return get_object_or_404(self.templates(slug), project_id=project_id, pk=template_id)
 
     def get(self, request, slug, project_id, template_id):
         return Response(WorkItemTemplateSerializer(self._template(slug, project_id, template_id)).data)
@@ -1079,6 +1097,31 @@ class ProjectTemplateDetailEndpoint(_ProjectTemplateView):
     def delete(self, request, slug, project_id, template_id):
         self._template(slug, project_id, template_id).delete(soft=False)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class WorkspacePageTemplateListEndpoint(WorkspaceTemplateListEndpoint):
+    template_type = "PAGE"
+
+
+class WorkspacePageTemplateDetailEndpoint(WorkspaceTemplateDetailEndpoint):
+    template_type = "PAGE"
+
+
+class ProjectPageTemplateListEndpoint(ProjectTemplateListEndpoint):
+    template_type = "PAGE"
+
+
+class ProjectPageTemplateDetailEndpoint(ProjectTemplateDetailEndpoint):
+    template_type = "PAGE"
+
+
+# A project template is what creates projects, so it only exists at the workspace.
+class WorkspaceProjectTemplateListEndpoint(WorkspaceTemplateListEndpoint):
+    template_type = "PROJECT"
+
+
+class WorkspaceProjectTemplateDetailEndpoint(WorkspaceTemplateDetailEndpoint):
+    template_type = "PROJECT"
 
 
 # --------------------------------------------------------------------------- relation definitions
@@ -1122,16 +1165,62 @@ def _save_definition(definition, data):
     return definition
 
 
+def _builtin_definitions(workspace_id, flags) -> list[dict]:
+    """CE's relates_to and duplicate, in the definition shape, with their stable ids.
+
+    They are not rows, so the list never showed them, and the work-item-relations
+    endpoint needs a definition id and label to create one: they could not be found.
+    Both are default and active, so a filter that excludes either hides them.
+    """
+    if flags.get("is_default") is False or flags.get("is_active") is False:
+        return []
+    return [
+        {
+            **definition,
+            "is_default": True,
+            "is_active": True,
+            "is_built_in": True,
+            "color": "",
+            "sort_order": float(order),
+            "workspace": str(workspace_id),
+            "created_at": None,
+            "updated_at": None,
+        }
+        for order, definition in enumerate(BUILTIN_RELATION_DEFINITIONS.values())
+    ]
+
+
+def _first_page(request) -> bool:
+    cursor = request.query_params.get("cursor")
+    if not cursor:
+        return True
+    try:
+        return int(cursor.split(":")[1]) == 0
+    except (IndexError, ValueError):
+        return False
+
+
 class RelationDefinitionListEndpoint(_CatalogueView):
     def get(self, request, slug):
         definitions = WorkItemRelationDefinition.objects.filter(workspace__slug=slug)
+        flags = {}
         for flag in ("is_default", "is_active"):
             value = _query_bool(request, flag)
             if value is not None:
+                flags[flag] = value
                 definitions = definitions.filter(**{flag: value})
-        return self.paginated(
+        response = self.paginated(
             request, definitions.order_by("sort_order", "created_at"), WorkItemRelationDefinitionSerializer
         )
+        builtins = _builtin_definitions(self.get_workspace().id, flags)
+        if response.status_code == 200 and builtins:
+            data = response.data
+            data["total_count"] = data.get("total_count", 0) + len(builtins)
+            data["total_results"] = data.get("total_results", 0) + len(builtins)
+            if _first_page(request):
+                data["results"] = builtins + list(data["results"])
+                data["count"] = data.get("count", 0) + len(builtins)
+        return response
 
     def post(self, request, slug):
         definition = WorkItemRelationDefinition(workspace=self.get_workspace())

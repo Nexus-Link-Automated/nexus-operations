@@ -2731,18 +2731,24 @@ class IssueRelationListCreateAPIEndpoint(BaseAPIView):
         issues = serializer.validated_data["issues"]
         project = Project.objects.get(pk=project_id, workspace__slug=slug)
         # The URL issue is one side of every relation; bind it to the URL project too.
-        Issue.issue_objects.get(workspace__slug=slug, project_id=project_id, pk=issue_id)
+        url_issue = Issue.issue_objects.get(workspace__slug=slug, project_id=project_id, pk=issue_id)
+        if guest_cannot_view_issue(request.user.id, url_issue, slug):
+            raise Issue.DoesNotExist()
 
         actual_relation = get_actual_relation(relation_type)
         is_reverse = relation_type in ["blocking", "start_after", "finish_after"]
 
-        # Scope to workspace to prevent cross-tenant IDOR
-        # Relations can cross projects so only workspace scope is enforced
+        # Scope to workspace to prevent cross-tenant IDOR. Relations can cross
+        # projects, so also require that the caller may view each target: the
+        # response describes them, and GET already hides the ones they cannot see.
         issues = list(
             Issue.issue_objects.filter(
+                visible_issue_q(request.user),
                 workspace__slug=slug,
                 pk__in=issues,
-            ).values_list("id", flat=True)
+            )
+            .values_list("id", flat=True)
+            .distinct()
         )
 
         IssueRelation.objects.bulk_create(

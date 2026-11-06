@@ -527,7 +527,10 @@ class WorkItemDependencyEndpoint(_RelationBase):
     def delete(self, request, slug, project_id, issue_id, related_issue_id):
         issue = self.get_issue(request, slug, project_id, issue_id)
         row = IssueRelation.objects.filter(
-            _pair(issue.id, related_issue_id), relation_type__in=DEPENDENCY_STORED, workspace_id=issue.workspace_id
+            _pair(issue.id, related_issue_id),
+            self.visible_q(request, issue),
+            relation_type__in=DEPENDENCY_STORED,
+            workspace_id=issue.workspace_id,
         ).first()
         if row is None:
             return self.error("No dependency between these work items.", http_status=status.HTTP_404_NOT_FOUND)
@@ -642,17 +645,48 @@ class WorkItemRelationEndpoint(_RelationBase):
         return self.created(request, issue, project_id, builtin, targets, new=new)
 
     def delete(self, request, slug, project_id, issue_id, related_issue_id):
+        """Remove one relation between the pair.
+
+        This used to delete every relation the two shared, built-in and custom
+        alike. plane-sdk's remove() names no relation, so a pair joined by more
+        than one is refused with the list, and `?relation_definition_id=` (a
+        definition's id, or a built-in one's from the definitions list) picks one.
+        """
         issue = self.get_issue(request, slug, project_id, issue_id)
-        pair = _pair(issue.id, related_issue_id)
-        builtin = IssueRelation.objects.filter(pair, relation_type__in=CUSTOM_STORED, workspace_id=issue.workspace_id)
-        custom = WorkItemCustomRelation.objects.filter(pair, workspace_id=issue.workspace_id)
-        first = builtin.first()
-        if first is None and not custom.exists():
+        rows = Q(_pair(issue.id, related_issue_id)) & self.visible_q(request, issue)
+        builtin = IssueRelation.objects.filter(rows, relation_type__in=CUSTOM_STORED, workspace_id=issue.workspace_id)
+        # As GET shows them: a relation under an inactive definition is not offered.
+        custom = WorkItemCustomRelation.objects.filter(
+            rows, workspace_id=issue.workspace_id, definition__is_active=True, definition__deleted_at__isnull=True
+        ).select_related("definition")
+        wanted = request.query_params.get("relation_definition_id")
+        if wanted:
+            wanted_id = _uuid(wanted)
+            if wanted_id is None:
+                return self.error("relation_definition_id must be a UUID.")
+            builtin_ids = {d["id"]: key for key, d in BUILTIN_RELATION_DEFINITIONS.items()}
+            if wanted_id in builtin_ids:
+                builtin, custom = builtin.filter(relation_type=builtin_ids[wanted_id]), custom.none()
+            else:
+                builtin, custom = builtin.none(), custom.filter(definition_id=wanted_id)
+        found = [(row, row.relation_type, BUILTIN_RELATION_DEFINITIONS[row.relation_type]["id"]) for row in builtin]
+        for row in custom:
+            outward, inward = _labels(row.definition)
+            found.append((row, outward if row.issue_id == issue.id else inward, str(row.definition_id)))
+        if not found:
             return self.error("No relation between these work items.", http_status=status.HTTP_404_NOT_FOUND)
-        builtin.delete()
-        custom.delete()
-        if first is not None:
-            self.removed(request, issue, project_id, related_issue_id, first.relation_type)
+        if len(found) > 1:
+            listed = "; ".join(f"'{label}' (relation_definition_id {definition})" for _, label, definition in found)
+            return self.error(
+                f"These work items are linked by more than one relation: {listed}. Pass relation_definition_id "
+                "to say which one to remove.",
+                code="AMBIGUOUS_RELATION",
+                http_status=status.HTTP_409_CONFLICT,
+            )
+        row, label, _ = found[0]
+        row.delete()
+        if isinstance(row, IssueRelation):
+            self.removed(request, issue, project_id, related_issue_id, label)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
