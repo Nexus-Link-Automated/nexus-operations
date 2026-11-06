@@ -8,13 +8,14 @@ from fastmcp import FastMCP
 from plane.models.work_items import WorkItemWorkLog
 
 from plane_mcp.client import get_plane_client_context
-from plane_mcp.toolkit import Action, build_annotations, build_description, missing, needs, page_params, plan_gated
+from plane_mcp.toolkit import Action, build_annotations, build_description, missing, needs, plan_gated
 
 NAME = "work_log"
 TITLE = "Work logs"
 
 ACTIONS = (
-    Action("list", ("project_id", "workitem_id"), ("cursor", "per_page"), read=True),
+    # No cursor/per_page: the endpoint returns every row and the SDK gives back a plain list.
+    Action("list", ("project_id", "workitem_id"), read=True),
     Action("create", ("project_id", "workitem_id", "duration"), ("description",)),
     Action("update", ("project_id", "workitem_id", "work_log_id"), ("duration", "description")),
     Action("delete", ("project_id", "workitem_id", "work_log_id"), destructive=True),
@@ -44,8 +45,6 @@ def register(mcp: FastMCP) -> None:
         work_log_id: str = "",
         duration: int = 0,
         description: str = "",
-        cursor: str = "",
-        per_page: int = 0,
     ) -> WorkItemWorkLog | list[WorkItemWorkLog] | str | None:
         client, workspace_slug = get_plane_client_context()
 
@@ -57,7 +56,6 @@ def register(mcp: FastMCP) -> None:
                 workspace_slug=workspace_slug,
                 project_id=project_id,
                 work_item_id=workitem_id,
-                params=page_params(cursor, per_page),
             )
 
         payload: dict[str, object] = {}

@@ -60,7 +60,14 @@ def one_of(name: str, value: Any, allowed: Sequence[str], hint: str = "") -> str
 
 
 def opt(value: Any) -> Any:
-    """Normalise a sentinel default ("" / 0) back to None for SDK payloads."""
+    """Normalise a sentinel default ("" / 0) back to None for SDK payloads.
+
+    Only for parameters where 0 is never meaningful (per_page, ids, text). A
+    parameter that can be 0 is declared `int | None = None` and passed as is.
+    False is a value, not a sentinel, even though False == 0.
+    """
+    if isinstance(value, bool):
+        return value
     return value if value not in ("", 0) else None
 
 

@@ -24,6 +24,8 @@ from plane.models.projects import Project
 from plane_mcp.client import get_plane_client_context
 from plane_mcp.toolkit import Action, build_annotations, build_description, missing, one_of, opt
 
+# No external_source/external_id: CE's estimate and estimate point tables have no
+# such columns, so the API dropped them and the call reported success.
 NAME = "project_estimate"
 TITLE = "Project estimates"
 
@@ -34,10 +36,10 @@ ACTIONS = (
     Action(
         "create",
         ("project_id", "name"),
-        ("type", "description", "last_used", "external_source", "external_id"),
+        ("type", "description", "last_used"),
         note="creates the estimate only; add its values afterwards with create_points",
     ),
-    Action("update", ("project_id",), ("name", "description", "external_source", "external_id")),
+    Action("update", ("project_id",), ("name", "description")),
     Action("delete", ("project_id",), destructive=True),
     Action("link", ("project_id", "estimate_id"), note="makes that estimate the project's active one"),
     Action("list_points", ("project_id", "estimate_id"), read=True),
@@ -45,7 +47,7 @@ ACTIONS = (
     Action(
         "update_point",
         ("project_id", "estimate_id", "estimate_point_id"),
-        ("value", "key", "description", "external_source", "external_id"),
+        ("value", "key", "description"),
     ),
     Action("delete_point", ("project_id", "estimate_id", "estimate_point_id"), destructive=True),
 )
@@ -99,8 +101,6 @@ def register(mcp: FastMCP) -> None:
         # Estimate point keys start at 0, so key cannot use the 0 sentinel.
         key: int | None = None,
         last_used: bool | None = None,
-        external_source: str = "",
-        external_id: str = "",
     ) -> Estimate | EstimatePoint | list[EstimatePoint] | Project | str | None:
         client, workspace_slug = get_plane_client_context()
 
@@ -125,20 +125,18 @@ def register(mcp: FastMCP) -> None:
                     type=opt(type),
                     description=opt(description),
                     last_used=last_used is not False,
-                    external_id=opt(external_id),
-                    external_source=opt(external_source),
                 ),
             )
 
         if action == "update":
+            if not (name or description):
+                return missing(action, "name or description")
             return estimates.update(
                 workspace_slug=workspace_slug,
                 project_id=project_id,
                 data=UpdateEstimate(
                     name=opt(name),
                     description=opt(description),
-                    external_id=opt(external_id),
-                    external_source=opt(external_source),
                 ),
             )
 
@@ -175,6 +173,8 @@ def register(mcp: FastMCP) -> None:
             return missing(action, "estimate_point_id")
 
         if action == "update_point":
+            if not value and key is None and not description:
+                return missing(action, "value, key or description")
             return estimates.update_point(
                 workspace_slug=workspace_slug,
                 project_id=project_id,
@@ -184,8 +184,6 @@ def register(mcp: FastMCP) -> None:
                     value=opt(value),
                     key=key,
                     description=opt(description),
-                    external_id=opt(external_id),
-                    external_source=opt(external_source),
                 ),
             )
 

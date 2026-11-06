@@ -14,6 +14,7 @@ from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.routing import Mount
 
+from plane_mcp.client import plane_base_url
 from plane_mcp.server import get_header_mcp, get_oauth_mcp, get_stdio_mcp
 
 LOG_USER_INFO: bool = os.getenv("LOG_USER_INFO", "").lower() == "true"
@@ -131,6 +132,9 @@ def main() -> None:
     server_mode = ServerMode.STDIO
     if len(sys.argv) > 1:
         server_mode = ServerMode(sys.argv[1])
+
+    # No default Plane URL: refuse to start rather than send tokens elsewhere.
+    plane_base_url()
 
     if server_mode == ServerMode.STDIO:
         # Validate API_KEY and PLANE_WORKSPACE_SLUG are set

@@ -215,7 +215,9 @@ def test_a_call_with_no_action_never_reaches_plane():
 def test_a_clean_call_is_not_blocked():
     answer = _call("workitem", {"action": "count", "project_id": "p", "pql": 'priority = "urgent"'})
     assert "does not take" not in answer
-    assert "403" in answer, "the call did not reach Plane"
+    # It got past validation and the client tried the configured Plane URL. This
+    # used to fall back to Plane Cloud and expect its 403 for the key "test".
+    assert "plane.invalid" in answer, "the call did not reach the Plane client"
 
 
 def test_a_retired_name_still_works():
@@ -231,3 +233,9 @@ def test_every_transport_gets_the_check():
     for factory in (server_module.get_stdio_mcp, server_module.get_header_mcp):
         stack = [type(m).__name__ for m in factory().middleware]
         assert "ValidateActionArguments" in stack, f"{factory.__name__} is missing the check"
+
+
+def test_is_draft_is_not_offered():
+    """A draft created here could never be read back or published on CE."""
+    answer = _call("workitem", {"action": "create", "project_id": "p", "name": "x", "is_draft": True})
+    assert "is_draft" in answer and "plane.invalid" not in answer, answer

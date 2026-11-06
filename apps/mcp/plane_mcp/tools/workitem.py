@@ -51,6 +51,9 @@ TITLE = "Work items"
 
 PRIORITIES = get_args(PriorityEnum)
 
+# No is_draft: Community Edition hides drafts from every read (Issue.issue_objects)
+# and makes the flag read-only after create, so a draft could be neither read back
+# nor published, and is_draft=False on update silently did nothing.
 WRITE_FIELDS = (
     "name",
     "assignees",
@@ -63,7 +66,6 @@ WRITE_FIELDS = (
     "start_date",
     "target_date",
     "sort_order",
-    "is_draft",
     "parent",
     "state",
     "estimate_point",
@@ -211,13 +213,14 @@ def register(mcp: FastMCP) -> None:
         assignees: list[str] | None = None,
         labels: list[str] | None = None,
         type_id: str = "",
-        point: int = 0,
+        # 0 is a valid point and sort position, so unset is None, not the 0 sentinel.
+        point: int | None = None,
         description_html: str = "",
         description_stripped: str = "",
         priority: str = "",
         start_date: str | None = "",
         target_date: str | None = "",
-        sort_order: float = 0,
+        sort_order: float | None = None,
         parent: str = "",
         state: str = "",
         estimate_point: str = "",
@@ -232,8 +235,6 @@ def register(mcp: FastMCP) -> None:
         fields: str = "",
         cursor: str = "",
         per_page: int = 0,
-        # Tri-state: False publishes a draft, unset leaves the flag alone.
-        is_draft: bool | None = None,
         archive: bool | None = None,
     ) -> WorkItem | WorkItemDetail | WorkItemSearch | dict[str, Any] | list[Any] | str | None:
         client, workspace_slug = get_plane_client_context()
@@ -261,13 +262,12 @@ def register(mcp: FastMCP) -> None:
                 "assignees": coerce_list(assignees),
                 "labels": coerce_list(labels),
                 "type_id": opt(type_id),
-                "point": opt(point),
+                "point": point,
                 "description_html": rich_text(description_html, description_stripped),
                 "priority": opt(priority),
                 "start_date": opt(start_date),
                 "target_date": opt(target_date),
-                "sort_order": opt(sort_order),
-                "is_draft": is_draft,
+                "sort_order": sort_order,
                 "external_source": opt(external_source),
                 "external_id": opt(external_id),
                 "parent": opt(parent),

@@ -122,6 +122,26 @@ def _json(raw: str, expected: type):
     return parsed if isinstance(parsed, expected) else None
 
 
+OPTIONS_SHAPE = 'options must be a JSON array of {"name", "description", "is_default"} objects'
+
+
+def _options(raw: str) -> list | None:
+    """Parse options, raising ValueError with a correctable message.
+
+    Malformed input used to become None, so the property was written without
+    the options and the call reported success.
+    """
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except ValueError as exc:
+        raise ValueError(f"{OPTIONS_SHAPE}; it is not valid JSON ({exc})") from exc
+    if not isinstance(parsed, list) or not all(isinstance(item, dict) for item in parsed):
+        raise ValueError(f"{OPTIONS_SHAPE}; got {json.dumps(parsed)[:80]}")
+    return parsed
+
+
 def register(mcp: FastMCP) -> None:
     @mcp.tool(
         name=NAME,
@@ -158,6 +178,11 @@ def register(mcp: FastMCP) -> None:
         properties = client.customers.properties
         property_values = client.customers.property_values
 
+        try:
+            parsed_options = _options(options) if action in ("create", "update") else None
+        except ValueError as exc:
+            return f"Error: {exc}."
+
         if action == "list":
             return properties.list(workspace_slug=workspace_slug, params=page_params(cursor, per_page))
 
@@ -178,7 +203,7 @@ def register(mcp: FastMCP) -> None:
                     settings=_settings(property_type, display_format),
                     is_active=is_active,
                     is_multi=is_multi,
-                    options=_json(options, list) if options else None,
+                    options=parsed_options,
                     external_source=opt(external_source),
                     external_id=opt(external_id),
                 ),
@@ -221,7 +246,8 @@ def register(mcp: FastMCP) -> None:
                     is_required=is_required,
                     default_value=coerce_list(default_value, split=False),
                     is_active=is_active,
-                    options=_json(options, list) if options else None,
+                    is_multi=is_multi,
+                    options=parsed_options,
                     external_source=opt(external_source),
                     external_id=opt(external_id),
                 ),

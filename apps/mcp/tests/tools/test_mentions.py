@@ -5,10 +5,11 @@ from __future__ import annotations
 import re
 
 import pytest
-from plane.models.projects import ProjectMember
+from plane.models.projects import PaginatedProjectMemberResponse, ProjectMember
 from plane.models.work_items import WorkItemComment
 
 from plane_mcp.toolkit.mentions import (
+    _active_project_member_ids,
     mention_user_ids,
     render_mentions,
     tokenize_mentions,
@@ -157,8 +158,22 @@ def test_a_stray_closing_tag_is_not_absorbed():
 # --- through the tool --------------------------------------------------------
 
 
-def _members(*user_ids, active=True):
-    return [ProjectMember(id=user_id, is_active=active) for user_id in user_ids]
+def _members(*user_ids, active=True, next_cursor="", more=False):
+    """One page of project-members-lite. `is_active` there is the membership's."""
+    return PaginatedProjectMemberResponse(
+        results=[ProjectMember(id=user_id, is_active=active) for user_id in user_ids],
+        next_cursor=next_cursor,
+        prev_cursor="",
+        next_page_results=more,
+        prev_page_results=False,
+        count=len(user_ids),
+        total_count=len(user_ids),
+        total_pages=1,
+        total_results=len(user_ids),
+    )
+
+
+MEMBERS = "projects.get_members_lite"
 
 
 def _posted(spy):
@@ -167,7 +182,7 @@ def _posted(spy):
 
 
 def test_creating_a_comment_sends_the_element_not_the_token(registered, spy):
-    spy.returns["projects.get_members"] = _members(ALICE)
+    spy.returns[MEMBERS] = _members(ALICE)
 
     registered["workitem_comment"].fn(
         action="create", project_id=PROJECT, workitem_id="w", comment_html=f"<p>@[{ALICE}] look</p>"
@@ -178,7 +193,7 @@ def test_creating_a_comment_sends_the_element_not_the_token(registered, spy):
 
 
 def test_updating_a_comment_renders_its_mentions_too(registered, spy):
-    spy.returns["projects.get_members"] = _members(ALICE)
+    spy.returns[MEMBERS] = _members(ALICE)
 
     registered["workitem_comment"].fn(
         action="update", project_id=PROJECT, workitem_id="w", comment_id="c", comment_html=f"<p>@[{ALICE}]</p>"
@@ -191,7 +206,7 @@ def test_updating_a_comment_renders_its_mentions_too(registered, spy):
 def test_a_mention_of_a_non_member_is_refused_before_anything_is_written(action, registered, spy):
     """Plane accepts the mention and notifies nobody, so the comment would post
     looking addressed to someone who was never told."""
-    spy.returns["projects.get_members"] = _members(ALICE)
+    spy.returns[MEMBERS] = _members(ALICE)
 
     result = registered["workitem_comment"].fn(
         action=action,
@@ -203,11 +218,41 @@ def test_a_mention_of_a_non_member_is_refused_before_anything_is_written(action,
 
     assert isinstance(result, str) and BOB in result
     assert ALICE not in result, "only the id that cannot be mentioned is named"
-    assert spy.recorder.methods == ["projects.get_members"], "nothing was written"
+    assert spy.recorder.methods == [MEMBERS], "nothing was written"
+
+
+def test_a_removed_member_cannot_be_mentioned(registered, spy):
+    """`projects.get_members` listed removed memberships with the account's
+    is_active, so someone taken off the project still passed. The check now asks
+    the lite endpoint for active memberships only."""
+    spy.returns[MEMBERS] = _members(BOB)
+
+    result = registered["workitem_comment"].fn(
+        action="create", project_id=PROJECT, workitem_id="w", comment_html=f"<p>@[{ALICE}]</p>"
+    )
+
+    assert isinstance(result, str) and ALICE in result
+    params = spy.recorder.calls[0].kwargs["params"]
+    assert params.is_active is True
+
+
+def test_members_on_a_later_page_are_found():
+    pages = [_members(BOB, next_cursor="1000:1:0", more=True), _members(ALICE)]
+    cursors = []
+
+    class _Projects:
+        def get_members_lite(self, workspace_slug, project_id, params):
+            cursors.append(params.cursor)
+            return pages[len(cursors) - 1]
+
+    client = type("Client", (), {"projects": _Projects()})()
+
+    assert _active_project_member_ids(client, "acme", PROJECT) == {ALICE, BOB}
+    assert cursors == [None, "1000:1:0"]
 
 
 def test_a_deactivated_member_cannot_be_mentioned(registered, spy):
-    spy.returns["projects.get_members"] = _members(ALICE, active=False)
+    spy.returns[MEMBERS] = _members(ALICE, active=False)
 
     result = registered["workitem_comment"].fn(
         action="create", project_id=PROJECT, workitem_id="w", comment_html=f"<p>@[{ALICE}]</p>"
@@ -254,3 +299,19 @@ def test_listing_comments_tokenizes_every_row(registered, spy):
     page = registered["workitem_comment"].fn(action="list", project_id=PROJECT, workitem_id="w")
 
     assert [comment.comment_html for comment in page.results] == [f"<p>@[{ALICE}]</p>", "<p>plain</p>"]
+
+
+# --- characters str.splitlines() treats as line breaks ------------------------
+
+
+@pytest.mark.parametrize("brk", ["\u2028", "\u2029", "\x85", "\x0c", "\x0b", "\x1c", "\r", "\r\n"])
+def test_unicode_line_breaks_do_not_shift_the_text(brk):
+    """HTMLParser counts lines by \\n only; splitting on more than that moved every
+    later span, so mentions landed mid-word and text was duplicated or lost."""
+    html = f"<p>one{brk}two</p>\n<p>@[{ALICE}] three{brk}</p><p>four</p>"
+
+    rendered = render_mentions(html)
+
+    assert TAG.sub("@M", rendered) == html.replace(f"@[{ALICE}]", "@M")
+    assert tokenize_mentions(rendered) == html
+    assert mention_user_ids(rendered) == [ALICE]

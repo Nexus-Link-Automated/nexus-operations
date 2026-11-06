@@ -12,8 +12,16 @@
 >   `https://operations.nexuslinkautomated.com/mcp`. Point its internal Plane URL at the **gateway**
 >   (`http://gateway`), not at `api:8000`: Plane builds attachment upload URLs from the request host,
 >   and only the gateway gives it the public one.
+> - There is no default Plane URL: set `PLANE_INTERNAL_BASE_URL` or `PLANE_BASE_URL`, or the server
+>   refuses to start. Upstream defaulted to Plane Cloud, which would have received users' tokens.
+> - The header-auth check caches a token Plane accepted for 60 seconds, so authentication no longer
+>   spends each token's 60/min API budget, and a rate-limited token is not reported as invalid.
+> - The image installs exactly what `uv.lock` pins (hash-checked); after changing `pyproject.toml`,
+>   run `uv lock` and commit both.
 > - `e2e/run.sh` builds a throwaway instance from this repo and drives every action of every tool
->   through the MCP server (`e2e/all_tools.py`). All 207 actions pass.
+>   through the MCP server (`e2e/all_tools.py`). Besides running each action, it reads results back
+>   (filters, round-tripped comments, merged templates, completed cycles, values of 0), checks the
+>   error paths that must refuse, and calls each paginated list with `per_page=1`.
 >
 > Everything below is upstream's README.
 
@@ -163,7 +171,7 @@ unchanged.
 |---|---|---|
 | `PLANE_API_KEY` | stdio | API key |
 | `PLANE_WORKSPACE_SLUG` | stdio | Target workspace |
-| `PLANE_BASE_URL` | optional | Plane API URL (default `https://api.plane.so`) |
+| `PLANE_BASE_URL` | always, unless `PLANE_INTERNAL_BASE_URL` is set | Plane API URL. **Nexus fork:** there is no default; the server refuses to start without one (upstream fell back to Plane Cloud, which would receive users' tokens) |
 
 The remote transports carry credentials in the connection — the OAuth flow or the
 PAT headers — and need none of these.

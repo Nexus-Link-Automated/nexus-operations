@@ -46,7 +46,6 @@ from plane_mcp.toolkit import (
     needs,
     one_of,
     opt,
-    page_params,
     plan_gated,
     scoped,
     workspace_owns,
@@ -64,7 +63,7 @@ ACTIONS = (
     Action(
         "list",
         (),
-        ("project_id", "workitem_type_id", "cursor", "per_page"),
+        ("project_id", "workitem_type_id"),
         note="no ids lists every workspace property in one call -- the fast path for PQL",
         read=True,
     ),
@@ -204,7 +203,7 @@ def _scope_of(client: Any, project_id: str, workitem_type_id: str) -> _Scope:
     properties = client.work_item_properties
     if project_id and workitem_type_id:
         scope = {"project_id": project_id, "type_id": workitem_type_id}
-        return _Scope(properties, "", scope, "workitem_property_id")
+        return _Scope(properties, "", scope, "work_item_property_id")
     if project_id:
         return _Scope(properties, "_project", {"project_id": project_id}, "property_id")
     return _Scope(client.workspace_work_item_properties, "", {}, "property_id")
@@ -373,8 +372,6 @@ def register(mcp: FastMCP) -> None:
         is_default: bool | None = None,
         external_source: str = "",
         external_id: str = "",
-        cursor: str = "",
-        per_page: int = 0,
     ) -> (
         WorkItemProperty
         | list[WorkItemProperty]
@@ -443,10 +440,9 @@ def register(mcp: FastMCP) -> None:
                 return workspace_properties.list(workspace_slug=workspace_slug)
             if not project_id:
                 return _workspace_props_for_type(client, workspace_slug, workitem_type_id)
-            params = page_params(cursor, per_page)
             if not workitem_type_id:
                 try:
-                    return properties.list_project(workspace_slug=workspace_slug, project_id=project_id, params=params)
+                    return properties.list_project(workspace_slug=workspace_slug, project_id=project_id)
                 except HttpError as exc:
                     if _absent(exc):
                         return []
@@ -455,14 +451,13 @@ def register(mcp: FastMCP) -> None:
                 workspace_slug=workspace_slug,
                 project_id=project_id,
                 type_id=workitem_type_id,
-                params=params,
             )
             if scoped:
                 return scoped
             # A property created without a type association is invisible to the
             # type-scoped endpoint; widen before giving up.
             try:
-                flat = properties.list_project(workspace_slug=workspace_slug, project_id=project_id, params=params)
+                flat = properties.list_project(workspace_slug=workspace_slug, project_id=project_id)
                 if flat:
                     return flat
             except HttpError as exc:
@@ -556,7 +551,6 @@ def register(mcp: FastMCP) -> None:
                     workspace_slug=workspace_slug,
                     project_id=project_id,
                     property_id=property_id,
-                    params=page_params(cursor, per_page),
                 )
             return scoped_options.list(workspace_slug=workspace_slug, property_id=property_id)
 

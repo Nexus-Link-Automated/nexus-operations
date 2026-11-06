@@ -39,12 +39,27 @@ def _clear_proxy_env(monkeypatch):
 
 
 class _Response:
+    """A streamed requests.Response. `served` counts the bytes handed out."""
+
     def __init__(self, content: bytes, headers: dict[str, str] | None = None) -> None:
         self.content = content
         self.headers = headers or {}
+        self.served = 0
 
     def raise_for_status(self) -> None:
         return None
+
+    def iter_content(self, chunk_size: int = 1):
+        for start in range(0, len(self.content), chunk_size):
+            chunk = self.content[start : start + chunk_size]
+            self.served += len(chunk)
+            yield chunk
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
 
 
 def _fake_urlopen(status: int, headers: dict[str, str], content: bytes):
@@ -114,6 +129,44 @@ def test_read_refuses_a_file_over_the_limit(attachment_tool):
 
     with pytest.raises(ValueError, match="exceeds"):
         tool(action="read", project_id=PROJECT, workitem_id=WORK_ITEM, attachment_id=ATTACHMENT)
+
+
+def test_read_refuses_a_declared_size_before_downloading(attachment_tool, monkeypatch):
+    """The whole body used to be buffered before any size check."""
+    tool, spy, _ = attachment_tool
+    spy.returns["work_items.attachments.list"] = [
+        SimpleNamespace(
+            id=ATTACHMENT, attributes={"name": "huge.png", "type": "image/png", "size": module.IMAGE_READ_LIMIT + 1}
+        )
+    ]
+    fetch = Mock()
+    monkeypatch.setattr(module.requests, "get", fetch)
+
+    with pytest.raises(ValueError, match="exceeds"):
+        tool(action="read", project_id=PROJECT, workitem_id=WORK_ITEM, attachment_id=ATTACHMENT)
+    fetch.assert_not_called()
+
+
+def test_read_refuses_a_large_content_length_without_reading_it(attachment_tool, monkeypatch):
+    tool, spy, _ = attachment_tool
+    spy.returns["work_items.attachments.list"] = [_attachment("huge.png", "image/png")]
+    response = _Response(b"\x00" * 10, {"Content-Length": str(module.IMAGE_READ_LIMIT + 1)})
+    monkeypatch.setattr(module.requests, "get", lambda *a, **k: response)
+
+    with pytest.raises(ValueError, match="exceeds"):
+        tool(action="read", project_id=PROJECT, workitem_id=WORK_ITEM, attachment_id=ATTACHMENT)
+    assert response.served == 0
+
+
+def test_read_stops_reading_an_undeclared_body_at_the_limit(attachment_tool, monkeypatch):
+    tool, spy, _ = attachment_tool
+    spy.returns["work_items.attachments.list"] = [_attachment("notes.txt", "text/plain")]
+    response = _Response(b"a" * (module.TEXT_READ_LIMIT * 4))
+    monkeypatch.setattr(module.requests, "get", lambda *a, **k: response)
+
+    with pytest.raises(ValueError, match="exceeds"):
+        tool(action="read", project_id=PROJECT, workitem_id=WORK_ITEM, attachment_id=ATTACHMENT)
+    assert response.served <= module.TEXT_READ_LIMIT + 64 * 1024
 
 
 def test_download_url_returns_the_link_and_the_name(attachment_tool):

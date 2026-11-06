@@ -88,6 +88,13 @@ def _download_url(client, workspace_slug: str, project_id: str, workitem_id: str
         raise ValueError(f"Failed to get download URL: HTTP {exc.status_code} - {exc.response}") from exc
 
 
+def _int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _read(client, workspace_slug: str, project_id: str, workitem_id: str, attachment_id: str):
     attachment = _find(client, workspace_slug, project_id, workitem_id, attachment_id)
     attrs = attachment.attributes or {}
@@ -105,20 +112,36 @@ def _read(client, workspace_slug: str, project_id: str, workitem_id: str, attach
             "For PDFs and Office documents use the download_url action."
         )
 
-    url = _download_url(client, workspace_slug, project_id, workitem_id, attachment_id)
-    try:
-        response = requests.get(url, timeout=HTTP_TIMEOUT)
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        raise ValueError(f"Failed to fetch attachment content: {exc}") from exc
-
-    payload = response.content
     limit = IMAGE_READ_LIMIT if is_image else TEXT_READ_LIMIT
-    if len(payload) > limit:
-        raise ValueError(
-            f"{name!r} is {len(payload) / 1024 / 1024:.1f} MB, which exceeds the "
+
+    def too_large(size: int) -> ValueError:
+        return ValueError(
+            f"{name!r} is {size / 1024 / 1024:.1f} MB, which exceeds the "
             f"{limit // 1024 // 1024} MB limit. Use the download_url action instead."
         )
+
+    # Refuse before downloading when Plane already knows the size. The whole body
+    # used to be buffered first, so one large attachment could exhaust memory.
+    declared = _int(attrs.get("size")) or _int(getattr(attachment, "size", None))
+    if declared and declared > limit:
+        raise too_large(declared)
+
+    url = _download_url(client, workspace_slug, project_id, workitem_id, attachment_id)
+    try:
+        with requests.get(url, timeout=HTTP_TIMEOUT, stream=True) as response:
+            response.raise_for_status()
+            length = _int(response.headers.get("Content-Length"))
+            if length and length > limit:
+                raise too_large(length)
+            chunks, read = [], 0
+            for chunk in response.iter_content(chunk_size=64 * 1024):
+                read += len(chunk)
+                if read > limit:
+                    raise too_large(read)
+                chunks.append(chunk)
+    except requests.RequestException as exc:
+        raise ValueError(f"Failed to fetch attachment content: {exc}") from exc
+    payload = b"".join(chunks)
     if is_image:
         # FastMCP Image(format=X) sets the MIME type to "image/X", so strip the prefix.
         return Image(data=payload, format=content_type.removeprefix("image/"))

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
+from datetime import timezone as dt_timezone
 from typing import Annotated, Any, Literal, get_args
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastmcp import FastMCP
 from plane.models.cycles import (
@@ -99,14 +101,39 @@ LEGACY_UNMAPPED = {
 }
 
 
-def _still_running(end_date: str | None) -> bool:
-    """Whether a cycle has yet to end. Absent means open-ended, so it is still running."""
+def _still_running(end_date: str | None, now: datetime | None = None) -> bool:
+    """Whether a cycle has yet to end, by the same test Plane's archive applies.
+
+    Plane refuses to archive while `end_date >= now`, comparing instants. Comparing
+    the end's calendar date with the server's local date disagreed with that near
+    midnight and in any project timezone but the server's.
+    """
     if not end_date:
-        return True
+        return True  # open-ended
     try:
-        return datetime.fromisoformat(end_date).date() > date.today()
+        end = datetime.fromisoformat(end_date)
     except ValueError:
-        return end_date[:10] > date.today().isoformat()
+        return True  # unreadable: end it first rather than have archive refuse
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=dt_timezone.utc)
+    return end >= (now or datetime.now(dt_timezone.utc))
+
+
+def _project_today(client: Any, workspace_slug: str, project_id: str) -> str:
+    """Today's date where the project is.
+
+    Plane reads a bare end_date as midnight in the project's timezone. The
+    server's own date could be tomorrow there, which left a "completed" cycle
+    running for hours and made archive fail.
+    """
+    project = client.projects.retrieve(workspace_slug=workspace_slug, project_id=project_id)
+    name = getattr(project, "timezone", None)
+    name = getattr(name, "value", name)
+    try:
+        zone = ZoneInfo(name) if isinstance(name, str) and name else dt_timezone.utc
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = dt_timezone.utc
+    return datetime.now(zone).date().isoformat()
 
 
 def register(mcp: FastMCP) -> None:
@@ -268,9 +295,8 @@ def register(mcp: FastMCP) -> None:
             )
             return None
 
-        today = date.today().isoformat()
-
         if action == "complete":
+            today = _project_today(client, workspace_slug, project_id)
             # Plane has no explicit complete action: a cycle is complete once its end_date has passed.
             return client.cycles.update(
                 workspace_slug=workspace_slug,
@@ -282,6 +308,7 @@ def register(mcp: FastMCP) -> None:
         if action == "archive":
             current = client.cycles.retrieve(workspace_slug=workspace_slug, project_id=project_id, cycle_id=cycle_id)
             if _still_running(current.end_date):
+                today = _project_today(client, workspace_slug, project_id)
                 client.cycles.update(
                     workspace_slug=workspace_slug,
                     project_id=project_id,

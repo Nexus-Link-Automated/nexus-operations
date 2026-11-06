@@ -58,6 +58,8 @@ CONDITIONAL: dict[tuple[str, str], dict[str, object]] = {
     ("workitem_property", "manage_type_properties"): {"attach_ids": "id-1"},
     ("workitem_property", "set_value"): {"value": "text"},
     ("project_estimate", "create_points"): {"points": '[{"value": "1", "key": 0}]'},
+    ("project_estimate", "update"): {"name": "Renamed"},
+    ("project_estimate", "update_point"): {"value": "XL"},
     ("customer", "delete"): {"customer_id": "id-1"},
     ("customer", "manage_workitems"): {"link_ids": "id-1"},
     ("customer_property", "set_values"): {"values": '{"prop-1": ["Enterprise"]}'},
@@ -514,3 +516,160 @@ def test_no_description_warns_about_a_failure_the_caller_cannot_avoid(resource_m
         if phrase in registered[mod.NAME].description.lower()
     ]
     assert not offenders, f"descriptions predicting a refusal instead of letting the API report it: {offenders}"
+
+
+# --- complete/archive use the project's day, and Plane's own "has it ended" test ---
+
+
+def _project_in(zone):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(id="p", timezone=zone)
+
+
+@pytest.mark.parametrize("zone", ["Pacific/Kiritimati", "Pacific/Pago_Pago", "UTC", "Asia/Kolkata"])
+def test_complete_sets_the_project_days_date(zone, registered, spy):
+    """Plane reads the bare date as midnight in the project's timezone. The
+    server's date could be tomorrow there, so the cycle stayed running."""
+    import datetime
+    from zoneinfo import ZoneInfo
+
+    spy.returns["projects.retrieve"] = _project_in(zone)
+    registered["cycle"].fn(action="complete", project_id="p", cycle_id="c")
+
+    sent = next(c for c in spy.recorder.calls if c.method == "cycles.update").kwargs["data"].end_date
+    assert sent == datetime.datetime.now(ZoneInfo(zone)).date().isoformat()
+
+
+def test_complete_falls_back_to_utc_for_an_unknown_zone(registered, spy):
+    import datetime
+
+    spy.returns["projects.retrieve"] = _project_in("Not/AZone")
+    registered["cycle"].fn(action="complete", project_id="p", cycle_id="c")
+
+    sent = next(c for c in spy.recorder.calls if c.method == "cycles.update").kwargs["data"].end_date
+    assert sent == datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+
+
+def test_still_running_compares_instants_like_plane():
+    import datetime
+
+    from plane_mcp.tools.cycle import _still_running
+
+    now = datetime.datetime(2026, 11, 6, 23, 30, tzinfo=datetime.timezone.utc)
+    # Ends later tonight UTC: same calendar date, still running.
+    assert _still_running("2026-11-06T23:59:00+00:00", now)
+    # Ended at 18:29 UTC on the 6th (23:59 IST), already the 7th on a UTC+14 server clock.
+    assert not _still_running("2026-11-06T23:59:00+05:30", now)
+    assert not _still_running("2026-11-06T23:30:00Z", now + datetime.timedelta(seconds=1))
+    assert _still_running(None, now)
+
+
+# --- relation delete names which relation when the pair shares several ---
+
+
+def test_relation_delete_without_a_definition_uses_the_sdk_remove(registered, spy):
+    registered["workitem_relation"].fn(action="delete", project_id="p", workitem_id="w", related_workitem_id="r")
+    assert spy.recorder.only().method == "work_items.custom_relations.remove"
+
+
+def test_relation_delete_with_a_definition_sends_it(registered, spy):
+    """remove() cannot carry it, and the server now refuses an ambiguous delete
+    instead of removing every relation the pair shares."""
+    registered["workitem_relation"].fn(
+        action="delete", project_id="p", workitem_id="w", related_workitem_id="r", relation_definition_id="def-1"
+    )
+    call = spy.recorder.only()
+    assert call.method == "work_items.custom_relations._delete"
+    assert call.kwargs["endpoint"] == "acme/projects/p/work-items/w/work-item-relations/r/"
+    assert call.kwargs["params"] == {"relation_definition_id": "def-1"}
+
+
+def test_dependency_delete_ignores_the_definition(registered, spy):
+    registered["workitem_relation"].fn(
+        action="delete",
+        project_id="p",
+        workitem_id="w",
+        related_workitem_id="r",
+        is_dependency=True,
+        relation_definition_id="def-1",
+    )
+    assert spy.recorder.only().method == "work_items.dependencies.remove"
+
+
+# --- updates that changed nothing but reported success ---
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("project_estimate", {"action": "update", "project_id": "p"}),
+        (
+            "project_estimate",
+            {"action": "update_point", "project_id": "p", "estimate_id": "e", "estimate_point_id": "x"},
+        ),
+    ],
+)
+def test_an_empty_update_is_an_error(tool, arguments, registered, spy):
+    result = registered[tool].fn(**arguments)
+    assert isinstance(result, str) and result.startswith("Error:"), result
+    assert not spy.recorder.calls
+
+
+def test_estimate_tool_no_longer_offers_external_fields(registered):
+    params = registered["project_estimate"].parameters["properties"]
+    assert "external_source" not in params and "external_id" not in params
+
+
+def test_customer_property_update_sends_is_multi(registered, spy):
+    registered["customer_property"].fn(action="update", property_id="pr", is_multi=False)
+    assert spy.recorder.only().kwargs["data"].is_multi is False
+
+
+@pytest.mark.parametrize("action", ["create", "update"])
+@pytest.mark.parametrize("bad", ['[{"name": "A",]', '{"name": "A"}', '["A", "B"]'])
+def test_customer_property_malformed_options_is_an_error(action, bad, registered, spy):
+    arguments = {"display_name": "Tier", "property_type": "OPTION"} if action == "create" else {"property_id": "pr"}
+    result = registered["customer_property"].fn(action=action, options=bad, **arguments)
+    assert isinstance(result, str) and result.startswith("Error:") and "options" in result, result
+    assert not spy.recorder.calls
+
+
+def test_customer_property_good_options_reach_the_sdk(registered, spy):
+    registered["customer_property"].fn(
+        action="create", display_name="Tier", property_type="OPTION", options='[{"name": "Gold"}]'
+    )
+    assert [o.name for o in spy.recorder.only().kwargs["data"].options] == ["Gold"]
+
+
+# --- 0 and False are values, not "unset" ---
+
+
+def test_opt_keeps_false():
+    from plane_mcp.toolkit import opt
+
+    assert opt(False) is False and opt(0) is None and opt("") is None and opt(3) == 3
+
+
+def test_project_update_can_turn_auto_archive_and_close_off(registered, spy):
+    registered["project"].fn(action="update", project_id="p", archive_in=0, close_in=0)
+    data = next(c for c in spy.recorder.calls if c.method == "projects.update").kwargs["data"]
+    assert data.archive_in == 0 and data.close_in == 0
+
+
+def test_project_update_leaves_unset_auto_archive_alone(registered, spy):
+    registered["project"].fn(action="update", project_id="p", name="x")
+    data = next(c for c in spy.recorder.calls if c.method == "projects.update").kwargs["data"]
+    assert data.archive_in is None and data.close_in is None
+
+
+def test_workitem_update_sends_a_zero_point_and_sort_order(registered, spy):
+    registered["workitem"].fn(action="update", project_id="p", workitem_id="w", point=0, sort_order=0)
+    data = next(c for c in spy.recorder.calls if c.method == "work_items.update").kwargs["data"]
+    assert data.point == 0 and data.sort_order == 0
+
+
+def test_customer_update_sends_zero_employees(registered, spy):
+    registered["customer"].fn(action="update", customer_id="c", employees=0)
+    data = next(c for c in spy.recorder.calls if c.method == "customers.update").kwargs["data"]
+    assert data.employees == 0

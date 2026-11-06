@@ -13,6 +13,8 @@ import uuid
 from html.parser import HTMLParser
 from typing import Any
 
+from plane.models.query_params import MemberListQueryParams
+
 MENTION_TOKEN = "@[<user uuid>]"
 
 ELEMENT = "mention-component"
@@ -40,9 +42,10 @@ class _Scan(HTMLParser):
     def __init__(self, html: str) -> None:
         super().__init__(convert_charrefs=False)
         self._html = html
-        self._line_starts = [0]
-        for line in html.splitlines(keepends=True):
-            self._line_starts.append(self._line_starts[-1] + len(line))
+        # HTMLParser.getpos() counts lines by "\n" alone. str.splitlines() also
+        # breaks on \r, \x0b, \x0c, \x1c-\x1e, \x85, \u2028 and \u2029, which
+        # shifted every offset after one of them and corrupted the text.
+        self._line_starts = [0] + [match.end() for match in re.finditer("\n", html)]
         self.spans: list[tuple[int, int, Any]] = []
         self.feed(html)
         self.close()
@@ -157,6 +160,31 @@ def unmentionable(html: str | None, may_be_mentioned: set[str]) -> list[str]:
     return [user_id for user_id in mention_user_ids(html) if user_id not in may_be_mentioned]
 
 
+_MAX_MEMBER_PAGES = 50
+
+
+def _active_project_member_ids(client: Any, workspace_slug: str, project_id: str) -> set[str]:
+    """Ids of the project's current members, bots included as in Plane's own picker.
+
+    `projects.get_members` lists every membership row, removed ones too, and its
+    `is_active` is the user account's, so a removed member passed this check.
+    The lite endpoint's `is_active` is the membership's.
+    """
+    active: set[str] = set()
+    cursor = None
+    for _ in range(_MAX_MEMBER_PAGES):
+        page = client.projects.get_members_lite(
+            workspace_slug=workspace_slug,
+            project_id=project_id,
+            params=MemberListQueryParams(is_active=True, per_page=1000, cursor=cursor),
+        )
+        active.update(str(member.id) for member in page.results if member.is_active is True)
+        if not page.next_page_results or not page.next_cursor:
+            break
+        cursor = page.next_cursor
+    return {_canonical(member_id) or member_id for member_id in active}
+
+
 def project_mention_error(client: Any, workspace_slug: str, project_id: str, html: str | None) -> str | None:
     """Why `html` cannot be posted to this project, or None when it can."""
     if unnamed_mentions(html):
@@ -167,9 +195,7 @@ def project_mention_error(client: Any, workspace_slug: str, project_id: str, htm
         )
     if not mention_user_ids(html):
         return None
-    members = client.projects.get_members(workspace_slug=workspace_slug, project_id=project_id)
-    # A bot is a legitimate target, as it is in Plane's own mention picker.
-    active = {member.id for member in members if member.is_active is not False}
+    active = _active_project_member_ids(client, workspace_slug, project_id)
     if unknown := unmentionable(html, active):
         return (
             f"Error: {', '.join(unknown)} cannot be mentioned -- not an active member of this "

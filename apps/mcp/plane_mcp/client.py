@@ -11,6 +11,25 @@ from plane import PlaneClient
 logger = get_logger(__name__)
 
 
+class MissingBaseURLError(Exception):
+    """Not a RuntimeError: the header verifier treats those as "no HTTP request"."""
+
+
+def plane_base_url() -> str:
+    """The Plane API this server talks to, from PLANE_INTERNAL_BASE_URL or PLANE_BASE_URL.
+
+    There is deliberately no default. Upstream fell back to Plane Cloud
+    (https://api.plane.so), so a deployment that lost its URL setting sent every
+    user's personal access token to a third party instead of failing.
+    """
+    base_url = (os.getenv("PLANE_INTERNAL_BASE_URL") or os.getenv("PLANE_BASE_URL") or "").strip().rstrip("/")
+    if not base_url:
+        raise MissingBaseURLError(
+            "Set PLANE_INTERNAL_BASE_URL or PLANE_BASE_URL to the Plane instance this server talks to."
+        )
+    return base_url
+
+
 class PlaneClientContext(NamedTuple):
     """Context containing Plane client and workspace information."""
 
@@ -55,7 +74,7 @@ def get_plane_client_context() -> PlaneClientContext:
 
     Environment variables:
     - PLANE_INTERNAL_BASE_URL: Internal URL for Plane API (preferred for server-to-server calls)
-    - PLANE_BASE_URL: Base URL for Plane API (fallback, default: https://api.plane.so)
+    - PLANE_BASE_URL: Base URL for Plane API (fallback; one of the two is required)
 
     Returns:
         PlaneClientContext containing configured PlaneClient instance and workspace slug
@@ -63,7 +82,7 @@ def get_plane_client_context() -> PlaneClientContext:
     Raises:
         ConfigurationError: If access token is not available or workspace slug is missing
     """
-    base_url = os.getenv("PLANE_INTERNAL_BASE_URL") or os.getenv("PLANE_BASE_URL", "https://api.plane.so")
+    base_url = plane_base_url()
 
     api_key = os.getenv("PLANE_API_KEY", "")
     access_token = None

@@ -14,7 +14,12 @@ import uvicorn
 
 # Importing __main__ installs upstream's JSON log formatting and user-context filter.
 from plane_mcp.__main__ import JSONFormatter, UserContextFilter
+from plane_mcp.client import plane_base_url
 from plane_mcp.server import get_header_mcp
+
+# Fail at startup, not on the first request, when the Plane URL is missing.
+# There is no default: upstream's was Plane Cloud, which would receive our tokens.
+plane_base_url()
 
 app = get_header_mcp().http_app(path="/mcp", stateless_http=True)
 

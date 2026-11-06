@@ -24,7 +24,6 @@ from plane_mcp.toolkit import (
     missing,
     needs,
     opt,
-    page_params,
     plan_gated,
     scoped,
     workspace_owns,
@@ -35,9 +34,7 @@ NAME = "workitem_type"
 TITLE = "Work item types"
 
 ACTIONS = (
-    Action(
-        "list", (), ("project_id", "cursor", "per_page"), note="workspace scope when project_id is omitted", read=True
-    ),
+    Action("list", (), ("project_id",), note="workspace scope when project_id is omitted", read=True),
     Action("retrieve", ("workitem_type_id",), ("project_id",), read=True),
     Action(
         "resolve",
@@ -156,16 +153,13 @@ def register(mcp: FastMCP) -> None:
         is_active: bool | None = None,
         external_source: str = "",
         external_id: str = "",
-        cursor: str = "",
-        per_page: int = 0,
     ) -> WorkItemType | list[WorkItemType] | str | None:
         client, workspace_slug = get_plane_client_context()
         types, scope, id_kwarg = _scope_of(client, project_id)
 
         if action == "list":
-            # Only the project endpoint paginates; the workspace one returns all.
-            page = {"params": page_params(cursor, per_page)} if project_id else {}
-            return types.list(workspace_slug=workspace_slug, **scope, **page)
+            # Neither endpoint pages: both return every type as a plain list.
+            return types.list(workspace_slug=workspace_slug, **scope)
 
         if action == "resolve":
             if error := needs(action, project_id=project_id, name=name):

@@ -194,3 +194,27 @@ def test_a_rich_text_value_reads_back_with_its_html(registered, spy):
     result = registered["workitem_property"].fn(action="get_value", project_id="p", workitem_id="w", property_id="pr")
 
     assert result.value_detail.description_html == "<p>Notes</p>"
+
+
+# --- every scope of retrieve/update/delete reaches a real SDK signature ---
+
+
+@pytest.mark.parametrize("action", ["retrieve", "update", "delete"])
+@pytest.mark.parametrize(
+    ("ids", "method", "id_kwarg"),
+    [
+        ({"project_id": "p", "workitem_type_id": "t"}, "work_item_properties.{}", "work_item_property_id"),
+        ({"project_id": "p"}, "work_item_properties.{}_project", "property_id"),
+        ({}, "workspace_work_item_properties.{}", "property_id"),
+    ],
+)
+def test_property_crud_binds_in_every_scope(action, ids, method, id_kwarg, registered, spy):
+    """The type-scoped calls passed `workitem_property_id`, which the SDK does not
+    accept, so retrieve/update/delete with project_id + workitem_type_id raised
+    TypeError before reaching Plane."""
+    extra = {"description": "x"} if action == "update" else {}
+    result = registered["workitem_property"].fn(action=action, workitem_property_id="prop-1", **ids, **extra)
+    assert not (isinstance(result, str) and result.startswith("Error:")), result
+    call = spy.recorder.only()
+    assert call.method == method.format(action)
+    assert call.kwargs[id_kwarg] == "prop-1"

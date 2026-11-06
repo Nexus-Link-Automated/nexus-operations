@@ -55,9 +55,11 @@ ACTIONS = (
     Action(
         "delete",
         ("project_id", "workitem_id", "related_workitem_id"),
-        ("is_dependency",),
+        ("is_dependency", "relation_definition_id"),
         note="removes one relation; dependencies and custom relations are independent, so "
-        "is_dependency must match the kind that was created (default false)",
+        "is_dependency must match the kind that was created (default false). When the pair "
+        "shares more than one relation, pass relation_definition_id to say which; without it "
+        "the call is refused and the error lists them",
         destructive=True,
     ),
     Action("list_definitions", optional=("is_default", "is_active"), read=True),
@@ -70,7 +72,8 @@ FOOTER = (
     "Call list_definitions first and match the user's wording to an entry. A "
     f"built_in_dependencies value ({', '.join(DEPENDENCY_TYPES)}) goes in relation_type; a "
     "custom definition needs its id in relation_definition_id and the matched outward or "
-    "inward label in relation_definition_label, which sets direction."
+    "inward label in relation_definition_label, which sets direction. custom_definitions "
+    "always includes Plane's own relates_to and duplicate (is_built_in true), used the same way."
 )
 
 LEGACY = {
@@ -229,8 +232,24 @@ def register(mcp: FastMCP) -> None:
 
         if not related_workitem_id:
             return missing(action, "related_workitem_id")
-        remove = client.work_items.dependencies.remove if is_dependency else client.work_items.custom_relations.remove
-        remove(
+        if is_dependency:
+            client.work_items.dependencies.remove(
+                workspace_slug=workspace_slug,
+                project_id=project_id,
+                work_item_id=workitem_id,
+                related_work_item_id=related_workitem_id,
+            )
+            return None
+        if relation_definition_id:
+            # plane-sdk's remove() cannot say which relation, so send the same
+            # DELETE with the definition that picks one.
+            client.work_items.custom_relations._delete(
+                f"{workspace_slug}/projects/{project_id}/work-items/{workitem_id}"
+                f"/work-item-relations/{related_workitem_id}/",
+                params={"relation_definition_id": relation_definition_id},
+            )
+            return None
+        client.work_items.custom_relations.remove(
             workspace_slug=workspace_slug,
             project_id=project_id,
             work_item_id=workitem_id,
