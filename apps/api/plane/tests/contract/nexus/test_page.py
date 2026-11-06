@@ -234,6 +234,27 @@ class TestLiveDocumentRelease:
         assert received and received[0]["command"] == "force_close" and received[0]["docId"] == pid
         assert Page.objects.get(pk=pid).description_html == "<p>From the API</p>"
 
+    def test_an_editor_that_reconnects_during_the_write_is_released_again(
+        self, client, project_url, fake_live_server, monkeypatch
+    ):
+        pid = _create(client, project_url("pages/"))["id"]
+        fake_live_server(pid)
+        real_release = page_views.release_live_document
+        reconnected = []
+
+        def release(page_id):
+            released = real_release(page_id)
+            if not reconnected:  # an editor reconnects before the write lands, loading the old content
+                reconnected.append(fake_live_server(page_id))
+            return released
+
+        monkeypatch.setattr(page_views, "release_live_document", release)
+        res = client.put(project_url(f"pages/{pid}/"), {"description_html": "<p>From the API</p>"}, format="json")
+        assert res.status_code == 200, res.data
+        assert [c["command"] for c in reconnected[0]] == ["force_close"]
+        assert redis_instance().pubsub_numsub(f"hocuspocus:{pid}")[0][1] == 0
+        assert Page.objects.get(pk=pid).description_html == "<p>From the API</p>"
+
     def test_document_that_is_not_released_is_not_written(self, client, project_url, fake_live_server, monkeypatch):
         monkeypatch.setattr(page_views, "LIVE_RELEASE_TIMEOUT", 0.5)
         pid = _create(client, project_url("pages/"))["id"]

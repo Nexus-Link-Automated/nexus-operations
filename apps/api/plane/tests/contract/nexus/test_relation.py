@@ -10,6 +10,7 @@ import pytest
 
 from plane.db.models import IssueRelation, User, Workspace
 from plane.nexus.models import WorkItemCustomRelation, WorkItemRelationDefinition
+from plane.nexus.views import work_item as work_item_views
 
 from .test_work_item_support import GUEST, make_issue, make_project
 
@@ -251,3 +252,54 @@ class TestWorkItemRelations:
         body = {"relation_definition_type": "relates_to", "work_item_ids": [str(t.id)]}
         assert guest_api.post(rel_url(project_url, x), body, format="json").status_code == 403
         assert outsider_client.get(rel_url(project_url, x)).status_code == 403
+
+
+@pytest.mark.contract
+class TestRelationSafety:
+    def test_a_dependency_does_not_silently_replace_a_relation(self, client, project_url, pair):
+        x, t = pair
+        IssueRelation.objects.create(issue=x, related_issue=t, relation_type="duplicate", project=x.project)
+        body = {"relation_type": "blocked_by", "work_item_ids": [str(t.id)]}
+        res = client.post(dep_url(project_url, x), body, format="json")
+        assert res.status_code == 409 and res.data["code"] == "RELATION_EXISTS" and "duplicate" in res.data["error"]
+        assert IssueRelation.objects.get(issue=x, related_issue=t).relation_type == "duplicate"
+        # "x blocking t" is stored the other way round, (t, x), so it can sit beside the duplicate.
+        body["relation_type"] = "blocking"
+        assert client.post(dep_url(project_url, x), body, format="json").status_code == 201
+
+    def test_a_relation_does_not_silently_replace_a_dependency(self, client, project_url, pair):
+        x, t = pair
+        body = {"relation_type": "blocked_by", "work_item_ids": [str(t.id)]}
+        assert client.post(dep_url(project_url, x), body, format="json").status_code == 201
+        body = {"relation_definition_type": "duplicate", "work_item_ids": [str(t.id)]}
+        res = client.post(rel_url(project_url, x), body, format="json")
+        assert res.status_code == 409 and "blocked_by" in res.data["error"]
+        assert ids(client.get(dep_url(project_url, x)).data["blocked_by"]) == [str(t.id)]
+
+    def test_replaced_and_repeated_dependencies_are_logged_once(self, client, project_url, pair, monkeypatch):
+        x, t = pair
+        logged = []
+        monkeypatch.setattr(work_item_views, "_activity", lambda request, kind, *args, **kw: logged.append(kind))
+        for relation_type in ("blocked_by", "blocking", "blocking"):
+            body = {"relation_type": relation_type, "work_item_ids": [str(t.id)]}
+            assert client.post(dep_url(project_url, x), body, format="json").status_code == 201
+        assert logged == [
+            "issue_relation.activity.created",
+            "issue_relation.activity.deleted",
+            "issue_relation.activity.created",
+        ]
+        assert IssueRelation.objects.count() == 1
+
+    def test_work_items_the_caller_cannot_see_cannot_be_linked(self, client, project_url, workspace, pair):
+        x, _ = pair
+        stranger = User.objects.create(email=f"{uuid4().hex[:8]}@x.com", username=uuid4().hex[:12])
+        hidden = make_issue(make_project(workspace, stranger), "hidden")
+        attempts = [
+            (dep_url(project_url, x), {"relation_type": "blocked_by", "work_item_ids": [str(hidden.id)]}),
+            (rel_url(project_url, x), {"relation_definition_type": "relates_to", "work_item_ids": [str(hidden.id)]}),
+        ]
+        for url, body in attempts:
+            res = client.post(url, body, format="json")
+            assert res.status_code == 400 and "No work item with id" in res.data["error"]
+            assert "hidden" not in str(res.data)
+        assert not IssueRelation.objects.filter(related_issue=hidden).exists()

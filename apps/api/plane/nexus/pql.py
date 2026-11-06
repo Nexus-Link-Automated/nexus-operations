@@ -33,8 +33,9 @@ from __future__ import annotations
 import calendar
 import re
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timedelta
+from datetime import timezone as dt_timezone
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
@@ -57,6 +58,12 @@ __all__ = [
 # query the agent wrote. Twice the documented limit still bounds the SQL.
 MAX_CONDITIONS = 10
 MAX_LENGTH = 4000
+# Parentheses and NOTs nest at most this deep; the parser and compiler recurse per level.
+MAX_DEPTH = 32
+# daysAgo(n) and the like: up to n = 10000 every result stays a valid date.
+MAX_FUNCTION_ARG = 10000
+# Dates PQL compares; the margins keep a day window and any timezone shift in range.
+MIN_YEAR, MAX_YEAR = 2, 9998
 
 
 class PQLError(ValueError):
@@ -91,6 +98,14 @@ def _expects_value(tokens: list[Token]) -> bool:
     return last.kind in ("OP", "(", ",") or (last.kind == "KEYWORD" and last.value in ("AND", "BETWEEN", "IN"))
 
 
+def _is_digit(ch: str) -> bool:
+    return "0" <= ch <= "9"
+
+
+def _is_letter(ch: str) -> bool:
+    return ch.isascii() and ch.isalpha()
+
+
 def _tokenize(text: str) -> list[Token]:
     tokens: list[Token] = []
     i, n = 0, len(text)
@@ -112,8 +127,8 @@ def _tokenize(text: str) -> list[Token]:
             tokens.append(Token("STRING", "".join(out), start))
             i += 1
             continue
-        if ch.isdigit() or (ch == "-" and i + 1 < n and text[i + 1].isdigit() and _expects_value(tokens)):
-            literal = re.match(r"-?\d+(\.\d+)?", text[i:]).group(0)
+        if _is_digit(ch) or (ch == "-" and i + 1 < n and _is_digit(text[i + 1]) and _expects_value(tokens)):
+            literal = re.match(r"-?[0-9]+(\.[0-9]+)?", text[i:]).group(0)
             tokens.append(Token("NUMBER", float(literal) if "." in literal else int(literal), i))
             i += len(literal)
             if i < n and (text[i].isalpha() or text[i] in "_-"):
@@ -122,7 +137,7 @@ def _tokenize(text: str) -> list[Token]:
                     'Quote dates and identifiers, e.g. "2024-01-31" or "WEB-5".'
                 )
             continue
-        if ch.isalpha() or ch == "_":
+        if _is_letter(ch) or ch == "_":
             word = re.match(r"[A-Za-z_][A-Za-z0-9_]*", text[i:]).group(0)
             kind = "KEYWORD" if word.upper() in _KEYWORDS else "NAME"
             tokens.append(Token(kind, word.upper() if kind == "KEYWORD" else word, i))
@@ -146,6 +161,11 @@ def _tokenize(text: str) -> list[Token]:
             )
         if ch in "&|":
             raise PQLError(f"Unexpected '{ch}' at position {i}: use AND / OR.")
+        if not ch.isascii():
+            raise PQLError(
+                f"Unexpected character '{ch}' at position {i}. Field and function names are plain ASCII; "
+                'put any other text in quotes, e.g. name ~ "título".'
+            )
         raise PQLError(f"Unexpected character '{ch}' at position {i}.")
     tokens.append(Token("EOF", None, n))
     return tokens
@@ -341,6 +361,8 @@ def _check_arity(call: Call) -> None:
             raise PQLError(f"{name}(n) needs a whole number, e.g. {name}(7) (position {call.pos}).")
         if arg.value < 0:
             raise PQLError(f"{name}(n) needs a non-negative number (position {call.pos}).")
+        if arg.value > MAX_FUNCTION_ARG:
+            raise PQLError(f"{name}(n) allows at most {MAX_FUNCTION_ARG} (position {call.pos}).")
     if name in RELATION_FUNCTIONS or name == "membersOf":
         arg = call.args[0]
         if not (isinstance(arg, Literal) and isinstance(arg.value, str)):
@@ -353,6 +375,7 @@ class _Parser:
         self.tokens = _tokenize(text)
         self.i = 0
         self.conditions = 0
+        self.depth = 0
 
     def peek(self, offset: int = 0) -> Token:
         return self.tokens[min(self.i + offset, len(self.tokens) - 1)]
@@ -371,6 +394,14 @@ class _Parser:
         if tok.kind != kind:
             raise PQLError(f"Expected {what} at position {tok.pos}, found {tok.describe()}.")
         return self.next()
+
+    def descend(self, pos: int) -> None:
+        self.depth += 1
+        if self.depth > MAX_DEPTH:
+            raise PQLError(
+                f"The query nests too deeply at position {pos}: PQL allows at most {MAX_DEPTH} levels of "
+                "parentheses and NOT."
+            )
 
     def count(self, pos: int) -> None:
         self.conditions += 1
@@ -410,14 +441,17 @@ class _Parser:
 
     def parse_not(self):
         if self.at_keyword("NOT"):
-            self.next()
-            return Not(self.parse_not())
+            self.descend(self.next().pos)
+            node = Not(self.parse_not())
+            self.depth -= 1
+            return node
         return self.parse_primary()
 
     def parse_primary(self):
         tok = self.peek()
         if tok.kind == "(":
             self.next()
+            self.descend(tok.pos)
             if self.peek().kind == ")":
                 raise PQLError(f"Empty parentheses at position {tok.pos}.")
             node = self.parse_or()
@@ -427,6 +461,7 @@ class _Parser:
                     f"at position {self.peek().pos}."
                 )
             self.next()
+            self.depth -= 1
             return node
         if tok.kind == "NAME" and self.peek(1).kind == "(":
             return self.parse_standalone_call()
@@ -609,7 +644,11 @@ def parse_pql(pql: str):
         raise PQLError("The PQL query is empty.")
     if len(pql) > MAX_LENGTH:
         raise PQLError(f"The PQL query is too long ({len(pql)} characters; the limit is {MAX_LENGTH}).")
-    return _Parser(pql).parse()
+    try:
+        return _Parser(pql).parse()
+    except (RecursionError, OverflowError) as exc:
+        # The checks above should make these unreachable; a query must never become a 500.
+        raise PQLError(f"The PQL query could not be read ({type(exc).__name__}). Simplify it.") from exc
 
 
 def _walk(node):
@@ -721,15 +760,19 @@ def _date_function(call: Call, ctx: _Context) -> date | datetime:
 def _parse_date_string(text: str, ctx: _Context, field_name: str, pos: int) -> date | datetime:
     raw = text.strip()
     try:
-        if len(raw) == 10:
-            return date.fromisoformat(raw)
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        parsed = date.fromisoformat(raw) if len(raw) == 10 else datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
         raise PQLError(
             f'{field_name} needs a date as "YYYY-MM-DD" (or a date function such as today()), got "{text}" '
             f"(position {pos})."
         )
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=ctx.tz)
+    if not MIN_YEAR <= parsed.year <= MAX_YEAR:
+        raise PQLError(
+            f'{field_name}: "{text}" is out of range; dates run from year {MIN_YEAR} to {MAX_YEAR} (position {pos}).'
+        )
+    if isinstance(parsed, datetime) and not parsed.tzinfo:
+        return parsed.replace(tzinfo=ctx.tz)
+    return parsed
 
 
 def _date_value(node, ctx: _Context, field_name: str) -> date | datetime:
@@ -1046,6 +1089,11 @@ _CF_OPS = {
 }
 
 
+def _wall_clock(moment: datetime, ctx: _Context) -> datetime:
+    """`moment` as the user's wall-clock time, labelled UTC like stored DATETIME values."""
+    return moment.astimezone(ctx.tz).replace(tzinfo=dt_timezone.utc)
+
+
 def _custom_property_q(property_id: str, op: str, value, ctx: _Context) -> Q:
     """cf["<uuid>"] against plane.nexus WorkItemPropertyValue rows (one row per value)."""
     from plane.nexus.models import WorkItemProperty, WorkItemPropertyValue
@@ -1091,10 +1139,12 @@ def _custom_property_q(property_id: str, op: str, value, ctx: _Context) -> Q:
                 raise PQLError(f"{label} takes bare true or false (not quoted), got {item!r}.")
             return item
         if kind == "DATETIME":
-            if isinstance(item, (date, datetime)):
-                return item
             if isinstance(item, str):
-                return _parse_date_string(item, ctx, label, 0)
+                item = _parse_date_string(item, ctx, label, 0)
+            if isinstance(item, datetime):
+                return _wall_clock(item, ctx)
+            if isinstance(item, date):
+                return item
             raise PQLError(f'{label} takes a quoted "YYYY-MM-DD" date or a date function, got {item!r}.')
         if not isinstance(item, str):
             raise PQLError(f"{label} takes a quoted string, got {item!r}.")
@@ -1116,16 +1166,22 @@ def _custom_property_q(property_id: str, op: str, value, ctx: _Context) -> Q:
         return ~q if op == "not in" else q
     if isinstance(value, list):
         raise PQLError(f"{label}: {op} takes one value, not a list.")
+    # DATETIME values are wall-clock times stored with a UTC label (see work_item_type's
+    # value parsing), so whole days are compared in UTC too, and the query's own times
+    # have been turned into the user's wall clock by scalar().
+    wall_ctx = replace(ctx, tz=dt_timezone.utc)
     if op == "between":
         low, high = (scalar(v) for v in value)
         if kind == "DATETIME":
-            window = _date_cmp(column, "datetime", ">=", low, ctx) & _date_cmp(column, "datetime", "<=", high, ctx)
+            window = _date_cmp(column, "datetime", ">=", low, wall_ctx) & _date_cmp(
+                column, "datetime", "<=", high, wall_ctx
+            )
             return Q(id__in=rows.filter(window).values("issue_id"))
         return having(**{f"{column}__gte": low, f"{column}__lte": high})
     item = scalar(value)
     if kind == "DATETIME":
         positive = "=" if op == "!=" else op
-        q = Q(id__in=rows.filter(_date_cmp(column, "datetime", positive, item, ctx)).values("issue_id"))
+        q = Q(id__in=rows.filter(_date_cmp(column, "datetime", positive, item, wall_ctx)).values("issue_id"))
     elif op == "~":
         q = having(**{f"{column}__icontains": item})
     elif kind in ("TEXT", "URL") and op in ("=", "!="):
@@ -1199,7 +1255,11 @@ def apply_pql(queryset: QuerySet, pql: str | None, *, user=None, workspace_slug:
 
         user = get_current_user()
     ctx = _Context(user=user, workspace_slug=workspace_slug, tz=_user_tz(user), queryset=queryset)
-    q = _compile(parse_pql(pql), ctx)
+    try:
+        q = _compile(parse_pql(pql), ctx)
+    except (RecursionError, OverflowError) as exc:
+        # The parser's limits should make these unreachable; a query must never become a 500.
+        raise PQLError(f"The PQL query could not be compiled ({type(exc).__name__}). Simplify it.") from exc
     if ctx.annotations:
         queryset = queryset.annotate(**ctx.annotations)
     return queryset.filter(q)

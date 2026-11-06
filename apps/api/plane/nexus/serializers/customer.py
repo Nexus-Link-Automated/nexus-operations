@@ -18,6 +18,8 @@ from plane.nexus.models import (
     CustomerRequest,
 )
 
+from plane.nexus.serializers.release import clean_html
+
 _AUDIT = ("id", "deleted_at", "created_at", "updated_at", "created_by", "updated_by", "workspace")
 
 
@@ -80,6 +82,9 @@ class CustomerSerializer(serializers.ModelSerializer):
         if value is not None and str(value.workspace_id) != str(workspace_id):
             raise serializers.ValidationError("Asset not found in this workspace.")
         return value
+
+    def validate_description_html(self, value):
+        return clean_html(value)
 
     def validate(self, attrs):
         return _strip(attrs)
@@ -229,6 +234,9 @@ class CustomerRequestSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError("Name is required.")
         return value
+
+    def validate_description_html(self, value):
+        return clean_html(value)
 
     def validate(self, attrs):
         return _strip(attrs)

@@ -374,11 +374,13 @@ def _norm(label) -> str:
 
 
 class _RelationBase(_IssueScoped, NexusProjectAPIView):
-    def targets(self, slug, issue, ids):
-        """The body's work items in this workspace, or an error naming the ones that are not."""
+    def targets(self, request, slug, issue, ids):
+        """The body's work items (in this workspace, and visible to the caller), or an
+        error naming the ones that are not."""
         if str(issue.id) in ids:
             return None, "A work item cannot be related to itself."
-        found = {str(i.id): i for i in Issue.issue_objects.filter(workspace__slug=slug, pk__in=ids)}
+        visible = Issue.objects.filter(visible_issue_q(request.user)).values("id")
+        found = {str(i.id): i for i in Issue.issue_objects.filter(workspace__slug=slug, pk__in=ids, id__in=visible)}
         missing = [i for i in ids if i not in found]
         if missing:
             return None, f"No work item with id {', '.join(missing)} in this workspace."
@@ -397,20 +399,55 @@ class _RelationBase(_IssueScoped, NexusProjectAPIView):
                 items.extend(related_work_items([others[other_id]], lambda _, label=label: label))
         return items
 
-    def created(self, request, issue, project_id, relation_type, targets, activity=True) -> Response:
-        if activity:
+    def created(self, request, issue, project_id, relation_type, targets, activity=True, new=None) -> Response:
+        """201 with every target; the activity log records only the relations actually added (`new`)."""
+        logged = targets if new is None else new
+        if activity and logged:
             _activity(
                 request,
                 "issue_relation.activity.created",
                 issue.id,
                 project_id,
-                {"relation_type": relation_type, "issues": [str(t.id) for t in targets]},
+                {"relation_type": relation_type, "issues": [str(t.id) for t in logged]},
             )
         items = related_work_items(
             Issue.objects.filter(pk__in=[t.id for t in targets]).select_related("project", "type"),
             lambda _: relation_type,
         )
         return Response(items, status=status.HTTP_201_CREATED)
+
+    @staticmethod
+    def name_of(work_item) -> str:
+        return f"{work_item.project.identifier}-{work_item.sequence_id}"
+
+    def conflict(self, issue, target, row) -> Response:
+        """409 for a pair already joined by a relation of the other kind.
+
+        The pair (issue, related_issue) holds a single row of any type, so adding a
+        dependency would have to delete a relates_to/duplicate relation, and the other
+        way round. That is the caller's decision, so ask for it explicitly.
+        """
+        kind = "dependency" if row.relation_type in DEPENDENCY_STORED else "relation"
+        return self.error(
+            f"{self.name_of(issue)} and {self.name_of(target)} are already linked as '{self.label(issue, row)}'. "
+            f"Remove that {kind} first, then add this one.",
+            code="RELATION_EXISTS",
+            http_status=status.HTTP_409_CONFLICT,
+        )
+
+    def supersede(self, issue, rows) -> list[tuple]:
+        """Delete relations a new one replaces; (other work item id, label) for each, to log."""
+        IssueRelation.objects.filter(pk__in=[row.pk for row in rows]).delete()
+        return [
+            (row.related_issue_id if row.issue_id == issue.id else row.issue_id, self.label(issue, row)) for row in rows
+        ]
+
+    @staticmethod
+    def label(issue, row) -> str:
+        """A stored relation's label as seen from `issue` (blocked_by seen from the other side is blocking)."""
+        if row.issue_id == issue.id:
+            return row.relation_type
+        return _INVERSE.get(row.relation_type, row.relation_type)
 
     def removed(self, request, issue, project_id, related_issue_id, label) -> None:
         _activity(
@@ -451,24 +488,41 @@ class WorkItemDependencyEndpoint(_RelationBase):
         ids, err = _work_item_ids(body, "work_item_ids")
         if err:
             return self.error(err)
-        targets, err = self.targets(slug, issue, ids)
+        targets, err = self.targets(request, slug, issue, ids)
         if err:
             return self.error(err)
         stored, reverse = DEPENDENCIES[relation_type]
+        plans = []
+        for target in targets:
+            source, related = (target, issue) if reverse else (issue, target)
+            other = IssueRelation.objects.filter(
+                issue_id=source.id, related_issue_id=related.id, relation_type__in=CUSTOM_STORED
+            ).first()
+            if other is not None:
+                return self.conflict(issue, target, other)
+            # One dependency per pair: a different one between the two is replaced.
+            current = list(
+                IssueRelation.objects.filter(_pair(issue.id, target.id), relation_type__in=DEPENDENCY_STORED)
+            )
+            wanted = (source.id, related.id, stored)
+            exists = any((r.issue_id, r.related_issue_id, r.relation_type) == wanted for r in current)
+            plans.append((target, source, related, [] if exists else current, not exists))
+        removals = []
         with transaction.atomic():
-            for target in targets:
-                source, related = (target, issue) if reverse else (issue, target)
-                # One dependency per pair; the ordered pair itself holds one relation of any kind.
-                IssueRelation.objects.filter(_pair(issue.id, target.id), relation_type__in=DEPENDENCY_STORED).delete()
-                IssueRelation.objects.filter(issue_id=source.id, related_issue_id=related.id).delete()
-                IssueRelation.objects.create(
-                    issue=source,
-                    related_issue=related,
-                    relation_type=stored,
-                    project_id=project_id,
-                    workspace_id=issue.workspace_id,
-                )
-        return self.created(request, issue, project_id, relation_type, targets)
+            for _, source, related, superseded, create in plans:
+                removals += self.supersede(issue, superseded)
+                if create:
+                    IssueRelation.objects.create(
+                        issue=source,
+                        related_issue=related,
+                        relation_type=stored,
+                        project_id=project_id,
+                        workspace_id=issue.workspace_id,
+                    )
+        for other, label in removals:
+            self.removed(request, issue, project_id, other, label)
+        new = [plan[0] for plan in plans if plan[4]]
+        return self.created(request, issue, project_id, relation_type, targets, new=new)
 
     def delete(self, request, slug, project_id, issue_id, related_issue_id):
         issue = self.get_issue(request, slug, project_id, issue_id)
@@ -544,7 +598,7 @@ class WorkItemRelationEndpoint(_RelationBase):
         ids, err = _work_item_ids(body, "work_item_ids")
         if err:
             return self.error(err)
-        targets, err = self.targets(slug, issue, ids)
+        targets, err = self.targets(request, slug, issue, ids)
         if err:
             return self.error(err)
         if definition is not None:
@@ -559,18 +613,33 @@ class WorkItemRelationEndpoint(_RelationBase):
                         project_id=project_id,
                     )
             return self.created(request, issue, project_id, inward if reverse else outward, targets, activity=False)
+        plans = []
+        for target in targets:
+            dependency = IssueRelation.objects.filter(
+                issue_id=issue.id, related_issue_id=target.id, relation_type__in=DEPENDENCY_STORED
+            ).first()
+            if dependency is not None:
+                return self.conflict(issue, target, dependency)
+            # relates_to and duplicate are symmetric: one of them per pair, in either direction.
+            current = list(IssueRelation.objects.filter(_pair(issue.id, target.id), relation_type__in=CUSTOM_STORED))
+            exists = any(r.relation_type == builtin for r in current)
+            plans.append((target, [r for r in current if r.relation_type != builtin], not exists))
+        removals = []
         with transaction.atomic():
-            for target in targets:
-                IssueRelation.objects.filter(_pair(issue.id, target.id), relation_type__in=CUSTOM_STORED).delete()
-                IssueRelation.objects.filter(issue_id=issue.id, related_issue_id=target.id).delete()
-                IssueRelation.objects.create(
-                    issue=issue,
-                    related_issue=target,
-                    relation_type=builtin,
-                    project_id=project_id,
-                    workspace_id=issue.workspace_id,
-                )
-        return self.created(request, issue, project_id, builtin, targets)
+            for target, superseded, create in plans:
+                removals += self.supersede(issue, superseded)
+                if create:
+                    IssueRelation.objects.create(
+                        issue=issue,
+                        related_issue=target,
+                        relation_type=builtin,
+                        project_id=project_id,
+                        workspace_id=issue.workspace_id,
+                    )
+        for other, label in removals:
+            self.removed(request, issue, project_id, other, label)
+        new = [target for target, _, create in plans if create]
+        return self.created(request, issue, project_id, builtin, targets, new=new)
 
     def delete(self, request, slug, project_id, issue_id, related_issue_id):
         issue = self.get_issue(request, slug, project_id, issue_id)

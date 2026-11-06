@@ -11,6 +11,8 @@ import pytest
 from plane.db.models import Issue, Project, ProjectMember, User, Workspace
 from plane.nexus.models import Initiative
 
+from .test_work_item_support import GUEST, make_issue, make_project
+
 I = "plane.models.initiatives."  # noqa: E741
 
 
@@ -171,3 +173,30 @@ class TestInitiativeWorkItems:
         assert guest_client.get(url).status_code == 200
         assert guest_client.post(url, {"work_item_ids": [str(issue.id)]}, format="json").status_code == 403
         assert guest_client.delete(url, {"work_item_ids": [str(issue.id)]}, format="json").status_code == 403
+
+
+@pytest.mark.contract
+class TestInitiativeVisibility:
+    def test_secret_projects_are_hidden_from_non_members(
+        self, client, member_client, ws_url, workspace, project, create_user
+    ):
+        secret = make_project(workspace, create_user)
+        secret.network = 0
+        secret.save(update_fields=["network"])
+        iid = _create(client, ws_url)["id"]
+        url = ws_url(f"initiatives/{iid}/projects/")
+        assert client.post(url, {"project_ids": [str(project.id), str(secret.id)]}, format="json").status_code == 201
+        assert {str(p["id"]) for p in client.get(url).data["results"]} == {str(project.id), str(secret.id)}
+        assert [str(p["id"]) for p in member_client.get(url).data["results"]] == [str(project.id)]
+        res = member_client.post(url, {"project_ids": [str(secret.id)]}, format="json")
+        assert res.status_code == 400 and str(secret.id) in res.data["error"]
+
+    def test_restricted_guest_sees_only_their_own_work_items(
+        self, client, make_user, workspace, project, ws_url, issue
+    ):
+        guest, guest_api = make_user(GUEST, workspace=workspace, project=project)
+        own = make_issue(project, "Mine", creator=guest)
+        iid = _create(client, ws_url)["id"]
+        url = ws_url(f"initiatives/{iid}/work-items/")
+        assert client.post(url, {"work_item_ids": [str(issue.id), str(own.id)]}, format="json").status_code == 201
+        assert [str(w["id"]) for w in guest_api.get(url).data["results"]] == [str(own.id)]

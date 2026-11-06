@@ -10,6 +10,9 @@ import pytest
 
 from plane.db.models import Issue, Project, ProjectMember, User, Workspace
 from plane.nexus.models import Release, ReleaseChangelog, ReleaseLabel, ReleaseTag
+from plane.nexus.models import WorkItemProperty
+
+from .test_work_item_support import GUEST, make_issue
 
 R = "plane.models.releases."
 
@@ -298,3 +301,28 @@ class TestReleaseTags:
         )
         assert member_client.post(ws_url("releases/tags/"), {"version": "m"}, format="json").status_code == 201
         assert outsider_client.get(ws_url("releases/tags/")).status_code == 403
+
+
+@pytest.mark.contract
+class TestReleaseWorkItemVisibility:
+    def test_restricted_guest_sees_only_their_own_work_items(
+        self, client, make_user, workspace, project, ws_url, issue
+    ):
+        guest, guest_api = make_user(GUEST, workspace=workspace, project=project)
+        own = make_issue(project, "Mine", creator=guest)
+        rid = _create(client, ws_url)["id"]
+        url = ws_url(f"releases/{rid}/work-items/")
+        assert client.post(url, {"work_item_ids": [str(issue.id), str(own.id)]}, format="json").status_code == 201
+        assert {w["id"] for w in client.get(url).data["results"]} == {str(issue.id), str(own.id)}
+        assert [w["id"] for w in guest_api.get(url).data["results"]] == [str(own.id)]
+
+    def test_pql_lookups_are_scoped_to_the_workspace(self, client, ws_url, foreign):
+        rid = _create(client, ws_url)["id"]
+        url = ws_url(f"releases/{rid}/work-items/")
+        res = client.get(url, {"pql": 'childOf("NOPE-9")'})
+        assert res.status_code == 400 and "no work item NOPE-9" in res.data["error"]
+        prop = WorkItemProperty.objects.create(
+            workspace=foreign["release"].workspace, display_name="Secret budget", property_type="TEXT"
+        )
+        res = client.get(url, {"pql": f'cf["{prop.id}"] ~ "x"'})
+        assert res.status_code == 400 and "Secret budget" not in res.data["error"]

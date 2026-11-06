@@ -27,6 +27,7 @@ from plane.db.models import (
 from plane.nexus.models import WorkItemProperty, WorkItemPropertyOption, WorkItemPropertyValue
 from plane.nexus.pql import (
     MAX_CONDITIONS,
+    MAX_DEPTH,
     BoolOp,
     Compare,
     Not,
@@ -164,6 +165,26 @@ class TestParser:
 
     def test_in_counts_as_one_condition(self):
         parse_pql(" AND ".join(['priority IN ("high","low","urgent","none")'] * MAX_CONDITIONS))
+
+    @pytest.mark.parametrize(
+        "pql, fragment",
+        [
+            ('título ~ "x"', "plain ASCII"),
+            ("priority = ²", "plain ASCII"),
+            ("(" * 1000 + 'priority = "high"' + ")" * 1000, "nests too deeply"),
+            ("NOT " * 990 + 'priority = "high"', "nests too deeply"),
+            ("dueDate > daysAgo(99999999)", "at most 10000"),
+        ],
+    )
+    def test_hostile_input_is_an_error_not_a_crash(self, pql, fragment):
+        with pytest.raises(PQLError) as exc:
+            parse_pql(pql)
+        assert fragment in str(exc.value)
+
+    def test_nesting_up_to_the_limit_parses(self):
+        parse_pql("(" * MAX_DEPTH + 'priority = "high"' + ")" * MAX_DEPTH)
+        parse_pql("NOT " * MAX_DEPTH + 'priority = "high"')
+        parse_pql('title ~ "título"')
 
 
 # --------------------------------------------------------------------------- compiled filters
@@ -448,3 +469,31 @@ class TestFilters:
         make_issue(project, "x", target_date=timezone.now().astimezone().date() - timedelta(days=5))
         assert run("dueDate < today()", user=user) == {"x"}
         assert WorkspaceMember.objects.filter(member=user).exists()
+
+
+@pytest.mark.contract
+class TestFilterEdges:
+    def test_dates_out_of_range_are_an_error(self, run):
+        for pql in ('createdAt < "9999-12-31"', 'dueDate = "0001-01-01"'):
+            with pytest.raises(PQLError, match="out of range"):
+                run(pql)
+
+    @pytest.mark.parametrize("tz", ["UTC", "America/New_York", "Pacific/Kiritimati"])
+    def test_datetime_property_compares_the_stored_calendar_day(self, project, workspace, run, create_user, tz):
+        from plane.nexus.views.work_item_type import _one_value
+
+        prop = WorkItemProperty.objects.create(workspace=workspace, display_name="Go-live", property_type="DATETIME")
+        for name, raw in (("jan31", "2024-01-31"), ("feb1", "2024-02-01"), ("noon", "2024-01-31 12:00:00")):
+            issue = make_issue(project, name)
+            WorkItemPropertyValue.objects.create(
+                workspace=workspace, project=project, issue=issue, property=prop, **_one_value(prop, raw, issue)
+            )
+        create_user.user_timezone = tz
+        create_user.save()
+        user = User.objects.get(pk=create_user.pk)
+        cf = f'cf["{prop.id}"]'
+        assert run(f'{cf} = "2024-01-31"', user=user) == {"jan31", "noon"}
+        assert run(f'{cf} > "2024-01-31"', user=user) == {"feb1"}
+        assert run(f'{cf} BETWEEN "2024-02-01" AND "2024-02-01"', user=user) == {"feb1"}
+        assert run(f'{cf} = "2024-01-31T12:00:00"', user=user) == {"noon"}
+        assert run(f'{cf} < "2024-01-31T12:00:00"', user=user) == {"jan31"}

@@ -60,3 +60,36 @@ class TestEnablingIntake:
         project.save(update_fields=["intake_view"])
         res = client.post(project_url("intake-issues/"), {"issue": {"name": "Please add SSO"}}, format="json")
         assert res.status_code == 201, res.data
+
+
+@pytest.mark.contract
+class TestDefaultIntake:
+    def test_update_and_delete_without_an_intake_do_not_create_one(self, client, project_url, project):
+        from uuid import uuid4
+
+        from plane.db.models import Intake
+
+        project.intake_view = True
+        project.save(update_fields=["intake_view"])
+        url = project_url(f"intake-issues/{uuid4()}/")
+        assert client.patch(url, {"issue": {"name": "x"}}, format="json").status_code == 404
+        assert client.delete(url).status_code == 404
+        assert not Intake.objects.filter(project=project).exists()
+
+    def test_concurrent_first_submissions_share_one_intake(self, project, monkeypatch):
+        from plane.api.views import intake as intake_views
+
+        existing = intake_views.Intake.objects.create(name=f"{project.name} Intake", project=project, is_default=True)
+        manager = intake_views.Intake.objects
+        real_filter = manager.filter
+        looks = []
+
+        def filter_(*args, **kwargs):
+            looks.append(kwargs)
+            queryset = real_filter(*args, **kwargs)
+            # The first look ran before the other request's intake was committed.
+            return queryset.none() if len(looks) == 1 else queryset
+
+        monkeypatch.setattr(manager, "filter", filter_)
+        assert intake_views.ensure_default_intake(project) == existing
+        assert len(looks) == 2

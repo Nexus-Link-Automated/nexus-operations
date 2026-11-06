@@ -11,6 +11,8 @@ import pytest
 from plane.db.models import Issue, Project, ProjectMember, User, Workspace
 from plane.nexus.models import Milestone
 
+from .test_work_item_support import GUEST, make_issue
+
 M = "plane.models.milestones."
 
 
@@ -135,3 +137,17 @@ class TestMilestoneWorkItems:
         assert guest_client.get(url).status_code == 200
         assert guest_client.post(url, {"issues": [str(issue.id)]}, format="json").status_code == 403
         assert guest_client.delete(url, {"issues": [str(issue.id)]}, format="json").status_code == 403
+
+
+@pytest.mark.contract
+class TestMilestoneWorkItemVisibility:
+    def test_restricted_guest_sees_only_their_own_work_items(
+        self, client, make_user, workspace, project, project_url, issue
+    ):
+        guest, guest_api = make_user(GUEST, workspace=workspace, project=project)
+        own = make_issue(project, "Mine", creator=guest)
+        mid = _create(client, project_url)["id"]
+        url = project_url(f"milestones/{mid}/work-items/")
+        assert client.post(url, {"issues": [str(issue.id), str(own.id)]}, format="json").status_code == 201
+        assert {str(row["issue"]) for row in client.get(url).data["results"]} == {str(issue.id), str(own.id)}
+        assert [str(row["issue"]) for row in guest_api.get(url).data["results"]] == [str(own.id)]

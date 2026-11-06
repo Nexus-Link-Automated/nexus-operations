@@ -20,6 +20,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 
+from plane.api.views.issue import visible_issue_q
 from plane.db.models import FileAsset, Issue, WorkspaceMember
 from plane.nexus.models import (
     Customer,
@@ -78,13 +79,13 @@ class CustomerBaseView(NexusAPIView):
         return get_object_or_404(self.customers(), pk=customer_id)
 
     def visible_issues(self):
-        """Work items in this workspace the requesting user can see (active project membership)."""
+        """Work items in this workspace the requesting user can view, by Plane's own rule
+        (a guest without guest_view_all_features sees only the work items they created)."""
         return Issue.issue_objects.filter(
             workspace__slug=self.workspace_slug,
-            project__project_projectmember__member=self.request.user,
-            project__project_projectmember__is_active=True,
             project__archived_at__isnull=True,
-        ).distinct()
+            id__in=Issue.objects.filter(visible_issue_q(self.request.user)).values("id"),
+        )
 
     def resolve_issues(self, raw):
         """(issue ids, error) for a list of work item ids; every id must be a visible work item."""

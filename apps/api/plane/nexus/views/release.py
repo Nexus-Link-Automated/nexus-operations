@@ -6,18 +6,22 @@
 
 Permissions: workspace guests read, members write; deleting a release, initiative
 or milestone takes its creator or an admin. Linked work items are only listed,
-and only linkable, in projects the caller is an active member of.
+and only linkable, when the caller can view them (Plane's visible_issue_q: a
+guest without guest_view_all_features sees only the work items they created).
+Linked projects are only listed, and only linkable, when the caller can see them
+(a member, or the project is public), as in Plane's project list.
 """
 
 from uuid import UUID
 
 from django.db import transaction
-from django.db.models import F
+from django.db.models import Exists, F, OuterRef, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.response import Response
 
 from plane.api.serializers import IssueSerializer, ProjectSerializer
+from plane.api.views.issue import visible_issue_q
 from plane.db.models import Issue, Project, ProjectMember
 from plane.nexus.models import (
     Initiative,
@@ -81,14 +85,24 @@ def _relink(model, lookup, defaults):
 
 class _Base(NexusAPIView):
     def visible_issues(self):
-        """Work items in this workspace, in projects the caller is an active member of."""
-        member_projects = ProjectMember.objects.filter(
-            member=self.request.user, is_active=True, workspace__slug=self.workspace_slug
-        ).values("project_id")
-        return Issue.objects.filter(workspace__slug=self.workspace_slug, project_id__in=member_projects)
+        """Work items in this workspace the caller can view, by Plane's own rule."""
+        return Issue.objects.filter(
+            workspace__slug=self.workspace_slug,
+            id__in=Issue.objects.filter(visible_issue_q(self.request.user)).values("id"),
+        )
+
+    def visible_projects(self):
+        """Projects in this workspace the caller can see: a member, or the project is public."""
+        member = ProjectMember.objects.filter(project_id=OuterRef("pk"), member=self.request.user, is_active=True)
+        return Project.objects.filter(workspace__slug=self.workspace_slug).filter(Exists(member) | Q(network=2))
 
     def pql_filtered(self, queryset):
-        return apply_pql(queryset, self.request.query_params.get("pql"))
+        return apply_pql(
+            queryset,
+            self.request.query_params.get("pql"),
+            user=self.request.user,
+            workspace_slug=self.workspace_slug,
+        )
 
     def issues_for(self, request, key):
         """Resolve the work item ids in the body, or return (None, error Response)."""
@@ -377,7 +391,7 @@ class MilestoneWorkItemAPIEndpoint(_MilestoneBase):
     def get(self, request, slug, project_id, milestone_id):
         milestone = self.get_milestone(milestone_id)
         try:
-            issues = self.pql_filtered(Issue.objects.filter(project_id=milestone.project_id))
+            issues = self.pql_filtered(self.visible_issues().filter(project_id=milestone.project_id))
         except PQLError as exc:
             return self.pql_error(exc)
         links = (
@@ -464,7 +478,7 @@ class InitiativeDetailAPIEndpoint(_InitiativeBase):
 class InitiativeProjectAPIEndpoint(_InitiativeBase):
     def get(self, request, slug, initiative_id):
         initiative = self.get_initiative(initiative_id)
-        projects = Project.objects.filter(nexus_initiative_links__initiative=initiative).order_by("name")
+        projects = self.visible_projects().filter(nexus_initiative_links__initiative=initiative).order_by("name")
         return self.paginated(request, projects, ProjectSerializer)
 
     def post(self, request, slug, initiative_id):
@@ -472,7 +486,7 @@ class InitiativeProjectAPIEndpoint(_InitiativeBase):
         ids, err = _id_list(request, "project_ids")
         if err:
             return self.error(err)
-        projects = list(Project.objects.filter(workspace_id=initiative.workspace_id, pk__in=ids))
+        projects = list(self.visible_projects().filter(pk__in=ids))
         missing = _unknown(ids, [project.pk for project in projects])
         if missing:
             return self.error(f"Projects not found in this workspace: {', '.join(missing)}.")

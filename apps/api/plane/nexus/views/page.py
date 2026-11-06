@@ -28,6 +28,18 @@ document's channel (`hocuspocus:<page id>`) any more, which happens after the
 document has been stored and unloaded. Connected editors are told the page was
 closed and reload it, now built from the new HTML. If the document is still held
 after the timeout, the API answers 502 and writes nothing, as plane-sdk documents.
+An editor can reconnect between that release and the write and load the old
+content, so after writing the API releases the document once more: the editor
+reloads it, now built from the new content.
+
+Collections and who can see a page
+----------------------------------
+A public page filed in a private collection is visible only to the collection's
+members (and its owner). Moving a page into or out of a private collection
+therefore changes who can see it, so only the page's owner may do that; and a page
+that leaves a private collection without moving into another one (the collection
+is deleted, or the page is removed from it) becomes private to its owner rather
+than visible to the whole workspace.
 """
 
 import json
@@ -256,6 +268,35 @@ def descendant_ids(page_id):
         return [row[0] for row in cursor.fetchall()]
 
 
+def private_collection_blockers(user, page_ids, target):
+    """Public pages, among `page_ids` and their sub-pages (which are filed along with
+    them), that filing into `target` would move into or out of a private collection
+    and that `user` does not own. Only a page's owner may change who can see it."""
+    ids = set(page_ids)
+    for page_id in page_ids:
+        ids.update(descendant_ids(page_id))
+    current = dict(PageCollection.objects.filter(page_id__in=ids).values_list("page_id", "collection_id"))
+    private = set(
+        Collection.objects.filter(pk__in={*current.values(), target.id}, access=COLLECTION_PRIVATE).values_list(
+            "id", flat=True
+        )
+    )
+    blockers = []
+    for page_id in (
+        Page.objects.filter(pk__in=ids, access=Page.PUBLIC_ACCESS).exclude(owned_by=user).values_list("id", flat=True)
+    ):
+        source = current.get(page_id)
+        if source != target.id and (target.id in private or source in private):
+            blockers.append(str(page_id))
+    return blockers
+
+
+def keep_private(page_ids):
+    """Pages leaving a private collection for no other collection stay hidden from
+    the workspace: their access becomes private, so only their owners see them."""
+    Page.objects.filter(pk__in=page_ids, access=Page.PUBLIC_ACCESS).update(access=Page.PRIVATE_ACCESS)
+
+
 # ── Pages ────────────────────────────────────────────────────────────────────
 
 
@@ -319,6 +360,10 @@ class _PageScope:
             page.description_binary = None
             page.description_json = {}
         page.save()
+        if content_changes and not release_live_document(page.id):
+            # An editor reconnected between the release above and this write, and the live
+            # server would not let go of the copy it loaded. The write itself is stored.
+            logger.warning("Live document %s still held after an API write", page.id)
 
         if content_changes and page.description_html != old_html:
             page_transaction.delay(
@@ -685,9 +730,12 @@ class CollectionDetailEndpoint(_CollectionBase):
         now = timezone.now()
         with transaction.atomic():
             links = PageCollection.objects.filter(collection=collection)
+            page_ids = list(links.values_list("page_id", flat=True))
             if archive:
-                for page_id in links.values_list("page_id", flat=True):
+                for page_id in page_ids:
                     unarchive_archive_page_and_descendants(page_id, datetime.now())
+            if collection.access == COLLECTION_PRIVATE:
+                keep_private(page_ids)
             links.update(deleted_at=now)
             CollectionMember.objects.filter(collection=collection).update(deleted_at=now)
             collection.deleted_at = now
@@ -740,8 +788,17 @@ class CollectionMemberDetailEndpoint(_CollectionBase):
 
     def delete(self, request, slug, collection_id, member_id):
         collection, row = self.get_member(request, collection_id, member_id)
-        if collection_user_access(collection, request.user) != MEMBER_EDIT and row.member_id != request.user.id:
-            return self.forbidden("manage this collection's members")
+        if collection_user_access(collection, request.user) != MEMBER_EDIT:
+            if row.member_id != request.user.id:
+                return self.forbidden("manage this collection's members")
+            if collection.access == COLLECTION_PUBLIC:
+                # Without the row a member falls back to the public default (edit), so leaving
+                # would lift the access an editor set.
+                return self.error(
+                    "You cannot leave a public collection: everyone in the workspace can open it. "
+                    "Ask one of its editors to change your access instead.",
+                    http_status=status.HTTP_403_FORBIDDEN,
+                )
         if row.member_id == collection.owned_by_id:
             return self.error("The owner cannot be removed from the collection.")
         row.delete(soft=False)
@@ -798,6 +855,14 @@ class CollectionPageListEndpoint(_CollectionBase):
                 "PATCH collections/<collection_id>/pages/<page_collection_id>/.",
                 code="PAGE_IN_OTHER_COLLECTION",
             )
+        blockers = private_collection_blockers(request.user, page_ids, collection)
+        if blockers:
+            return self.error(
+                "Filing these pages would change who can see them, and only a page's owner can do that "
+                f"(sub-pages are filed with their parent). Not yours: {', '.join(blockers)}.",
+                code="NOT_PAGE_OWNER",
+                http_status=status.HTTP_403_FORBIDDEN,
+            )
         rows = []
         with transaction.atomic():
             for pid in page_ids:
@@ -842,6 +907,14 @@ class CollectionPageDetailEndpoint(_CollectionBase):
                     return self.error("Collection not found", http_status=status.HTTP_404_NOT_FOUND)
                 if collection_user_access(target, request.user) != MEMBER_EDIT:
                     return self.forbidden("file pages in the target collection")
+                blockers = private_collection_blockers(request.user, [row.page_id], target)
+                if blockers:
+                    return self.error(
+                        "Moving this page would change who can see it, and only a page's owner can do that "
+                        f"(sub-pages move with their parent). Not yours: {', '.join(blockers)}.",
+                        code="NOT_PAGE_OWNER",
+                        http_status=status.HTTP_403_FORBIDDEN,
+                    )
                 row.collection = target
                 _file_with_descendants(row, target)
             if "sort_order" in data:
@@ -854,9 +927,10 @@ class CollectionPageDetailEndpoint(_CollectionBase):
         if collection_user_access(collection, request.user) != MEMBER_EDIT:
             return self.forbidden()
         with transaction.atomic():
-            PageCollection.objects.filter(page_id__in=descendant_ids(row.page_id), collection=collection).delete(
-                soft=False
-            )
+            children = PageCollection.objects.filter(page_id__in=descendant_ids(row.page_id), collection=collection)
+            if collection.access == COLLECTION_PRIVATE:
+                keep_private([row.page_id, *children.values_list("page_id", flat=True)])
+            children.delete(soft=False)
             row.delete(soft=False)
         return Response(status=status.HTTP_204_NO_CONTENT)
 

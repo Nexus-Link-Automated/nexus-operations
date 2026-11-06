@@ -7,7 +7,7 @@
 from rest_framework import status
 from rest_framework.response import Response
 
-from plane.db.models import Intake
+from plane.api.views.intake import ensure_default_intake
 from plane.nexus.models import ProjectFeature, WorkspaceFeature
 from plane.nexus.models.features import PROJECT_NATIVE_FIELDS, WORKSPACE_FEATURE_FIELDS
 from plane.utils.permissions import ProjectAdminPermission, WorkspaceOwnerPermission, WorkspaceUserPermission
@@ -95,8 +95,8 @@ class ProjectFeatureAPIEndpoint(NexusAPIView):
                 setattr(row, flag, value)
         if native:
             project.save(update_fields=native)
-        if flags.get("intakes") and not Intake.objects.filter(project=project, is_default=True).exists():
+        if flags.get("intakes"):
             # The web app creates the project's default intake when intake is turned on.
-            Intake.objects.create(name=f"{project.name} Intake", project=project, is_default=True)
+            ensure_default_intake(project)
         row.save()
         return Response(project_features(project))

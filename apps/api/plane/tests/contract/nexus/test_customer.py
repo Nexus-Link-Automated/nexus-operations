@@ -11,6 +11,8 @@ import pytest
 from plane.db.models import Issue, User, Workspace
 from plane.nexus.models import Customer, CustomerRequest, CustomerWorkItem
 
+from .test_work_item_support import GUEST, MEMBER, make_issue
+
 M = "plane.models.customers"
 
 
@@ -263,3 +265,26 @@ class TestCustomerRequests:
         assert guest_client.get(url).status_code == 403
         assert guest_client.post(url, {"name": "G"}, format="json").status_code == 403
         assert outsider_client.get(url).status_code == 403
+
+
+@pytest.mark.contract
+class TestCustomerSafety:
+    def test_description_html_is_sanitized(self, client, ws_url, customer):
+        body = {"name": "Initech", "description_html": '<p>Hi</p><img src="x" onerror="alert(1)">'}
+        res = client.post(ws_url("customers/"), body, format="json")
+        assert res.status_code == 201, res.data
+        assert "onerror" not in res.data["description_html"] and "<p>Hi</p>" in res.data["description_html"]
+        body = {"name": "SSO", "description_html": "<script>alert(1)</script><p>Please</p>"}
+        res = client.post(ws_url(f"customers/{customer.id}/requests/"), body, format="json")
+        assert res.status_code == 201, res.data
+        assert "<script" not in res.data["description_html"] and "<p>Please</p>" in res.data["description_html"]
+
+    def test_project_guest_sees_only_their_own_linked_work_items(
+        self, client, make_user, workspace, project, ws_url, customer, issues
+    ):
+        user, api = make_user(MEMBER, workspace=workspace, project=project, project_role=GUEST)
+        own = make_issue(project, "Mine", creator=user)
+        url = ws_url(f"customers/{customer.id}/issues/")
+        assert client.post(url, {"issue_ids": [str(issues[0].id), str(own.id)]}, format="json").status_code == 201
+        assert {str(row["id"]) for row in client.get(url).data} == {str(issues[0].id), str(own.id)}
+        assert [str(row["id"]) for row in api.get(url).data] == [str(own.id)]

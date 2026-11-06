@@ -187,3 +187,75 @@ class TestCollectionPages:
         url = ws_url(f"collections/{cid}/pages/")
         assert client.post(url, {"page_ids": [project_page["id"]]}, format="json").status_code == 404
         assert member_client.post(url, {"page_ids": [private["id"]]}, format="json").status_code == 404
+
+
+@pytest.mark.contract
+class TestPrivateCollectionVisibility:
+    def test_deleting_a_private_collection_keeps_its_pages_private(self, client, member_client, ws_url):
+        cid = _collection(client, ws_url, access=1)["id"]
+        page = _page(client, ws_url, collection_id=cid)
+        child = _page(client, ws_url, parent_id=page["id"])
+        assert client.delete(ws_url(f"collections/{cid}/")).status_code == 204
+        listed = {p["id"] for p in member_client.get(ws_url("pages/")).data["results"]}
+        for pid in (page["id"], child["id"]):
+            assert pid not in listed
+            assert member_client.get(ws_url(f"pages/{pid}/")).status_code == 404
+            assert client.get(ws_url(f"pages/{pid}/")).data["access"] == 1  # the owner still has it
+
+    def test_deleting_a_public_collection_leaves_its_pages_public(self, client, member_client, ws_url):
+        cid = _collection(client, ws_url)["id"]
+        page = _page(client, ws_url, collection_id=cid)
+        assert client.delete(ws_url(f"collections/{cid}/") + "?archive_pages=false").status_code == 204
+        assert member_client.get(ws_url(f"pages/{page['id']}/")).data["access"] == 0
+
+    def test_removing_a_page_from_a_private_collection_keeps_it_private(self, client, member_client, ws_url):
+        cid = _collection(client, ws_url, access=1)["id"]
+        page = _page(client, ws_url, collection_id=cid)
+        assert client.delete(ws_url(f"collections/{cid}/pages/{page['page_collection_id']}/")).status_code == 204
+        assert member_client.get(ws_url(f"pages/{page['id']}/")).status_code == 404
+        assert client.get(ws_url(f"pages/{page['id']}/")).data["collection_id"] is None
+
+    def test_only_a_pages_owner_can_file_it_in_a_private_collection(self, client, member, ws_url):
+        _, member_api = member
+        cid = _collection(member_api, ws_url, access=1)["id"]
+        url = ws_url(f"collections/{cid}/pages/")
+        theirs = _page(client, ws_url, name="Admin's page")
+        res = member_api.post(url, {"page_ids": [theirs["id"]]}, format="json")
+        assert res.status_code == 403 and res.data["code"] == "NOT_PAGE_OWNER" and theirs["id"] in res.data["error"]
+        assert not PageCollection.objects.filter(page_id=theirs["id"]).exists()
+        # Sub-pages are filed with their parent, so someone else's sub-page blocks it too.
+        mine = _page(member_api, ws_url, name="Mine")
+        nested = _page(client, ws_url, name="Admin's sub-page", parent_id=mine["id"])
+        res = member_api.post(url, {"page_ids": [mine["id"]]}, format="json")
+        assert res.status_code == 403 and nested["id"] in res.data["error"]
+        Page.objects.filter(pk=nested["id"]).update(parent=None)
+        assert member_api.post(url, {"page_ids": [mine["id"]]}, format="json").status_code == 201
+
+    def test_only_a_pages_owner_can_move_it_out_of_a_private_collection(self, client, member, ws_url):
+        user, member_api = member
+        private = _collection(client, ws_url, access=1)["id"]
+        public = _collection(client, ws_url, name="Open")["id"]
+        member_url = ws_url(f"collections/{private}/members/")
+        assert client.post(member_url, {"member": str(user.id), "access": 2}, format="json").status_code == 201
+        page = _page(client, ws_url, collection_id=private)
+        url = ws_url(f"collections/{private}/pages/{page['page_collection_id']}/")
+        res = member_api.patch(url, {"collection": public}, format="json")
+        assert res.status_code == 403 and res.data["code"] == "NOT_PAGE_OWNER"
+        assert client.patch(url, {"collection": public}, format="json").status_code == 200
+
+    def test_a_member_cannot_leave_a_public_collection_to_lift_a_restriction(self, client, member, ws_url):
+        user, member_api = member
+        cid = _collection(client, ws_url)["id"]
+        url = ws_url(f"collections/{cid}/members/")
+        row = client.post(url, {"member": str(user.id), "access": 0}, format="json").data
+        assert member_api.get(ws_url(f"collections/{cid}/")).data["current_user_access"] == 0
+        assert member_api.delete(f"{url}{row['id']}/").status_code == 403
+        assert member_api.get(ws_url(f"collections/{cid}/")).data["current_user_access"] == 0
+
+    def test_a_member_can_leave_a_private_collection(self, client, member, ws_url):
+        user, member_api = member
+        cid = _collection(client, ws_url, access=1)["id"]
+        url = ws_url(f"collections/{cid}/members/")
+        row = client.post(url, {"member": str(user.id), "access": 0}, format="json").data
+        assert member_api.delete(f"{url}{row['id']}/").status_code == 204
+        assert member_api.get(ws_url(f"collections/{cid}/")).status_code == 404
