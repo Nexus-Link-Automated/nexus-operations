@@ -31,7 +31,8 @@ The production VPS does not run `vps/` yet. It runs a separately maintained stac
 - **Different compose project.** Production's is `nexus-plane`, so its data lives in volumes such as `nexus-plane_pgdata` and `nexus-plane_uploads`. Starting `vps/` on that server would create a second, empty set of `nexus-ops_*` volumes, and its gateway could not bind `127.0.0.1:8080`, which the live gateway already holds.
 - **Different `.env`.** Production uses `NEXUS_RELEASE`, `WEB_URL`, `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` where `vps/` uses `APP_RELEASE`, `IMAGE_REGISTRY` and the `AWS_*` names.
 - **Different images.** Production builds the fork's images on the server and tags them `nexus/plane-*:<commit>`. `vps/` pulls them from `$IMAGE_REGISTRY`.
-- **Newer Valkey and RabbitMQ.** Production runs Valkey 9 and RabbitMQ 4, the latter with `deprecated_features.permit.transient_nonexcl_queues = true` because Plane still declares transient non-exclusive queues. `vps/` runs Valkey 7.2 and RabbitMQ 3.13, and neither supports downgrading existing data.
+
+The datastores and the gateway run the same images in both, including the RabbitMQ setting in `vps/rabbitmq-nexus.conf`. Change them in both places together: Valkey and RabbitMQ cannot be downgraded over existing data, and `pg_restore` cannot read a dump from a newer Postgres major version.
 
 Steps 2 to 4, Upgrades and Backups assume a server that runs `vps/`. Do not follow them on the production VPS. Moving production onto `vps/` means aligning these differences first, then migrating the data.
 
@@ -196,7 +197,7 @@ Then check the things a script cannot:
 Back up first, because migrations run automatically and do not roll back.
 
 1. Compare `apps/proxy/Caddyfile.ce` in the new release with the path lists here.
-2. Run the local test with the new release: `APP_RELEASE=<tag> deployments/hybrid/test/run.sh`.
+2. Check out the commit you are about to deploy and run the local test, which builds its images: `deployments/hybrid/test/run.sh`.
 3. Build the images (step 1).
 4. On the VPS, set `APP_RELEASE` in `.env`, then run `docker compose pull --ignore-buildable && docker compose up -d`.
 5. In Railway, change the source image of `web` and `router` to the new tag.
@@ -222,12 +223,14 @@ Nothing alerts you if a backup fails. Add monitoring, or run `verify` on a sched
 
 ## Testing locally
 
-`test/run.sh` starts the real topology with Plane's official images (and builds the MCP server) and a local stand-in for the tailnet, then runs the smoke checks with `--write`.
+`test/run.sh` builds this checkout's images with the same Dockerfiles as `build-hybrid.yml` and tags them `nexus-hybrid-test/plane-*:<commit>`, adding `-dirty` if the checkout has uncommitted changes. It then starts the real topology with those images, the router and the MCP server, behind a local stand-in for the tailnet, and runs the smoke checks with `--write`.
 
 ```bash
-deployments/hybrid/test/run.sh                       # official v1.4.3 images
-APP_RELEASE=preview deployments/hybrid/test/run.sh   # another official tag
+deployments/hybrid/test/run.sh                     # build and test this checkout
+APP_RELEASE=<tag> deployments/hybrid/test/run.sh   # test images build-hybrid.yml published
 ```
+
+The first build takes a while and needs several GB of free memory. Later runs reuse Docker's build cache.
 
 A plain SOCKS5 proxy stands in for the tailnet. The test cannot exercise Railway's edge or a real Tailscale connection, so those are covered in step 7.
 

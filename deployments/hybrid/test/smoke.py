@@ -209,18 +209,14 @@ def write_checks(client):
     if not check("auth: session is accepted", response.status == 200 and me and me.get("email") == email, str(response.status)):
         return
 
-    # Plane added this protection after v1.4.3, so a pass or a warning describes the
-    # release being run, not the deployment.
+    # Stock Plane v1.4.3 accepted these; the fork rejects them.
     response, _ = client.request(
         "POST",
         "/api/workspaces/",
         json.dumps({"name": f"Origin {suffix}", "slug": f"origin-{suffix}", "organization_size": "Just myself"}),
         {"Content-Type": "application/json", "Origin": "https://evil.example.com"},
     )
-    if response.status == 403:
-        check("auth: writes from another origin are rejected", True)
-    else:
-        print(f"WARN  this Plane release accepts cookie-authenticated writes from other origins ({response.status})")
+    check("auth: writes from another origin are rejected", response.status == 403, str(response.status))
 
     slug = f"smoke-{suffix}"
     response, workspace = client.json(

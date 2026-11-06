@@ -1,14 +1,40 @@
 #!/usr/bin/env bash
 # Brings up the full hybrid topology locally and runs the smoke checks against it.
-# Uses the official images for APP_RELEASE (default v1.4.3), so nothing has to be
-# built. Pass --keep to leave the stack running afterwards.
+#
+# By default it first builds this checkout's images, with the same Dockerfiles and
+# contexts as .github/workflows/build-hybrid.yml, so it tests the fork as it stands.
+# To test images that build-hybrid.yml has published instead, set APP_RELEASE to
+# their tag, and IMAGE_REGISTRY if they are not in ghcr.io/nexus-link-automated.
+# Pass --keep to leave the stack running afterwards.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 vps="$here/../vps"
+repo="$(cd "$here/../../.." && pwd)"
 project="nexus-hybrid-test"
 keep=0
 [ "${1:-}" = "--keep" ] && keep=1
+
+if [ -n "${APP_RELEASE:-}" ]; then
+  registry="${IMAGE_REGISTRY:-ghcr.io/nexus-link-automated}"
+  release="$APP_RELEASE"
+else
+  registry="nexus-hybrid-test"
+  release="$(git -C "$repo" rev-parse HEAD | cut -c1-9)"
+  # Uncommitted changes go into the images too, so the tag must not claim the commit.
+  [ -z "$(git -C "$repo" status --porcelain)" ] || release="$release-dirty"
+  # Keep in step with the matrix in .github/workflows/build-hybrid.yml.
+  for spec in \
+    "plane-frontend . apps/web/Dockerfile.web" \
+    "plane-admin . apps/admin/Dockerfile.admin" \
+    "plane-space . apps/space/Dockerfile.space" \
+    "plane-live . apps/live/Dockerfile.live" \
+    "plane-backend apps/api apps/api/Dockerfile.api"; do
+    read -r image context dockerfile <<<"$spec"
+    echo "Building $registry/$image:$release..."
+    docker build -q -t "$registry/$image:$release" -f "$repo/$dockerfile" "$repo/$context" >/dev/null
+  done
+fi
 
 work="$(mktemp -d /tmp/nexus-hybrid-test.XXXXXX)"
 export TEST_ROUTER_PORT="${TEST_ROUTER_PORT:-18080}"
@@ -16,8 +42,8 @@ export TEST_GATEWAY_PORT="${TEST_GATEWAY_PORT:-18081}"
 
 cat >"$work/.env" <<EOF
 APP_DOMAIN=operations.nexus-test.invalid
-IMAGE_REGISTRY=${IMAGE_REGISTRY:-makeplane}
-APP_RELEASE=${APP_RELEASE:-v1.4.3}
+IMAGE_REGISTRY=$registry
+APP_RELEASE=$release
 POSTGRES_PASSWORD=$(openssl rand -hex 16)
 RABBITMQ_PASSWORD=$(openssl rand -hex 16)
 AWS_ACCESS_KEY_ID=$(openssl rand -hex 16)
