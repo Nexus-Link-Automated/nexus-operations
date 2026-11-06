@@ -12,7 +12,7 @@
 services:
   gateway:
     ports: !override
-      - 127.0.0.1:${TEST_GATEWAY_PORT:-18081}:8080
+      - 127.0.0.1:${TEST_GATEWAY_PORT:-18081}:80
 
   socks:
     image: serjs/go-socks5-proxy:v0.0.4
@@ -31,7 +31,7 @@ services:
     entrypoint: [caddy, run, --config, /etc/caddy/Caddyfile, --adapter, caddyfile]
     environment:
       PORT: 8080
-      ORIGIN_ADDR: gateway:8080
+      ORIGIN_ADDR: gateway:80
       ORIGIN_PROXY: socks5://socks:1080
       WEB_UPSTREAM: web:3000
       BUCKET_NAME: uploads

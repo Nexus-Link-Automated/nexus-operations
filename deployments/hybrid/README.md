@@ -7,7 +7,7 @@ browser ── https ──▶ Railway edge ──▶ router ──▶ web (priv
                                         │
                                         │ Tailscale (encrypted, outbound from both sides)
                                         ▼
-                                  VPS: tailscale serve ──▶ gateway ──▶ api, live, admin, space, MinIO
+                                  VPS: tailscale serve ──▶ gateway ──▶ api, live, admin, space, mcp, MinIO
                                                                             │
                                                                    Postgres, Valkey, RabbitMQ
 ```
@@ -31,6 +31,7 @@ The path list exists in `railway/router/Caddyfile` and `vps/Caddyfile`. Compare 
 - **The router runs Tailscale in userspace mode.** Railway containers have no tunnel device, so `tailscaled` runs alongside Caddy and Caddy reaches the VPS through its local SOCKS5 proxy. If either process stops, the container exits so Railway restarts it.
 - **The gateway sets `Host`.** Plane signs upload URLs, builds OAuth callbacks and checks origins from the request's host, and MinIO verifies signatures against it. `vps/Caddyfile` always sends the public hostname to Django and MinIO.
 - **The client IP travels in its own header.** Otherwise every user would appear to come from the tailnet proxy and share one rate-limit bucket, which allows 10 sign-in attempts per minute. The router copies Railway's `X-Real-IP` to `X-Plane-Client-IP`, and the gateway turns that into `X-Forwarded-For`.
+- **The MCP server is built from upstream's repository at a pinned commit,** not from this one. `vps/mcp/serve_header.py` replaces its entrypoint so it serves only the header-auth endpoint at `/mcp`. It calls Plane through `http://gateway`, so the gateway listens on port 80 inside the compose network.
 - **The gateway trusts whatever reaches it,** so the tailnet policy is the access control. Step 3 limits the router to this one port, and the router's tag stops a compromised Railway container from reaching your other devices.
 
 ## Before you start
@@ -50,10 +51,10 @@ Below, `$RELEASE` is the image tag, `$APP_DOMAIN` is `operations.nexuslinkautoma
 The workflow must be on the default branch before it can be dispatched.
 
 ```bash
-gh workflow run build-hybrid.yml -R Nexus-Link-Automated/nexus-operations -f ref=$RELEASE
+gh workflow run build-hybrid.yml -R Nexus-Link-Automated/nexus-operations --ref preview
 ```
 
-To pin an untagged commit, pass its full SHA as `ref` and a readable name as `tag`.
+This builds the head of `preview`, this fork's code, and tags every image with the first 9 characters of that commit's SHA, which becomes `$RELEASE`. The run summary shows the tag. To build another branch, tag or commit, add `-f ref=<ref>`; to choose the tag, add `-f tag=<tag>`. The ref is resolved to one commit before anything is built, so all images match even if the branch moves during the run. Do not build an upstream Plane tag such as `v1.4.3`: that is stock Plane, not this fork.
 
 GitHub may create the packages as private. Set each one to public in the organization's package settings, then confirm that an anonymous pull works:
 
@@ -104,7 +105,8 @@ Then, under Settings → OAuth clients, create a client with the `auth_keys` wri
 ## 4. Start the VPS stack
 
 ```bash
-docker compose pull
+docker compose pull --ignore-buildable
+docker compose build mcp
 docker compose up -d
 docker compose ps
 ```
@@ -185,7 +187,7 @@ Back up first, because migrations run automatically and do not roll back.
 1. Compare `apps/proxy/Caddyfile.ce` in the new release with the path lists here.
 2. Run the local test with the new release: `APP_RELEASE=<tag> deployments/hybrid/test/run.sh`.
 3. Build the images (step 1).
-4. On the VPS, set `APP_RELEASE` in `.env`, then run `docker compose pull && docker compose up -d`.
+4. On the VPS, set `APP_RELEASE` in `.env`, then run `docker compose pull --ignore-buildable && docker compose up -d`.
 5. In Railway, change the source image of `web` and `router` to the new tag.
 
 Between steps 4 and 5 the frontend is one version behind the backend, so do them together and at a quiet time.
@@ -201,13 +203,15 @@ Between steps 4 and 5 the frontend is one version behind the backend, so do them
 ./restore.sh restore <backup>   # replaces live data; asks you to type the backup name
 ```
 
+The database runs Postgres 18, the same major version as production, because `pg_restore` cannot read a dump made by a newer major version. `verify` uses whatever image `plane-db` has in `docker-compose.yml`, so change it there only.
+
 A restore does not apply the backed-up `.env`. If you are rebuilding on a new server, copy that `env` file into place as `.env` before starting the stack, or Plane cannot read its encrypted settings.
 
 Nothing alerts you if a backup fails. Add monitoring, or run `verify` on a schedule you will notice.
 
 ## Testing locally
 
-`test/run.sh` starts the real topology with Plane's official images and a local stand-in for the tailnet, then runs the smoke checks with `--write`.
+`test/run.sh` starts the real topology with Plane's official images (and builds the MCP server) and a local stand-in for the tailnet, then runs the smoke checks with `--write`.
 
 ```bash
 deployments/hybrid/test/run.sh                       # official v1.4.3 images

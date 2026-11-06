@@ -1,5 +1,6 @@
-# Origin gateway, running on the VPS. It listens on loopback only, and `tailscale
-# serve` forwards tailnet traffic to it.
+# Origin gateway, running on the VPS. It listens on port 80 inside the compose
+# network, so other services reach it as http://gateway. Compose publishes it on
+# loopback only, and `tailscale serve` forwards tailnet traffic to that port.
 #
 # Django and MinIO must see the public hostname, because Plane builds and verifies
 # signed upload URLs, OAuth callbacks and same-origin checks from it. A signed URL
@@ -20,7 +21,7 @@
 	header_up -X-Plane-Client-IP
 }
 
-:8080 {
+:80 {
 	request_body {
 		max_size {$FILE_SIZE_LIMIT:5242880}
 	}
@@ -56,6 +57,18 @@
 	handle @api {
 		reverse_proxy api:8000 {
 			import public_request
+		}
+	}
+
+	# Plane MCP server, header-auth endpoint only: each client sends its own Plane
+	# personal access token and X-Workspace-slug, and no OAuth or SSE routes exist.
+	# flush_interval -1 stops Caddy buffering streamed MCP responses.
+	@mcp path /mcp /mcp/
+	handle @mcp {
+		rewrite * /mcp
+		reverse_proxy mcp:8211 {
+			flush_interval -1
+			header_up -X-Plane-Client-IP
 		}
 	}
 

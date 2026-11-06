@@ -9,12 +9,11 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Git tag or commit of the Plane code to build"
-        required: true
-        default: "v1.4.3"
+        description: "Branch, tag or commit of this repository to build (defaults to the branch the workflow runs from)"
+        required: false
         type: string
       tag:
-        description: "Image tag to publish (defaults to ref)"
+        description: "Image tag to publish (defaults to the first 9 characters of the commit SHA)"
         required: false
         type: string
 
@@ -24,11 +23,39 @@ permissions:
 
 env:
   REGISTRY: ghcr.io/nexus-link-automated
-  IMAGE_TAG: ${{ inputs.tag || inputs.ref }}
 
 jobs:
+  # Resolves the ref to one commit first, so every image is built from the same code
+  # even if the branch moves while the jobs run, and checks the tag is valid.
+  resolve:
+    name: resolve ref
+    runs-on: ubuntu-24.04
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - id: resolve
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          sha="$(git rev-parse HEAD)"
+          tag="${INPUT_TAG:-${sha:0:9}}"
+          # Docker tag grammar. A branch name such as feat/x is not a valid tag.
+          if ! [[ "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "::error::'$tag' is not a valid image tag: use letters, digits, '_', '.' and '-', starting with a letter, digit or '_'."
+            exit 1
+          fi
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+          echo "Building $sha as tag $tag" >>"$GITHUB_STEP_SUMMARY"
+
   plane:
     name: ${{ matrix.image }}
+    needs: resolve
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: true
@@ -52,7 +79,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -66,18 +93,19 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           push: true
-          tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}
+          tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ needs.resolve.outputs.tag }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
-  # The router config lives on this branch, not in the Plane release being built.
   router:
     name: plane-hybrid-router
+    needs: resolve
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -90,5 +118,5 @@ jobs:
           context: ./deployments/hybrid/railway/router
           platforms: linux/amd64
           push: true
-          tags: ${{ env.REGISTRY }}/plane-hybrid-router:${{ env.IMAGE_TAG }}
+          tags: ${{ env.REGISTRY }}/plane-hybrid-router:${{ needs.resolve.outputs.tag }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}

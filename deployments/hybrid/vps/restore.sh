@@ -17,7 +17,7 @@ set -a; . "$env_file"; set +a
 rclone_config_dir="${RCLONE_CONFIG_DIR:-$here/rclone}"
 rclone_image="rclone/rclone:1.75.2"
 read -r -a compose_files <<<"${COMPOSE_FILES:--f docker-compose.yml}"
-app_services=(gateway api worker beat-worker live space admin)
+app_services=(gateway mcp api worker beat-worker live space admin)
 
 compose() {
   docker compose ${COMPOSE_PROJECT:+-p "$COMPOSE_PROJECT"} --env-file "$env_file" "${compose_files[@]}" "$@"
@@ -29,6 +29,19 @@ rclone() {
     ${RCLONE_DATA_MOUNT:+-v "$RCLONE_DATA_MOUNT"} \
     ${RCLONE_EXTRA_MOUNT:+-v "$RCLONE_EXTRA_MOUNT"} \
     "$rclone_image" "$@"
+}
+
+# The postgres image starts a temporary server on the Unix socket only while it
+# initialises a new data directory, then restarts. A socket check can pass against
+# that temporary server, so readiness is checked over TCP, which it never listens on.
+wait_for_postgres() {
+  local exec_cmd=("$@")
+  for _ in $(seq 1 90); do
+    "${exec_cmd[@]}" sh -c 'pg_isready -q -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  echo "Postgres did not become ready." >&2
+  return 1
 }
 
 usage() {
@@ -62,14 +75,15 @@ tar tzf "$stage/uploads.tar.gz" >/dev/null
 echo "Checksums and the uploads archive are good."
 
 if [ "$action" = "verify" ]; then
+  # The same image as the live database, because pg_restore cannot read a dump
+  # made by a newer major version.
+  postgres_image="$(compose config --images plane-db)"
+  [ -n "$postgres_image" ] || { echo "Could not read the plane-db image from the compose file." >&2; exit 1; }
   scratch_container="nexus-ops-restore-verify-$$"
   docker run -d --name "$scratch_container" \
     -e POSTGRES_USER=plane -e POSTGRES_PASSWORD=verify -e POSTGRES_DB=plane \
-    postgres:15.7-alpine >/dev/null
-  for _ in $(seq 1 60); do
-    docker exec "$scratch_container" psql -U plane -d plane -c 'select 1' >/dev/null 2>&1 && break
-    sleep 1
-  done
+    "$postgres_image" >/dev/null
+  wait_for_postgres docker exec "$scratch_container"
   docker exec -i "$scratch_container" pg_restore -U plane -d plane --no-owner --no-acl --exit-on-error <"$stage/postgres.dump"
   tables="$(docker exec "$scratch_container" psql -U plane -d plane -Atc \
     "select count(*) from information_schema.tables where table_schema = 'public'")"
@@ -88,7 +102,8 @@ read -r -p "Type the backup name to continue: " confirmation
 
 # The API, workers and live server must not write while data is being replaced.
 compose stop "${app_services[@]}"
-compose up -d plane-db plane-minio
+compose up -d --wait plane-db plane-minio
+wait_for_postgres compose exec -T plane-db
 
 compose exec -T plane-db sh -c 'psql -U "$POSTGRES_USER" -d postgres -v ON_ERROR_STOP=1 \
   -c "drop database if exists \"$POSTGRES_DB\" with (force)" \

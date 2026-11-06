@@ -65,7 +65,7 @@ status=0
 python3 "$here/smoke.py" --public-url https://operations.nexus-test.invalid --connect-url "$url" --write || status=$?
 
 # With no direct route, passing the checks above proves the proxy path was used.
-if compose exec -T router wget -q -T 3 -O /dev/null http://gateway:8080/__gateway/health >/dev/null 2>&1; then
+if compose exec -T router wget -q -T 3 -O /dev/null http://gateway/__gateway/health >/dev/null 2>&1; then
   echo "FAIL  the router can reach the gateway without the proxy"
   status=1
 else

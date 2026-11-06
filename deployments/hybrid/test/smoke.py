@@ -111,6 +111,20 @@ def read_only_checks(client):
     response, _ = client.request("GET", "/live/health")
     check("live: /live/health responds", response.status == 200, str(response.status))
 
+    # A request without a token must be refused by the MCP server itself: a 401 with
+    # a Bearer challenge, not the gateway's 404 or the web bundle.
+    response, _ = client.request(
+        "POST",
+        "/mcp",
+        b"{}",
+        {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+    )
+    check(
+        "mcp: /mcp reaches the MCP server and requires a token",
+        response.status == 401 and response.getheader("WWW-Authenticate", "").startswith("Bearer"),
+        str(response.status),
+    )
+
     # An anonymous listing of the bucket must be refused by MinIO itself, which also
     # proves /uploads reaches MinIO and not the web bundle.
     response, data = client.request("GET", "/uploads/")
