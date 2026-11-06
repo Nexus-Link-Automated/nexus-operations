@@ -1,3 +1,7 @@
+# Copyright (c) 2023-present Plane Software, Inc. and contributors
+# SPDX-License-Identifier: AGPL-3.0-only
+# See the LICENSE file for details.
+
 """Nexus entrypoint for the official Plane MCP server (Community Edition).
 
 Upstream's `http` mode always builds its OAuth and SSE endpoints, which need a

@@ -1,6 +1,6 @@
 FROM tailscale/tailscale:v1.104.4 AS tailscale
 
-FROM caddy:2.11.4-alpine
+FROM caddy:2.11.8-alpine
 
 COPY --from=tailscale /usr/local/bin/tailscale /usr/local/bin/tailscale
 COPY --from=tailscale /usr/local/bin/tailscaled /usr/local/bin/tailscaled
