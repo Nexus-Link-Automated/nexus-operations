@@ -24,6 +24,17 @@ browser ── https ──▶ Railway edge ──▶ router ──▶ web (priv
 
 The path list exists in `railway/router/Caddyfile` and `vps/Caddyfile`. Compare both with `apps/proxy/Caddyfile.ce` on every upgrade.
 
+## Production today
+
+The production VPS does not run `vps/` yet. It runs a separately maintained stack, and the two differ in ways that matter:
+
+- **Different compose project.** Production's is `nexus-plane`, so its data lives in volumes such as `nexus-plane_pgdata` and `nexus-plane_uploads`. Starting `vps/` on that server would create a second, empty set of `nexus-ops_*` volumes, and its gateway could not bind `127.0.0.1:8080`, which the live gateway already holds.
+- **Different `.env`.** Production uses `NEXUS_RELEASE`, `WEB_URL`, `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` where `vps/` uses `APP_RELEASE`, `IMAGE_REGISTRY` and the `AWS_*` names.
+- **Different images.** Production builds the fork's images on the server and tags them `nexus/plane-*:<commit>`. `vps/` pulls them from `$IMAGE_REGISTRY`.
+- **Newer Valkey and RabbitMQ.** Production runs Valkey 9 and RabbitMQ 4, the latter with `deprecated_features.permit.transient_nonexcl_queues = true` because Plane still declares transient non-exclusive queues. `vps/` runs Valkey 7.2 and RabbitMQ 3.13, and neither supports downgrading existing data.
+
+Steps 2 to 4, Upgrades and Backups assume a server that runs `vps/`. Do not follow them on the production VPS. Moving production onto `vps/` means aligning these differences first, then migrating the data.
+
 ## Things worth knowing
 
 - **The web app is a static bundle, not a Next.js server.** It is a Vite build served from a small web server container.
