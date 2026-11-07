@@ -1,9 +1,106 @@
 {
   "messages": {
     "title": "Zprávy",
+    "list_label": "Zprávy",
+    "unknown_member": "Neznámý člen",
+    "unread_count": "{count, plural, one {# nepřečtená zpráva} few {# nepřečtené zprávy} many {# nepřečtené zprávy} other {# nepřečtených zpráv}}",
     "empty": {
       "title": "Zatím žádné konverzace",
       "description": "Zde se zobrazí kanály a přímé zprávy s vaším týmem."
+    },
+    "channels": {
+      "title": "Kanály",
+      "browse": "Procházet kanály",
+      "create": "Vytvořit kanál",
+      "none": "Zatím jste se nepřipojili k žádnému kanálu."
+    },
+    "dms": {
+      "title": "Přímé zprávy",
+      "new": "Nová zpráva",
+      "none": "Zatím žádné přímé zprávy."
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# člen} few {# členové} many {# člena} other {# členů}}",
+      "join": "Připojit se",
+      "leave": "Opustit kanál",
+      "join_prompt": "Prohlížíte si #{name}. Připojte se, abyste mohli posílat zprávy.",
+      "archived": "Tento kanál je archivovaný. Můžete ho číst, ale nemůžete posílat zprávy.",
+      "intro_title": "Toto je začátek kanálu #{name}",
+      "intro_description": "Vše, co se v tomto kanálu napíše, se zobrazí zde.",
+      "not_found_title": "Konverzace nenalezena",
+      "not_found_description": "Neexistuje, nebo k ní nemáte přístup."
+    },
+    "dm": {
+      "intro_title": "Toto je začátek vaší konverzace s: {name}",
+      "intro_description": "Vidí ji jen lidé v této konverzaci."
+    },
+    "create_channel": {
+      "title": "Vytvořit kanál",
+      "description": "V kanálech váš tým mluví o jednom tématu.",
+      "name": "Název",
+      "name_placeholder": "např. design-review",
+      "name_required": "Kanál musí mít název.",
+      "description_label": "Popis (volitelné)",
+      "private": "Soukromý kanál",
+      "private_help": "Kanál a jeho zprávy vidí jen přidaní lidé.",
+      "submit": "Vytvořit kanál"
+    },
+    "browse": {
+      "title": "Procházet kanály",
+      "description": "Veřejné kanály, ke kterým jste se nepřipojili.",
+      "search": "Hledat kanály",
+      "empty": "Žádné kanály k připojení.",
+      "open": "Otevřít"
+    },
+    "new_dm": {
+      "title": "Nová zpráva",
+      "description": "{count, plural, one {Vyberte jednu osobu.} few {Vyberte jednu osobu, nebo až # pro skupinu.} many {Vyberte jednu osobu, nebo až # pro skupinu.} other {Vyberte jednu osobu, nebo až # pro skupinu.}}",
+      "search": "Hledat lidi",
+      "empty": "Žádné výsledky.",
+      "submit": "Zahájit konverzaci"
+    },
+    "composer": {
+      "send": "Odeslat zprávu",
+      "placeholder_channel": "Zpráva do #{name}",
+      "placeholder_dm": "Zpráva pro: {name}"
+    },
+    "message": {
+      "label": "{name} v {time}",
+      "edit": "Upravit zprávu",
+      "save": "Uložit",
+      "edited": "(upraveno)",
+      "remove": "Smazat zprávu",
+      "remove_title": "Smazat tuto zprávu?",
+      "remove_description": "Všichni v konverzaci uvidí, že byla zpráva smazána.",
+      "removing": "Mazání",
+      "removed": "Tato zpráva byla smazána.",
+      "replies": "{count, plural, one {# odpověď} few {# odpovědi} many {# odpovědi} other {# odpovědí}}",
+      "sending": "Odesílání…",
+      "failed": "Neodesláno.",
+      "retry": "Zkusit znovu",
+      "discard": "Zahodit"
+    },
+    "day": {
+      "today": "Dnes",
+      "yesterday": "Včera"
+    },
+    "connection": {
+      "reconnecting": "Obnovování připojení. Nové zprávy se zobrazí, jakmile bude připojení zpět.",
+      "reconnect": "Připojit znovu",
+      "signed_out": "Vaše relace skončila. Přihlaste se znovu, abyste dostávali nové zprávy.",
+      "forbidden": "K těmto zprávám už nemáte přístup.",
+      "failed": "Živé aktualizace nejsou k dispozici. Znovu načtěte stránku a zkuste to znovu."
+    },
+    "errors": {
+      "retry": "Zkusit znovu",
+      "load_channels_failed": "Konverzace se nepodařilo načíst",
+      "load_messages_failed": "Zprávy se nepodařilo načíst.",
+      "create_channel_failed": "Kanál se nepodařilo vytvořit",
+      "join_failed": "Ke kanálu se nepodařilo připojit",
+      "leave_failed": "Kanál se nepodařilo opustit",
+      "open_dm_failed": "Konverzaci se nepodařilo zahájit",
+      "edit_failed": "Úpravu se nepodařilo uložit",
+      "remove_failed": "Zprávu se nepodařilo smazat"
     }
   }
 }

@@ -19,8 +19,21 @@ function stubElementMethod(name: string, value: () => unknown) {
   if (typeof proto[name] !== "function") proto[name] = value;
 }
 
+// Base UI's switch dispatches a PointerEvent on click; jsdom only has MouseEvent.
+class TestPointerEvent extends MouseEvent {
+  readonly pointerId: number;
+  readonly pointerType: string;
+
+  constructor(type: string, init: PointerEventInit = {}) {
+    super(type, init);
+    this.pointerId = init.pointerId ?? 0;
+    this.pointerType = init.pointerType ?? "mouse";
+  }
+}
+
 beforeEach(() => {
   globalThis.ResizeObserver ??= TestResizeObserver;
+  globalThis.PointerEvent ??= TestPointerEvent as unknown as typeof PointerEvent;
   stubElementMethod("hasPointerCapture", () => false);
   stubElementMethod("setPointerCapture", () => undefined);
   stubElementMethod("releasePointerCapture", () => undefined);

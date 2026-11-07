@@ -592,6 +592,14 @@ describe("ChatStore", () => {
     expect(store.workspaceSlug).toBeNull();
   });
 
+  it("keeps its actions bound, so components can destructure them", async () => {
+    const { store } = await setup();
+    const { createChannel, openDm, markRead } = store;
+    await expect(createChannel({ name: "bound" })).resolves.toMatchObject({ id: "c-bound" });
+    await expect(openDm([ADA])).resolves.toMatchObject({ kind: "dm" });
+    await expect(markRead("c-bound")).resolves.toBeUndefined();
+  });
+
   it("creates channels and opens DMs over REST", async () => {
     const { store } = await setup();
     const channel = await store.createChannel({ name: "launch", kind: "private" });

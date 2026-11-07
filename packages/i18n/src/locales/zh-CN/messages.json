@@ -1,9 +1,106 @@
 {
   "messages": {
     "title": "消息",
+    "list_label": "消息",
+    "unknown_member": "未知成员",
+    "unread_count": "{count, plural, one {# 条未读消息} other {# 条未读消息}}",
     "empty": {
       "title": "暂无对话",
       "description": "您与团队的频道和私信将显示在这里。"
+    },
+    "channels": {
+      "title": "频道",
+      "browse": "浏览频道",
+      "create": "创建频道",
+      "none": "您还没有加入任何频道。"
+    },
+    "dms": {
+      "title": "私信",
+      "new": "新消息",
+      "none": "暂无私信。"
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# 位成员} other {# 位成员}}",
+      "join": "加入",
+      "leave": "退出频道",
+      "join_prompt": "您正在查看 #{name}。加入后即可发送消息。",
+      "archived": "此频道已归档。您可以阅读，但无法发送消息。",
+      "intro_title": "这是 #{name} 的开始",
+      "intro_description": "在此频道中的所有交流都会显示在这里。",
+      "not_found_title": "未找到对话",
+      "not_found_description": "该对话不存在，或您无权访问。"
+    },
+    "dm": {
+      "intro_title": "这是您与 {name} 对话的开始",
+      "intro_description": "只有此对话中的成员可以查看。"
+    },
+    "create_channel": {
+      "title": "创建频道",
+      "description": "团队在频道中围绕一个主题进行讨论。",
+      "name": "名称",
+      "name_placeholder": "例如 design-review",
+      "name_required": "频道需要一个名称。",
+      "description_label": "描述（可选）",
+      "private": "私有频道",
+      "private_help": "只有被添加的成员才能查看此频道及其消息。",
+      "submit": "创建频道"
+    },
+    "browse": {
+      "title": "浏览频道",
+      "description": "您尚未加入的公开频道。",
+      "search": "搜索频道",
+      "empty": "没有可加入的频道。",
+      "open": "打开"
+    },
+    "new_dm": {
+      "title": "新消息",
+      "description": "{count, plural, one {请选择一位成员。} other {请选择一位成员，或为群组选择最多 # 位成员。}}",
+      "search": "搜索成员",
+      "empty": "没有匹配的成员。",
+      "submit": "开始对话"
+    },
+    "composer": {
+      "send": "发送消息",
+      "placeholder_channel": "发送消息到 #{name}",
+      "placeholder_dm": "发送消息给 {name}"
+    },
+    "message": {
+      "label": "{name}，{time}",
+      "edit": "编辑消息",
+      "save": "保存",
+      "edited": "（已编辑）",
+      "remove": "删除消息",
+      "remove_title": "要删除此消息吗？",
+      "remove_description": "对话中的所有人都会看到有一条消息已被删除。",
+      "removing": "正在删除",
+      "removed": "此消息已被删除。",
+      "replies": "{count, plural, one {# 条回复} other {# 条回复}}",
+      "sending": "正在发送…",
+      "failed": "未发送。",
+      "retry": "重试",
+      "discard": "放弃"
+    },
+    "day": {
+      "today": "今天",
+      "yesterday": "昨天"
+    },
+    "connection": {
+      "reconnecting": "正在重新连接。连接恢复后将显示新消息。",
+      "reconnect": "立即重新连接",
+      "signed_out": "您的会话已结束。请重新登录以接收新消息。",
+      "forbidden": "您已无权访问这些消息。",
+      "failed": "实时更新不可用。请刷新页面后重试。"
+    },
+    "errors": {
+      "retry": "重试",
+      "load_channels_failed": "无法加载您的对话",
+      "load_messages_failed": "无法加载消息。",
+      "create_channel_failed": "无法创建频道",
+      "join_failed": "无法加入频道",
+      "leave_failed": "无法退出频道",
+      "open_dm_failed": "无法开始对话",
+      "edit_failed": "无法保存编辑",
+      "remove_failed": "无法删除消息"
     }
   }
 }

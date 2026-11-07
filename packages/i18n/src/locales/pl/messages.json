@@ -1,9 +1,106 @@
 {
   "messages": {
     "title": "Wiadomości",
+    "list_label": "Wiadomości",
+    "unknown_member": "Nieznany członek",
+    "unread_count": "{count, plural, one {# nieprzeczytana wiadomość} few {# nieprzeczytane wiadomości} many {# nieprzeczytanych wiadomości} other {# nieprzeczytanej wiadomości}}",
     "empty": {
       "title": "Brak rozmów",
       "description": "Tutaj pojawią się kanały i wiadomości bezpośrednie z zespołem."
+    },
+    "channels": {
+      "title": "Kanały",
+      "browse": "Przeglądaj kanały",
+      "create": "Utwórz kanał",
+      "none": "Nie dołączono jeszcze do żadnego kanału."
+    },
+    "dms": {
+      "title": "Wiadomości bezpośrednie",
+      "new": "Nowa wiadomość",
+      "none": "Brak wiadomości bezpośrednich."
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# członek} few {# członków} many {# członków} other {# członka}}",
+      "join": "Dołącz",
+      "leave": "Opuść kanał",
+      "join_prompt": "Przeglądany kanał: #{name}. Dołącz, aby wysyłać wiadomości.",
+      "archived": "Ten kanał jest zarchiwizowany. Można go czytać, ale nie można wysyłać wiadomości.",
+      "intro_title": "To jest początek kanału #{name}",
+      "intro_description": "Wszystko, co zostanie napisane w tym kanale, pojawi się tutaj.",
+      "not_found_title": "Nie znaleziono rozmowy",
+      "not_found_description": "Nie istnieje lub nie masz do niej dostępu."
+    },
+    "dm": {
+      "intro_title": "To jest początek rozmowy z: {name}",
+      "intro_description": "Tylko osoby w tej rozmowie mogą ją zobaczyć."
+    },
+    "create_channel": {
+      "title": "Utwórz kanał",
+      "description": "W kanałach zespół rozmawia na jeden temat.",
+      "name": "Nazwa",
+      "name_placeholder": "np. design-review",
+      "name_required": "Kanał musi mieć nazwę.",
+      "description_label": "Opis (opcjonalnie)",
+      "private": "Kanał prywatny",
+      "private_help": "Tylko dodane osoby mogą zobaczyć kanał i jego wiadomości.",
+      "submit": "Utwórz kanał"
+    },
+    "browse": {
+      "title": "Przeglądaj kanały",
+      "description": "Kanały publiczne, do których nie dołączono.",
+      "search": "Szukaj kanałów",
+      "empty": "Brak kanałów do dołączenia.",
+      "open": "Otwórz"
+    },
+    "new_dm": {
+      "title": "Nowa wiadomość",
+      "description": "{count, plural, one {Wybierz jedną osobę.} few {Wybierz jedną osobę lub maksymalnie # do grupy.} many {Wybierz jedną osobę lub maksymalnie # do grupy.} other {Wybierz jedną osobę lub maksymalnie # do grupy.}}",
+      "search": "Szukaj osób",
+      "empty": "Brak wyników.",
+      "submit": "Rozpocznij rozmowę"
+    },
+    "composer": {
+      "send": "Wyślij wiadomość",
+      "placeholder_channel": "Wiadomość do #{name}",
+      "placeholder_dm": "Wiadomość do: {name}"
+    },
+    "message": {
+      "label": "{name} o {time}",
+      "edit": "Edytuj wiadomość",
+      "save": "Zapisz",
+      "edited": "(edytowano)",
+      "remove": "Usuń wiadomość",
+      "remove_title": "Usunąć tę wiadomość?",
+      "remove_description": "Wszyscy w rozmowie zobaczą, że wiadomość została usunięta.",
+      "removing": "Usuwanie",
+      "removed": "Ta wiadomość została usunięta.",
+      "replies": "{count, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}}",
+      "sending": "Wysyłanie…",
+      "failed": "Nie wysłano.",
+      "retry": "Ponów",
+      "discard": "Odrzuć"
+    },
+    "day": {
+      "today": "Dzisiaj",
+      "yesterday": "Wczoraj"
+    },
+    "connection": {
+      "reconnecting": "Ponowne łączenie. Nowe wiadomości pojawią się po przywróceniu połączenia.",
+      "reconnect": "Połącz teraz",
+      "signed_out": "Sesja wygasła. Zaloguj się ponownie, aby otrzymywać nowe wiadomości.",
+      "forbidden": "Nie masz już dostępu do tych wiadomości.",
+      "failed": "Aktualizacje na żywo są niedostępne. Odśwież stronę, aby spróbować ponownie."
+    },
+    "errors": {
+      "retry": "Spróbuj ponownie",
+      "load_channels_failed": "Nie udało się wczytać rozmów",
+      "load_messages_failed": "Nie udało się wczytać wiadomości.",
+      "create_channel_failed": "Nie udało się utworzyć kanału",
+      "join_failed": "Nie udało się dołączyć do kanału",
+      "leave_failed": "Nie udało się opuścić kanału",
+      "open_dm_failed": "Nie udało się rozpocząć rozmowy",
+      "edit_failed": "Nie udało się zapisać zmiany",
+      "remove_failed": "Nie udało się usunąć wiadomości"
     }
   }
 }
