@@ -27,6 +27,8 @@ export interface FakeAgentOptions {
   readonly maxMode?: (typeof MODES)[number];
   /** `false`: sessions offer no config options at all (no model to choose). */
   readonly models?: boolean;
+  /** `session/new` fails as an agent with no usable credential does (ACP -32000). */
+  readonly authRequired?: boolean;
 }
 
 interface FakeSession {
@@ -120,6 +122,7 @@ export function createFakeAgent(options: FakeAgentOptions = {}) {
       })
       .onRequest("session/new", ({ params }) => {
         log.newSession.push(params);
+        if (options.authRequired) throw RequestError.authRequired(undefined, "there is no API key");
         const requested = params._meta?.["plane/initialModeId"];
         const mode = typeof requested === "string" ? requested : "ask_writes";
         const wantedModel = params._meta?.["plane/initialModel"];

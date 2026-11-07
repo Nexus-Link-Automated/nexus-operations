@@ -248,7 +248,14 @@ function handle(msg) {
       });
       return;
     case "thread/start":
-      send({ id: msg.id, result: { thread: { id: "thread-1" }, model: "gpt-test" } });
+      send({
+        id: msg.id,
+        result: {
+          thread: { id: "thread-1" },
+          model: "gpt-test",
+          reasoningEffort: process.env.FAKE_CODEX_REASONING_EFFORT || null,
+        },
+      });
       notify("mcpServer/startupStatus/updated", {
         name: "broken",
         status: process.env.FAKE_CODEX_BROKEN_MCP ? "failed" : "ready",

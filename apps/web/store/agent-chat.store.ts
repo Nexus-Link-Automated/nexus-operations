@@ -10,6 +10,7 @@ import {
   AgentChatSession,
   AgentDisconnectedError,
   AgentRequestError,
+  AUTH_REQUIRED,
   INVALID_PARAMS,
   agentSocketUrl,
   effortOption,
@@ -438,6 +439,15 @@ export class AgentChatStore implements IAgentChatStore {
     this.error = null;
   };
 
+  /** Refetch the agent list in the background; a failure leaves the current list. */
+  private async refreshAgents(workspaceSlug: string): Promise<void> {
+    try {
+      await this.fetchAgents(workspaceSlug);
+    } catch {
+      // The list stays as it was; the next fetch (menu open, page load) tries again.
+    }
+  }
+
   private setError(error: unknown, failedAction: TAgentChatAction): void {
     if (error instanceof AgentDisconnectedError) {
       // The close banner explains a lost connection; only flag it when there is no close info.
@@ -446,6 +456,8 @@ export class AgentChatStore implements IAgentChatStore {
     }
     if (error instanceof AgentRequestError) {
       this.error = { kind: "request", action: failedAction, code: error.code, message: error.message };
+      // The agent could not sign in: its key or sign-in is gone, so the list may be out of date.
+      if (error.code === AUTH_REQUIRED && this.workspaceSlug) void this.refreshAgents(this.workspaceSlug);
       return;
     }
     this.error = {

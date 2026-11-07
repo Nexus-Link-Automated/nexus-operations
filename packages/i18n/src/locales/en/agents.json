@@ -385,7 +385,8 @@
         "connected": "Signed in as {email}.",
         "connected_unknown": "Signed in.",
         "disconnected": "Account disconnected.",
-        "disconnect_failed": "The account could not be disconnected."
+        "disconnect_failed": "The account could not be disconnected.",
+        "sign_in_lost": "Your {vendor} sign-in is no longer valid. Sign in again."
       }
     }
   }

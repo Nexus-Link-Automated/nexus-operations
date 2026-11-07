@@ -385,7 +385,8 @@
         "connected": "已以 {email} 登录。",
         "connected_unknown": "已登录。",
         "disconnected": "账号已断开连接。",
-        "disconnect_failed": "无法断开账号连接。"
+        "disconnect_failed": "无法断开账号连接。",
+        "sign_in_lost": "您的 {vendor} 登录已失效，请重新登录。"
       }
     }
   }

@@ -385,7 +385,8 @@
         "connected": "Zalogowano jako {email}.",
         "connected_unknown": "Zalogowano.",
         "disconnected": "Odłączono konto.",
-        "disconnect_failed": "Nie udało się odłączyć konta."
+        "disconnect_failed": "Nie udało się odłączyć konta.",
+        "sign_in_lost": "Logowanie do {vendor} nie jest już ważne. Zaloguj się ponownie."
       }
     }
   }

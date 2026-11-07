@@ -151,6 +151,12 @@ export function codexEfforts(model: JsonObject): Pick<ModelChoice, "efforts" | "
   return levels.includes(fallback) ? { efforts, defaultEffort: fallback } : { efforts };
 }
 
+/** `model` starting on `effort` when it takes that level; unchanged otherwise. */
+export function withDefaultEffort(model: ModelChoice, effort: string): ModelChoice {
+  if (!effort || !model.efforts?.some((choice) => choice.value === effort)) return model;
+  return { ...model, defaultEffort: effort };
+}
+
 /** A `model/list` entry as a model choice. */
 function codexModelChoice(model: JsonObject): ModelChoice {
   const value = stringValue(model.model) || stringValue(model.id);
@@ -223,7 +229,12 @@ class CodexSession implements AdapterSession {
       .map(objectValue)
       .filter((model) => model.hidden !== true)
       .map(codexModelChoice)
-      .filter((model) => model.value);
+      .filter((model) => model.value)
+      // The thread's own effort (e.g. `model_reasoning_effort` in the Codex home's config) is the
+      // current model's starting level, instead of the model's general default.
+      .map((model) =>
+        model.value === current ? withDefaultEffort(model, stringValue(thread.reasoningEffort)) : model
+      );
     if (current && !options.some((model) => model.value === current))
       options.unshift({ value: current, name: current });
     this.#catalog = { options, current: current || options[0]?.value || "" };

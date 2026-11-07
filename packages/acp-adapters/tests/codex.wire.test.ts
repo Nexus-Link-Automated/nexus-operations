@@ -110,6 +110,20 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
     expect(turns[1]).not.toHaveProperty("effort");
   });
 
+  it("starts on the thread's own effort, unless a remembered one is asked for", async () => {
+    const fake = fakeCodexEnv();
+    client = spawnClient("codex", { ...fake.env, FAKE_CODEX_REASONING_EFFORT: "high" });
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const plain = await client.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+    expect(plain.configOptions?.find((option) => option.id === "effort")?.currentValue).toBe("high");
+    const remembered = await client.agent.request("session/new", {
+      cwd: tempDir(),
+      mcpServers: [],
+      _meta: { "plane/initialEffort": "low" },
+    });
+    expect(remembered.configOptions?.find((option) => option.id === "effort")?.currentValue).toBe("low");
+  });
+
   it("starts on the remembered model the app-server lists", async () => {
     const fake = fakeCodexEnv();
     client = spawnClient("codex", fake.env);

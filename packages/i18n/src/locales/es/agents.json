@@ -385,7 +385,8 @@
         "connected": "Sesión iniciada como {email}.",
         "connected_unknown": "Sesión iniciada.",
         "disconnected": "Cuenta desconectada.",
-        "disconnect_failed": "No se pudo desconectar la cuenta."
+        "disconnect_failed": "No se pudo desconectar la cuenta.",
+        "sign_in_lost": "Su sesión de {vendor} ya no es válida. Inicie sesión de nuevo."
       }
     }
   }

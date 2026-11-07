@@ -385,7 +385,8 @@
         "connected": "Connecté en tant que {email}.",
         "connected_unknown": "Connecté.",
         "disconnected": "Compte déconnecté.",
-        "disconnect_failed": "Impossible de déconnecter le compte."
+        "disconnect_failed": "Impossible de déconnecter le compte.",
+        "sign_in_lost": "Votre connexion à {vendor} n’est plus valide. Reconnectez-vous."
       }
     }
   }

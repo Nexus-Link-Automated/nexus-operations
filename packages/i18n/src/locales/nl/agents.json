@@ -385,7 +385,8 @@
         "connected": "Ingelogd als {email}.",
         "connected_unknown": "Ingelogd.",
         "disconnected": "Account ontkoppeld.",
-        "disconnect_failed": "Het account kon niet worden ontkoppeld."
+        "disconnect_failed": "Het account kon niet worden ontkoppeld.",
+        "sign_in_lost": "Uw aanmelding bij {vendor} is niet meer geldig. Log opnieuw in."
       }
     }
   }

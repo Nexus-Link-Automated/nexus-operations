@@ -385,7 +385,8 @@
         "connected": "{email}(으)로 로그인했습니다.",
         "connected_unknown": "로그인했습니다.",
         "disconnected": "계정 연결이 해제되었습니다.",
-        "disconnect_failed": "계정 연결을 해제할 수 없습니다."
+        "disconnect_failed": "계정 연결을 해제할 수 없습니다.",
+        "sign_in_lost": "{vendor} 로그인이 더 이상 유효하지 않습니다. 다시 로그인하세요."
       }
     }
   }

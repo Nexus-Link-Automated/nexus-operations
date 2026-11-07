@@ -385,7 +385,8 @@
         "connected": "已以 {email} 登入。",
         "connected_unknown": "已登入。",
         "disconnected": "已中斷帳號連線。",
-        "disconnect_failed": "無法中斷帳號連線。"
+        "disconnect_failed": "無法中斷帳號連線。",
+        "sign_in_lost": "您的 {vendor} 登入已失效，請重新登入。"
       }
     }
   }

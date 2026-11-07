@@ -126,3 +126,12 @@ export type TAgentConnectionStatus = {
   account?: TAgentConnectionAccount;
   error?: string;
 };
+
+/**
+ * Whether a member's stored account sign-in is still on the agent runner. When it is not, the
+ * bridge has already removed the stale credential.
+ */
+export type TAgentConnectionAccountCheck = {
+  connected: boolean;
+  account?: TAgentConnectionAccount;
+};

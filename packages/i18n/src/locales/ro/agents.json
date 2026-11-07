@@ -385,7 +385,8 @@
         "connected": "Autentificat ca {email}.",
         "connected_unknown": "Autentificat.",
         "disconnected": "Cont deconectat.",
-        "disconnect_failed": "Contul nu a putut fi deconectat."
+        "disconnect_failed": "Contul nu a putut fi deconectat.",
+        "sign_in_lost": "Autentificarea dvs. la {vendor} nu mai este validă. Autentificați-vă din nou."
       }
     }
   }

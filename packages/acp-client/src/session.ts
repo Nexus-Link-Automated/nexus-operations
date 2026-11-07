@@ -45,6 +45,9 @@ export const INITIAL_EFFORT_META_KEY = "plane/initialEffort";
 /** JSON-RPC "invalid params": what the bridge answers to a `session/set_mode` above the admin max. */
 export const INVALID_PARAMS = -32602;
 
+/** ACP "authentication required": the agent has no usable credential (no key, a lost sign-in). */
+export const AUTH_REQUIRED = -32000;
+
 export type AgentChatStatus = "idle" | "connecting" | "ready" | "reconnecting" | "closed";
 
 export interface PendingPermission {

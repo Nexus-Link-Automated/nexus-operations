@@ -385,7 +385,8 @@
         "connected": "Angemeldet als {email}.",
         "connected_unknown": "Angemeldet.",
         "disconnected": "Konto getrennt.",
-        "disconnect_failed": "Das Konto konnte nicht getrennt werden."
+        "disconnect_failed": "Das Konto konnte nicht getrennt werden.",
+        "sign_in_lost": "Ihre Anmeldung bei {vendor} ist nicht mehr gültig. Melden Sie sich erneut an."
       }
     }
   }

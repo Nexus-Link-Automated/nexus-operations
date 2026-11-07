@@ -220,6 +220,23 @@ describe("KhaiaWidget", () => {
     expect(screen.getAllByText("Claude")).toHaveLength(2);
   });
 
+  it("offers AI providers instead of a retry when the agent cannot sign in", async () => {
+    const list = vi.fn(async () => AGENTS);
+    store = new AgentChatStore({
+      agentService: { list },
+      createSession: () =>
+        new AgentChatSession({
+          transport: () => memoryTransport(createFakeAgent({ maxMode: "ask_writes", authRequired: true }).app()),
+        }),
+    });
+    renderWidget();
+    await userEvent.click(await screen.findByRole("button", { name: OPEN }));
+    expect(await screen.findByRole("button", { name: "Manage AI providers" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    // The list is fetched again: the agent's key or sign-in may have gone.
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+  });
+
   it("opens with a usable agent when the remembered one has no key", async () => {
     localStorage.setItem("agent_chat_last_agent:acme", "agent-3");
     const { targets } = setup();

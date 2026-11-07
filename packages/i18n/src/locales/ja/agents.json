@@ -385,7 +385,8 @@
         "connected": "{email}としてサインインしました。",
         "connected_unknown": "サインインしました。",
         "disconnected": "アカウントの接続を解除しました。",
-        "disconnect_failed": "アカウントの接続を解除できませんでした。"
+        "disconnect_failed": "アカウントの接続を解除できませんでした。",
+        "sign_in_lost": "{vendor}のサインインが無効になりました。もう一度サインインしてください。"
       }
     }
   }

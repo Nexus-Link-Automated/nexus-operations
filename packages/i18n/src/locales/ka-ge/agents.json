@@ -385,7 +385,8 @@
         "connected": "შესული ხართ როგორც {email}.",
         "connected_unknown": "შესული ხართ.",
         "disconnected": "ანგარიში გათიშულია.",
-        "disconnect_failed": "ანგარიშის გათიშვა ვერ მოხერხდა."
+        "disconnect_failed": "ანგარიშის გათიშვა ვერ მოხერხდა.",
+        "sign_in_lost": "{vendor}-ში შესვლა აღარ არის მოქმედი. შედით ხელახლა."
       }
     }
   }

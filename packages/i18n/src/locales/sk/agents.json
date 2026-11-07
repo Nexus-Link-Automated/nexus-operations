@@ -385,7 +385,8 @@
         "connected": "Prihlásené ako {email}.",
         "connected_unknown": "Prihlásené.",
         "disconnected": "Účet bol odpojený.",
-        "disconnect_failed": "Účet sa nepodarilo odpojiť."
+        "disconnect_failed": "Účet sa nepodarilo odpojiť.",
+        "sign_in_lost": "Vaše prihlásenie do {vendor} už nie je platné. Prihláste sa znova."
       }
     }
   }

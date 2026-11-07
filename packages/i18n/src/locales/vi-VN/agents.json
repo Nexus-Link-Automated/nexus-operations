@@ -385,7 +385,8 @@
         "connected": "Đã đăng nhập bằng {email}.",
         "connected_unknown": "Đã đăng nhập.",
         "disconnected": "Đã ngắt kết nối tài khoản.",
-        "disconnect_failed": "Không thể ngắt kết nối tài khoản."
+        "disconnect_failed": "Không thể ngắt kết nối tài khoản.",
+        "sign_in_lost": "Phiên đăng nhập {vendor} của bạn không còn hợp lệ. Hãy đăng nhập lại."
       }
     }
   }

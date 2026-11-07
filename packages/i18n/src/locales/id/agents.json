@@ -385,7 +385,8 @@
         "connected": "Masuk sebagai {email}.",
         "connected_unknown": "Berhasil masuk.",
         "disconnected": "Akun diputuskan.",
-        "disconnect_failed": "Akun tidak dapat diputuskan."
+        "disconnect_failed": "Akun tidak dapat diputuskan.",
+        "sign_in_lost": "Login {vendor} Anda tidak lagi valid. Masuk lagi."
       }
     }
   }

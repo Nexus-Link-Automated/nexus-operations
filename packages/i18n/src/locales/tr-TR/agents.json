@@ -385,7 +385,8 @@
         "connected": "{email} olarak oturum açıldı.",
         "connected_unknown": "Oturum açıldı.",
         "disconnected": "Hesabın bağlantısı kesildi.",
-        "disconnect_failed": "Hesabın bağlantısı kesilemedi."
+        "disconnect_failed": "Hesabın bağlantısı kesilemedi.",
+        "sign_in_lost": "{vendor} oturumunuz artık geçerli değil. Yeniden oturum açın."
       }
     }
   }
