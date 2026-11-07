@@ -91,7 +91,7 @@ export function createClaudeAdapter(options: ClaudeAdapterOptions = {}): AgentAd
   return {
     info: agentInfo("plane-acp-claude", "Claude"),
     promptCapabilities: { image: false, audio: false, embeddedContext: true },
-    models: (env) => modelCatalog(CLAUDE_MODELS, env),
+    models: (env) => modelCatalog(CLAUDE_MODELS, env, { efforts: CLAUDE_EFFORT_CHOICES, defaultEffort: "high" }),
     async startSession(init) {
       requireAuth(init.host.env);
       return new ClaudeSession(init, deps, false);

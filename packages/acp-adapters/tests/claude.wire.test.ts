@@ -97,6 +97,22 @@ describe("plane-acp-claude over ndjson (mocked query())", () => {
     ).rejects.toMatchObject({ code: -32602 });
   });
 
+  it("gives an unlisted PLANE_AGENT_MODEL the usual efforts", async () => {
+    const fake = fakeQuery();
+    client = inProcessClient(createClaudeAdapter({ query: fake.query as never }), {
+      ...env,
+      PLANE_AGENT_MODEL: "claude-opus-6",
+    });
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const created = await client.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+    expect(created.configOptions?.map((option) => option.currentValue)).toEqual(["claude-opus-6", "high"]);
+    await client.agent.request("session/prompt", {
+      sessionId: created.sessionId,
+      prompt: [{ type: "text", text: "hello" }],
+    });
+    expect(fake.calls[0]?.options).toMatchObject({ model: "claude-opus-6", effort: "high" });
+  });
+
   it("ignores a remembered model it does not offer and starts on the configured effort", async () => {
     const fake = fakeQuery();
     client = inProcessClient(createClaudeAdapter({ query: fake.query as never }), {

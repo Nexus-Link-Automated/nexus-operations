@@ -4,9 +4,11 @@
  * See the LICENSE file for details.
  */
 
+import { useId } from "react";
 import { observer } from "mobx-react";
 import { ChevronDownOutline, KeyOutline, SettingsOutline } from "@makeplane/propel/icons";
 import { selectChoices } from "@plane/acp-client";
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { cn } from "@plane/utils";
 // components
@@ -24,6 +26,7 @@ import {
 } from "@/components/ui/shadcn/dropdown-menu";
 // hooks
 import { useAgentChat } from "@/hooks/store/use-agent-chat";
+import { useUserPermissions } from "@/hooks/store/user";
 import { useAppRouter } from "@/hooks/use-app-router";
 // local imports
 import { AgentAdapterIcon } from "./adapter-icon";
@@ -39,31 +42,69 @@ type Props = { className?: string };
 export const AgentModelPicker = observer(function AgentModelPicker({ className }: Props) {
   const { t } = useTranslation();
   const router = useAppRouter();
-  const { workspaceSlug, getWorkspaceAgents, agentId, activeAgent, modelConfig, snapshot, openChat, setModel } =
-    useAgentChat();
+  const hintId = useId();
+  const { allowPermissions } = useUserPermissions();
+  const {
+    workspaceSlug,
+    getWorkspaceAgents,
+    fetchAgents,
+    agentId,
+    activeAgent,
+    modelConfig,
+    snapshot,
+    openChat,
+    setModel,
+  } = useAgentChat();
   const agents = workspaceSlug ? (getWorkspaceAgents(workspaceSlug) ?? []) : [];
   const models = modelConfig?.type === "select" ? selectChoices(modelConfig) : [];
   const currentModel = models.find((choice) => choice.value === modelConfig?.currentValue);
-  const modelsLocked = snapshot?.status !== "ready" || !!snapshot?.prompting;
+  // Nothing may change while the agent answers: a switch would drop the reply, a model change is refused.
+  const locked = snapshot?.status !== "ready" || !!snapshot?.prompting;
   if (!activeAgent || !workspaceSlug) return null;
 
+  // The AI providers page is for admins and members; guests cannot add keys.
+  const canManageProviders = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.WORKSPACE
+  );
   const showAgents = agents.length > 1 || !isAgentAvailable(activeAgent);
-  const label = [showAgents ? activeAgent.name : null, currentModel?.name].filter(Boolean).join(" · ");
+  const showManage = canManageProviders && agents.some((agent) => !isAgentAvailable(agent));
+  const label =
+    [showAgents ? activeAgent.name : null, currentModel?.name].filter(Boolean).join(" · ") || activeAgent.name;
+  const triggerContent = (
+    <>
+      <AgentAdapterIcon adapter={activeAgent.adapter} className="size-3.5" />
+      <span className="truncate">{label}</span>
+    </>
+  );
+  const triggerClasses = cn(
+    "flex h-7 max-w-full min-w-0 shrink items-center gap-1.5 px-2 text-caption-md-regular text-secondary",
+    className
+  );
+
+  // One agent and no model choice (yet): nothing to pick, so just say what the chat runs on.
+  if (!showAgents && models.length === 0 && !showManage) {
+    return <span className={triggerClasses}>{triggerContent}</span>;
+  }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(open) => {
+        // Pick up keys added since the list was loaded (e.g. on the AI providers page).
+        if (open) void fetchAgents(workspaceSlug).catch(() => {});
+      }}
+    >
       <DropdownMenuTrigger
         render={
           <Button
             variant="ghost"
             size="sm"
-            className={cn("h-7 max-w-full min-w-0 gap-1.5 px-2 text-caption-md-regular text-secondary", className)}
-            aria-label={t("agents.picker.trigger_label", { selection: label || activeAgent.name })}
+            className={triggerClasses}
+            aria-label={t("agents.picker.trigger_label", { selection: label })}
           />
         }
       >
-        <AgentAdapterIcon adapter={activeAgent.adapter} className="size-3.5" />
-        <span className="truncate">{label || activeAgent.name}</span>
+        {triggerContent}
         <ChevronDownOutline className="size-3 text-tertiary" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="top" className="w-72">
@@ -72,6 +113,7 @@ export const AgentModelPicker = observer(function AgentModelPicker({ className }
             <DropdownMenuLabel>{t("agents.picker.label")}</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={agentId ?? ""}
+              aria-describedby={hintId}
               onValueChange={(next: string) => {
                 if (!next || next === agentId) return;
                 rememberAgent(workspaceSlug, next);
@@ -81,7 +123,13 @@ export const AgentModelPicker = observer(function AgentModelPicker({ className }
               {agents.map((agent) => {
                 const available = isAgentAvailable(agent);
                 return (
-                  <DropdownMenuRadioItem key={agent.id} value={agent.id} disabled={!available} className="items-start">
+                  <DropdownMenuRadioItem
+                    key={agent.id}
+                    value={agent.id}
+                    closeOnClick
+                    disabled={!available || (locked && agent.id !== agentId)}
+                    className="items-start"
+                  >
                     <AgentAdapterIcon adapter={agent.adapter} className="mt-0.5" />
                     <div className="flex min-w-0 flex-col">
                       <span className="truncate text-primary">{agent.name}</span>
@@ -102,7 +150,9 @@ export const AgentModelPicker = observer(function AgentModelPicker({ className }
                 );
               })}
             </DropdownMenuRadioGroup>
-            <p className="px-2 pb-1 text-caption-sm-regular text-tertiary">{t("agents.picker.switch_hint")}</p>
+            <p id={hintId} className="px-2 pb-1 text-caption-sm-regular text-tertiary">
+              {t("agents.picker.switch_hint")}
+            </p>
           </DropdownMenuGroup>
         )}
         {showAgents && models.length > 0 && <DropdownMenuSeparator />}
@@ -116,7 +166,7 @@ export const AgentModelPicker = observer(function AgentModelPicker({ className }
               }}
             >
               {models.map((choice) => (
-                <DropdownMenuRadioItem key={choice.value} value={choice.value} disabled={modelsLocked}>
+                <DropdownMenuRadioItem key={choice.value} value={choice.value} closeOnClick disabled={locked}>
                   <div className="flex min-w-0 flex-col">
                     <span className="truncate text-primary">{choice.name}</span>
                     {choice.description && (
@@ -128,7 +178,7 @@ export const AgentModelPicker = observer(function AgentModelPicker({ className }
             </DropdownMenuRadioGroup>
           </DropdownMenuGroup>
         )}
-        {agents.some((agent) => !isAgentAvailable(agent)) && (
+        {showManage && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push(`/${workspaceSlug}/settings/ai-providers/`)}>

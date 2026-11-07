@@ -5,7 +5,7 @@
       "label": "Agent",
       "trigger_label": "Agent i model: {selection}",
       "switch_hint": "Zmiana agenta rozpoczyna nowy czat.",
-      "unavailable": "Brak klucza API",
+      "unavailable": "Brak jeszcze klucza API",
       "manage_providers": "Zarządzaj dostawcami AI"
     },
     "model": {
@@ -212,7 +212,7 @@
           },
           "PLANE_AGENT_EFFORT": {
             "label": "Domyślny poziom rozumowania",
-            "help": "Opcjonalne, np. high. Używany, gdy model obsługuje ten poziom. Członkowie mogą go zmienić w czacie."
+            "help": "Opcjonalny, np. high. Używany, gdy model obsługuje ten poziom. Członkowie mogą go zmienić w czacie."
           },
           "GEMINI_API_KEY": {
             "label": "Klucz API Gemini",

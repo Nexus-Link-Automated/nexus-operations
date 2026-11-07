@@ -100,7 +100,13 @@ export function createDeepSeekAdapter(options: DeepSeekAdapterOptions = {}): Age
   const fetchImpl = options.fetch ?? fetch;
   return {
     info: agentInfo("plane-acp-deepseek", "DeepSeek"),
-    models: (env) => modelCatalog(deepseekModels(env), env),
+    models: (env) => {
+      const known = deepseekModels(env);
+      return modelCatalog(known, env, {
+        efforts: DEEPSEEK_EFFORT_CHOICES,
+        defaultEffort: known[0]?.defaultEffort ?? DEEPSEEK_DEFAULT_EFFORT,
+      });
+    },
     async startSession(init) {
       const apiKey = init.host.env[DEEPSEEK_ENV.apiKey]?.trim();
       if (!apiKey) throw RequestError.authRequired(undefined, `${DEEPSEEK_ENV.apiKey} is not set for this agent`);

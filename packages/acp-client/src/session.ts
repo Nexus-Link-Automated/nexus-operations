@@ -187,6 +187,8 @@ export class AgentChatSession {
   #capabilities: AgentCapabilities | null = null;
   #sessionId: string | null = null;
   #transcript: TranscriptState = createTranscript();
+  /** The last model and effort a session reported; kept while a load is pending or after it failed. */
+  #choices: LoadSessionOptions = {};
   #prompting = false;
   #close: CloseInfo | null = null;
   /** Updates for a session whose `session/new` response has not arrived yet. */
@@ -203,6 +205,14 @@ export class AgentChatSession {
 
   get snapshot(): AgentChatSnapshot {
     return this.#snapshot;
+  }
+
+  /**
+   * The model and effort the chat last ran on, to start a replacement session on the same ones.
+   * Unlike the transcript, this survives a `session/load` that is still pending or failed.
+   */
+  get choices(): LoadSessionOptions {
+    return this.#choices;
   }
 
   /** The agent can resume a session (`session/load`). */
@@ -432,16 +442,6 @@ export class AgentChatSession {
     await this.setConfigOption(option.id, value);
   }
 
-  /** The current model and effort, to start a replacement session on the same ones. */
-  #currentChoices(): LoadSessionOptions {
-    const model = modelOption(this.#transcript)?.currentValue;
-    const effort = effortOption(this.#transcript)?.currentValue;
-    return {
-      ...(typeof model === "string" ? { initialModel: model } : {}),
-      ...(typeof effort === "string" ? { initialEffort: effort } : {}),
-    };
-  }
-
   /** Answer a permission request with one of its options, or `null` to cancel it. */
   respondToPermission(id: string, optionId: string | null): void {
     this.#settlePermission(
@@ -458,7 +458,7 @@ export class AgentChatSession {
   async reconnect(): Promise<ReconnectResult> {
     const sessionId = this.#sessionId;
     const modeId = this.#transcript.modes?.currentModeId;
-    const choices = this.#currentChoices();
+    const choices = this.#choices;
     this.#status = "reconnecting";
     try {
       await this.#open();
@@ -618,6 +618,12 @@ export class AgentChatSession {
   }
 
   #emit(): void {
+    const model = modelOption(this.#transcript)?.currentValue;
+    // A transcript without a model option is one being reset (a load in flight): keep the last choices.
+    if (typeof model === "string") {
+      const effort = effortOption(this.#transcript)?.currentValue;
+      this.#choices = { initialModel: model, ...(typeof effort === "string" ? { initialEffort: effort } : {}) };
+    }
     this.#snapshot = this.#buildSnapshot();
     for (const listener of this.#listeners) listener(this.#snapshot);
   }

@@ -239,14 +239,14 @@ export class AgentChatStore implements IAgentChatStore {
     return this.snapshot ? effortOption(this.snapshot.transcript) : undefined;
   }
 
-  /** The model and effort the chat runs on now. */
+  /**
+   * The model and effort the chat runs on now: the session's last reported ones (they survive a
+   * pending or failed load), else the ones remembered for this agent.
+   */
   private currentChoices(): LoadSessionOptions {
-    const model = this.modelConfig?.currentValue;
-    const effort = this.effortConfig?.currentValue;
-    return toSessionChoices({
-      ...(typeof model === "string" ? { model } : {}),
-      ...(typeof effort === "string" ? { effort } : {}),
-    });
+    const reported = this.session?.choices ?? {};
+    if (reported.initialModel || !this.workspaceSlug || !this.agentId) return reported;
+    return toSessionChoices(this.choices.recall(this.workspaceSlug, this.agentId));
   }
 
   /** Remember the current model and effort for this agent, so its next chat starts on them. */
@@ -398,7 +398,8 @@ export class AgentChatStore implements IAgentChatStore {
     this.error = null;
     try {
       await session.setModel(value);
-      this.rememberChoices();
+      // Only for the chat that changed: the member may have switched agents meanwhile.
+      if (this.session === session) this.rememberChoices();
     } catch (error) {
       this.setError(error, "set_model");
     }
@@ -410,7 +411,8 @@ export class AgentChatStore implements IAgentChatStore {
     this.error = null;
     try {
       await session.setEffort(value);
-      this.rememberChoices();
+      // Only for the chat that changed: the member may have switched agents meanwhile.
+      if (this.session === session) this.rememberChoices();
     } catch (error) {
       this.setError(error, "set_effort");
     }

@@ -79,6 +79,17 @@ describe("DeepSeek tool loop (fetch-stubbed SSE)", () => {
     expect(api.requests[1]!.body.reasoning_effort).toBe("low");
   });
 
+  it("offers efforts on an unlisted model and falls back to high for an unknown level", async () => {
+    const unlisted = await open({ PLANE_AGENT_MODEL: "deepseek-v5-preview", DEEPSEEK_REASONING_EFFORT: "max" });
+    await unlisted.prompt("hello");
+    expect(unlisted.api.requests[0]!.body).toMatchObject({ model: "deepseek-v5-preview", reasoning_effort: "max" });
+    await client!.close();
+
+    const invalid = await open({ DEEPSEEK_REASONING_EFFORT: "MAX" });
+    await invalid.prompt("hello");
+    expect(invalid.api.requests[0]!.body.reasoning_effort).toBe("high");
+  });
+
   it("maps finish reasons and stops at the iteration limit", async () => {
     expect(finishToStopReason("stop")).toBe("end_turn");
     expect(finishToStopReason("length")).toBe("max_tokens");

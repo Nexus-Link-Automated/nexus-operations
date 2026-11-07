@@ -11,6 +11,7 @@ import {
   RequestError,
   type AgentApp,
   type InitializeRequest,
+  type LoadSessionRequest,
   type NewSessionRequest,
   type SessionConfigOption,
   type SessionModeState,
@@ -24,6 +25,8 @@ export interface FakeAgentOptions {
   readonly listSessions?: boolean;
   /** Emulates the bridge's admin maximum: `set_mode` above it is answered -32602. */
   readonly maxMode?: (typeof MODES)[number];
+  /** `false`: sessions offer no config options at all (no model to choose). */
+  readonly models?: boolean;
 }
 
 interface FakeSession {
@@ -41,6 +44,7 @@ export interface FakeAgentLog {
   readonly initialize: InitializeRequest[];
   readonly newSession: NewSessionRequest[];
   readonly loaded: string[];
+  readonly loadRequests: LoadSessionRequest[];
   readonly cancelled: string[];
 }
 
@@ -96,7 +100,7 @@ function configOptions(session: Pick<FakeSession, "model" | "effort">): SessionC
  */
 export function createFakeAgent(options: FakeAgentOptions = {}) {
   const sessions = new Map<string, FakeSession>();
-  const log: FakeAgentLog = { initialize: [], newSession: [], loaded: [], cancelled: [] };
+  const log: FakeAgentLog = { initialize: [], newSession: [], loaded: [], loadRequests: [], cancelled: [] };
   const maxMode = options.maxMode ?? "yolo";
   let counter = 0;
 
@@ -123,7 +127,11 @@ export function createFakeAgent(options: FakeAgentOptions = {}) {
         const effort = effortFor(model, params._meta?.["plane/initialEffort"]);
         const session: FakeSession = { id: `session-${++counter}`, mode, model, effort, history: [] };
         sessions.set(session.id, session);
-        return { sessionId: session.id, modes: modeState(mode, maxMode), configOptions: configOptions(session) };
+        return {
+          sessionId: session.id,
+          modes: modeState(mode, maxMode),
+          configOptions: options.models === false ? [] : configOptions(session),
+        };
       })
       .onRequest("session/list", () => ({
         sessions: [...sessions.values()].map((session) => ({ sessionId: session.id, cwd: "/w", title: session.id })),
@@ -148,7 +156,7 @@ export function createFakeAgent(options: FakeAgentOptions = {}) {
         } else {
           throw RequestError.invalidParams({}, "unknown option");
         }
-        return { configOptions: configOptions(session) };
+        return { configOptions: options.models === false ? [] : configOptions(session) };
       })
       .onRequest("session/prompt", async ({ params, client }) => {
         const session = sessions.get(params.sessionId);
@@ -227,8 +235,16 @@ export function createFakeAgent(options: FakeAgentOptions = {}) {
         const session = sessions.get(params.sessionId);
         if (!session) throw RequestError.resourceNotFound(params.sessionId);
         log.loaded.push(params.sessionId);
+        log.loadRequests.push(params);
+        // Like the real agents, a loaded session starts on the requested model and effort, else the defaults.
+        const wantedModel = params._meta?.["plane/initialModel"];
+        session.model = typeof wantedModel === "string" && wantedModel in MODEL_EFFORTS ? wantedModel : "fast";
+        session.effort = effortFor(session.model, params._meta?.["plane/initialEffort"]);
         for (const update of session.history) await client.notify("session/update", { sessionId: session.id, update });
-        return { modes: modeState(session.mode, maxMode), configOptions: configOptions(session) };
+        return {
+          modes: modeState(session.mode, maxMode),
+          configOptions: options.models === false ? [] : configOptions(session),
+        };
       });
     }
     return built;

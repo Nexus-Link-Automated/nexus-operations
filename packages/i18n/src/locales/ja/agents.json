@@ -3,7 +3,7 @@
     "title": "エージェント",
     "picker": {
       "label": "エージェント",
-      "trigger_label": "エージェントとモデル: {selection}",
+      "trigger_label": "エージェントとモデル：{selection}",
       "switch_hint": "エージェントを切り替えると、新しいチャットが始まります。",
       "unavailable": "APIキーがまだありません",
       "manage_providers": "AIプロバイダーを管理"
@@ -13,7 +13,7 @@
     },
     "effort": {
       "label": "推論レベル",
-      "trigger_label": "推論レベル: {level}",
+      "trigger_label": "推論レベル：{level}",
       "hint": "次のメッセージから適用されます。",
       "levels": {
         "none": "なし",

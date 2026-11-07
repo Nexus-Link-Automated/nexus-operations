@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { useId } from "react";
 import { observer } from "mobx-react";
 import { ChevronDownOutline, ThoughtsOutline } from "@makeplane/propel/icons";
 import { selectChoices } from "@plane/acp-client";
@@ -30,6 +31,7 @@ import { effortName } from "./helpers";
  */
 export const AgentEffortMenu = observer(function AgentEffortMenu() {
   const { t } = useTranslation();
+  const hintId = useId();
   const { effortConfig, snapshot, setEffort } = useAgentChat();
   const levels = effortConfig?.type === "select" ? selectChoices(effortConfig) : [];
   if (!effortConfig || levels.length === 0) return null;
@@ -59,12 +61,13 @@ export const AgentEffortMenu = observer(function AgentEffortMenu() {
           <DropdownMenuLabel>{t("agents.effort.label")}</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={effortConfig.currentValue}
+            aria-describedby={hintId}
             onValueChange={(next: string) => {
               if (next && next !== effortConfig.currentValue) void setEffort(next);
             }}
           >
             {levels.map((choice) => (
-              <DropdownMenuRadioItem key={choice.value} value={choice.value}>
+              <DropdownMenuRadioItem key={choice.value} value={choice.value} closeOnClick>
                 <div className="flex min-w-0 flex-col">
                   <span className="text-primary">{effortName(t, choice)}</span>
                   {choice.description && (
@@ -74,7 +77,9 @@ export const AgentEffortMenu = observer(function AgentEffortMenu() {
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>
-          <p className="px-2 pb-1 text-caption-sm-regular text-tertiary">{t("agents.effort.hint")}</p>
+          <p id={hintId} className="px-2 pb-1 text-caption-sm-regular text-tertiary">
+            {t("agents.effort.hint")}
+          </p>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

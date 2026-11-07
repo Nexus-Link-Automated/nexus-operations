@@ -80,7 +80,7 @@ describe("agent chat helpers", () => {
 describe("effortName", () => {
   it("translates every known level and keeps the agent's name for others", () => {
     for (const level of AGENT_EFFORT_LEVELS) expect(effortName(t, { value: level, name: "x" })).not.toBe("x");
-    expect(effortName(t, { value: "xhigh", name: "Extra high" })).toBe("Extra high");
+    expect(effortName(t, { value: "xhigh", name: "XHIGH" })).toBe("Extra high");
     expect(effortName(t, { value: "turbo", name: "Turbo" })).toBe("Turbo");
   });
 });

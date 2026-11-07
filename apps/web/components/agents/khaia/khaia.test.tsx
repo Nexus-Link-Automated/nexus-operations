@@ -54,6 +54,11 @@ const UNREAD = /^Open (Khaia|\{name\}) \(new activity\)$/;
 
 let store: AgentChatStore;
 vi.mock("@/hooks/store/use-agent-chat", () => ({ useAgentChat: () => store }));
+// Admins and members may open AI providers; flip to false to act as a guest.
+let canManageProviders = true;
+vi.mock("@/hooks/store/user", () => ({
+  useUserPermissions: () => ({ allowPermissions: () => canManageProviders }),
+}));
 
 function setup(agents: TWorkspaceAgent[] = AGENTS) {
   const fake = createFakeAgent({ maxMode: "ask_writes" });
@@ -78,7 +83,10 @@ function renderWidget(path = "/acme/projects/") {
   );
 }
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  canManageProviders = true;
+});
 afterEach(() => store?.closeChat());
 
 describe("isAgentsPage", () => {
@@ -147,8 +155,12 @@ describe("KhaiaWidget", () => {
     expect(gemini.getAttribute("aria-disabled")).toBe("true");
     expect(gemini.textContent).toContain("No API key yet");
     expect(screen.getByRole("menuitem", { name: "Manage AI providers" })).toBeTruthy();
+    await userEvent.click(gemini);
+    expect(store.agentId).toBe("agent-1");
     await userEvent.click(screen.getByRole("menuitemradio", { name: /Codex/ }));
     await waitFor(() => expect(store.agentId).toBe("agent-2"));
+    // Picking closes the menu.
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     expect(targets.at(-1)).toEqual({ agentId: "agent-2", workspaceSlug: "acme" });
     expect(localStorage.getItem("agent_chat_last_agent:acme")).toBe("agent-2");
   });
@@ -173,6 +185,39 @@ describe("KhaiaWidget", () => {
       model: "smart",
       effort: "high",
     });
+  });
+
+  it("hides the AI providers link from guests and locks switching while the agent answers", async () => {
+    canManageProviders = false;
+    setup();
+    renderWidget();
+    await userEvent.click(await screen.findByRole("button", { name: OPEN }));
+    await waitFor(() => expect(store.canPrompt).toBe(true));
+    const turn = store.sendPrompt("/sleep");
+    await waitFor(() => expect(store.snapshot?.prompting).toBe(true));
+    await userEvent.click(screen.getByRole("button", { name: /^Agent and model/ }));
+    expect((await screen.findByRole("menuitemradio", { name: /Codex/ })).getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByRole("menuitemradio", { name: "Smart" }).getAttribute("aria-disabled")).toBe("true");
+    expect(screen.queryByRole("menuitem", { name: "Manage AI providers" })).toBeNull();
+    await userEvent.keyboard("{Escape}");
+    await act(() => store.cancelTurn());
+    await turn;
+  });
+
+  it("shows a plain label when there is only one agent and no model to choose", async () => {
+    store = new AgentChatStore({
+      agentService: { list: async () => [AGENTS[0]!] },
+      createSession: () =>
+        new AgentChatSession({
+          transport: () => memoryTransport(createFakeAgent({ maxMode: "ask_writes", models: false }).app()),
+        }),
+    });
+    renderWidget();
+    await userEvent.click(await screen.findByRole("button", { name: OPEN }));
+    await waitFor(() => expect(store.canPrompt).toBe(true));
+    expect(screen.queryByRole("button", { name: /^Agent and model/ })).toBeNull();
+    // The header and the plain label both name the agent.
+    expect(screen.getAllByText("Claude")).toHaveLength(2);
   });
 
   it("opens with a usable agent when the remembered one has no key", async () => {

@@ -10,6 +10,7 @@ import path from "node:path";
 import type { McpServer } from "@agentclientprotocol/sdk";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { codexEfforts } from "../src/codex/index.ts";
 import { spawnClient, tempDir, textOf, updatesOfKind, type SpawnedClient } from "./helpers/client.ts";
 import { fakeCodexEnv } from "./helpers/codex.ts";
 import { runWireScenario } from "./helpers/scenario.ts";
@@ -90,7 +91,8 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
 
     await client.agent.request("session/set_config_option", { sessionId, configId: "effort", value: "high" });
     await prompt();
-    // gpt-mini reports no efforts: the select goes away and turns carry none.
+    // gpt-mini reports no efforts: the select goes away and turns stop sending one (Codex keeps
+    // the thread's last effort, which a model without reasoning ignores).
     const switched = await client.agent.request("session/set_config_option", {
       sessionId,
       configId: "model",
@@ -106,6 +108,38 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
     expect(turns[0]).toMatchObject({ model: "gpt-test", effort: "high" });
     expect(turns[1]).toMatchObject({ model: "gpt-mini" });
     expect(turns[1]).not.toHaveProperty("effort");
+  });
+
+  it("starts on the remembered model the app-server lists", async () => {
+    const fake = fakeCodexEnv();
+    client = spawnClient("codex", fake.env);
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const { sessionId, configOptions } = await client.agent.request("session/new", {
+      cwd: tempDir(),
+      mcpServers: [],
+      _meta: { "plane/initialModel": "gpt-mini", "plane/initialEffort": "high" },
+    });
+    // gpt-mini takes no effort, so the remembered one is dropped.
+    expect(configOptions?.map((option) => [option.id, option.currentValue])).toEqual([["model", "gpt-mini"]]);
+    await client.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text: "hello" }] });
+    const turn = fake.log().find((message) => message.method === "turn/start")?.params as Record<string, unknown>;
+    expect(turn).toMatchObject({ model: "gpt-mini" });
+    expect(turn).not.toHaveProperty("effort");
+  });
+
+  it("maps model/list efforts, falling back to the lowest level without a usable default", () => {
+    expect(
+      codexEfforts({
+        supportedReasoningEfforts: [{ reasoningEffort: "low" }, { reasoningEffort: "high", description: "Deep" }],
+        defaultReasoningEffort: "medium",
+      })
+    ).toEqual({
+      efforts: [
+        { value: "low", name: "Low" },
+        { value: "high", name: "High", description: "Deep" },
+      ],
+    });
+    expect(codexEfforts({ supportedReasoningEfforts: [] })).toEqual({});
   });
 
   it("gates Plane MCP calls through elicitation and streams thoughts, plans and usage", async () => {
