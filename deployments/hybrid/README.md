@@ -7,7 +7,7 @@ browser ── https ──▶ Railway edge ──▶ router ──▶ web (priv
                                         │
                                         │ Tailscale (encrypted, outbound from both sides)
                                         ▼
-                                  VPS: tailscale serve ──▶ gateway ──▶ api, live, admin, space, mcp, MinIO, agent-bridge
+                                  VPS: tailscale serve ──▶ gateway ──▶ api, live, admin, space, mcp, MinIO, agent-bridge, chat-gateway
                                                                             │                              │
                                                                    Postgres, Valkey, RabbitMQ        agent-runner ──▶ internet, mcp
 ```
@@ -19,11 +19,12 @@ browser ── https ──▶ Railway edge ──▶ router ──▶ web (priv
 | `/live/*`                                             | VPS     | Live             |
 | `/mcp`, `/mcp/*`                                      | VPS     | Plane MCP server |
 | `/agents`, `/agents/*` (WebSocket included)           | VPS     | Agent bridge     |
+| `/chat`, `/chat/*` (WebSocket included)               | VPS     | Chat gateway     |
 | `/god-mode`, `/god-mode/*`                            | VPS     | Admin            |
 | `/spaces`, `/spaces/*`                                | VPS     | Space            |
 | `/uploads`, `/uploads/*`                              | VPS     | MinIO            |
 
-The path list exists in `railway/router/Caddyfile` and `vps/Caddyfile`. Compare both with `apps/proxy/Caddyfile.ce` on every upgrade. Only the root `/agents` path goes to the bridge: the chat page itself, `/<workspace-slug>/agents`, is a client-side route of web. The API reserves these root paths as workspace slugs so that no workspace can collide with them. The gateway answers `/api/internal/*` with a 404, because only the bridge calls those endpoints, and it reaches the API directly.
+The path list exists in `railway/router/Caddyfile` and `vps/Caddyfile`. Compare both with `apps/proxy/Caddyfile.ce` on every upgrade. Only the root `/agents` path goes to the bridge: the chat page itself, `/<workspace-slug>/agents`, is a client-side route of web. Likewise only the root `/chat` path goes to the chat gateway, and the Messages page, `/<workspace-slug>/messages`, is web's. The API reserves these root paths as workspace slugs so that no workspace can collide with them. The gateway answers `/api/internal/*` with a 404, because only the bridge calls those endpoints, and it reaches the API directly.
 
 ## Production today
 
@@ -124,7 +125,7 @@ docker compose up -d
 docker compose ps
 ```
 
-`migrator` exits with status 0 when it finishes, and the API waits for it. `agent-bridge` and `agent-runner` start with the rest; no agent is available until you register one (see [Agent chat](#agent-chat)). The gateway listens on loopback only. Expose it to the tailnet:
+`migrator` exits with status 0 when it finishes, and the API waits for it. `chat-gateway`, `agent-bridge` and `agent-runner` start with the rest; no agent is available until you register one (see [Agent chat](#agent-chat)). The gateway listens on loopback only. Expose it to the tailnet:
 
 ```bash
 tailscale serve --bg --tcp=8080 tcp://localhost:8080
@@ -192,6 +193,7 @@ Then check the things a script cannot:
 - Send a request with a forged `X-Real-IP` header and confirm that the log shows your real address, which shows Railway's edge overwrites it.
 - Run `sudo reboot` on the VPS, then repeat the smoke test, and confirm that `iptables -S DOCKER-USER` still jumps to `NEXUS-AGENTS-FWD`.
 - Check the agent sandbox from inside the runner (see [Agent chat](#agent-chat)).
+- Open `/<workspace-slug>/messages` in two browsers signed in as different members, and confirm that a message sent in one appears in the other at once. Leave both open and idle for 20 minutes, then send again: the socket either survived or reconnected and caught up (see [Nexus Messages](#nexus-messages)).
 - Register an agent in God mode, open `/<workspace-slug>/agents`, and chat with it: ask it to list work items, which goes through Plane MCP, and approve and deny a permission prompt.
 - Run a backup and verify it, as described below.
 
@@ -243,6 +245,7 @@ Besides the smoke checks, the test:
 - Chats with that agent through the router, gateway, bridge and runner, including a permission prompt.
 - Checks that, from inside `agent-runner`, `api`, `gateway`, Postgres, Valkey, RabbitMQ, MinIO and live are unreachable, both by name and by IP address, while `mcp` and the internet are reachable.
 - Checks that the chat's working dir belongs to its own uid with mode 700, and that no agent process outlives the chat.
+- Opens a Nexus Messages socket with the session cookie, creates a channel and sends a message over REST, and waits for both events on the socket.
 
 A plain SOCKS5 proxy stands in for the tailnet. The test cannot exercise Railway's edge or a real Tailscale connection, so those are covered in step 7. It also does not install `agents-firewall.sh`, which changes the host's iptables, so check that on the VPS.
 
@@ -338,6 +341,26 @@ docker compose run --rm -T --no-deps --entrypoint sh agent-runner -c \
   'find /workspaces -mindepth 1 -delete && tar --numeric-owner -xpzf - -C /workspaces' <agent_workspaces.tar.gz
 docker compose up -d agent-bridge agent-runner
 ```
+
+## Nexus Messages
+
+Team chat lives at `/<workspace-slug>/messages`. Everything it stores goes through the Django API at `/api/workspaces/<slug>/chat/`. Live updates come from `chat-gateway` over a WebSocket to `wss://$APP_DOMAIN/chat/ws`. `apps/chat-gateway/README.md` describes the protocol.
+
+As with the agent chat, the production VPS runs its own stack (see [Production today](#production-today)), so the service and the `/chat` route below have to be added there too.
+
+```
+browser ──▶ router ──▶ gateway ──▶ chat-gateway ──▶ api (cookie check, which channels the user may see)
+   │                                    ▲
+   └── REST writes ──▶ api ──▶ Valkey ──┘ (chat events, after each write commits)
+```
+
+| Service        | Networks      | What it does                                                                                                                                                                                    |
+| -------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chat-gateway` | `app`, `data` | Checks the session cookie and the `Origin` header, asks the API which channels the user may see, and forwards the events Django publishes to Valkey. It never writes data and holds no secrets. |
+
+The compose file sets `API_BASE_URL=http://api:8000`, `REDIS_URL=redis://plane-redis:6379/` (the API's Valkey; it must be the same one), and `CORS_ALLOWED_ORIGINS=https://$APP_DOMAIN`. The web image is built with `VITE_CHAT_GATEWAY_BASE_URL` empty, meaning the page's own origin, and `VITE_CHAT_GATEWAY_BASE_PATH=/chat`. Keep it that way: the session cookie is host-only, so the gateway must be a path on `$APP_DOMAIN`, not a subdomain.
+
+The gateway keeps nothing between connections. Restarting it drops every socket, and browsers reconnect and fetch what they missed over REST. It pings each socket every 30 seconds, which also keeps idle sockets alive through Railway's edge and the tunnel. If a proxy still cuts a socket, the browser reconnects the same way. `GET /chat/health` reports the open connection count and whether the gateway hears Valkey (`live`).
 
 ## If Railway blocks the tailnet
 

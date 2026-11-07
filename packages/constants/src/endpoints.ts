@@ -22,6 +22,9 @@ export const LIVE_URL = encodeURI(`${LIVE_BASE_URL}${LIVE_BASE_PATH}`);
 // Agent bridge (in-app agent chat over ACP); the browser opens a WebSocket to <url><path>/acp
 export const AGENT_BRIDGE_BASE_URL = process.env.VITE_AGENT_BRIDGE_BASE_URL || "";
 export const AGENT_BRIDGE_BASE_PATH = process.env.VITE_AGENT_BRIDGE_BASE_PATH || "/agents";
+// Chat gateway (Nexus Messages live updates). Empty URL: same origin as the web app.
+export const CHAT_GATEWAY_BASE_URL = process.env.VITE_CHAT_GATEWAY_BASE_URL || "";
+export const CHAT_GATEWAY_BASE_PATH = process.env.VITE_CHAT_GATEWAY_BASE_PATH || "/chat";
 // Web App Base Url
 export const WEB_BASE_URL = process.env.VITE_WEB_BASE_URL || "";
 export const WEB_BASE_PATH = process.env.VITE_WEB_BASE_PATH || "";

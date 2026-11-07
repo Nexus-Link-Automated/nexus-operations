@@ -17,7 +17,7 @@ set -a; . "$env_file"; set +a
 rclone_config_dir="${RCLONE_CONFIG_DIR:-$here/rclone}"
 rclone_image="rclone/rclone:1.75.2"
 read -r -a compose_files <<<"${COMPOSE_FILES:--f docker-compose.yml}"
-app_services=(gateway agent-bridge agent-runner mcp api worker beat-worker live space admin)
+app_services=(gateway agent-bridge agent-runner chat-gateway mcp api worker beat-worker live space admin)
 
 compose() {
   docker compose ${COMPOSE_PROJECT:+-p "$COMPOSE_PROJECT"} --env-file "$env_file" "${compose_files[@]}" "$@"

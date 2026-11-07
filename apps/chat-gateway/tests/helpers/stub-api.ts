@@ -41,7 +41,7 @@ export interface StubChannel {
  * Stands in for the Plane API, answering as Django does:
  *
  * - `/api/users/me/` by session cookie;
- * - `/api/workspaces/<slug>/` for active members only (a 404 for anyone else);
+ * - `/api/workspaces/<slug>/chat/me/` for active members only (a 403 for anyone else, like every chat route);
  * - `/api/workspaces/<slug>/chat/channels/` and `.../<id>/`: a channel is visible to its members and, if it is
  *   public, to every workspace member who is not a guest. A channel the caller can't see is a 404, never a 403.
  */
@@ -140,11 +140,14 @@ export class StubPlaneApi {
     const match = /^\/api\/workspaces\/([^/]+)\/(.*)$/.exec(url.pathname);
     if (!match) return { status: 404, body: {} };
     const [, slug, rest] = match;
-    if (slug !== WORKSPACE_SLUG || !this.members.has(userId)) {
-      // Plane's workspace endpoint filters to the caller's workspaces (404); the chat routes' permission class is a 403.
-      return rest === "" ? { status: 404, body: { error: "Workspace not found" } } : { status: 403, body: {} };
+    // The chat routes' permission class answers anyone who isn't an active member with a 403.
+    if (slug !== WORKSPACE_SLUG || !this.members.has(userId)) return { status: 403, body: {} };
+    if (rest === "chat/me/") {
+      return {
+        status: 200,
+        body: { workspace_id: WORKSPACE_ID, workspace_role: 15, is_workspace_admin: false, can_create_channels: true },
+      };
     }
-    if (rest === "") return { status: 200, body: { id: WORKSPACE_ID, slug: WORKSPACE_SLUG, name: "Acme" } };
 
     if (rest === "chat/channels/") {
       const archived = url.searchParams.get("archived") === "true";

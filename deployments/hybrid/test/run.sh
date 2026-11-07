@@ -32,6 +32,7 @@ else
     "plane-backend apps/api apps/api/Dockerfile.api" \
     "plane-agent-bridge . apps/agent-bridge/Dockerfile.agent-bridge" \
     "plane-agent-runner . apps/agent-runner/Dockerfile.agent-runner" \
+    "plane-chat-gateway . apps/chat-gateway/Dockerfile.chat-gateway" \
     "plane-mcp apps/mcp apps/mcp/Dockerfile"; do
     read -r image context dockerfile <<<"$spec"
     echo "Building $registry/$image:$release..."
@@ -77,21 +78,22 @@ trap cleanup EXIT
 compose up -d --build
 
 url="http://127.0.0.1:$TEST_ROUTER_PORT"
-echo "Waiting for the API and the agent bridge to answer through the router..."
+echo "Waiting for the API, the agent bridge and the chat gateway to answer through the router..."
 # The fork's migrations take several minutes on an empty database.
 ready=0
 for _ in $(seq 1 120); do
   if [ "$(curl -s -o /dev/null -w '%{http_code}' "$url/api/instances/" || true)" = "200" ] \
-    && [ "$(curl -s -o /dev/null -w '%{http_code}' "$url/agents/health" || true)" = "200" ]; then
+    && [ "$(curl -s -o /dev/null -w '%{http_code}' "$url/agents/health" || true)" = "200" ] \
+    && [ "$(curl -s -o /dev/null -w '%{http_code}' "$url/chat/health" || true)" = "200" ]; then
     ready=1
     break
   fi
   sleep 5
 done
 if [ "$ready" -ne 1 ]; then
-  echo "FAIL  the API or the agent bridge never answered through the router" >&2
+  echo "FAIL  the API, the agent bridge or the chat gateway never answered through the router" >&2
   compose ps -a >&2
-  compose logs --tail 20 router socks gateway api agent-bridge agent-runner >&2 || true
+  compose logs --tail 20 router socks gateway api agent-bridge agent-runner chat-gateway >&2 || true
   exit 1
 fi
 
@@ -181,6 +183,6 @@ else
 fi
 
 if [ "$status" -ne 0 ]; then
-  compose logs --tail 40 gateway api router socks agent-bridge agent-runner >&2 || true
+  compose logs --tail 40 gateway api router socks agent-bridge agent-runner chat-gateway >&2 || true
 fi
 exit "$status"

@@ -91,6 +91,17 @@
 		}
 	}
 
+	# Nexus Messages live updates: the chat WebSocket (/chat/ws) and /chat/health. Only
+	# the root /chat path: the Messages page itself is /<workspace-slug>/messages, served
+	# by web. Like the bridge, the gateway authenticates the session cookie and checks
+	# Origin against the public origin, so it must stay on the same site as the app.
+	@chat path /chat /chat/*
+	handle @chat {
+		reverse_proxy chat-gateway:3420 {
+			import public_request
+		}
+	}
+
 	@uploads path /{$BUCKET_NAME:uploads} /{$BUCKET_NAME:uploads}/*
 	handle @uploads {
 		reverse_proxy plane-minio:9000 {
