@@ -10,6 +10,7 @@ import { useParams } from "next/navigation";
 // plane imports
 import {
   AiStarFourOutline,
+  ChatOutline,
   DashboardsOutline,
   DraftsOutline,
   HomeOutline,
@@ -56,6 +57,13 @@ export const SidebarUserMenu = observer(function SidebarUserMenu() {
       href: `/${workspaceSlug.toString()}/drafts/`,
       access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
       Icon: DraftsOutline,
+    },
+    {
+      key: "messages",
+      labelTranslationKey: "messages.title",
+      href: `/${workspaceSlug.toString()}/messages/`,
+      access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER, EUserWorkspaceRoles.GUEST],
+      Icon: ChatOutline,
     },
     {
       key: "agents",

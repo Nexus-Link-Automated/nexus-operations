@@ -100,6 +100,11 @@ export const coreRoutes: RouteConfigEntry[] = [
           ),
         ]),
 
+        // Messages (Nexus Messages team chat)
+        layout("./(all)/[workspaceSlug]/(projects)/messages/layout.tsx", [
+          route(":workspaceSlug/messages", "./(all)/[workspaceSlug]/(projects)/messages/page.tsx"),
+        ]),
+
         // Agents (in-app agent chat)
         layout("./(all)/[workspaceSlug]/(projects)/agents/layout.tsx", [
           route(":workspaceSlug/agents", "./(all)/[workspaceSlug]/(projects)/agents/page.tsx"),

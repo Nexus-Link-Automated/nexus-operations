@@ -1,0 +1,9 @@
+{
+  "messages": {
+    "title": "Mesaje",
+    "empty": {
+      "title": "Încă nu există conversații",
+      "description": "Aici vor apărea canalele și mesajele directe cu echipa dumneavoastră."
+    }
+  }
+}

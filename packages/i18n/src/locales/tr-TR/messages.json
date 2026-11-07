@@ -1,0 +1,9 @@
+{
+  "messages": {
+    "title": "Mesajlar",
+    "empty": {
+      "title": "Henüz sohbet yok",
+      "description": "Ekibinizle olan kanallar ve doğrudan mesajlar burada görünecek."
+    }
+  }
+}

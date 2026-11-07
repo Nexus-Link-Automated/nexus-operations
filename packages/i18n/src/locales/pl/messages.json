@@ -1,0 +1,9 @@
+{
+  "messages": {
+    "title": "Wiadomości",
+    "empty": {
+      "title": "Brak rozmów",
+      "description": "Tutaj pojawią się kanały i wiadomości bezpośrednie z zespołem."
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "messages": {
+    "title": "Nachrichten",
+    "empty": {
+      "title": "Noch keine Unterhaltungen",
+      "description": "Hier werden Kanäle und Direktnachrichten mit Ihrem Team angezeigt."
+    }
+  }
+}

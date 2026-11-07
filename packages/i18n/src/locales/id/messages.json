@@ -1,0 +1,9 @@
+{
+  "messages": {
+    "title": "Pesan",
+    "empty": {
+      "title": "Belum ada percakapan",
+      "description": "Kanal dan pesan langsung dengan tim Anda akan muncul di sini."
+    }
+  }
+}

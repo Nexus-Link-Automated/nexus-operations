@@ -1,0 +1,9 @@
+{
+  "messages": {
+    "title": "Tin nhắn",
+    "empty": {
+      "title": "Chưa có cuộc trò chuyện nào",
+      "description": "Các kênh và tin nhắn trực tiếp với nhóm của bạn sẽ xuất hiện ở đây."
+    }
+  }
+}
