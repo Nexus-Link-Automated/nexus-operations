@@ -14,6 +14,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 
+from plane.chat.events import EventType
 from plane.chat.exceptions import BadRequest, Conflict, Forbidden, NotFound
 from plane.chat.models import Message
 from plane.chat.pagination import paginate_messages
@@ -61,6 +62,7 @@ class MessageEndpoint(ChatBaseEndpoint):
             body_html=data["body_html"],
             body_json=data["body_json"],
         )
+        self.publish(EventType.MESSAGE_CREATED, channel, message=message)
         return Response(_payload(message.id), status=status.HTTP_201_CREATED)
 
 
@@ -93,6 +95,7 @@ class MessageDetailEndpoint(ChatBaseEndpoint):
         message.body_json = data["body_json"]
         message.edited_at = timezone.now()
         message.save(update_fields=["body_html", "body_json", "body_stripped", "edited_at", "updated_at", "updated_by"])
+        self.publish(EventType.MESSAGE_UPDATED, channel, message=message)
         return Response(_payload(message.id))
 
     def delete(self, request, slug, channel_id, message_id):
@@ -109,6 +112,7 @@ class MessageDetailEndpoint(ChatBaseEndpoint):
         require_not_archived(channel)
         if message.removed_at is None:
             message.remove()
+            self.publish(EventType.MESSAGE_REMOVED, channel, message=message)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

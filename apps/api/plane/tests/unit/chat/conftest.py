@@ -7,6 +7,7 @@ from unittest import mock
 import pytest
 
 from plane.db.models import Issue, Project
+from plane.tests.chat_redis import FakeRedis
 from plane.tests.factories import WorkspaceFactory, WorkspaceMemberFactory
 
 
@@ -15,6 +16,14 @@ def no_soft_delete_task():
     """`BaseModel.delete()` queues a Celery task to soft delete related rows; keep it off the broker."""
     with mock.patch("plane.db.mixins.soft_delete_related_objects"):
         yield
+
+
+@pytest.fixture
+def redis():
+    """Chat events go to a recording fake, not to Redis. `redis.events` is what was published."""
+    fake = FakeRedis()
+    with mock.patch("plane.chat.events.redis_instance", return_value=fake):
+        yield fake
 
 
 @pytest.fixture

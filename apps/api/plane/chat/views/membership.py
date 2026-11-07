@@ -8,6 +8,7 @@ from django.db import IntegrityError, transaction
 from rest_framework import status
 from rest_framework.response import Response
 
+from plane.chat.events import EventType
 from plane.chat.exceptions import BadRequest, Conflict, NotFound
 from plane.chat.models import ChannelMember, ChannelMemberRole, Message
 from plane.chat.permissions import (
@@ -30,13 +31,14 @@ from plane.db.models import WorkspaceMember
 DM_MEMBERS_FIXED = "A direct message's members are fixed."
 
 
-def _leave(channel):
-    """Leaving is idempotent; a DM can't be left (it can be hidden in a later step)."""
+def _leave(endpoint, channel):
+    """Leaving is idempotent (and silent the second time); a DM can't be left (it can be hidden in a later step)."""
     require_named_channel(channel, "You can't leave a direct message.")
     if channel.membership is not None:
         with transaction.atomic():
             require_another_admin(channel, channel.membership)
             channel.membership.delete()
+            endpoint.publish(EventType.MEMBER_REMOVED, channel, user_id=channel.membership.user_id)
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -50,15 +52,16 @@ class ChannelJoinEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
         try:
             with transaction.atomic():
                 ChannelMember.objects.create(channel=channel, user=request.user)
+                self.publish(EventType.MEMBER_ADDED, channel, user_id=request.user.id)
         except IntegrityError:
-            # A concurrent join from another tab already added us.
+            # A concurrent join from another tab already added us (and published it).
             return Response(self.channel_payload(channel.id))
         return Response(self.channel_payload(channel.id), status=status.HTTP_201_CREATED)
 
 
 class ChannelLeaveEndpoint(ChatBaseEndpoint):
     def post(self, request, slug, channel_id):
-        return _leave(self.get_channel(channel_id))
+        return _leave(self, self.get_channel(channel_id))
 
 
 class ChannelMemberEndpoint(ChatBaseEndpoint):
@@ -93,6 +96,8 @@ class ChannelMemberEndpoint(ChatBaseEndpoint):
                     ChannelMember.objects.create(channel=channel, user_id=user_id)
                     for user_id in sorted(user_ids - existing, key=str)
                 ]
+                for new_member in added:
+                    self.publish(EventType.MEMBER_ADDED, channel, user_id=new_member.user_id)
         except IntegrityError:
             raise Conflict("The channel's members changed while adding; try again.")
         return Response(
@@ -120,15 +125,18 @@ class ChannelMemberDetailEndpoint(ChatBaseEndpoint):
         with transaction.atomic():
             if serializer.validated_data["role"] != ChannelMemberRole.ADMIN:
                 require_another_admin(channel, member)
+            changed = member.role != serializer.validated_data["role"]
             member.role = serializer.validated_data["role"]
             member.save(update_fields=["role", "updated_at", "updated_by"])
+            if changed:
+                self.publish(EventType.MEMBER_UPDATED, channel, user_id=member.user_id)
         return Response(ChannelMemberSerializer(member).data)
 
     def delete(self, request, slug, channel_id, user_id):
         """Remove someone: yourself (the same as leaving), or anyone if you're a channel or workspace admin."""
         channel = self.get_channel(channel_id)
         if str(user_id) == str(request.user.id):
-            return _leave(channel)
+            return _leave(self, channel)
         require_named_channel(channel, DM_MEMBERS_FIXED)
         require_channel_admin(channel, self.role)
         require_not_archived(channel)
@@ -136,6 +144,7 @@ class ChannelMemberDetailEndpoint(ChatBaseEndpoint):
         with transaction.atomic():
             require_another_admin(channel, member)
             member.delete()
+            self.publish(EventType.MEMBER_REMOVED, channel, user_id=member.user_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -162,4 +171,5 @@ class ChannelReadEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
             if current is None or (message.created_at, message.id) > (current.created_at, current.id):
                 membership.last_read_message = message
                 membership.save(update_fields=["last_read_message", "updated_at", "updated_by"])
+                self.publish(EventType.READ_UPDATED, channel, message=message, user_id=request.user.id)
         return Response(self.channel_payload(channel.id))

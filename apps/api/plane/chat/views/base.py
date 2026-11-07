@@ -14,6 +14,7 @@ from rest_framework.response import Response
 
 from plane.app.permissions.workspace import WorkspaceUserPermission
 from plane.app.views.base import BaseAPIView
+from plane.chat.events import publish_on_commit
 from plane.chat.models import ChannelMember, Message
 from plane.chat.permissions import get_visible_channel, workspace_role
 from plane.db.models import Workspace
@@ -80,6 +81,22 @@ class ChatBaseEndpoint(BaseAPIView):
     def get_channel(self, channel_id):
         """The channel if the caller can see it (404 otherwise), with their `membership` or None."""
         return get_visible_channel(self.request.user, self.workspace_slug, self.role, channel_id)
+
+    def publish(self, event_type, channel, *, message=None, user_id=None):
+        """Queue an event about `channel`, made by the caller, to go out once the write commits.
+
+        `message` is the message a `message.*` event is about, or the one `read.updated` moved the cursor to;
+        `user_id` is the person a `member.*` or `read.updated` event is about.
+        """
+        publish_on_commit(
+            event_type,
+            workspace_id=channel.workspace_id,
+            channel_id=channel.id,
+            message_id=message.id if message is not None else None,
+            parent_id=message.parent_id if message is not None else None,
+            user_id=user_id,
+            actor_id=self.request.user.id,
+        )
 
     def handle_exception(self, exc):
         # The models raise Django's ValidationError for rules they enforce (a DM's member set, a reply's

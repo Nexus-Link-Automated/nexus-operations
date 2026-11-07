@@ -9,6 +9,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 
+from plane.chat.events import EventType
 from plane.chat.exceptions import BadRequest, Conflict, Forbidden
 from plane.chat.models import Channel, ChannelMember, ChannelMemberRole
 from plane.chat.permissions import (
@@ -60,6 +61,10 @@ class ChannelEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
             with transaction.atomic():
                 channel = serializer.save(workspace=self.workspace)
                 ChannelMember.objects.create(channel=channel, user=request.user, role=ChannelMemberRole.ADMIN)
+                # The creator's membership first, so the gateway knows the channel is theirs by the time
+                # it sees `channel.created`.
+                self.publish(EventType.MEMBER_ADDED, channel, user_id=request.user.id)
+                self.publish(EventType.CHANNEL_CREATED, channel)
         except IntegrityError:
             # Someone took the name between the check and the insert.
             raise Conflict(DUPLICATE_NAME)
@@ -83,6 +88,7 @@ class ChannelDetailEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
         try:
             with transaction.atomic():
                 serializer.save()
+                self.publish(EventType.CHANNEL_UPDATED, channel)
         except IntegrityError:
             raise Conflict(DUPLICATE_NAME)
         return Response(self.channel_payload(channel.id))
@@ -104,6 +110,7 @@ class ChannelArchiveEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
         if (channel.archived_at is not None) != archived:
             channel.archived_at = timezone.now() if archived else None
             channel.save(update_fields=["archived_at", "updated_at", "updated_by"])
+            self.publish(EventType.CHANNEL_ARCHIVED if archived else EventType.CHANNEL_UNARCHIVED, channel)
         return Response(self.channel_payload(channel.id))
 
 
@@ -131,6 +138,12 @@ class DirectMessageEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
             channel, created = Channel.objects.get_or_create_dm(self.workspace, *people)
         else:
             channel, created = Channel.objects.get_or_create_group_dm(self.workspace, people)
+        if created:
+            # Opening a DM that already exists changes nothing, so it publishes nothing. Everyone in a new one
+            # is a member from the start, and each of them needs to learn it.
+            for user_id in channel.dm_key.split(":"):
+                self.publish(EventType.MEMBER_ADDED, channel, user_id=user_id)
+            self.publish(EventType.CHANNEL_CREATED, channel)
         return Response(
             self.channel_payload(channel.id), status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
         )
