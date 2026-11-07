@@ -36,10 +36,24 @@ export interface PlaneApi {
    * gets a 404 (or a 403) from the API, which surfaces as a `PlaneApiError`.
    */
   workspace(cookie: string, slug: string, signal?: AbortSignal): Promise<{ id: string }>;
+  /**
+   * Every channel the user can see in the workspace, and whether they are in it
+   * (`GET chat/channels/`, which lists live channels or, with `archived`, archived ones).
+   */
+  channels(cookie: string, slug: string, archived: boolean, signal?: AbortSignal): Promise<ChannelAccess[]>;
+  /** One channel, if the user can see it (`GET chat/channels/<id>/`). A channel they can't see is a 404. */
+  channel(cookie: string, slug: string, channelId: string, signal?: AbortSignal): Promise<ChannelAccess>;
+}
+
+/** What the gateway needs to know about a channel: that the user may see it, and whether they are in it. */
+export interface ChannelAccess {
+  readonly id: string;
+  readonly is_member: boolean;
 }
 
 const userSchema = z.object({ id: z.string().min(1) });
 const workspaceSchema = z.object({ id: z.string().min(1) });
+const channelSchema = z.object({ id: z.string().min(1), is_member: z.boolean() });
 
 export interface PlaneApiOptions {
   readonly baseUrl: string;
@@ -82,5 +96,19 @@ export function createPlaneApi(options: PlaneApiOptions): PlaneApi {
     currentUser: (cookie, signal) => get("/api/users/me/", cookie, userSchema, signal),
     workspace: (cookie, slug, signal) =>
       get(`/api/workspaces/${encodeURIComponent(slug)}/`, cookie, workspaceSchema, signal),
+    channels: (cookie, slug, archived, signal) =>
+      get(
+        `/api/workspaces/${encodeURIComponent(slug)}/chat/channels/?archived=${archived}`,
+        cookie,
+        z.array(channelSchema),
+        signal
+      ),
+    channel: (cookie, slug, channelId, signal) =>
+      get(
+        `/api/workspaces/${encodeURIComponent(slug)}/chat/channels/${encodeURIComponent(channelId)}/`,
+        cookie,
+        channelSchema,
+        signal
+      ),
   };
 }

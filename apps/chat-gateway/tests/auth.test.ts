@@ -29,7 +29,7 @@ describe("admission", () => {
     harness = await startHarness();
     const client = await harness.open();
     const ready = await client.next("ready");
-    expect(ready).toEqual({ type: "ready", user_id: USER_ID, workspace_id: WORKSPACE_ID });
+    expect(ready).toEqual({ type: "ready", user_id: USER_ID, workspace_id: WORKSPACE_ID, channels: [] });
     expect(client.closeCode).toBeUndefined();
     expect(harness.gateway.connectionCount).toBe(1);
   });
@@ -40,6 +40,8 @@ describe("admission", () => {
     expect(harness.api.requests.map((r) => `${r.method} ${r.path}`).toSorted()).toEqual([
       `GET /api/users/me/`,
       `GET /api/workspaces/${WORKSPACE_SLUG}/`,
+      `GET /api/workspaces/${WORKSPACE_SLUG}/chat/channels/?archived=false`,
+      `GET /api/workspaces/${WORKSPACE_SLUG}/chat/channels/?archived=true`,
     ]);
     expect(harness.api.requests.every((r) => r.cookie === USER_COOKIE)).toBe(true);
   });

@@ -9,13 +9,16 @@ import type { AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
 
 import express, { type Express } from "express";
-import { WebSocketServer, type RawData, type WebSocket } from "ws";
+import { WebSocketServer, type WebSocket } from "ws";
 
+import { RedisEventBus, type EventBus } from "./bus.ts";
 import type { GatewayConfig } from "./config.ts";
+import { Connection } from "./connection.ts";
+import { Hub } from "./hub.ts";
 import { createLogger, withMeta, type Logger } from "./logger.ts";
 import { originAllowed } from "./origin.ts";
 import { createPlaneApi, PlaneApiError, type PlaneApi } from "./plane-api.ts";
-import { CloseCode, encode, type ServerMessage } from "./protocol.ts";
+import { CloseCode } from "./protocol.ts";
 
 const SLUG = /^[A-Za-z0-9_-]{1,64}$/;
 /** How long shutdown waits for sockets to close before cutting them. */
@@ -24,6 +27,8 @@ const SHUTDOWN_DEADLINE_MS = 5_000;
 export interface ChatGatewayOptions {
   readonly config: GatewayConfig;
   readonly api?: PlaneApi;
+  /** Where chat events come from; defaults to Redis at `config.redisUrl`. The gateway closes it when it stops. */
+  readonly bus?: EventBus;
   readonly log?: Logger;
 }
 
@@ -37,28 +42,23 @@ type Admission = {
   readonly release: () => void;
 };
 
-/** One admitted browser socket. */
-interface Session {
-  readonly socket: WebSocket;
-  readonly userId: string;
-  readonly workspace: { readonly id: string; readonly slug: string };
-  readonly cookie: string;
-  readonly log: Logger;
-}
-
 /**
  * The chat gateway: `GET <base>/ws?workspace=<slug>` upgrades to a WebSocket that pushes Nexus Messages events
  * to one signed-in browser, after authenticating its session cookie with the Plane API;
- * `GET <base>/health` reports liveness. The gateway never writes data: every change goes through the REST API.
+ * `GET <base>/health` reports liveness. Events come from Redis, where Django publishes them after each write
+ * commits, and go only to the sockets whose user the API said may see the channel. The gateway never writes
+ * data: every change goes through the REST API.
  */
 export class ChatGateway {
   readonly app: Express;
   readonly server: HttpServer;
   readonly #config: GatewayConfig;
   readonly #api: PlaneApi;
+  readonly #bus: EventBus;
+  readonly #hub: Hub;
   readonly #log: Logger;
   readonly #wss: WebSocketServer;
-  readonly #sessions = new Set<Session>();
+  readonly #sessions = new Set<Connection>();
   readonly #perUser = new Map<string, number>();
   #pendingAdmissions = 0;
   #shuttingDown = false;
@@ -70,6 +70,8 @@ export class ChatGateway {
     this.#config = config;
     this.#log = options.log ?? createLogger("chat-gateway");
     this.#api = options.api ?? createPlaneApi({ baseUrl: config.apiBaseUrl });
+    this.#bus = options.bus ?? new RedisEventBus({ url: config.redisUrl, log: this.#log });
+    this.#hub = new Hub({ bus: this.#bus, log: this.#log });
     this.#wss = new WebSocketServer({ noServer: true, maxPayload: config.maxMessageBytes, perMessageDeflate: false });
 
     this.app = express();
@@ -79,6 +81,8 @@ export class ChatGateway {
         status: this.#shuttingDown ? "SHUTTING_DOWN" : "OK",
         version: config.version,
         connections: this.#sessions.size,
+        workspaces: this.#hub.workspaceCount,
+        live: this.#bus.connected,
         timestamp: new Date().toISOString(),
       });
     });
@@ -117,7 +121,7 @@ export class ChatGateway {
     if (this.#shuttingDown) return;
     this.#shuttingDown = true;
     const httpClosed = new Promise<void>((resolve) => this.server.close(() => resolve()));
-    for (const session of this.#sessions) session.socket.close(CloseCode.goingAway, "Server shutting down");
+    for (const session of this.#sessions) session.close(CloseCode.goingAway, "Server shutting down");
     const drained = new Promise<void>((resolve) => {
       if (this.#sessions.size === 0) resolve();
       else this.#onDrained = resolve;
@@ -131,6 +135,7 @@ export class ChatGateway {
     for (const client of this.#wss.clients) client.terminate();
     this.server.closeAllConnections();
     await httpClosed;
+    await this.#bus.close();
     this.#log.info("chat-gateway: stopped");
   }
 
@@ -216,6 +221,8 @@ export class ChatGateway {
     }
 
     const userId = user.value.id;
+    // A socket with no events behind it is no use to anyone; the browser retries.
+    if (!this.#bus.connected) return refuse(CloseCode.internalError, "Live updates are unavailable");
     if (this.#sessions.size + this.#pendingAdmissions > this.#config.maxConnections) {
       return refuse(CloseCode.tooManyRequests, "The chat service is at capacity");
     }
@@ -241,42 +248,24 @@ export class ChatGateway {
       workspaceId: admission.workspace.id,
       workspaceSlug: admission.workspace.slug,
     });
-    const session: Session = {
+    const connection = new Connection({
       socket: ws,
       userId: admission.userId,
       workspace: admission.workspace,
       cookie: admission.cookie,
+      config: this.#config,
+      api: this.#api,
+      hub: this.#hub,
       log,
-    };
-    this.#sessions.add(session);
-    const openedAt = Date.now();
-    ws.once("close", (code) => {
-      this.#sessions.delete(session);
-      if (this.#sessions.size === 0) this.#onDrained?.();
-      log.info("chat-gateway: socket closed", { code, durationMs: Date.now() - openedAt });
+      onClose: () => {
+        this.#sessions.delete(connection);
+        if (this.#sessions.size === 0) this.#onDrained?.();
+      },
     });
-    ws.on("error", () => undefined);
-    ws.on("message", (data, isBinary) => this.#onFrame(session, data, isBinary));
-
+    this.#sessions.add(connection);
     this.#keepAlive(ws);
-    send(ws, { type: "ready", user_id: session.userId, workspace_id: session.workspace.id });
     log.info("chat-gateway: socket opened");
-  }
-
-  #onFrame(session: Session, data: RawData, isBinary: boolean): void {
-    let frame: unknown;
-    try {
-      if (isBinary) throw new Error("binary");
-      frame = JSON.parse(String(data));
-    } catch {
-      send(session.socket, { type: "error", code: "bad_request", message: "Send JSON text frames" });
-      return;
-    }
-    if (typeof frame === "object" && frame !== null && (frame as { type?: unknown }).type === "ping") {
-      send(session.socket, { type: "pong" });
-      return;
-    }
-    send(session.socket, { type: "error", code: "bad_request", message: "Unknown message" });
+    void connection.start();
   }
 
   /** Ping the browser; a peer that misses a whole interval is gone. */
@@ -296,10 +285,6 @@ export class ChatGateway {
     timer.unref();
     ws.once("close", () => clearInterval(timer));
   }
-}
-
-function send(ws: WebSocket, message: ServerMessage): void {
-  if (ws.readyState === ws.OPEN) ws.send(encode(message));
 }
 
 function refuse(code: number, reason: string): Refusal {

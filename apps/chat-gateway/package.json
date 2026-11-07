@@ -28,6 +28,7 @@
   "dependencies": {
     "@plane/logger": "workspace:*",
     "express": "catalog:",
+    "ioredis": "catalog:",
     "ws": "catalog:",
     "zod": "catalog:"
   },
