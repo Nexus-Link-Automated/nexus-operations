@@ -55,6 +55,49 @@ def resolve_agent_credential(workspace, user, adapter):
     return None, CREDENTIAL_SOURCE_INSTANCE
 
 
+# Admin env vars that sign in an adapter with no member or workspace credentials.
+ADAPTER_INSTANCE_ENV = {"deepseek": ("DEEPSEEK_API_KEY",)}
+
+
+def agent_credential_sources(workspace, user, agents):
+    """Map each agent's id to where its chats would get a credential.
+
+    ``"personal"`` or ``"workspace"`` for a provider credential (as ``resolve_agent_credential``
+    picks it), ``"instance"`` when the agent's own admin env carries one, ``None`` when nothing
+    would sign the chat in. Adapters this module does not know count as ``"instance"``.
+    """
+    providers = {AGENT_ADAPTER_PROVIDER.get(agent.adapter) for agent in agents} - {None}
+    personal = set()
+    shared = set()
+    if providers:
+        rows = AgentProviderCredential.objects.filter(
+            Q(user__isnull=True) | Q(user=user), workspace=workspace, provider__in=list(providers)
+        ).values_list("provider", "user_id")
+        for provider, user_id in rows:
+            (shared if user_id is None else personal).add(provider)
+
+    sources = {}
+    for agent in agents:
+        provider = AGENT_ADAPTER_PROVIDER.get(agent.adapter)
+        if provider in personal:
+            sources[agent.id] = CREDENTIAL_SOURCE_PERSONAL
+        elif provider in shared:
+            sources[agent.id] = CREDENTIAL_SOURCE_WORKSPACE
+        else:
+            keys = AGENT_PROVIDER_INSTANCE_ENV[provider] if provider else ADAPTER_INSTANCE_ENV.get(agent.adapter)
+            sources[agent.id] = CREDENTIAL_SOURCE_INSTANCE if keys is None or _env_has(agent, keys) else None
+    return sources
+
+
+def _env_has(agent, keys):
+    try:
+        env = agent.get_env()
+    except EncryptionError as e:
+        log_exception(e)
+        return False
+    return any(env.get(key) for key in keys)
+
+
 def build_agent_env(admin_env, credential):
     """Return the adapter env for ``credential`` layered over the admin's ``admin_env``.
 
