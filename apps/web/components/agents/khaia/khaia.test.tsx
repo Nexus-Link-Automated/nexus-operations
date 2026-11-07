@@ -24,6 +24,7 @@ const AGENTS: TWorkspaceAgent[] = [
     adapter: "claude",
     default_permission_level: "ask_writes",
     max_permission_level: "ask_writes",
+    credential_source: "workspace",
   },
   {
     id: "agent-2",
@@ -33,6 +34,17 @@ const AGENTS: TWorkspaceAgent[] = [
     adapter: "codex",
     default_permission_level: "ask_all",
     max_permission_level: "yolo",
+    credential_source: "personal",
+  },
+  {
+    id: "agent-3",
+    name: "Gemini",
+    slug: "gemini",
+    description: "",
+    adapter: "gemini",
+    default_permission_level: "ask_writes",
+    max_permission_level: "ask_writes",
+    credential_source: null,
   },
 ];
 
@@ -125,15 +137,50 @@ describe("KhaiaWidget", () => {
     expect(await screen.findByRole("button", { name: OPEN })).toBeTruthy();
   });
 
-  it("switches agents from the header menu", async () => {
+  it("switches agents from the composer picker, with agents that have no key disabled", async () => {
     const { targets } = setup();
     renderWidget();
     await userEvent.click(await screen.findByRole("button", { name: OPEN }));
-    await userEvent.click(await screen.findByRole("button", { name: /^Switch agent/ }));
-    await userEvent.click(await screen.findByRole("menuitemradio", { name: /Codex/ }));
+    await waitFor(() => expect(store.canPrompt).toBe(true));
+    await userEvent.click(screen.getByRole("button", { name: /^Agent and model/ }));
+    const gemini = await screen.findByRole("menuitemradio", { name: /Gemini/ });
+    expect(gemini.getAttribute("aria-disabled")).toBe("true");
+    expect(gemini.textContent).toContain("No API key yet");
+    expect(screen.getByRole("menuitem", { name: "Manage AI providers" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("menuitemradio", { name: /Codex/ }));
     await waitFor(() => expect(store.agentId).toBe("agent-2"));
     expect(targets.at(-1)).toEqual({ agentId: "agent-2", workspaceSlug: "acme" });
-    expect(localStorage.length).toBeGreaterThan(0);
+    expect(localStorage.getItem("agent_chat_last_agent:acme")).toBe("agent-2");
+  });
+
+  it("switches the model in the same chat, and the effort once the model takes one", async () => {
+    const { targets } = setup();
+    renderWidget();
+    await userEvent.click(await screen.findByRole("button", { name: OPEN }));
+    await waitFor(() => expect(store.canPrompt).toBe(true));
+    // The fake agent's "fast" model takes no effort, so there is no effort menu yet.
+    expect(screen.queryByRole("button", { name: /^Reasoning effort/ })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Agent and model/ }));
+    await userEvent.click(await screen.findByRole("menuitemradio", { name: "Smart" }));
+    await waitFor(() => expect(store.modelConfig?.currentValue).toBe("smart"));
+    expect(targets).toHaveLength(1);
+
+    await userEvent.click(await screen.findByRole("button", { name: /^Reasoning effort/ }));
+    await userEvent.click(await screen.findByRole("menuitemradio", { name: "High" }));
+    await waitFor(() => expect(store.effortConfig?.currentValue).toBe("high"));
+    expect(JSON.parse(localStorage.getItem("agent_chat_choices:acme:agent-1") ?? "{}")).toEqual({
+      model: "smart",
+      effort: "high",
+    });
+  });
+
+  it("opens with a usable agent when the remembered one has no key", async () => {
+    localStorage.setItem("agent_chat_last_agent:acme", "agent-3");
+    const { targets } = setup();
+    renderWidget();
+    await userEvent.click(await screen.findByRole("button", { name: OPEN }));
+    await waitFor(() => expect(targets).toEqual([{ agentId: "agent-1", workspaceSlug: "acme" }]));
   });
 
   it("stays hidden on the full chat page and when the workspace has no agents", async () => {

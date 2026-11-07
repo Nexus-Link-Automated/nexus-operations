@@ -11,6 +11,7 @@ import { createFakeAgent, memoryTransport } from "@plane/acp-client/testing";
 import type { FakeAgentOptions, MemoryTransport } from "@plane/acp-client/testing";
 import type { TWorkspaceAgent } from "@plane/types";
 import { AgentChatStore } from "./agent-chat.store";
+import type { IAgentChatChoicesStorage, TAgentChatChoices } from "./agent-chat.store";
 
 const AGENTS: TWorkspaceAgent[] = [
   {
@@ -21,6 +22,7 @@ const AGENTS: TWorkspaceAgent[] = [
     adapter: "claude",
     default_permission_level: "ask_writes",
     max_permission_level: "ask_writes",
+    credential_source: "workspace",
   },
   {
     id: "agent-2",
@@ -30,16 +32,31 @@ const AGENTS: TWorkspaceAgent[] = [
     adapter: "codex",
     default_permission_level: "ask_all",
     max_permission_level: "yolo",
+    credential_source: null,
   },
 ];
 
-function setup(options: FakeAgentOptions = {}) {
+/** An in-memory stand-in for the browser storage of the last model and effort per agent. */
+function memoryChoices(initial: Record<string, TAgentChatChoices> = {}) {
+  const saved = { ...initial };
+  const storage: IAgentChatChoicesStorage = {
+    recall: (workspaceSlug, agentId) => saved[`${workspaceSlug}:${agentId}`] ?? {},
+    remember: (workspaceSlug, agentId, choices) => {
+      saved[`${workspaceSlug}:${agentId}`] = choices;
+    },
+  };
+  return { storage, saved };
+}
+
+function setup(options: FakeAgentOptions = {}, remembered: Record<string, TAgentChatChoices> = {}) {
   const fake = createFakeAgent({ maxMode: "ask_writes", ...options });
+  const choices = memoryChoices(remembered);
   const transports: MemoryTransport[] = [];
   const targets: { agentId: string; workspaceSlug: string }[] = [];
   const list = vi.fn(async () => AGENTS);
   const store = new AgentChatStore({
     agentService: { list },
+    choices: choices.storage,
     createSession: (target) => {
       targets.push(target);
       return new AgentChatSession({
@@ -51,11 +68,11 @@ function setup(options: FakeAgentOptions = {}) {
       });
     },
   });
-  return { store, fake, list, targets, current: () => transports[transports.length - 1]! };
+  return { store, fake, list, targets, saved: choices.saved, current: () => transports[transports.length - 1]! };
 }
 
-async function openReady(options: FakeAgentOptions = {}) {
-  const context = setup(options);
+async function openReady(options: FakeAgentOptions = {}, remembered: Record<string, TAgentChatChoices> = {}) {
+  const context = setup(options, remembered);
   await context.store.fetchAgents("acme");
   await context.store.openChat("acme", "agent-1");
   return context;
@@ -139,11 +156,40 @@ describe("AgentChatStore", () => {
     expect(store.modelConfig?.type === "select" && store.modelConfig.currentValue).toBe("smart");
   });
 
-  it("keeps the permission level for a new chat", async () => {
+  it("changes the effort, which only some models take, and remembers the choice for the agent", async () => {
+    const { store, saved } = await openReady();
+    expect(store.effortConfig).toBeUndefined();
+    await store.setModel("smart");
+    expect(store.effortConfig?.currentValue).toBe("medium");
+    await store.setEffort("high");
+    expect(store.effortConfig?.currentValue).toBe("high");
+    expect(saved["acme:agent-1"]).toEqual({ model: "smart", effort: "high" });
+  });
+
+  it("reports an effort the model does not take", async () => {
+    const { store } = await openReady();
+    await store.setEffort("high");
+    expect(store.error).toMatchObject({ kind: "request", action: "set_effort" });
+  });
+
+  it("starts a chat on the model and effort last used with that agent", async () => {
+    const { store, fake } = await openReady({}, { "acme:agent-1": { model: "smart", effort: "low" } });
+    expect(fake.log.newSession.at(-1)?._meta).toEqual({ "plane/initialModel": "smart", "plane/initialEffort": "low" });
+    expect(store.modelConfig?.currentValue).toBe("smart");
+    expect(store.effortConfig?.currentValue).toBe("low");
+  });
+
+  it("keeps the permission level, model and effort for a new chat", async () => {
     const { store, fake } = await openReady();
     await store.setPermissionLevel("ask_all");
+    await store.setModel("smart");
+    await store.setEffort("low");
     await store.startNewSession();
-    expect(fake.log.newSession.at(-1)?._meta).toEqual({ "plane/initialModeId": "ask_all" });
+    expect(fake.log.newSession.at(-1)?._meta).toEqual({
+      "plane/initialModeId": "ask_all",
+      "plane/initialModel": "smart",
+      "plane/initialEffort": "low",
+    });
   });
 
   it("lists and loads earlier sessions when the agent supports it", async () => {
