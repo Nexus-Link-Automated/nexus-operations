@@ -73,6 +73,41 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
     expect(replies).toEqual(expect.arrayContaining(["accept", "decline"]));
   });
 
+  it("offers the reasoning efforts model/list reports and sends the chosen one with each turn", async () => {
+    const fake = fakeCodexEnv();
+    client = spawnClient("codex", fake.env);
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const { sessionId, configOptions } = await client.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+    const effort = configOptions?.find((option) => option.id === "effort");
+    expect(effort).toMatchObject({ category: "thought_level", currentValue: "medium" });
+    expect(effort?.type === "select" && effort.options).toEqual([
+      { value: "low", name: "Low", description: "Fast" },
+      { value: "medium", name: "Medium" },
+      { value: "high", name: "High", description: "Thorough" },
+    ]);
+    const prompt = () =>
+      client!.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text: "hello" }] });
+
+    await client.agent.request("session/set_config_option", { sessionId, configId: "effort", value: "high" });
+    await prompt();
+    // gpt-mini reports no efforts: the select goes away and turns carry none.
+    const switched = await client.agent.request("session/set_config_option", {
+      sessionId,
+      configId: "model",
+      value: "gpt-mini",
+    });
+    expect(switched.configOptions.map((option) => option.id)).toEqual(["model"]);
+    await prompt();
+
+    const turns = fake
+      .log()
+      .filter((message) => message.method === "turn/start")
+      .map((message) => message.params as Record<string, unknown>);
+    expect(turns[0]).toMatchObject({ model: "gpt-test", effort: "high" });
+    expect(turns[1]).toMatchObject({ model: "gpt-mini" });
+    expect(turns[1]).not.toHaveProperty("effort");
+  });
+
   it("gates Plane MCP calls through elicitation and streams thoughts, plans and usage", async () => {
     const fake = fakeCodexEnv();
     client = spawnClient("codex", fake.env);

@@ -58,6 +58,27 @@ describe("DeepSeek tool loop (fetch-stubbed SSE)", () => {
     expect(api.requests[0]!.headers.get("authorization")).toBe("Bearer sk-deepseek");
   });
 
+  it("sends the session's reasoning effort, starting on DEEPSEEK_REASONING_EFFORT", async () => {
+    const { api, sessionId, prompt } = await open({ DEEPSEEK_REASONING_EFFORT: "max" });
+    await prompt("hello");
+    expect(api.requests[0]!.body.reasoning_effort).toBe("max");
+    const result = await client!.agent.request("session/set_config_option", {
+      sessionId,
+      configId: "effort",
+      value: "low",
+    });
+    expect(result.configOptions.find((option) => option.id === "effort")).toMatchObject({
+      currentValue: "low",
+      options: [
+        { value: "low", name: "Low" },
+        { value: "high", name: "High" },
+        { value: "max", name: "Max" },
+      ],
+    });
+    await prompt("hello");
+    expect(api.requests[1]!.body.reasoning_effort).toBe("low");
+  });
+
   it("maps finish reasons and stops at the iteration limit", async () => {
     expect(finishToStopReason("stop")).toBe("end_turn");
     expect(finishToStopReason("length")).toBe("max_tokens");

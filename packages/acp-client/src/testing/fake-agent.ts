@@ -30,6 +30,8 @@ interface FakeSession {
   readonly id: string;
   mode: string;
   model: string;
+  /** Empty for a model with no effort levels. */
+  effort: string;
   readonly history: SessionUpdate[];
   cancel?: () => void;
 }
@@ -47,18 +49,41 @@ function modeState(current: string, max: string): SessionModeState {
   return { currentModeId: current, availableModes: allowed.map((id) => ({ id, name: id })) };
 }
 
-function modelOption(current: string): SessionConfigOption {
-  return {
-    id: "model",
-    name: "Model",
-    category: "model",
-    type: "select",
-    currentValue: current,
-    options: [
-      { value: "fast", name: "Fast" },
-      { value: "smart", name: "Smart" },
-    ],
-  };
+/** `fast` takes no effort; `smart` takes low/medium/high and starts on medium. */
+const MODEL_EFFORTS: Record<string, readonly string[]> = { fast: [], smart: ["low", "medium", "high"] };
+
+function effortFor(model: string, wanted: unknown): string {
+  const levels = MODEL_EFFORTS[model] ?? [];
+  if (typeof wanted === "string" && levels.includes(wanted)) return wanted;
+  return levels.includes("medium") ? "medium" : "";
+}
+
+function configOptions(session: Pick<FakeSession, "model" | "effort">): SessionConfigOption[] {
+  const options: SessionConfigOption[] = [
+    {
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select",
+      currentValue: session.model,
+      options: [
+        { value: "fast", name: "Fast" },
+        { value: "smart", name: "Smart" },
+      ],
+    },
+  ];
+  const levels = MODEL_EFFORTS[session.model] ?? [];
+  if (session.effort && levels.length > 0) {
+    options.push({
+      id: "effort",
+      name: "Reasoning",
+      category: "thought_level",
+      type: "select",
+      currentValue: session.effort,
+      options: levels.map((value) => ({ value, name: value })),
+    });
+  }
+  return options;
 }
 
 /**
@@ -93,9 +118,12 @@ export function createFakeAgent(options: FakeAgentOptions = {}) {
         log.newSession.push(params);
         const requested = params._meta?.["plane/initialModeId"];
         const mode = typeof requested === "string" ? requested : "ask_writes";
-        const session: FakeSession = { id: `session-${++counter}`, mode, model: "fast", history: [] };
+        const wantedModel = params._meta?.["plane/initialModel"];
+        const model = typeof wantedModel === "string" && wantedModel in MODEL_EFFORTS ? wantedModel : "fast";
+        const effort = effortFor(model, params._meta?.["plane/initialEffort"]);
+        const session: FakeSession = { id: `session-${++counter}`, mode, model, effort, history: [] };
         sessions.set(session.id, session);
-        return { sessionId: session.id, modes: modeState(mode, maxMode), configOptions: [modelOption(session.model)] };
+        return { sessionId: session.id, modes: modeState(mode, maxMode), configOptions: configOptions(session) };
       })
       .onRequest("session/list", () => ({
         sessions: [...sessions.values()].map((session) => ({ sessionId: session.id, cwd: "/w", title: session.id })),
@@ -111,9 +139,16 @@ export function createFakeAgent(options: FakeAgentOptions = {}) {
       })
       .onRequest("session/set_config_option", ({ params }) => {
         const session = sessions.get(params.sessionId);
-        if (!session || params.configId !== "model") throw RequestError.invalidParams({}, "unknown option");
-        session.model = String(params.value);
-        return { configOptions: [modelOption(session.model)] };
+        const value = String(params.value);
+        if (session && params.configId === "model" && value in MODEL_EFFORTS) {
+          session.model = value;
+          session.effort = effortFor(value, session.effort);
+        } else if (session && params.configId === "effort" && (MODEL_EFFORTS[session.model] ?? []).includes(value)) {
+          session.effort = value;
+        } else {
+          throw RequestError.invalidParams({}, "unknown option");
+        }
+        return { configOptions: configOptions(session) };
       })
       .onRequest("session/prompt", async ({ params, client }) => {
         const session = sessions.get(params.sessionId);
@@ -193,7 +228,7 @@ export function createFakeAgent(options: FakeAgentOptions = {}) {
         if (!session) throw RequestError.resourceNotFound(params.sessionId);
         log.loaded.push(params.sessionId);
         for (const update of session.history) await client.notify("session/update", { sessionId: session.id, update });
-        return { modes: modeState(session.mode, maxMode), configOptions: [modelOption(session.model)] };
+        return { modes: modeState(session.mode, maxMode), configOptions: configOptions(session) };
       });
     }
     return built;

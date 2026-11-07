@@ -24,7 +24,7 @@ import { SECRET_ENV_GLOBS } from "../core/env.ts";
 import { agentInfo } from "../core/info.ts";
 import { arrayValue, errorMessage, numberValue, objectValue, stringValue, type JsonObject } from "../core/json.ts";
 import { toCodexMcpServers } from "../core/mcp.ts";
-import { MODEL_ENV } from "../core/models.ts";
+import { MODEL_ENV, effortChoices } from "../core/models.ts";
 import { classifyMcpCall, toolKindForCategory, type PermissionModeId, type ToolCategory } from "../core/modes.ts";
 import type { PermissionDecision } from "../core/permission.ts";
 import { promptToText } from "../core/turn.ts";
@@ -138,6 +138,27 @@ interface TurnState {
   finish(status: string, error?: string): void;
 }
 
+/** A `model/list` entry's reasoning efforts (`supportedReasoningEfforts`, `defaultReasoningEffort`). */
+export function codexEfforts(model: JsonObject): Pick<ModelChoice, "efforts" | "defaultEffort"> {
+  const entries = arrayValue(model.supportedReasoningEfforts).map(objectValue);
+  const levels = entries.map((entry) => stringValue(entry.reasoningEffort)).filter(Boolean);
+  if (levels.length === 0) return {};
+  const descriptions = new Map(
+    entries.map((entry) => [stringValue(entry.reasoningEffort), stringValue(entry.description)] as const)
+  );
+  const efforts = effortChoices(levels, descriptions);
+  const fallback = stringValue(model.defaultReasoningEffort);
+  return levels.includes(fallback) ? { efforts, defaultEffort: fallback } : { efforts };
+}
+
+/** A `model/list` entry as a model choice. */
+function codexModelChoice(model: JsonObject): ModelChoice {
+  const value = stringValue(model.model) || stringValue(model.id);
+  const name = stringValue(model.displayName) || value;
+  const description = stringValue(model.description);
+  return { value, name, ...(description ? { description } : {}), ...codexEfforts(model) };
+}
+
 class CodexSession implements AdapterSession {
   readonly #host: SessionHost;
   readonly #init: SessionInit;
@@ -201,12 +222,7 @@ class CodexSession implements AdapterSession {
     const options = arrayValue(listed.data)
       .map(objectValue)
       .filter((model) => model.hidden !== true)
-      .map((model): ModelChoice => {
-        const value = stringValue(model.model) || stringValue(model.id);
-        const name = stringValue(model.displayName) || value;
-        const description = stringValue(model.description);
-        return description ? { value, name, description } : { value, name };
-      })
+      .map(codexModelChoice)
       .filter((model) => model.value);
     if (current && !options.some((model) => model.value === current))
       options.unshift({ value: current, name: current });
@@ -275,6 +291,7 @@ class CodexSession implements AdapterSession {
         input: [{ type: "text", text: promptToText(context.prompt), text_elements: [] }],
         approvalPolicy: approvalPolicyFor(this.#host.mode()),
         ...(this.#host.model() ? { model: this.#host.model() } : {}),
+        ...(this.#host.effort() ? { effort: this.#host.effort() } : {}),
       });
       state.turnId = stringValue(objectValue(started.turn).id);
       if (context.signal.aborted) onAbort();

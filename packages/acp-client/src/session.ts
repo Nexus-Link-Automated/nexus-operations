@@ -30,6 +30,7 @@ import {
   applySessionSetup,
   applySessionUpdate,
   createTranscript,
+  effortOption,
   modelOption,
   type TranscriptState,
 } from "./transcript.ts";
@@ -37,6 +38,9 @@ import type { AgentTransport, AgentTransportFactory } from "./transport.ts";
 
 /** `session/new` `_meta` key for the starting permission level (clamped by the bridge). */
 export const INITIAL_MODE_META_KEY = "plane/initialModeId";
+/** `session/new|load` `_meta` keys for the starting model and effort (ignored when the agent lacks them). */
+export const INITIAL_MODEL_META_KEY = "plane/initialModel";
+export const INITIAL_EFFORT_META_KEY = "plane/initialEffort";
 
 /** JSON-RPC "invalid params": what the bridge answers to a `session/set_mode` above the admin max. */
 export const INVALID_PARAMS = -32602;
@@ -97,6 +101,21 @@ export interface AgentChatSessionOptions {
 export interface NewSessionOptions {
   /** Requested starting permission level; the bridge clamps it to the admin maximum. */
   readonly initialModeId?: string;
+  /** Starting model id, e.g. the one last used with this agent. Ignored when the agent does not offer it. */
+  readonly initialModel?: string;
+  /** Starting reasoning effort. Ignored when the model does not take it. */
+  readonly initialEffort?: string;
+}
+
+/** `session/load` takes the same starting choices except the permission level, which the bridge sets. */
+export type LoadSessionOptions = Omit<NewSessionOptions, "initialModeId">;
+
+function startMeta(options: NewSessionOptions): { _meta?: Record<string, string> } {
+  const meta: Record<string, string> = {};
+  if (options.initialModeId) meta[INITIAL_MODE_META_KEY] = options.initialModeId;
+  if (options.initialModel) meta[INITIAL_MODEL_META_KEY] = options.initialModel;
+  if (options.initialEffort) meta[INITIAL_EFFORT_META_KEY] = options.initialEffort;
+  return Object.keys(meta).length > 0 ? { _meta: meta } : {};
 }
 
 export interface ReconnectResult {
@@ -268,7 +287,7 @@ export class AgentChatSession {
       const result = await connection.agent.request("session/new", {
         cwd: "/",
         mcpServers: [],
-        ...(options.initialModeId ? { _meta: { [INITIAL_MODE_META_KEY]: options.initialModeId } } : {}),
+        ...startMeta(options),
       });
       this.#cancelPermissions();
       this.#sessionId = result.sessionId;
@@ -288,7 +307,7 @@ export class AgentChatSession {
   }
 
   /** Resume a conversation. The agent replays its history as `session/update`s. */
-  async loadSession(sessionId: string): Promise<void> {
+  async loadSession(sessionId: string, options: LoadSessionOptions = {}): Promise<void> {
     const link = this.#requireLink();
     const { connection } = link;
     if (!this.supportsLoad) throw new AgentRequestError(-32601, "This agent cannot resume sessions");
@@ -297,7 +316,12 @@ export class AgentChatSession {
     this.#transcript = createTranscript();
     this.#emit();
     try {
-      const result = await connection.agent.request("session/load", { sessionId, cwd: "/", mcpServers: [] });
+      const result = await connection.agent.request("session/load", {
+        sessionId,
+        cwd: "/",
+        mcpServers: [],
+        ...startMeta(options),
+      });
       if (this.#sessionId === sessionId) {
         this.#transcript = applySessionSetup(this.#transcript, result);
         this.#emit();
@@ -401,6 +425,23 @@ export class AgentChatSession {
     await this.setConfigOption(option.id, value);
   }
 
+  /** Change the reasoning effort (the `thought_level` config option). */
+  async setEffort(value: string): Promise<void> {
+    const option = effortOption(this.#transcript);
+    if (!option) throw new AgentRequestError(INVALID_PARAMS, "This model has no reasoning effort option");
+    await this.setConfigOption(option.id, value);
+  }
+
+  /** The current model and effort, to start a replacement session on the same ones. */
+  #currentChoices(): LoadSessionOptions {
+    const model = modelOption(this.#transcript)?.currentValue;
+    const effort = effortOption(this.#transcript)?.currentValue;
+    return {
+      ...(typeof model === "string" ? { initialModel: model } : {}),
+      ...(typeof effort === "string" ? { initialEffort: effort } : {}),
+    };
+  }
+
   /** Answer a permission request with one of its options, or `null` to cancel it. */
   respondToPermission(id: string, optionId: string | null): void {
     this.#settlePermission(
@@ -417,16 +458,17 @@ export class AgentChatSession {
   async reconnect(): Promise<ReconnectResult> {
     const sessionId = this.#sessionId;
     const modeId = this.#transcript.modes?.currentModeId;
+    const choices = this.#currentChoices();
     this.#status = "reconnecting";
     try {
       await this.#open();
       let resumed = false;
       if (sessionId && this.supportsLoad) {
-        await this.loadSession(sessionId);
+        await this.loadSession(sessionId, choices);
         resumed = true;
       } else if (sessionId) {
         const previous = this.#transcript;
-        await this.newSession(modeId ? { initialModeId: modeId } : {});
+        await this.newSession({ ...choices, ...(modeId ? { initialModeId: modeId } : {}) });
         // Keep the conversation on screen, but the plan and usage belonged to the old session.
         const carried = { ...previous, ...pickSetup(this.#transcript), plan: null, usage: null };
         this.#transcript = appendNotice(carried, "info", "", null, "new_session");

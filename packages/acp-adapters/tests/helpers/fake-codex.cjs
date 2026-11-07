@@ -227,7 +227,19 @@ function handle(msg) {
         id: msg.id,
         result: {
           data: [
-            { id: "gpt-test", model: "gpt-test", displayName: "GPT Test", description: "Test model", hidden: false },
+            {
+              id: "gpt-test",
+              model: "gpt-test",
+              displayName: "GPT Test",
+              description: "Test model",
+              hidden: false,
+              supportedReasoningEfforts: [
+                { reasoningEffort: "low", description: "Fast" },
+                { reasoningEffort: "medium", description: "" },
+                { reasoningEffort: "high", description: "Thorough" },
+              ],
+              defaultReasoningEffort: "medium",
+            },
             { id: "gpt-mini", model: "gpt-mini", displayName: "GPT Mini", description: "", hidden: false },
             { id: "gpt-hidden", model: "gpt-hidden", displayName: "Hidden", description: "", hidden: true },
           ],
