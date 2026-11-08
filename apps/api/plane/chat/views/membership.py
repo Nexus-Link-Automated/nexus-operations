@@ -30,6 +30,19 @@ from plane.db.models import WorkspaceMember
 DM_MEMBERS_FIXED = "A direct message's members are fixed."
 
 
+def _latest_message_id(channel):
+    """Where a new member's read cursor starts, so what was said before they arrived isn't unread.
+
+    A top-level message, like every read cursor (see `ChannelReadEndpoint`); None if the channel is empty.
+    """
+    return (
+        Message.objects.filter(channel=channel, parent__isnull=True)
+        .order_by("-created_at", "-id")
+        .values_list("pk", flat=True)
+        .first()
+    )
+
+
 def _leave(channel):
     """Leaving is idempotent; a DM can't be left (it can be hidden in a later step)."""
     require_named_channel(channel, "You can't leave a direct message.")
@@ -49,7 +62,9 @@ class ChannelJoinEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
         require_not_archived(channel)
         try:
             with transaction.atomic():
-                ChannelMember.objects.create(channel=channel, user=request.user)
+                ChannelMember.objects.create(
+                    channel=channel, user=request.user, last_read_message_id=_latest_message_id(channel)
+                )
         except IntegrityError:
             # A concurrent join from another tab already added us.
             return Response(self.channel_payload(channel.id))
@@ -87,10 +102,11 @@ class ChannelMemberEndpoint(ChatBaseEndpoint):
             raise BadRequest("Only active members of the workspace can be added.")
 
         existing = set(ChannelMember.objects.filter(channel=channel).values_list("user_id", flat=True))
+        latest = _latest_message_id(channel)
         try:
             with transaction.atomic():
                 added = [
-                    ChannelMember.objects.create(channel=channel, user_id=user_id)
+                    ChannelMember.objects.create(channel=channel, user_id=user_id, last_read_message_id=latest)
                     for user_id in sorted(user_ids - existing, key=str)
                 ]
         except IntegrityError:

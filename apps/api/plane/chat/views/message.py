@@ -104,14 +104,18 @@ class MessageDetailEndpoint(ChatBaseEndpoint):
     def delete(self, request, slug, channel_id, message_id):
         """Remove a message: its sender while in the channel, a channel admin, or a workspace admin.
 
-        Removing twice is a no-op.
+        In a DM or group DM, only its sender. Removing twice is a no-op.
         """
         channel = self.get_channel(channel_id)
         message = self._message(channel, message_id)
         if not is_channel_admin(channel, self.role):
             require_channel_member(channel)
             if message.sender_id != request.user.id:
-                raise Forbidden("Only the sender or an admin can remove a message.")
+                raise Forbidden(
+                    "Only the sender can remove a direct message."
+                    if channel.is_direct
+                    else "Only the sender or an admin can remove a message."
+                )
         require_not_archived(channel)
         if message.removed_at is None:
             message.remove()
