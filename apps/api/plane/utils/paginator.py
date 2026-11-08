@@ -3,6 +3,7 @@
 # See the LICENSE file for details.
 
 # Python imports
+import logging
 import math
 from collections import defaultdict
 from collections.abc import Sequence
@@ -17,6 +18,8 @@ from rest_framework.response import Response
 
 # Module imports
 from plane.utils.order_queryset import ISSUE_GROUP_BY_ALLOWLIST
+
+logger = logging.getLogger("plane.api")
 
 
 class Cursor:
@@ -85,6 +88,20 @@ class CursorResult(Sequence):
 
 
 MAX_LIMIT = 1000
+
+
+def cap_list_results(queryset, log_context, limit=MAX_LIMIT):
+    """Return at most ``limit`` rows of an ordered queryset as a list.
+
+    For list endpoints whose callers expect a plain array, where pagination
+    would change the response shape. Fetching one extra row detects truncation
+    without a COUNT query.
+    """
+    rows = list(queryset[: limit + 1])
+    if len(rows) <= limit:
+        return rows
+    logger.warning("List response capped at %d rows: %s", limit, log_context)
+    return rows[:limit]
 
 
 class BadPaginationError(Exception):
