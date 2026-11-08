@@ -6,6 +6,7 @@
 
 import json
 import threading
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
@@ -262,6 +263,65 @@ class TestLiveDocumentRelease:
         res = client.put(project_url(f"pages/{pid}/"), {"description_html": "<p>Lost</p>"}, format="json")
         assert res.status_code == 502 and res.data["code"] == "LIVE_SERVER_BUSY"
         assert Page.objects.get(pk=pid).description_html == "<p>Hello</p>"
+
+    def test_rename_keeps_what_the_live_server_stored_during_the_release(self, client, project_url, monkeypatch):
+        pid = _create(client, project_url("pages/"))["id"]
+        Page.objects.filter(pk=pid).update(description_binary=b"\x01\x02old", description_json={"v": "old"})
+        tasks = {"page_transaction": MagicMock(), "track_page_version": MagicMock()}
+        for name, task in tasks.items():
+            monkeypatch.setattr(page_views, name, task)
+        released = []
+
+        def release(page_id):
+            # What apps/live does on force_close: store the document's latest state, then unload it.
+            if not released:
+                Page.objects.filter(pk=page_id).update(
+                    description_html="<p>Unsaved text</p>",
+                    description_binary=b"\x01\x02latest",
+                    description_json={"v": "latest"},
+                )
+            released.append(page_id)
+            return True
+
+        monkeypatch.setattr(page_views, "release_live_document", release)
+        res = client.patch(project_url(f"pages/{pid}/"), {"name": "Renamed"}, format="json")
+        assert res.status_code == 200, res.data
+        assert released
+        assert res.data["name"] == "Renamed" and res.data["description_html"] == "<p>Unsaved text</p>"
+        page = Page.objects.get(pk=pid)
+        assert page.name == "Renamed" and page.description_html == "<p>Unsaved text</p>"
+        # Cleared so the live server rebuilds the document, title included, from that text and the new name.
+        assert page.description_binary is None and page.description_json == {}
+        # The live server's own store already reported this content change.
+        for task in tasks.values():
+            task.delay.assert_not_called()
+
+    def test_metadata_update_cannot_restore_a_stale_copy(self, client, project_url, monkeypatch):
+        pid = _create(client, project_url("pages/"))["id"]
+        before = Page.objects.get(pk=pid).updated_at
+        real_can_edit = page_views.ProjectPageScope.can_edit
+
+        def can_edit(view, request, page):
+            # The live server stores the document while this request is running.
+            Page.objects.filter(pk=page.pk).update(description_html="<p>Newer</p>", description_binary=b"\x01\x02newer")
+            return real_can_edit(view, request, page)
+
+        monkeypatch.setattr(page_views.ProjectPageScope, "can_edit", can_edit)
+        assert client.patch(project_url(f"pages/{pid}/"), {"color": "#000"}, format="json").status_code == 200
+        page = Page.objects.get(pk=pid)
+        assert page.color == "#000" and page.updated_at > before
+        assert page.description_html == "<p>Newer</p>" and bytes(page.description_binary) == b"\x01\x02newer"
+
+    def test_rename_sent_with_html_still_rebuilds_the_document(self, client, project_url):
+        pid = _create(client, project_url("pages/"))["id"]
+        Page.objects.filter(pk=pid).update(description_binary=b"\x01\x02stale", description_json={"type": "doc"})
+        res = client.patch(
+            project_url(f"pages/{pid}/"), {"name": "Renamed", "description_html": "<p>Hello</p>"}, format="json"
+        )
+        assert res.status_code == 200, res.data
+        page = Page.objects.get(pk=pid)
+        assert page.name == "Renamed" and page.description_html == "<p>Hello</p>"
+        assert page.description_binary is None and page.description_json == {}
 
 
 @pytest.fixture
