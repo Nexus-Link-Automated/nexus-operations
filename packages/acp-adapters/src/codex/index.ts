@@ -140,6 +140,8 @@ interface TurnState {
   /** Files of each `fileChange` item; its approval request names only the item. */
   readonly fileChangePaths: Map<string, string[]>;
   lastError: string | undefined;
+  /** Codex reported this turn's end, as opposed to the adapter giving up on it. */
+  completedByCodex: boolean;
   /** A person is deciding on an approval; Codex says nothing until they answer. */
   awaitingApproval: boolean;
   /** When the last approval was answered: Codex's silence before that does not count as a stall. */
@@ -185,6 +187,8 @@ class CodexSession implements AdapterSession {
   #threadId = "";
   #catalog: ModelCatalog | undefined;
   #turn: TurnState | undefined;
+  /** Turns the adapter gave up on: Codex still reports their end, maybe during the next turn. */
+  readonly #abandonedTurns = new Set<string>();
   /** Approved MCP calls waiting for their `mcpToolCall` item, by `server:tool`. */
   readonly #approvedMcpCards = new Map<string, string[]>();
   /** Shown at the start of the next turn; nothing may precede the `session/new` response. */
@@ -278,6 +282,7 @@ class CodexSession implements AdapterSession {
       summarisedItems: new Set(),
       fileChangePaths: new Map(),
       lastError: undefined,
+      completedByCodex: false,
       awaitingApproval: false,
       approvalAnsweredAt: 0,
       approvalSignal: AbortSignal.any([context.signal, ended.signal]),
@@ -338,6 +343,7 @@ class CodexSession implements AdapterSession {
     } finally {
       clearInterval(watchdog);
       context.signal.removeEventListener("abort", onAbort);
+      if (state.turnId && !state.completedByCodex) this.#abandonedTurns.add(state.turnId);
       if (this.#turn === state) this.#turn = undefined;
     }
   }
@@ -430,7 +436,11 @@ class CodexSession implements AdapterSession {
         return;
       case "turn/completed": {
         const turn = objectValue(params.turn);
-        if (state.turnId && stringValue(turn.id) && stringValue(turn.id) !== state.turnId) return;
+        const id = stringValue(turn.id);
+        // Can arrive before this turn's own `turn/start` has returned, when `state.turnId` is not set yet.
+        if (id && this.#abandonedTurns.delete(id)) return;
+        if (state.turnId && id && id !== state.turnId) return;
+        state.completedByCodex = true;
         state.finish(
           stringValue(turn.status) || "completed",
           stringValue(objectValue(turn.error).message) || state.lastError

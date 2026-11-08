@@ -140,6 +140,7 @@ async function runTurn(text) {
               ? `cat ${reads[text]}`
               : text.slice(4);
     const itemId = `cmd-${n}`;
+    const askingTurn = activeTurn;
     const reply = await ask("item/commandExecution/requestApproval", {
       itemId,
       startedAtMs: 0,
@@ -159,6 +160,8 @@ async function runTurn(text) {
     });
     const pauseMs = Number(process.env.FAKE_CODEX_APPROVAL_PAUSE_MS);
     if (pauseMs) await new Promise((resolve) => setTimeout(resolve, pauseMs));
+    // Interrupted while waiting: nothing of this turn may be reported under a later turn's id.
+    if (activeTurn !== askingTurn) return;
     if (reply.result && reply.result.decision === "accept") {
       notify("item/started", {
         turnId: activeTurn,
