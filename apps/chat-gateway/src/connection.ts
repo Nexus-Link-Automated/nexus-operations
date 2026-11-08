@@ -357,8 +357,12 @@ export class Connection implements Recipient {
         // oxlint-disable-next-line no-await-in-loop -- a retry only when an event changed the feed meanwhile
         const { members, visible } = await this.#loadChannels();
         if (this.#closed) return false;
-        // An event changed the feed while this read was under way; what was read may be older. Read again.
-        if (version !== this.#feedVersion && attempt < MAX_SYNC_ATTEMPTS) continue;
+        // An event changed the feed while this read was under way, so what was read may be older. Read again, and if
+        // that keeps happening leave the feed as the events have made it; the next re-read will try again.
+        if (version !== this.#feedVersion) {
+          if (attempt < MAX_SYNC_ATTEMPTS) continue;
+          return false;
+        }
 
         const changed = members.size !== this.#feed.size || [...members].some((channel) => !this.#feed.has(channel));
         this.#replaceFeed(members);
