@@ -145,7 +145,7 @@ def issue_group_values(
     field: str,
     slug: str,
     project_id: Optional[str] = None,
-    filters: Dict[str, Any] = {},
+    filters: Optional[Dict[str, Any]] = None,
     queryset: Optional[QuerySet] = None,
     user: Optional[Any] = None,
 ) -> List[Union[str, Any]]:
