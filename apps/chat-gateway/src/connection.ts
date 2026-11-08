@@ -126,6 +126,8 @@ export class Connection implements Recipient {
     const queued = this.#queue ?? [];
     this.#queue = undefined;
     for (const event of queued) this.#route(event);
+    // Sending `ready` or the queued events can close the socket.
+    if (this.#closed) return;
     this.#timers.push(
       setInterval(() => void this.#syncAccess(), this.#config.accessTtlMs),
       setInterval(() => void this.#verifySession(), this.#config.sessionRecheckMs)
