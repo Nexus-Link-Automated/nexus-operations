@@ -6,4 +6,5 @@
 
 export { PdfExportService, exportToPdf } from "./pdf-export.service";
 export * from "./effect-utils";
+export * from "./export-limiter";
 export * from "./types";

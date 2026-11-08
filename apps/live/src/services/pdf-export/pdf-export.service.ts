@@ -8,22 +8,25 @@ import { Effect } from "effect";
 import sharp from "sharp";
 import { getAllDocumentFormatsFromDocumentEditorBinaryData } from "@plane/editor/server";
 import type { PDFExportMetadata, TipTapDocument } from "@/lib/pdf";
-import { renderPlaneDocToPdfBuffer } from "@/lib/pdf";
+import { renderPdfInWorker } from "@/lib/pdf/render-in-worker";
 import { getPageService } from "@/services/page/handler";
 import type { TDocumentTypes } from "@/types";
 import {
   PdfContentFetchError,
+  PdfExportBusyError,
   PdfGenerationError,
   PdfImageProcessingError,
   PdfTimeoutError,
 } from "@/schema/pdf-export";
 import { withTimeoutAndRetry, recoverWithDefault, tryAsync } from "./effect-utils";
+import { withExportSlot } from "./export-limiter";
 import type { PdfExportInput, PdfExportResult, PageContent, MetadataResult } from "./types";
 
 const IMAGE_CONCURRENCY = 4;
 const IMAGE_TIMEOUT_MS = 8000;
 const CONTENT_FETCH_TIMEOUT_MS = 7000;
-const PDF_RENDER_TIMEOUT_MS = 15000;
+// Rendering runs on a worker, so this limit really stops it and must allow for the largest documents.
+const PDF_RENDER_TIMEOUT_MS = 60_000;
 const IMAGE_MAX_DIMENSION = 1200;
 
 type TipTapNode = {
@@ -273,16 +276,20 @@ export class PdfExportService extends Effect.Service<PdfExportService>()("PdfExp
         yield* Effect.logDebug("PDF_EXPORT: Rendering PDF", { requestId });
 
         const pdfBuffer = yield* tryAsync(
-          () =>
-            renderPlaneDocToPdfBuffer(contentJSON, {
-              title: options.title,
-              author: options.author,
-              subject: options.subject,
-              pageSize: options.pageSize,
-              pageOrientation: options.pageOrientation,
-              metadata,
-              noAssets: options.noAssets,
-            }),
+          (signal) =>
+            renderPdfInWorker(
+              contentJSON,
+              {
+                title: options.title,
+                author: options.author,
+                subject: options.subject,
+                pageSize: options.pageSize,
+                pageOrientation: options.pageOrientation,
+                metadata,
+                noAssets: options.noAssets,
+              },
+              signal
+            ),
           (cause) =>
             new PdfGenerationError({
               message: "Failed to render PDF",
@@ -306,7 +313,11 @@ export class PdfExportService extends Effect.Service<PdfExportService>()("PdfExp
  */
 export const exportToPdf = (
   input: PdfExportInput
-): Effect.Effect<PdfExportResult, PdfContentFetchError | PdfGenerationError | PdfTimeoutError, PdfExportService> =>
+): Effect.Effect<
+  PdfExportResult,
+  PdfContentFetchError | PdfGenerationError | PdfTimeoutError | PdfExportBusyError,
+  PdfExportService
+> =>
   Effect.gen(function* () {
     const service = yield* PdfExportService;
     const { requestId, pageId, workspaceSlug, projectId, noAssets } = input;
@@ -377,4 +388,4 @@ export const exportToPdf = (
       outputFileName: input.fileName || `page-${pageId}.pdf`,
       pageId,
     };
-  });
+  }).pipe(withExportSlot);
