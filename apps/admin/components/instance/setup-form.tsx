@@ -56,7 +56,7 @@ const defaultFromData: TFormData = {
   email: "",
   company_name: "",
   password: "",
-  is_telemetry_enabled: true,
+  is_telemetry_enabled: false,
 };
 
 export function InstanceSetupForm() {
@@ -66,7 +66,7 @@ export function InstanceSetupForm() {
   const lastNameParam = searchParams?.get("last_name") || undefined;
   const companyParam = searchParams?.get("company") || undefined;
   const emailParam = searchParams?.get("email") || undefined;
-  // only set when the API redirects back after a failed setup; otherwise the default (enabled) applies
+  // only set when the API redirects back after a failed setup; otherwise the default (disabled) applies
   const telemetryParam = searchParams?.get("is_telemetry_enabled");
   const isTelemetryEnabledParam = telemetryParam ? telemetryParam === "True" : undefined;
   const errorCode = searchParams?.get("error_code") || undefined;
