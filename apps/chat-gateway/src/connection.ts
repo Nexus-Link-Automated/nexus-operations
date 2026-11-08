@@ -68,7 +68,7 @@ export class Connection implements Recipient {
   readonly #subscriptions = new Set<string>();
   /** Channels the API said the user can't see → until when to believe that without asking again. */
   readonly #denied = new Map<string, number>();
-  readonly #timers: ReturnType<typeof setInterval>[] = [];
+  readonly #timers: NodeJS.Timeout[] = [];
   /** Events that arrived before `ready`; `undefined` once the socket is live. */
   #queue: ChatEvent[] | undefined = [];
   /** Set while access is being re-checked after `access.revoked`: nothing is forwarded until it is confirmed. */
@@ -128,11 +128,23 @@ export class Connection implements Recipient {
     for (const event of queued) this.#route(event);
     // Sending `ready` or the queued events can close the socket.
     if (this.#closed) return;
-    this.#timers.push(
-      setInterval(() => void this.#syncAccess(), this.#config.accessTtlMs),
-      setInterval(() => void this.#verifySession(), this.#config.sessionRecheckMs)
-    );
-    for (const timer of this.#timers) timer.unref();
+    this.#every(this.#config.accessTtlMs, () => void this.#syncAccess());
+    this.#every(this.#config.sessionRecheckMs, () => void this.#verifySession());
+  }
+
+  /**
+   * Run `task` every `periodMs`, the first time at a random point within the first period, so sockets that opened
+   * together (a restart, a reconnect storm) don't all ask the API at the same moment for ever after.
+   */
+  #every(periodMs: number, task: () => void): void {
+    const first = setTimeout(() => {
+      task();
+      const interval = setInterval(task, periodMs);
+      interval.unref();
+      this.#timers.push(interval);
+    }, Math.random() * periodMs);
+    first.unref();
+    this.#timers.push(first);
   }
 
   deliver(event: ChatEvent): void {
