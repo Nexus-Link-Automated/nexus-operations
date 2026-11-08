@@ -31,6 +31,7 @@ from pydantic import Field
 from plane_mcp.client import get_plane_client_context
 from plane_mcp.pql_reference import PQL_FIELD_HINT
 from plane_mcp.toolkit import (
+    DEFAULT_PAGE_SIZE,
     Action,
     build_annotations,
     build_description,
@@ -284,7 +285,7 @@ def register(mcp: FastMCP) -> None:
             params = WorkItemQueryParams(
                 pql=opt(pql),
                 order_by=opt(order_by),
-                per_page=opt(per_page),
+                per_page=per_page or DEFAULT_PAGE_SIZE,
                 cursor=opt(cursor),
                 expand=opt(expand),
                 fields=opt(fields),
