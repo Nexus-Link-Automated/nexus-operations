@@ -4,14 +4,18 @@
  * See the LICENSE file for details.
  */
 
-import { sanitizeHTML } from "@plane/utils";
+import type * as Y from "yjs";
 
 /**
- * Utility function to extract text from HTML content
+ * Reads a page title from its Yjs fragment as the literal text the user typed.
+ * Titles are plain text: passing them through an HTML parser or sanitizer would encode "&" and
+ * drop anything that looks like a tag, such as the "<T>" in "Array<T>".
  */
-export const extractTextFromHTML = (html: string): string => {
-  // Use sanitizeHTML to safely extract text and remove all HTML tags
-  // This is more secure than regex as it handles edge cases and prevents injection
-  // Note: sanitizeHTML trims whitespace, which is acceptable for title extraction
-  return sanitizeHTML(html) || "";
+export const getTitleText = (title: Y.XmlFragment): string => {
+  const textNodes = Array.from(title.createTreeWalker((node) => "toDelta" in node)) as Y.XmlText[];
+  return textNodes
+    .flatMap((node) => node.toDelta() as { insert?: unknown }[])
+    .map(({ insert }) => (typeof insert === "string" ? insert : ""))
+    .join("")
+    .trim();
 };

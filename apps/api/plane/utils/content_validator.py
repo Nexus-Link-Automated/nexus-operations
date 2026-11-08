@@ -15,21 +15,13 @@ logger = logging.getLogger("plane.api")
 # Maximum allowed size for binary data (10MB)
 MAX_SIZE = 10 * 1024 * 1024
 
-# Suspicious patterns for binary data content
-SUSPICIOUS_BINARY_PATTERNS = [
-    "<html",
-    "<!doctype",
-    "<script",
-    "javascript:",
-    "data:",
-    "<iframe",
-]
-
 
 def validate_binary_data(data):
     """
-    Validate that binary data appears to be a valid document format
-    and doesn't contain malicious content.
+    Validate that binary data is within the size limits for a document.
+
+    The data is a Yjs update, which stores the document's text as plain UTF-8, so its
+    bytes must not be matched against text patterns: ordinary writing would match them.
 
     Args:
         data (bytes or str): The binary data to validate, or base64-encoded string
@@ -56,14 +48,6 @@ def validate_binary_data(data):
     # Basic format validation
     if len(binary_data) < 4:
         return False, "Binary data too short to be valid document format"
-
-    # Check for suspicious text patterns (HTML/JS)
-    try:
-        decoded_text = binary_data.decode("utf-8", errors="ignore")[:200]
-        if any(pattern in decoded_text.lower() for pattern in SUSPICIOUS_BINARY_PATTERNS):
-            return False, "Binary data contains suspicious content patterns"
-    except Exception:
-        pass  # Binary data might not be decodable as text, which is fine
 
     return True, None
 
