@@ -177,6 +177,8 @@ export class ChatGateway {
     }
 
     this.#wss.handleUpgrade(req, socket, head, (ws) => {
+      // Before anything else: an `error` event with no listener is thrown, which would end the whole process.
+      ws.on("error", () => undefined);
       if (!admission.ok) {
         ws.close(admission.code, admission.reason);
         return;

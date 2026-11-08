@@ -10,6 +10,12 @@ import { ChatGateway } from "./server.ts";
 
 const log = createLogger("chat-gateway");
 
+// Nothing can be trusted after this, so record why and let the platform restart the process.
+process.on("uncaughtException", (error) => {
+  log.error("chat-gateway: uncaught exception", { error: error?.message ?? String(error), stack: error?.stack });
+  process.exit(1);
+});
+
 let gateway: ChatGateway;
 try {
   gateway = new ChatGateway({ config: loadGatewayConfig(), log });
