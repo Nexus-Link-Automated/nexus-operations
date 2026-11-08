@@ -12,6 +12,21 @@ type ClickHandlerOptions = {
   type: MarkType;
 };
 
+const ALLOWED_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
+
+/**
+ * Resolves an href the same way the browser does and returns the full URL when
+ * its protocol is allowed, or null otherwise.
+ */
+const getOpenableUrl = (href: string): string | null => {
+  try {
+    const url = new URL(href, window.location.href);
+    return ALLOWED_LINK_PROTOCOLS.has(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+};
+
 export function clickHandler(options: ClickHandlerOptions): Plugin {
   return new Plugin({
     key: new PluginKey("handleClickLink"),
@@ -36,21 +51,19 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
         const attrs = getAttributes(view.state, options.type.name);
         const link = event.target as HTMLLinkElement;
 
+        // Clicks on formatted text inside a link land on the inner element, which
+        // has no href, so the value can come from either the element or the mark.
         const href = link?.href ?? attrs.href;
-        const target = link?.target ?? attrs.target;
 
         if (link && href) {
-          // Defence-in-depth: link.href is the browser-resolved URL (whitespace
-          // already stripped by the browser's WHATWG URL parser), so a protocol
-          // check here is sufficient to catch any dangerous URI that slipped past
-          // the editor's parse/render-time guards. Matches the blocked-scheme list
-          // in isValidHttpUrl (javascript:, data:, vbscript:, file:, about:)
-          // to keep the policy consistent (GHSA-v2vv-7wq3-8w2j).
-          if (/^(javascript|data|vbscript|file|about):/i.test(href)) {
+          const url = getOpenableUrl(href);
+          if (!url) {
             return false;
           }
 
-          window.open(href, target);
+          // Always a new tab with no reference back to this page, matching the
+          // rel attribute links render with.
+          window.open(url, "_blank", "noopener,noreferrer");
 
           return true;
         }
