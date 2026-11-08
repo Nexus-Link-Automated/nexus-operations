@@ -93,7 +93,7 @@ shell and stdio MCP servers drop the same names.
 | `PLANE_CODEX_BASE_URL`         | codex         | Set by the runner's credential broker; passed as `-c openai_base_url=…`      |
 | `GEMINI_API_KEY`               | gemini        | API key, handed to Gemini CLI in `authenticate`                              |
 | `GOOGLE_GEMINI_BASE_URL`       | gemini        | Passed through: a Gemini API gateway (tests point it at a local fake)        |
-| `PLANE_CODEX_STALL_TIMEOUT_MS` | codex         | Fail a turn after this long without app-server output (default 300000)       |
+| `PLANE_CODEX_STALL_TIMEOUT_MS` | codex         | Fail a turn after this long silent, not counting approvals (default 300000)  |
 | `PLANE_CODEX_TURN_TIMEOUT_MS`  | codex         | Hard turn limit (default 1800000)                                            |
 | `DEEPSEEK_API_KEY`             | deepseek      | Required                                                                     |
 | `DEEPSEEK_BASE_URL`            | deepseek      | API base (default `https://api.deepseek.com`)                                |

@@ -14,6 +14,7 @@
 // Accounts: signed in with an API key unless FAKE_CODEX_SIGNED_IN=0; FAKE_CODEX_ACCOUNT=chatgpt
 // signs in with ChatGPT instead. `account/login/start {type: "chatgptDeviceCode"}` completes after
 // a moment (FAKE_CODEX_LOGIN=fail fails it, =hang never completes) and writes $CODEX_HOME/auth.json.
+// FAKE_CODEX_APPROVAL_PAUSE_MS: stay silent this long after an approval answer before going on.
 "use strict";
 
 const fs = require("node:fs");
@@ -156,6 +157,8 @@ async function runTurn(text) {
               ? [{ type: "read", command, name: path.basename(reads[text]), path: reads[text] }]
               : [{ type: "unknown", command }],
     });
+    const pauseMs = Number(process.env.FAKE_CODEX_APPROVAL_PAUSE_MS);
+    if (pauseMs) await new Promise((resolve) => setTimeout(resolve, pauseMs));
     if (reply.result && reply.result.decision === "accept") {
       notify("item/started", {
         turnId: activeTurn,
