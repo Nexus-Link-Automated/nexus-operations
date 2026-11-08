@@ -213,7 +213,7 @@ Between steps 4 and 5 the frontend is one version behind the backend, so do them
 
 ## Backups
 
-`backup.sh` runs daily at about 02:30 UTC. Each backup holds the Postgres dump, the uploads bucket, the agents' working dirs (`agent_workspaces.tar.gz`) and `.env`. Check on it with `systemctl status nexus-ops-backup.timer` and `journalctl -u nexus-ops-backup`.
+`backup.sh` runs daily at about 02:30 UTC, from the `nexus-ops-backup.timer` that `bootstrap.sh` installs. Each backup holds the Postgres dump, the uploads bucket, the agents' working dirs (`agent_workspaces.tar.gz`), `.env`, and any extra paths you add. Check on it with `systemctl status nexus-ops-backup.timer` and `journalctl -u nexus-ops-backup`. A run that fails leaves `nexus-ops-backup.service` in the failed state, and `systemctl --failed` shows it.
 
 ```bash
 ./backup.sh                     # run one now
@@ -222,15 +222,39 @@ Between steps 4 and 5 the frontend is one version behind the backend, so do them
 ./restore.sh restore <backup>   # replaces live data; asks you to type the backup name
 ```
 
+Both scripts read these settings, from the environment or from `.env`:
+
+| Setting                 | Default                  | Meaning                                                                                                                        |
+| ----------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `BACKUP_REMOTE`         | (required)               | rclone crypt remote, such as `nexus-backup-crypt:`.                                                                            |
+| `BACKUP_RETENTION_DAYS` | `30`                     | Backups older than this are deleted, after a successful run only.                                                              |
+| `BACKUP_STAGING_DIR`    | `/var/backups/nexus-ops` | Where a backup is put together, or a restore downloaded. It needs room for a full backup, so do not point it at a small tmpfs. |
+| `BACKUP_EXTRA_PATHS`    | (none)                   | Extra host paths to include, space-separated, such as deployment config. Must exist, or the backup fails.                      |
+| `ENV_FILE`              | `./.env`                 | Env file to read. It has to come from the environment.                                                                         |
+| `COMPOSE_FILES`         | `-f docker-compose.yml`  | Compose arguments.                                                                                                             |
+| `RCLONE_CONFIG_DIR`     | `./rclone`               | Directory holding `rclone.conf`.                                                                                               |
+
+To get extra paths back, download the archive and unpack it where you want to review it:
+
+```bash
+docker run --rm -v "$PWD/rclone:/config/rclone:ro" -v "$PWD:/out" rclone/rclone:1.75.2 \
+  copy "$BACKUP_REMOTE<backup>/extra.tar.gz" /out
+tar xzf extra.tar.gz -C /path/to/review
+```
+
+A backup only counts as finished once its `SHA256SUMS` has been uploaded, which happens last. If the run fails at any point, retention does not run, and `backup.sh` exits with an error that says the backup is not complete. `restore.sh list` offers only finished backups, and `restore` refuses one whose upload did not finish.
+
 The database runs Postgres 18, the same major version as production, because `pg_restore` cannot read a dump made by a newer major version. `verify` uses whatever image `plane-db` has in `docker-compose.yml`, so change it there only.
 
 `restore` stops every application service, including `agent-bridge` and `agent-runner`, then replaces the database, the uploads and the `agent_workspaces` volume. The workspaces are unpacked with their numeric owners and modes, because each one belongs to its own uid; the uid map in `.runner/uids.json` comes back with them. A backup made before the agent chat has no workspaces archive, and a restore of one leaves the volume as it is.
 
+It also stops Valkey and RabbitMQ, and once the data is back it empties both before starting anything that consumes them. Tasks queued before the restore refer to data that may no longer exist, so they must not run against it.
+
 A restore does not apply the backed-up `.env`. If you are rebuilding on a new server, copy that `env` file into place as `.env` before starting the stack, or Plane cannot read its encrypted settings.
 
-The agent workspaces archive stores sparse files as holes, and is capped at `BACKUP_WORKSPACES_MAX_BYTES` (default 20 GiB, set it in `.env`). A larger archive is left out of the backup and `backup.sh` exits with an error, so the database and uploads are still backed up while the failure shows up in `systemctl status`. Retention is skipped for that run.
+The agent workspaces archive stores sparse files as holes, and is capped at `BACKUP_WORKSPACES_MAX_BYTES` (default 20 GiB, set it in `.env`). A larger archive is left out of the backup and `backup.sh` exits with an error, so the database and uploads are still backed up while the failure shows up in `systemctl status`. Retention is skipped for that run. Such a backup still counts as finished and can be restored, and a `WORKSPACES_OMITTED` file inside it records why the archive is missing. `restore.sh` says so before asking for confirmation, and leaves the `agent_workspaces` volume as it is.
 
-Nothing alerts you if a backup fails. Add monitoring, or run `verify` on a schedule you will notice.
+Nothing but systemd alerts you if a backup fails. Add monitoring, or run `verify` on a schedule you will notice.
 
 ## Testing locally
 
@@ -242,6 +266,8 @@ APP_RELEASE=<tag> deployments/hybrid/test/run.sh   # test images build-hybrid.ym
 ```
 
 The first build takes a while and needs several GB of free memory. Later runs reuse Docker's build cache.
+
+`test/backup-restore-test.sh` checks `backup.sh` and `restore.sh` with a stubbed `docker` on `PATH`, using a local directory as the remote. It starts no containers, needs no root, and covers the staging directory, extra paths, partial and failed backups, and the order of the restore steps.
 
 Besides the smoke checks, the test:
 

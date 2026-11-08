@@ -4,6 +4,9 @@
 #   restore.sh list                 show available backups
 #   restore.sh verify <backup>      restore into a throwaway database; touches nothing live
 #   restore.sh restore <backup>     REPLACE live data; asks for confirmation
+#
+# Reads the same settings as backup.sh: ENV_FILE, BACKUP_REMOTE, BACKUP_STAGING_DIR,
+# COMPOSE_FILES, COMPOSE_PROJECT and RCLONE_CONFIG_DIR.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -14,6 +17,7 @@ env_file="${ENV_FILE:-$here/.env}"
 set -a; . "$env_file"; set +a
 
 : "${BACKUP_REMOTE:?BACKUP_REMOTE is not set}"
+staging_root="${BACKUP_STAGING_DIR:-/var/backups/nexus-ops}"
 rclone_config_dir="${RCLONE_CONFIG_DIR:-$here/rclone}"
 rclone_image="rclone/rclone:1.75.2"
 read -r -a compose_files <<<"${COMPOSE_FILES:--f docker-compose.yml}"
@@ -45,7 +49,7 @@ wait_for_postgres() {
 }
 
 usage() {
-  sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2
   exit 2
 }
 
@@ -53,14 +57,16 @@ action="${1:-}"
 backup="${2:-}"
 
 if [ "$action" = "list" ]; then
-  rclone lsf --dirs-only "$BACKUP_REMOTE"
+  # Only finished backups: backup.sh uploads SHA256SUMS last.
+  rclone lsf -R --files-only --include SHA256SUMS "$BACKUP_REMOTE" | sed 's#/SHA256SUMS$#/#' | sort
   exit 0
 fi
 case "$action" in verify | restore) ;; *) usage ;; esac
 [ -n "$backup" ] || usage
 backup="${backup%/}"
 
-stage="$(mktemp -d /tmp/nexus-ops-restore.XXXXXX)"
+install -d -m 700 "$staging_root"
+stage="$(mktemp -d "$staging_root/restore.XXXXXX")"
 chmod 700 "$stage"
 scratch_container=""
 cleanup() {
@@ -70,13 +76,18 @@ cleanup() {
 trap cleanup EXIT
 
 RCLONE_DATA_MOUNT="$stage:/stage:z" rclone copy "${BACKUP_REMOTE}${backup}" /stage
+[ -e "$stage/SHA256SUMS" ] || { echo "Backup $backup is incomplete: its upload did not finish." >&2; exit 1; }
 (cd "$stage" && sha256sum -c SHA256SUMS)
 tar tzf "$stage/uploads.tar.gz" >/dev/null
-# Backups made before the agent chat have no agent_workspaces archive.
+# Backups made before the agent chat have no agent_workspaces archive, and backup.sh
+# leaves out one that is too large, recording that in WORKSPACES_OMITTED.
 has_agent_workspaces=0
+no_workspaces_reason="made before the agent chat"
 if [ -e "$stage/agent_workspaces.tar.gz" ]; then
   tar tzf "$stage/agent_workspaces.tar.gz" >/dev/null
   has_agent_workspaces=1
+elif [ -e "$stage/WORKSPACES_OMITTED" ]; then
+  no_workspaces_reason="left out because the archive was too large"
 fi
 echo "Checksums and the archives are good."
 
@@ -100,19 +111,21 @@ if [ "$action" = "verify" ]; then
   if [ "$has_agent_workspaces" -eq 1 ]; then
     echo "Agent workspaces archive has $(tar tzf "$stage/agent_workspaces.tar.gz" | grep -c . || true) entries."
   else
-    echo "This backup has no agent workspaces archive (made before the agent chat)."
+    echo "This backup has no agent workspaces archive ($no_workspaces_reason)."
   fi
   [ "$tables" -gt 0 ] && [ "$migrations" -gt 0 ] || { echo "The restored database looks empty." >&2; exit 1; }
   echo "Verified: $backup"
   exit 0
 fi
 
-echo "This REPLACES the live database and uploads with backup $backup."
+echo "This REPLACES the live database and uploads with backup $backup, and empties Valkey and the task queues."
+[ "$has_agent_workspaces" -eq 1 ] || echo "This backup has no agent workspaces archive ($no_workspaces_reason); agent_workspaces will be left as it is."
 read -r -p "Type the backup name to continue: " confirmation
 [ "$confirmation" = "$backup" ] || { echo "Cancelled; nothing changed." >&2; exit 1; }
 
-# The API, workers and live server must not write while data is being replaced.
-compose stop "${app_services[@]}"
+# The API, workers and live server must not write while data is being replaced. Valkey
+# and RabbitMQ go down with them, and stay down until they are emptied below.
+compose stop "${app_services[@]}" plane-redis plane-mq
 compose up -d --wait plane-db plane-minio
 wait_for_postgres compose exec -T plane-db
 
@@ -135,6 +148,15 @@ if [ "$has_agent_workspaces" -eq 1 ]; then
 else
   echo "This backup has no agent workspaces archive; agent_workspaces is left as it is."
 fi
+
+# Tasks queued before the restore refer to data that may no longer exist, and Valkey
+# caches state from the same past, so both are emptied before anything can consume them.
+# Deleting the vhost removes every queue at once; the workers declare theirs on start.
+compose up -d --wait plane-redis plane-mq
+compose exec -T plane-redis valkey-cli FLUSHALL
+compose exec -T plane-mq sh -c 'rabbitmqctl delete_vhost "$RABBITMQ_DEFAULT_VHOST" \
+  && rabbitmqctl add_vhost "$RABBITMQ_DEFAULT_VHOST" \
+  && rabbitmqctl set_permissions -p "$RABBITMQ_DEFAULT_VHOST" "$RABBITMQ_DEFAULT_USER" ".*" ".*" ".*"'
 
 compose up -d
 echo "Restored $backup. The .env from that backup is not applied automatically:"
