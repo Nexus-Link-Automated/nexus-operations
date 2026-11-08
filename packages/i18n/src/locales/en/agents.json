@@ -110,6 +110,9 @@
       "title": "Allow this action?",
       "allow_once": "Allow once",
       "allow_always": "Always allow in this chat",
+      "allow_always_command": "Always allow this exact command in this chat",
+      "allow_always_file": "Always allow edits to this file in this chat",
+      "allow_always_tool": "Always allow this tool in this chat",
       "reject_once": "Deny",
       "reject_always": "Always deny"
     },

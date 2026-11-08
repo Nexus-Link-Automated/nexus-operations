@@ -110,6 +110,9 @@
       "title": "要允許此動作嗎？",
       "allow_once": "允許一次",
       "allow_always": "在此聊天中一律允許",
+      "allow_always_command": "在此聊天中一律允許這條完全相同的指令",
+      "allow_always_file": "在此聊天中一律允許編輯此檔案",
+      "allow_always_tool": "在此聊天中一律允許此工具",
       "reject_once": "拒絕",
       "reject_always": "一律拒絕"
     },

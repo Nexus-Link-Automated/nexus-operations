@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "corpus_id": "plane-acp-adapters-golden",
-  "corpus_version": 3,
+  "corpus_version": 4,
   "protocol_version": 1,
   "notes": "Ported from employai_v2 tests/fixtures/acp/v1 (corpus employai-acp-golden-v1). Regenerate expected output with UPDATE_GOLDEN=1, review the diff, then bump corpus_version and the corpus hash in acp-version.lock.json.",
   "cases": [
@@ -25,7 +25,7 @@
       "expected": "claude/valid/turn.out.jsonl",
       "exitCode": 0,
       "inputSha256": "dd80dd56474653f44571ee6ef4781a9310295142c47e0485b61595ad807494c1",
-      "expectedSha256": "08624c7596634142dba2c3732c7a7344d83e8b60ca3ea86828a02b95646a0fc5"
+      "expectedSha256": "b9670ca50d35a648d8f42212371d780d38cac29a26a732ccc4bdf6653b8ee3d5"
     },
     {
       "id": "codex/valid/initialize",
@@ -47,7 +47,7 @@
       "expected": "codex/valid/turn.out.jsonl",
       "exitCode": 0,
       "inputSha256": "47a825f0b3405bbfc28ae4e6611f3de263e6391edfee2d3297332f13541d5e11",
-      "expectedSha256": "ea577f3accde8498a5c5f0d00d186bd475e5ad523752ad3beaf340be669c511c"
+      "expectedSha256": "9c1161fbb802087ecda32e2eae6e67baa376c2db017ab113b87dd6fb543bb93c"
     },
     {
       "id": "gemini/valid/initialize",
@@ -69,7 +69,7 @@
       "expected": "gemini/valid/turn.out.jsonl",
       "exitCode": 0,
       "inputSha256": "341c5fac0293dc5a3e3cae94fcbb325f0f4695d62fa578aada0c6ca92f434c84",
-      "expectedSha256": "2fd7c69190794fee17efd20a79dde782cf7237051ac421237f954536c874b086"
+      "expectedSha256": "ee8c5634812fa1389c8cacfa9b749b462f7d0d8d5dd298e0db9ffbea92fc26dc"
     },
     {
       "id": "deepseek/valid/initialize",
@@ -91,7 +91,7 @@
       "expected": "deepseek/valid/tool-loop.out.jsonl",
       "exitCode": 0,
       "inputSha256": "278cc83b1be823a3521323a996a68cf063e32caf8dd953480e597656e1884efa",
-      "expectedSha256": "374d9e2354532456064f0f7cad63515d31a779669b3871600b5eaee643c82fef"
+      "expectedSha256": "3d33b12069885b45e79b6ad3d209c241cc1bf4fc7fd6bf5e3fb1cb9bb6b25a23"
     },
     {
       "id": "echo/malformed/batch",
@@ -273,7 +273,7 @@
       "expected": "echo/valid/permission-and-cancel.out.jsonl",
       "exitCode": 0,
       "inputSha256": "57fe33f16b61e16f168b62f1133104bd948785c39c6be60bd28e2844187642f1",
-      "expectedSha256": "c7f275728b106a100b3aef57dc89029a5587d5247bb6d107098c32716be1fac5"
+      "expectedSha256": "4715875ab31d1d20e74ce725838c77e910501da8993c2db03ba601a8d323a925"
     },
     {
       "id": "echo/valid/pipelined-prompt",

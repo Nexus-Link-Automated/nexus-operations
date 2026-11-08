@@ -36,7 +36,7 @@ import { arrayValue, errorMessage, numberValue, objectValue, stringValue, type J
 import { MODEL_ENV } from "../core/models.ts";
 import { classifyMcpCall, type ToolCategory } from "../core/modes.ts";
 import { gateFileRead, type PathPolicy, type PathVerdict } from "../core/paths.ts";
-import type { PermissionDecision } from "../core/permission.ts";
+import { fileMemory, shellCommandMemory, type MemoryScope, type PermissionDecision } from "../core/permission.ts";
 import type { ToolCallPatch, ToolCallStart } from "../core/turn.ts";
 import { GeminiAcpClient, GeminiRpcError, type JsonRpcId } from "./client.ts";
 import {
@@ -229,7 +229,8 @@ const KIND_CATEGORY: Readonly<Record<string, ToolCategory>> = {
 
 export interface GeminiToolDescription {
   readonly category: ToolCategory;
-  readonly memoryKey: string;
+  readonly memoryKey: string | null;
+  readonly memoryScope?: MemoryScope;
   readonly rawInput?: JsonObject;
 }
 
@@ -252,8 +253,9 @@ const SELF_CONFINED_READ_TOOLS = new Set([
  * the `kind` Gemini CLI declares for them. Unknown kinds count as `other` (asks in `ask_writes`).
  */
 export function describeGeminiToolCall(
-  toolCall: { toolCallId: string; title: string; kind: string },
-  mcpServerNames: readonly string[]
+  toolCall: { toolCallId: string; title: string; kind: string; locations?: unknown; content?: unknown },
+  mcpServerNames: readonly string[],
+  cwd: string
 ): GeminiToolDescription {
   const name = geminiToolName(toolCall.toolCallId);
   if (name.startsWith("mcp_")) {
@@ -272,12 +274,20 @@ export function describeGeminiToolCall(
   }
   const category = name === WEB_SEARCH_TOOL ? "fetch" : (KIND_CATEGORY[toolCall.kind] ?? "other");
   if (category === "execute") {
-    const command = toolCall.title.trim().split(/\s+/)[0] ?? "";
-    return { category, memoryKey: `gemini:${name || "shell"}:${command}`, rawInput: { command: toolCall.title } };
+    const memory = shellCommandMemory(`gemini:${name || "shell"}`, toolCall.title);
+    // The title is the command alone; a `dir_path` shows up only in the explanation as `[in <dir>]`.
+    const elsewhere = stringValue(objectValue(objectValue(arrayValue(toolCall.content)[0]).content).text).startsWith(
+      "[in "
+    );
+    return { category, ...memory, ...(elsewhere ? { memoryKey: null } : {}), rawInput: { command: toolCall.title } };
+  }
+  if (category === "edit" || category === "delete" || category === "move") {
+    const files = arrayValue(toolCall.locations).map((location) => stringValue(objectValue(location).path));
+    return { category, ...fileMemory(cwd, files) };
   }
   // The request names no URL to scope "Always allow" to a host, so it covers this exact fetch.
   if (category === "fetch" && name !== WEB_SEARCH_TOOL) {
-    return { category, memoryKey: `gemini:${name || toolCall.kind}:${toolCall.title}` };
+    return { category, memoryKey: `gemini:${name || toolCall.kind}:${toolCall.title}`, memoryScope: "request" };
   }
   return { category, memoryKey: `gemini:${name || toolCall.kind}` };
 }
@@ -710,8 +720,9 @@ class GeminiSession implements AdapterSession {
     const title = stringValue(toolCall.title) || "Tool";
     const kind = toolKind(toolCall.kind);
     const described = describeGeminiToolCall(
-      { toolCallId: geminiId, title, kind },
-      this.#mcpServers.map((server) => server.name)
+      { toolCallId: geminiId, title, kind, locations: toolCall.locations, content: toolCall.content },
+      this.#mcpServers.map((server) => server.name),
+      this.#host.cwd
     );
     const verdict = geminiFileVerdict(
       { toolCallId: geminiId, title, kind, locations: toolCall.locations },

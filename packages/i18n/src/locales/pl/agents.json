@@ -110,6 +110,9 @@
       "title": "Zezwolić na tę akcję?",
       "allow_once": "Zezwól jednorazowo",
       "allow_always": "Zawsze zezwalaj w tym czacie",
+      "allow_always_command": "Zawsze zezwalaj dokładnie na to polecenie w tym czacie",
+      "allow_always_file": "Zawsze zezwalaj na edycję tego pliku w tym czacie",
+      "allow_always_tool": "Zawsze zezwalaj na to narzędzie w tym czacie",
       "reject_once": "Odmów",
       "reject_always": "Zawsze odmawiaj"
     },

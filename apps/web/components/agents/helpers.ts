@@ -51,9 +51,18 @@ const PERMISSION_OPTION_KEYS: Record<string, string> = {
   reject_always: "agents.permission_prompt.reject_always",
 };
 
+/** The "always" labels by what the answer covers (`_meta["plane/memoryScope"]`, set by the adapter). */
+const ALLOW_ALWAYS_SCOPE_KEYS: Record<string, string> = {
+  command: "agents.permission_prompt.allow_always_command",
+  file: "agents.permission_prompt.allow_always_file",
+  tool: "agents.permission_prompt.allow_always_tool",
+};
+
 /** Our labels for the standard option kinds; the agent's own name otherwise. */
 export function permissionOptionLabel(t: TTranslate, option: PermissionOption): string {
-  const key = PERMISSION_OPTION_KEYS[option.kind];
+  const scope = option.kind === "allow_always" ? option._meta?.["plane/memoryScope"] : undefined;
+  const key =
+    (typeof scope === "string" ? ALLOW_ALWAYS_SCOPE_KEYS[scope] : undefined) ?? PERMISSION_OPTION_KEYS[option.kind];
   return key ? t(key) : option.name;
 }
 

@@ -30,6 +30,7 @@ import {
 import { classifyMcpCall, toolKindForCategory, type ToolCategory } from "../core/modes.ts";
 import { effortChoices, modelCatalog } from "../core/models.ts";
 import { PATH_REFUSED_MESSAGE, gateFileRead, urlHost } from "../core/paths.ts";
+import { fileMemory, shellCommandMemory, type MemoryScope } from "../core/permission.ts";
 import { promptToText } from "../core/turn.ts";
 import { McpHub, type McpToolBinding } from "./mcp-hub.ts";
 import { chatSseEvents } from "./sse.ts";
@@ -296,23 +297,24 @@ class DeepSeekSession implements AdapterSession {
 
     let category: ToolCategory;
     let title: string;
-    let memoryKey: string;
+    let memory: { memoryKey: string | null; memoryScope?: MemoryScope };
     if (builtin) {
       category = builtin.category(input);
       title = builtin.title(input);
-      // "Always allow" for the shell covers one program (e.g. `git`) and for web fetches one host.
-      if (builtin.name === "bash") memoryKey = `bash:${commandHead(input.command)}`;
-      else if (builtin.name === "web_fetch") memoryKey = `web_fetch:${urlHost(stringValue(input.url))}`;
-      else memoryKey = builtin.name;
+      if (builtin.name === "bash") memory = shellCommandMemory("bash", stringValue(input.command));
+      else if (builtin.name === "web_fetch")
+        memory = { memoryKey: `web_fetch:${urlHost(stringValue(input.url))}`, memoryScope: "host" };
+      else if (category === "edit") memory = fileMemory(host.cwd, [stringValue(input.path)]);
+      else memory = { memoryKey: builtin.name };
     } else if (mcp) {
       category = classifyMcpCall(mcp.tool, input, { readOnlyHint: mcp.readOnlyHint });
       const action = stringValue(input.action);
       title = `${mcp.server}: ${mcp.tool}${action ? ` ${action}` : ""}`;
-      memoryKey = `mcp:${mcp.server}:${mcp.tool}:${action}`;
+      memory = { memoryKey: `mcp:${mcp.server}:${mcp.tool}:${action}` };
     } else {
       category = "other";
       title = name || "unknown tool";
-      memoryKey = title;
+      memory = { memoryKey: title };
     }
     const kind = toolKindForCategory(category);
     turn.messages.breakMessage();
@@ -330,7 +332,7 @@ class DeepSeekSession implements AdapterSession {
     if (verdict.access === "refused") return this.#finish(toolCallId, { text: PATH_REFUSED_MESSAGE, isError: true });
 
     const decision = await host.gate.check(
-      { toolCallId, title, kind, rawInput: input, ...gateFileRead({ category, memoryKey }, verdict) },
+      { toolCallId, title, kind, rawInput: input, ...gateFileRead({ category, ...memory }, verdict) },
       turn.signal
     );
     if (decision === "cancelled") {
@@ -375,10 +377,6 @@ class DeepSeekSession implements AdapterSession {
     });
     return { text: result.text, cancelled: false };
   }
-}
-
-function commandHead(command: unknown): string {
-  return stringValue(command).trim().split(/\s+/)[0] ?? "";
 }
 
 function systemPrompt(cwd: string, hasMcp: boolean): string {

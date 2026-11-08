@@ -2,9 +2,12 @@
 // Fake `codex app-server` for the Codex adapter tests, ported from employ_ai's FakeCodexProcess
 // (tests/codex-app-server-client.test.ts). It speaks the app-server's newline-delimited JSON-RPC
 // over stdio and is driven by the prompt text:
-//   "hello" streams reasoning + a message; "run" asks to run a command; "ls" asks to run a read-only
-//   command; "cat etc" / "cat creds" ask to read a file outside the cwd / a sign-in file; "plane" asks to call a Plane MCP tool; "wait" streams one delta then waits for
-//   turn/interrupt; anything else answers "ok".
+//   "hello" streams reasoning + a message; "run" asks to run a command; "search" asks to run a
+//   command Codex's display parser labels a search; "ls" asks to run a read-only command; "cmd
+//   <command>" asks to run that command; "cat etc" / "cat creds" ask to read a file outside the cwd /
+//   a sign-in file; "patch <file>..." starts a file change and asks to apply it; "plane" / "plane
+//   list" ask to call a Plane MCP tool; "wait" streams one delta then waits for turn/interrupt;
+//   anything else answers "ok".
 // Every message it receives is appended to $FAKE_CODEX_LOG (JSONL) so tests can assert on
 // thread/start params, approval replies and approval policies; the first line of each run is
 // `{ start: { codexHome, apiKeyInEnv }, argv }`.
@@ -90,12 +93,51 @@ async function runTurn(text) {
     complete();
     return;
   }
-  if (text === "run" || text === "ls" || text === "cat etc" || text === "cat creds") {
+  if (text.startsWith("patch ")) {
+    const itemId = `patch-${n}`;
+    const changes = text
+      .split(" ")
+      .slice(1)
+      .map((file) => ({ path: file, kind: { type: "update", move_path: null }, diff: "+x\n" }));
+    const item = { type: "fileChange", id: itemId, changes };
+    notify("item/started", { turnId: activeTurn, item: { ...item, status: "inProgress" } });
+    const reply = await ask("item/fileChange/requestApproval", {
+      itemId,
+      startedAtMs: 0,
+      reason: null,
+      grantRoot: null,
+    });
+    const accepted = reply.result && reply.result.decision === "accept";
+    notify("item/completed", {
+      turnId: activeTurn,
+      item: { ...item, status: accepted ? "completed" : "declined" },
+    });
+    message(`m-${n}`, accepted ? "patched" : "skipped");
+    complete();
+    return;
+  }
+  if (
+    text === "run" ||
+    text === "search" ||
+    text === "ls" ||
+    text === "cat etc" ||
+    text === "cat creds" ||
+    text.startsWith("cmd ")
+  ) {
     const reads = {
       "cat etc": "/etc/hostname",
       "cat creds": path.join(process.env.HOME || "/tmp", ".codex", "auth.json"),
     };
-    const command = text === "run" ? "touch a.txt" : text === "ls" ? "ls" : `cat ${reads[text]}`;
+    const command =
+      text === "run"
+        ? "touch a.txt"
+        : text === "search"
+          ? "find . -name x -delete"
+          : text === "ls"
+            ? "ls"
+            : text in reads
+              ? `cat ${reads[text]}`
+              : text.slice(4);
     const itemId = `cmd-${n}`;
     const reply = await ask("item/commandExecution/requestApproval", {
       itemId,
@@ -106,11 +148,13 @@ async function runTurn(text) {
       // The real server reports the command's own directory; only `run` keeps a fixed one for the goldens.
       cwd: text === "run" ? "/work" : threadCwd,
       commandActions:
-        text === "run"
-          ? [{ type: "unknown", command }]
+        text === "search"
+          ? [{ type: "search", command, query: "x", path: "." }]
           : text === "ls"
             ? [{ type: "listFiles", command, path: null }]
-            : [{ type: "read", command, name: path.basename(reads[text]), path: reads[text] }],
+            : text in reads
+              ? [{ type: "read", command, name: path.basename(reads[text]), path: reads[text] }]
+              : [{ type: "unknown", command }],
     });
     if (reply.result && reply.result.decision === "accept") {
       notify("item/started", {
@@ -137,7 +181,8 @@ async function runTurn(text) {
     complete();
     return;
   }
-  if (text === "plane") {
+  if (text === "plane" || text === "plane list") {
+    const toolParams = text === "plane" ? { action: "create", name: "T" } : { action: "list" };
     const reply = await ask("mcpServer/elicitation/request", {
       serverName: "plane",
       mode: "form",
@@ -146,7 +191,7 @@ async function runTurn(text) {
       _meta: {
         codex_approval_kind: "mcp_tool_call",
         tool_name: "workitem",
-        tool_params: { action: "create", name: "T" },
+        tool_params: toolParams,
       },
     });
     if (reply.result && reply.result.action === "accept") {
@@ -155,7 +200,7 @@ async function runTurn(text) {
         id: `mcp-${n}`,
         server: "plane",
         tool: "workitem",
-        arguments: { action: "create", name: "T" },
+        arguments: toolParams,
       };
       notify("item/started", {
         turnId: activeTurn,

@@ -28,9 +28,14 @@ ChatGPT and Google sign-ins (see [Sign-in helper](#sign-in-helper-plane-agent-lo
   advertises `mcpCapabilities.http = true` (SSE is not offered). The headers carry the user's token and
   must never reach a command line: Claude gets a `--mcp-config` path to a 0600 file under `HOME`, removed
   once the CLI has started; Codex and Gemini get them over stdin; DeepSeek connects in process.
-- **Prompts** offer _Allow once_ (`allow_once`), _Always this session_ (`allow_always`, remembered per
-  tool and command or Plane action; a read outside the working directory is remembered per path and a web
-  fetch per host, or per exact request on Gemini, whose prompt names no URL) and _Deny_ (`reject_once`).
+- **Prompts** offer _Allow once_ (`allow_once`), _Always allow_ (`allow_always`) and _Deny_ (`reject_once`).
+  "Always" lasts for the chat and covers one exact shell command (whitespace between arguments
+  normalised), edits to one file, one tool or Plane action, a read outside the working directory per path,
+  or a web fetch per host (per exact request on Gemini, whose prompt names no URL); its label says which. It
+  is not offered for compound or redirecting commands (`;`, `&`, `|`, `<`, `>`, backticks, `$(`, newlines,
+  even inside quotes) or changes spanning several files. `_meta["plane/memoryScope"]` on the option
+  carries the scope (`command`, `file`, `path`, `host`, `request` or `tool`); the web app has translated
+  labels for `command`, `file` and `tool` and shows its generic "always" label for the others.
 - **Cancellation**: `session/cancel` is the business stop, and the prompt answers `stopReason: "cancelled"`.
   `$/cancel_request` on the prompt request is transport-level, and the prompt answers JSON-RPC `-32800`.
 
@@ -179,9 +184,10 @@ are not brokered.
   `NotebookEdit`, `Glob`, `Grep` and `LS`, and a refused path is denied before the gate. `TodoWrite` becomes a
   `plan` update and is never gated.
 - **Codex**: threads run with `sandbox: "danger-full-access"` because the runner is the sandbox.
-  `ask_all` and `ask_writes` use `approvalPolicy: "untrusted"`. `ask_writes` auto-accepts commands that
-  Codex parsed as pure reads, lists or searches of paths inside the working directory; one reaching elsewhere
-  asks, and one naming a refused path is declined. `yolo` uses `on-request` and accepts everything. MCP
+  `ask_all` and `ask_writes` use `approvalPolicy: "untrusted"`, and the gate asks the user about every
+  command Codex escalates, while one naming a refused path is declined in every mode. `commandActions` labels
+  are only used to pick the card's icon and to find those refused paths: they come from a display parser, so a
+  command labelled a search can still write. `yolo` uses `on-request` and accepts everything. MCP
   servers are configured with `default_tools_approval_mode = "prompt"`, so each MCP call arrives as an
   `mcpServer/elicitation/request` and the gate decides. That way a mode change applies to MCP calls on an
   existing thread too. Codex reads through its shell and sends no approval request for commands on its
@@ -192,7 +198,7 @@ are not brokered.
   admin policy makes every tool call reach the adapter as `session/request_permission`. The gate answers it:
   run, ask the browser with our three options, or deny, and the answer is mapped onto Gemini's option by
   `kind` (`allow_once` → `proceed_once`, deny → `cancel`, a cancelled turn → `outcome: cancelled`). Gemini's
-  "always" options are never picked: "Always this session" is remembered by the gate, so a later mode change
+  "always" options are never picked: an "always" answer is remembered by the gate, so a later mode change
   still applies. Categories come from the `kind` Gemini declares for its built-in tools (`read`, `search` and
   `think` count as reads; `fetch`, `execute`, `edit`, `delete`, `move` and anything else ask), except
   `google_web_search`, which Gemini declares as `search` and counts here as a web fetch. The path rules use

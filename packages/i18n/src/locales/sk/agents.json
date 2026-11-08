@@ -110,6 +110,9 @@
       "title": "Povoliť túto akciu?",
       "allow_once": "Povoliť raz",
       "allow_always": "V tomto chate vždy povoliť",
+      "allow_always_command": "V tomto chate vždy povoliť presne tento príkaz",
+      "allow_always_file": "V tomto chate vždy povoliť úpravy tohto súboru",
+      "allow_always_tool": "V tomto chate vždy povoliť tento nástroj",
       "reject_once": "Zamietnuť",
       "reject_always": "Vždy zamietnuť"
     },

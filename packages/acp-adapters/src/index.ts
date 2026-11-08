@@ -28,7 +28,7 @@ export {
   sessionModeState,
 } from "./core/modes.ts";
 export type { PermissionModeId, ToolCategory } from "./core/modes.ts";
-export { PERMISSION_OPTIONS, PermissionGate } from "./core/permission.ts";
+export { MEMORY_SCOPE_META_KEY, PermissionGate, permissionOptions } from "./core/permission.ts";
 export { toClaudeMcpServers, toCodexMcpServers } from "./core/mcp.ts";
 export { EFFORT_ENV, INITIAL_EFFORT_META_KEY, INITIAL_MODEL_META_KEY, MODEL_ENV } from "./core/models.ts";
 export { createClaudeAdapter, CLAUDE_ENV, CLAUDE_MODELS } from "./claude/index.ts";

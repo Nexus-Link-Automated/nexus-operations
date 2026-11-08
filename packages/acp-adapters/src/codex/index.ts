@@ -26,8 +26,8 @@ import { arrayValue, errorMessage, numberValue, objectValue, stringValue, type J
 import { toCodexMcpServers } from "../core/mcp.ts";
 import { MODEL_ENV, effortChoices } from "../core/models.ts";
 import { classifyMcpCall, toolKindForCategory, type PermissionModeId, type ToolCategory } from "../core/modes.ts";
-import { gateFileRead, type FileTarget } from "../core/paths.ts";
-import type { PermissionDecision } from "../core/permission.ts";
+import type { FileTarget } from "../core/paths.ts";
+import { fileMemory, shellCommandMemory, type PermissionDecision } from "../core/permission.ts";
 import { promptToText } from "../core/turn.ts";
 import {
   CODEX_BASE_URL_ENV,
@@ -57,9 +57,9 @@ const INTERRUPT_GRACE_MS = 5_000;
  * decides how to answer.
  *
  * - `ask_all`, `ask_writes` → `untrusted`: Codex asks before any command outside its read-only
- *   safe list and before file changes. The gate prompts for all of them in `ask_all`, and in
- *   `ask_writes` auto-accepts commands Codex parsed as pure reads/searches inside the working
- *   directory. Commands on the safe list run with no request, so the gate never sees them.
+ *   safe list and before file changes, and the gate prompts for all of them, except that a
+ *   command naming an off-limits path is declined in every mode. Commands on the safe list run
+ *   with no request, so the gate never sees them.
  * - `yolo` → `on-request`, not `never`: under `never` Codex refuses MCP tool calls that need
  *   approval instead of asking, and MCP servers are configured to always ask (so the mode can
  *   change mid-session). With full access Codex has no other reason to ask, and the gate accepts
@@ -137,6 +137,8 @@ interface TurnState {
   turnId: string | undefined;
   lastTextItem: string | undefined;
   readonly summarisedItems: Set<string>;
+  /** Files of each `fileChange` item; its approval request names only the item. */
+  readonly fileChangePaths: Map<string, string[]>;
   lastError: string | undefined;
   readonly done: Promise<{ status: string; error: string | undefined }>;
   finish(status: string, error?: string): void;
@@ -266,6 +268,7 @@ class CodexSession implements AdapterSession {
       turnId: undefined,
       lastTextItem: undefined,
       summarisedItems: new Set(),
+      fileChangePaths: new Map(),
       lastError: undefined,
       done,
       finish,
@@ -430,6 +433,9 @@ class CodexSession implements AdapterSession {
   async #itemStarted(item: JsonObject, state: TurnState): Promise<void> {
     const tool = describeItem(item);
     if (!tool) return;
+    if (stringValue(item.type) === "fileChange") {
+      state.fileChangePaths.set(stringValue(item.id), fileChangePaths(item));
+    }
     if (stringValue(item.type) === "mcpToolCall") {
       // Show the call on the card its approval opened, rather than a second card.
       const card = this.#approvedMcpCards.get(`${stringValue(item.server)}:${stringValue(item.tool)}`)?.shift();
@@ -472,18 +478,20 @@ class CodexSession implements AdapterSession {
     if (method === "item/commandExecution/requestApproval" || method === "item/fileChange/requestApproval") {
       const isCommand = method === "item/commandExecution/requestApproval";
       const command = stringValue(params.command);
-      const baseCategory: ToolCategory = isCommand ? commandCategory(params.commandActions) : "edit";
+      // Never `commandCategory`: Codex's action labels are for display, and a command it labels a
+      // search can still write or run things. If Codex escalated it, the user decides.
+      const category: ToolCategory = isCommand ? "execute" : "edit";
       const title = isCommand ? `Run: ${command.slice(0, 120)}` : stringValue(params.reason) || "Apply file changes";
-      const kind = toolKindForCategory(baseCategory);
+      const kind = toolKindForCategory(category);
       const toolCallId = await toolCalls.start(stringValue(params.itemId) || undefined, {
         title,
         kind,
         rawInput: isCommand ? { command, cwd: stringValue(params.cwd) } : { reason: stringValue(params.reason) },
       });
+      // The paths Codex parsed can only make this stricter: an off-limits one is refused in every mode.
       const verdict = isCommand
         ? this.#host.paths.check(commandTargets(params.commandActions), stringValue(params.cwd) || this.#host.cwd)
         : ({ access: "inside" } as const);
-      const memoryKey = isCommand ? `codex:command:${command.trim().split(/\s+/)[0] ?? ""}` : "codex:fileChange";
       const decision: PermissionDecision =
         verdict.access === "refused"
           ? "rejected"
@@ -492,8 +500,11 @@ class CodexSession implements AdapterSession {
                 toolCallId,
                 title,
                 kind,
+                category,
                 rawInput: isCommand ? { command } : {},
-                ...gateFileRead({ category: baseCategory, memoryKey }, verdict),
+                ...(isCommand
+                  ? shellCommandMemory(`codex:command:${JSON.stringify(stringValue(params.cwd))}`, command)
+                  : fileMemory(this.#host.cwd, state.fileChangePaths.get(stringValue(params.itemId)) ?? [])),
               },
               signal
             );
@@ -547,7 +558,7 @@ function codexDecision(decision: PermissionDecision): "accept" | "decline" | "ca
   return decision === "rejected" ? "decline" : "cancel";
 }
 
-/** A command Codex parsed entirely into reads/listings/searches counts as a read for the gate. */
+/** The card icon for a command. Codex's action labels are for display and must not gate anything. */
 export function commandCategory(commandActions: unknown): ToolCategory {
   const actions = arrayValue(commandActions).map((action) => stringValue(objectValue(action).type));
   if (!actions.length || actions.some((type) => type !== "read" && type !== "listFiles" && type !== "search")) {
@@ -562,6 +573,12 @@ export function commandTargets(commandActions: unknown): FileTarget[] {
     .map(objectValue)
     .filter((action) => ["read", "listFiles", "search"].includes(stringValue(action.type)))
     .map((action) => ({ path: stringValue(action.path) }));
+}
+
+function fileChangePaths(item: JsonObject): string[] {
+  return arrayValue(item.changes)
+    .map((change) => stringValue(objectValue(change).path))
+    .filter(Boolean);
 }
 
 function describeItem(
@@ -579,9 +596,7 @@ function describeItem(
       };
     }
     case "fileChange": {
-      const paths = arrayValue(item.changes)
-        .map((change) => stringValue(objectValue(change).path))
-        .filter(Boolean);
+      const paths = fileChangePaths(item);
       return {
         title: `Edit ${paths.join(", ") || "files"}`,
         kind: "edit",

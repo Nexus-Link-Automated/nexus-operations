@@ -110,6 +110,9 @@
       "title": "Deze actie toestaan?",
       "allow_once": "Eenmalig toestaan",
       "allow_always": "Altijd toestaan in deze chat",
+      "allow_always_command": "Precies deze opdracht altijd toestaan in deze chat",
+      "allow_always_file": "Wijzigingen in dit bestand altijd toestaan in deze chat",
+      "allow_always_tool": "Deze tool altijd toestaan in deze chat",
       "reject_once": "Weigeren",
       "reject_always": "Altijd weigeren"
     },
