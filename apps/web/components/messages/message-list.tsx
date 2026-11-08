@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { useSearchParams } from "next/navigation";
 // plane imports
@@ -30,6 +30,19 @@ type Props = {
   /** Shown above the first message once there is nothing older. */
   intro: React.ReactNode;
 };
+
+/** Where the list stands: the height of its content, and the first row on screen with its distance from the top. */
+type ScrollPosition = { contentHeight: number; row: Element | null; rowTop: number };
+
+function readScrollPosition(root: HTMLElement, content: HTMLElement): ScrollPosition {
+  const viewportTop = root.getBoundingClientRect().top;
+  const contentHeight = content.offsetHeight;
+  for (const row of root.querySelectorAll("[data-message-id]")) {
+    const { top, bottom } = row.getBoundingClientRect();
+    if (bottom > viewportTop) return { contentHeight, row, rowTop: top - viewportTop };
+  }
+  return { contentHeight, row: null, rowTop: 0 };
+}
 
 function DayDivider({ day }: { day: string }) {
   const { t } = useTranslation();
@@ -65,7 +78,8 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
   const scrollRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
-  const anchor = useRef<{ firstId: string | undefined; scrollHeight: number }>({ firstId: undefined, scrollHeight: 0 });
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const position = useRef<ScrollPosition>({ contentHeight: 0, row: null, rowTop: 0 });
 
   const firstId = messages[0]?.id;
   const lastId = messages[messages.length - 1]?.id;
@@ -90,18 +104,35 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     return () => intersection.disconnect();
   }, [chat, channelId, hasMoreOlder, loadingOlder]);
 
-  // After older messages are added above, keep the same messages on screen; otherwise follow new ones down.
-  useLayoutEffect(() => {
+  // Stay at the bottom if already there; otherwise keep the same messages on screen, whatever changed above them.
+  const holdPosition = useCallback(() => {
     const root = scrollRef.current;
-    if (!root) return;
-    const previous = anchor.current;
-    if (previous.firstId && firstId !== previous.firstId && previous.scrollHeight) {
-      root.scrollTop += root.scrollHeight - previous.scrollHeight;
-    } else if (atBottom.current) {
+    const content = contentRef.current;
+    if (!root || !content) return;
+    const { row, rowTop } = position.current;
+    if (atBottom.current) {
       root.scrollTop = root.scrollHeight;
+    } else if (row?.isConnected) {
+      // Measured rather than assumed: browsers with scroll anchoring may already have made this correction.
+      const moved = row.getBoundingClientRect().top - root.getBoundingClientRect().top - rowTop;
+      if (moved) root.scrollTop += moved;
     }
-    anchor.current = { firstId, scrollHeight: root.scrollHeight };
-  }, [firstId, lastId, messages.length, pending.length]);
+    position.current = readScrollPosition(root, content);
+  }, []);
+
+  useLayoutEffect(holdPosition, [holdPosition, firstId, lastId, messages.length, pending.length]);
+
+  // Message bodies are editors that render after their row does, so the content grows after the commit above.
+  const observeContent = useCallback(
+    (content: HTMLDivElement | null) => {
+      contentRef.current = content;
+      if (!content) return;
+      const resizeObserver = new ResizeObserver(holdPosition);
+      resizeObserver.observe(content);
+      return () => resizeObserver.disconnect();
+    },
+    [holdPosition]
+  );
 
   // Opened from a link to one message (an inbox mention): find it, then bring it into view.
   useEffect(() => {
@@ -124,6 +155,10 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     if (!highlightedId) return;
     // A real ID: only one the store found gets here, so it's safe in a selector.
     scrollRef.current?.querySelector(`[data-message-id="${highlightedId}"]`)?.scrollIntoView?.({ block: "center" });
+    // Now, not on the scroll event: bodies still rendering would otherwise put the list back where it was.
+    if (scrollRef.current && contentRef.current) {
+      position.current = readScrollPosition(scrollRef.current, contentRef.current);
+    }
     const timer = setTimeout(() => setHighlightedId(null), HIGHLIGHT_MS);
     return () => clearTimeout(timer);
   }, [highlightedId]);
@@ -160,32 +195,39 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
       className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-2"
       onScroll={(event) => {
         const el = event.currentTarget;
+        const content = contentRef.current;
+        // The content changed height since this scroll was queued. That isn't the user leaving the bottom, and the
+        // observer is about to run.
+        if (content?.offsetHeight !== position.current.contentHeight) return;
         atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_TO_BOTTOM_PX;
+        position.current = readScrollPosition(el, content);
       }}
     >
       {/* mt-auto: a short channel sits at the bottom, next to the composer. */}
       <div ref={topRef} className="mt-auto" />
-      {hasMoreOlder ? (
-        <div className="flex justify-center py-3">{loadingOlder && <Spinner />}</div>
-      ) : (
-        <div className="px-4 pt-6 pb-2">{intro}</div>
-      )}
-      {rows.map((row) =>
-        row.kind === "day" ? (
-          <DayDivider key={row.key} day={row.day} />
+      <div ref={observeContent} className="flex flex-col">
+        {hasMoreOlder ? (
+          <div className="flex justify-center py-3">{loadingOlder && <Spinner />}</div>
         ) : (
-          <ChatMessageItem
-            key={row.key}
-            message={row.message}
-            workspaceSlug={workspaceSlug}
-            continued={row.continued}
-            highlighted={row.message.id === highlightedId}
-          />
-        )
-      )}
-      {pending.map((item) => (
-        <ChatPendingMessageItem key={item.localId} pending={item} workspaceSlug={workspaceSlug} />
-      ))}
+          <div className="px-4 pt-6 pb-2">{intro}</div>
+        )}
+        {rows.map((row) =>
+          row.kind === "day" ? (
+            <DayDivider key={row.key} day={row.day} />
+          ) : (
+            <ChatMessageItem
+              key={row.key}
+              message={row.message}
+              workspaceSlug={workspaceSlug}
+              continued={row.continued}
+              highlighted={row.message.id === highlightedId}
+            />
+          )
+        )}
+        {pending.map((item) => (
+          <ChatPendingMessageItem key={item.localId} pending={item} workspaceSlug={workspaceSlug} />
+        ))}
+      </div>
     </div>
   );
 });
