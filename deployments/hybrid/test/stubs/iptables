@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# Stand-in for iptables, for testing agents-firewall.sh without touching a real firewall.
+# Keeps one file per chain in $IPTABLES_STUB_DIR/chains, with one rule per line, and
+# follows the kernel's rules for what it refuses (see the die calls below). After every
+# change it saves a full dump in $IPTABLES_STUB_DIR/history, so a test can check the
+# state at every step and not only the end result.
+set -euo pipefail
+
+dir="${IPTABLES_STUB_DIR:?set IPTABLES_STUB_DIR}"
+chains="$dir/chains"
+history="$dir/history"
+mkdir -p "$chains" "$history"
+for builtin in INPUT FORWARD OUTPUT; do [ -e "$chains/$builtin" ] || : >"$chains/$builtin"; done
+
+die() { echo "iptables: $*" >&2; exit 1; }
+exists() { [ -e "$chains/$1" ]; }
+is_builtin() { case "$1" in INPUT | FORWARD | OUTPUT) return 0 ;; *) return 1 ;; esac; }
+
+# How `iptables -S` prints what it was given.
+normalize() {
+  sed -E 's/ESTABLISHED,RELATED/RELATED,ESTABLISHED/; s/-p (udp|tcp) --dport/-p \1 -m \1 --dport/'
+}
+
+target_of() { sed -n 's/.*-j \([^ ]*\).*/\1/p' <<<"$1"; }
+
+check_target() {
+  local target
+  target="$(target_of "$1")"
+  case "$target" in
+    "" | ACCEPT | DROP | RETURN | REJECT | MARK) ;;
+    *) exists "$target" || die "no chain/target named $target" ;;
+  esac
+}
+
+referenced() {
+  grep -lE -- "-j $1( |\$)" "$chains"/* >/dev/null 2>&1
+}
+
+dump() {
+  local chain builtin
+  for builtin in INPUT FORWARD OUTPUT; do echo "-P $builtin ACCEPT"; done
+  for chain in "$chains"/*; do
+    is_builtin "$(basename "$chain")" || echo "-N $(basename "$chain")"
+  done
+  for chain in "$chains"/*; do
+    sed "s/^/-A $(basename "$chain") /" "$chain"
+  done
+}
+
+record() {
+  local count
+  count="$(ls "$history" | wc -l)"
+  { echo "# iptables $*"; dump; } >"$history/$(printf '%06d' "$count")"
+}
+
+[ "${1:-}" != "-w" ] || shift
+
+command="${1:-}"
+[ $# -eq 0 ] || shift
+case "$command" in
+  -N)
+    exists "$1" && die "chain already exists: $1"
+    : >"$chains/$1"
+    record -N "$@"
+    ;;
+  -F)
+    exists "$1" || die "no chain named $1"
+    : >"$chains/$1"
+    record -F "$@"
+    ;;
+  -X)
+    exists "$1" || die "no chain named $1"
+    is_builtin "$1" && die "cannot delete builtin chain $1"
+    [ ! -s "$chains/$1" ] || die "chain is not empty: $1"
+    referenced "$1" && die "chain is still referenced: $1"
+    rm "$chains/$1"
+    record -X "$@"
+    ;;
+  -E)
+    exists "$1" || die "no chain named $1"
+    exists "$2" && die "chain already exists: $2"
+    mv "$chains/$1" "$chains/$2"
+    for file in "$chains"/*; do
+      sed -i -E "s/-j $1( |\$)/-j $2\1/" "$file"
+    done
+    record -E "$@"
+    ;;
+  -A)
+    chain="$1"; shift
+    exists "$chain" || die "no chain named $chain"
+    rule="$(normalize <<<"$*")"
+    check_target "$rule"
+    echo "$rule" >>"$chains/$chain"
+    record -A "$chain" "$rule"
+    ;;
+  -I)
+    chain="$1"; shift
+    exists "$chain" || die "no chain named $chain"
+    position=1
+    case "${1:-}" in *[!0-9]* | "") ;; *) position="$1"; shift ;; esac
+    rule="$(normalize <<<"$*")"
+    check_target "$rule"
+    lines="$(wc -l <"$chains/$chain")"
+    if [ "$position" -gt "$lines" ]; then
+      echo "$rule" >>"$chains/$chain"
+    else
+      sed -i "${position}i\\$rule" "$chains/$chain"
+    fi
+    record -I "$chain" "$rule"
+    ;;
+  -D)
+    chain="$1"; shift
+    exists "$chain" || die "no chain named $chain"
+    rule="$(normalize <<<"$*")"
+    line="$(grep -nxF -- "$rule" "$chains/$chain" | head -n 1 | cut -d: -f1 || true)"
+    [ -n "$line" ] || die "no matching rule in $chain"
+    sed -i "${line}d" "$chains/$chain"
+    record -D "$chain" "$rule"
+    ;;
+  -C)
+    chain="$1"; shift
+    exists "$chain" || die "no chain named $chain"
+    rule="$(normalize <<<"$*")"
+    grep -qxF -- "$rule" "$chains/$chain"
+    ;;
+  -S)
+    if [ $# -eq 0 ]; then
+      dump
+    else
+      exists "$1" || die "no chain named $1"
+      if is_builtin "$1"; then echo "-P $1 ACCEPT"; else echo "-N $1"; fi
+      sed "s/^/-A $1 /" "$chains/$1"
+    fi
+    ;;
+  *) die "unsupported arguments: $command $*" ;;
+esac

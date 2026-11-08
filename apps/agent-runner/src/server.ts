@@ -39,7 +39,7 @@ import type { RunnerConfig } from "./config.ts";
 import { buildAgentEnv } from "./env.ts";
 import { LoginManager, type LoginFailure, type LoginTimeouts } from "./login.ts";
 import { createLogger, withMeta, type Logger } from "./logger.ts";
-import { WorkspaceManager, type Chown } from "./workspace.ts";
+import { WorkspaceManager, type Chown, type DiskScanner, type WorkspaceLayout } from "./workspace.ts";
 
 export const ACP_PATH = "/acp";
 const SHUTDOWN_DEADLINE_MS = 10_000;
@@ -55,6 +55,7 @@ export interface AgentRunnerOptions {
   readonly chown?: Chown;
   readonly killer?: Killer;
   readonly listProcesses?: ProcessLister;
+  readonly diskScanner?: DiskScanner;
   /** How to start the sign-in helper; defaults to `node <@plane/acp-adapters>/dist/bin/login.mjs`. */
   readonly loginHelper?: HelperCommand;
   readonly loginTimeouts?: Partial<LoginTimeouts>;
@@ -64,6 +65,7 @@ interface RunningAgent {
   readonly process: AgentProcess;
   readonly ticket: SpawnTicket;
   readonly uid: number | undefined;
+  readonly layout: WorkspaceLayout;
 }
 
 /**
@@ -90,6 +92,7 @@ export class AgentRunner {
   readonly #logins: LoginManager;
   #pending = 0;
   #shuttingDown = false;
+  #diskCheckTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: AgentRunnerOptions) {
     const { config } = options;
@@ -114,6 +117,7 @@ export class AgentRunner {
       isolation: config.isolation,
       uidRange: config.uidRange,
       ...(options.chown ? { chown: options.chown } : {}),
+      ...(options.diskScanner ? { diskScanner: options.diskScanner } : {}),
     });
     this.#acp = new AcpServer({
       createAgent: () => {
@@ -191,6 +195,7 @@ export class AgentRunner {
     });
     const address = this.server.address() as AddressInfo;
     this.#log.info("agent-runner: listening", { port: address.port, isolation: this.#config.isolation });
+    this.#scheduleDiskCheck();
     return address;
   }
 
@@ -198,6 +203,7 @@ export class AgentRunner {
   async close(): Promise<void> {
     if (this.#shuttingDown) return;
     this.#shuttingDown = true;
+    clearTimeout(this.#diskCheckTimer);
     const httpClosed = new Promise<void>((resolve) => this.server.close(() => resolve()));
     const agents = [...this.#agents];
     for (const agent of agents) agent.process.terminate("runner shutting down");
@@ -243,8 +249,10 @@ export class AgentRunner {
 
     this.#pending += 1;
     let layout;
+    let overDiskLimit;
     try {
       layout = await this.workspaces.prepare(ticket.workspaceId, ticket.userId);
+      overDiskLimit = await this.#isOverDiskLimit(layout, log);
     } finally {
       this.#pending -= 1;
     }
@@ -252,6 +260,7 @@ export class AgentRunner {
       socket.destroy();
       return;
     }
+    if (overDiskLimit) return rejectHttp(socket, 507, "Insufficient Storage");
     const { env, dropped } = buildAgentEnv({
       agentEnv: ticket.env,
       layout,
@@ -270,6 +279,7 @@ export class AgentRunner {
       killGraceMs: this.#config.killGraceMs,
       maxMessageBytes: this.#config.maxMessageBytes,
       log,
+      limits: { maxProcesses: this.#config.processLimit, maxFileBytes: this.#config.fileSizeLimitBytes },
       ...(this.#spawner ? { spawner: this.#spawner } : {}),
       killer: this.#kill,
       onExit: () => {
@@ -277,7 +287,7 @@ export class AgentRunner {
         releaseUid?.();
       },
     });
-    const running: RunningAgent = { process: agentProcess, ticket, uid };
+    const running: RunningAgent = { process: agentProcess, ticket, uid, layout };
 
     this.#wss.handleUpgrade(req, socket, head, (ws) => {
       this.#agents.add(running);
@@ -291,6 +301,41 @@ export class AgentRunner {
 
   #atCapacity(): boolean {
     return this.#agents.size + this.#pending + this.#logins.running >= this.#config.maxConnections;
+  }
+
+  /** A scan that fails is logged and does not count: the cap must not take agents down when `du` breaks. */
+  async #isOverDiskLimit(layout: WorkspaceLayout, log: Logger): Promise<boolean> {
+    const limitBytes = this.#config.userDiskLimitBytes;
+    if (limitBytes === 0) return false;
+    try {
+      const usedBytes = await this.workspaces.diskUsage(layout);
+      if (usedBytes <= limitBytes) return false;
+      log.warn("agent-runner: workspace dir is over its disk limit", { uid: layout.uid, usedBytes, limitBytes });
+      return true;
+    } catch (error) {
+      log.error("agent-runner: disk usage scan failed", { uid: layout.uid, error: (error as Error).message });
+      return false;
+    }
+  }
+
+  #scheduleDiskCheck(): void {
+    if (this.#config.userDiskLimitBytes === 0 || this.#shuttingDown) return;
+    this.#diskCheckTimer = setTimeout(() => {
+      void this.#stopAgentsOverDiskLimit().finally(() => this.#scheduleDiskCheck());
+    }, this.#config.diskCheckIntervalMs);
+    this.#diskCheckTimer.unref();
+  }
+
+  /** One scan per workspace dir, one at a time, so checks stay cheap however many agents are running. */
+  async #stopAgentsOverDiskLimit(): Promise<void> {
+    const byDir = new Map<string, RunningAgent[]>();
+    for (const agent of this.#agents) byDir.set(agent.layout.cwd, [...(byDir.get(agent.layout.cwd) ?? []), agent]);
+    for (const agents of byDir.values()) {
+      // oxlint-disable-next-line no-await-in-loop -- one scan at a time
+      if (await this.#isOverDiskLimit(agents[0]!.layout, this.#log)) {
+        for (const agent of agents) agent.process.terminate("disk limit exceeded");
+      }
+    }
   }
 
   /**

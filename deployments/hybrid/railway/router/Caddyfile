@@ -12,6 +12,14 @@
 }
 
 :{$PORT:8080} {
+	# Oversized bodies stop here instead of crossing the tailnet. Keep this above the
+	# VPS gateway's limit (FILE_SIZE_LIMIT): a multipart upload to the bucket is the file
+	# plus its form fields. WebSocket frames are not request bodies, so /live and
+	# /agents/acp are unaffected.
+	request_body {
+		max_size {$ROUTER_MAX_BODY_SIZE:6MiB}
+	}
+
 	@health path /__router/health
 	handle @health {
 		respond "ok" 200
