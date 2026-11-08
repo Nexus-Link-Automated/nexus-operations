@@ -348,15 +348,15 @@ export class Connection implements Recipient {
    * Read the user's channels again and make the feed and subscriptions match, telling the browser if its
    * channels changed under it. Catches what no event did: a missed event, a demotion, a removed channel.
    */
-  async #syncAccess(force = false): Promise<void> {
-    if (this.#closed || (this.#syncing && !force)) return;
+  async #syncAccess(force = false): Promise<boolean> {
+    if (this.#closed || (this.#syncing && !force)) return false;
     this.#syncing = true;
     try {
       for (let attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt += 1) {
         const version = this.#feedVersion;
         // oxlint-disable-next-line no-await-in-loop -- a retry only when an event changed the feed meanwhile
         const { members, visible } = await this.#loadChannels();
-        if (this.#closed) return;
+        if (this.#closed) return false;
         // An event changed the feed while this read was under way; what was read may be older. Read again.
         if (version !== this.#feedVersion && attempt < MAX_SYNC_ATTEMPTS) continue;
 
@@ -371,12 +371,14 @@ export class Connection implements Recipient {
           }
         }
         if (changed || force) this.#send({ type: "resync", reason: "membership_changed" });
-        return;
+        return true;
       }
+      return false;
     } catch (error) {
-      if (this.#closed) return;
+      if (this.#closed) return false;
       if (error instanceof PlaneApiError && error.isUnauthenticated) await this.#verifySession();
       else this.#log.warn("chat-gateway: could not re-read the user's channels", { error: (error as Error).message });
+      return false;
     } finally {
       this.#syncing = false;
     }
@@ -431,7 +433,13 @@ export class Connection implements Recipient {
       this.close(CloseCode.internalError, "Could not re-check access");
       return;
     }
-    await this.#syncAccess(true);
+    // What was held back is gone, so the browser has to refetch; and the feed must be right before anything flows.
+    const synced = await this.#syncAccess(true);
+    if (this.#closed) return;
+    if (!synced) {
+      this.close(CloseCode.internalError, "Could not re-check access");
+      return;
+    }
     this.#suspended = false;
   }
 
