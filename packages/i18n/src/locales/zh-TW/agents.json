@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "變更前詢問",
-          "description": "讀取、搜尋和網頁擷取可直接執行。Shell 指令、檔案變更和 Plane 變更會先詢問。"
+          "description": "工作目錄內的讀取和搜尋可直接執行。讀取其他位置、網頁擷取、Shell 指令、檔案變更和 Plane 變更會先詢問。"
         },
         "yolo": {
           "name": "一律不詢問",

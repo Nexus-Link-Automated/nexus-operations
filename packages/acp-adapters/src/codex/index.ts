@@ -26,6 +26,7 @@ import { arrayValue, errorMessage, numberValue, objectValue, stringValue, type J
 import { toCodexMcpServers } from "../core/mcp.ts";
 import { MODEL_ENV, effortChoices } from "../core/models.ts";
 import { classifyMcpCall, toolKindForCategory, type PermissionModeId, type ToolCategory } from "../core/modes.ts";
+import { gateFileRead, type FileTarget } from "../core/paths.ts";
 import type { PermissionDecision } from "../core/permission.ts";
 import { promptToText } from "../core/turn.ts";
 import {
@@ -55,7 +56,8 @@ const INTERRUPT_GRACE_MS = 5_000;
  *
  * - `ask_all`, `ask_writes` → `untrusted`: Codex asks before any command outside its read-only
  *   safe list and before file changes. The gate prompts for all of them in `ask_all`, and in
- *   `ask_writes` auto-accepts commands Codex parsed as pure reads/searches.
+ *   `ask_writes` auto-accepts commands Codex parsed as pure reads/searches inside the working
+ *   directory. Commands on the safe list run with no request, so the gate never sees them.
  * - `yolo` → `on-request`, not `never`: under `never` Codex refuses MCP tool calls that need
  *   approval instead of asking, and MCP servers are configured to always ask (so the mode can
  *   change mid-session). With full access Codex has no other reason to ask, and the gate accepts
@@ -217,6 +219,8 @@ class CodexSession implements AdapterSession {
           mcp_servers: toCodexMcpServers(this.#init.mcpServers),
           // Codex already drops *KEY*/*SECRET*/*TOKEN* from shell commands; make it explicit.
           shell_environment_policy: { inherit: "all", ignore_default_excludes: false, exclude: SECRET_ENV_GLOBS },
+          // Codex runs its web search without an approval request, so it is only on when nothing would ask.
+          ...(host.mode() === "yolo" ? {} : { web_search: "disabled" }),
         },
         ...(override ? { model: override } : {}),
       },
@@ -466,25 +470,31 @@ class CodexSession implements AdapterSession {
     if (method === "item/commandExecution/requestApproval" || method === "item/fileChange/requestApproval") {
       const isCommand = method === "item/commandExecution/requestApproval";
       const command = stringValue(params.command);
-      const category: ToolCategory = isCommand ? commandCategory(params.commandActions) : "edit";
+      const baseCategory: ToolCategory = isCommand ? commandCategory(params.commandActions) : "edit";
       const title = isCommand ? `Run: ${command.slice(0, 120)}` : stringValue(params.reason) || "Apply file changes";
-      const kind = toolKindForCategory(category);
+      const kind = toolKindForCategory(baseCategory);
       const toolCallId = await toolCalls.start(stringValue(params.itemId) || undefined, {
         title,
         kind,
         rawInput: isCommand ? { command, cwd: stringValue(params.cwd) } : { reason: stringValue(params.reason) },
       });
-      const decision = await this.#host.gate.check(
-        {
-          toolCallId,
-          title,
-          kind,
-          category,
-          rawInput: isCommand ? { command } : {},
-          memoryKey: isCommand ? `codex:command:${command.trim().split(/\s+/)[0] ?? ""}` : "codex:fileChange",
-        },
-        signal
-      );
+      const verdict = isCommand
+        ? this.#host.paths.check(commandTargets(params.commandActions), stringValue(params.cwd) || this.#host.cwd)
+        : ({ access: "inside" } as const);
+      const memoryKey = isCommand ? `codex:command:${command.trim().split(/\s+/)[0] ?? ""}` : "codex:fileChange";
+      const decision: PermissionDecision =
+        verdict.access === "refused"
+          ? "rejected"
+          : await this.#host.gate.check(
+              {
+                toolCallId,
+                title,
+                kind,
+                rawInput: isCommand ? { command } : {},
+                ...gateFileRead({ category: baseCategory, memoryKey }, verdict),
+              },
+              signal
+            );
       // An accepted call is completed by its `item/completed`; a refused one never runs.
       if (decision !== "allowed")
         await toolCalls.update(toolCallId, { status: "failed", rawOutput: { error: "denied by the user" } });
@@ -542,6 +552,14 @@ export function commandCategory(commandActions: unknown): ToolCategory {
     return "execute";
   }
   return actions.every((type) => type === "read") ? "read" : "search";
+}
+
+/** The paths Codex parsed out of a command; a listing or search without one is the command's own directory. */
+export function commandTargets(commandActions: unknown): FileTarget[] {
+  return arrayValue(commandActions)
+    .map(objectValue)
+    .filter((action) => ["read", "listFiles", "search"].includes(stringValue(action.type)))
+    .map((action) => ({ path: stringValue(action.path) }));
 }
 
 function describeItem(

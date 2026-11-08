@@ -35,6 +35,7 @@ import { agentInfo, PACKAGE_VERSION } from "../core/info.ts";
 import { arrayValue, errorMessage, numberValue, objectValue, stringValue, type JsonObject } from "../core/json.ts";
 import { MODEL_ENV } from "../core/models.ts";
 import { classifyMcpCall, type ToolCategory } from "../core/modes.ts";
+import { gateFileRead, type PathPolicy, type PathVerdict } from "../core/paths.ts";
 import type { PermissionDecision } from "../core/permission.ts";
 import type { ToolCallPatch, ToolCallStart } from "../core/turn.ts";
 import { GeminiAcpClient, GeminiRpcError, type JsonRpcId } from "./client.ts";
@@ -232,6 +233,19 @@ export interface GeminiToolDescription {
   readonly rawInput?: JsonObject;
 }
 
+/** Declared with `kind: search`, but its query leaves the machine, so it is gated like a web fetch. */
+const WEB_SEARCH_TOOL = "google_web_search";
+/** Read and search tools that report no `locations`, and that Gemini CLI itself keeps in the workspace. */
+const SELF_CONFINED_READ_TOOLS = new Set([
+  "list_directory",
+  "grep_search",
+  "read_many_files",
+  "read_background_output",
+  "list_background_processes",
+  "list_mcp_resources",
+  "read_mcp_resource",
+]);
+
 /**
  * Gate category and "always allow" scope for a Gemini permission request. MCP calls are found by
  * their tool name (`mcp_<server>_…`) and classified like every other adapter's; built-in tools by
@@ -256,12 +270,41 @@ export function describeGeminiToolCall(
       rawInput: input,
     };
   }
-  const category = KIND_CATEGORY[toolCall.kind] ?? "other";
+  const category = name === WEB_SEARCH_TOOL ? "fetch" : (KIND_CATEGORY[toolCall.kind] ?? "other");
   if (category === "execute") {
     const command = toolCall.title.trim().split(/\s+/)[0] ?? "";
     return { category, memoryKey: `gemini:${name || "shell"}:${command}`, rawInput: { command: toolCall.title } };
   }
+  // The request names no URL to scope "Always allow" to a host, so it covers this exact fetch.
+  if (category === "fetch" && name !== WEB_SEARCH_TOOL) {
+    return { category, memoryKey: `gemini:${name || toolCall.kind}:${toolCall.title}` };
+  }
   return { category, memoryKey: `gemini:${name || toolCall.kind}` };
+}
+
+/**
+ * What a Gemini tool call touches, for the session's path rules. `read_file`, `write_file` and
+ * `replace` report absolute `locations` (Gemini already refuses those outside the workspace, so this
+ * is a second check). `glob` reports none and Gemini does not confine its pattern, so that is read
+ * from its title (`'pattern'` or `'pattern' within dir`). Fails closed: any other read or search this
+ * adapter does not know counts as outside the working directory.
+ */
+export function geminiFileVerdict(
+  toolCall: { toolCallId: string; title: string; kind: string; locations?: unknown },
+  paths: PathPolicy
+): PathVerdict {
+  const targets = arrayValue(toolCall.locations)
+    .map((location) => stringValue(objectValue(location).path))
+    .filter(Boolean)
+    .map((file) => ({ path: file }));
+  if (targets.length > 0) return paths.check(targets);
+  if (toolCall.kind !== "read" && toolCall.kind !== "search") return { access: "inside" };
+  const name = geminiToolName(toolCall.toolCallId);
+  if (name === WEB_SEARCH_TOOL || SELF_CONFINED_READ_TOOLS.has(name)) return { access: "inside" };
+  const pattern = name === "glob" ? /^'(.*)'(?: within .*)?$/s.exec(toolCall.title)?.[1] : undefined;
+  return pattern === undefined
+    ? { access: "outside", target: toolCall.title }
+    : paths.check([{ path: "", glob: pattern }]);
 }
 
 /** Our gate's answer as one of the options Gemini offered, picked by kind; never an "always" option. */
@@ -670,6 +713,14 @@ class GeminiSession implements AdapterSession {
       { toolCallId: geminiId, title, kind },
       this.#mcpServers.map((server) => server.name)
     );
+    const verdict = geminiFileVerdict(
+      { toolCallId: geminiId, title, kind, locations: toolCall.locations },
+      this.#host.paths
+    );
+    if (verdict.access === "refused") {
+      client.respond(id, geminiPermissionOutcome("rejected", arrayValue(params.options)));
+      return;
+    }
     let decision: PermissionDecision;
     try {
       decision = await this.#host.gate.check(
@@ -677,8 +728,7 @@ class GeminiSession implements AdapterSession {
           toolCallId,
           title,
           kind,
-          category: described.category,
-          memoryKey: described.memoryKey,
+          ...gateFileRead(described, verdict),
           ...(described.rawInput ? { rawInput: described.rawInput } : {}),
         },
         state.context.signal

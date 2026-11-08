@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Pýtať sa pred zmenami",
-          "description": "Čítanie, vyhľadávanie a načítanie webu prebieha bez pýtania. Príkazy shellu, zmeny súborov a zmeny v Plane vyžadujú predchádzajúce potvrdenie."
+          "description": "Čítanie a vyhľadávanie v pracovnom adresári prebieha bez pýtania. Čítanie inde, načítanie webu, príkazy shellu, zmeny súborov a zmeny v Plane vyžadujú predchádzajúce potvrdenie."
         },
         "yolo": {
           "name": "Nikdy sa nepýtať",

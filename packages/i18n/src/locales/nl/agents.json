@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Vragen vóór wijzigingen",
-          "description": "Lezen, zoeken en webpagina's ophalen gebeurt zonder te vragen. Voor shellopdrachten, bestandswijzigingen en wijzigingen in Plane wordt eerst toestemming gevraagd."
+          "description": "Lezen en zoeken in de werkmap gebeurt zonder te vragen. Voor lezen op andere plekken, webpagina's ophalen, shellopdrachten, bestandswijzigingen en wijzigingen in Plane wordt eerst toestemming gevraagd."
         },
         "yolo": {
           "name": "Nooit vragen",

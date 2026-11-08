@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Pytanie przed zmianami",
-          "description": "Odczyty, wyszukiwania i pobieranie stron internetowych działają bez pytania. Polecenia powłoki, zmiany w plikach i zmiany w Plane wymagają wcześniejszego potwierdzenia."
+          "description": "Odczyty i wyszukiwania w katalogu roboczym działają bez pytania. Odczyty w innych miejscach, pobieranie stron internetowych, polecenia powłoki, zmiany w plikach i zmiany w Plane wymagają wcześniejszego potwierdzenia."
         },
         "yolo": {
           "name": "Bez pytania",

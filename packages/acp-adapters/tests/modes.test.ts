@@ -22,6 +22,7 @@ import { PermissionGate } from "../src/core/permission.ts";
 const ALL: readonly ToolCategory[] = [
   "read",
   "search",
+  "read_outside",
   "fetch",
   "think",
   "execute",
@@ -40,14 +41,23 @@ describe("mode gate", () => {
     expect(sessionModeState("yolo").currentModeId).toBe("yolo");
   });
 
-  it("ask_writes lets reads, search, web fetches and Plane reads through", () => {
-    for (const category of ["read", "search", "fetch", "think", "mcp_read"] as const) {
+  it("ask_writes lets reads, searches and Plane reads through", () => {
+    for (const category of ["read", "search", "think", "mcp_read"] as const) {
       expect(requiresPermission("ask_writes", category), category).toBe(false);
     }
   });
 
-  it("ask_writes prompts for shell, writes and Plane MCP mutations", () => {
-    for (const category of ["execute", "edit", "delete", "move", "mcp_write", "other"] as const) {
+  it("ask_writes prompts for reads outside the cwd, web fetches, shell, writes and Plane MCP mutations", () => {
+    for (const category of [
+      "read_outside",
+      "fetch",
+      "execute",
+      "edit",
+      "delete",
+      "move",
+      "mcp_write",
+      "other",
+    ] as const) {
       expect(requiresPermission("ask_writes", category), category).toBe(true);
     }
   });
@@ -104,7 +114,10 @@ describe("provider mappings", () => {
       memoryKey: "Bash:git",
     });
     expect(describeClaudeTool("Edit", { file_path: "/x" }, "/w").category).toBe("edit");
-    expect(describeClaudeTool("WebFetch", { url: "https://x" }, "/w").category).toBe("fetch");
+    expect(describeClaudeTool("WebFetch", { url: "https://x.test/a" }, "/w")).toMatchObject({
+      category: "fetch",
+      memoryKey: "WebFetch:x.test",
+    });
     expect(describeClaudeTool("mcp__plane__workitem", { action: "list" }, "/w")).toMatchObject({
       category: "mcp_read",
       title: "plane: workitem list",

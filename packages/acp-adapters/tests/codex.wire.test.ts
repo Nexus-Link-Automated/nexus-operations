@@ -10,7 +10,7 @@ import path from "node:path";
 import type { McpServer } from "@agentclientprotocol/sdk";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { codexEfforts } from "../src/codex/index.ts";
+import { codexEfforts, commandTargets } from "../src/codex/index.ts";
 import { spawnClient, tempDir, textOf, updatesOfKind, type SpawnedClient } from "./helpers/client.ts";
 import { fakeCodexEnv } from "./helpers/codex.ts";
 import { runWireScenario } from "./helpers/scenario.ts";
@@ -61,6 +61,7 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
           ignore_default_excludes: false,
           exclude: expect.arrayContaining(["*KEY*", "*TOKEN*"]),
         },
+        web_search: "disabled",
       },
     });
     const policies = log
@@ -73,6 +74,58 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
       .filter((message) => typeof message.id === "string" && "result" in message)
       .map((message) => (message.result as any).decision);
     expect(replies).toEqual(expect.arrayContaining(["accept", "decline"]));
+  });
+
+  it("leaves Codex's web search on only for a session that starts in yolo", async () => {
+    const fake = fakeCodexEnv();
+    client = spawnClient("codex", fake.env);
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    await client.agent.request("session/new", {
+      cwd: tempDir(),
+      mcpServers: [],
+      _meta: { "plane/initialModeId": "yolo" },
+    });
+    const start = fake.log().find((message) => message.method === "thread/start")?.params as any;
+    expect(start.config).not.toHaveProperty("web_search");
+  });
+
+  it("asks before reads outside the working directory and refuses sign-in files", async () => {
+    const fake = fakeCodexEnv();
+    client = spawnClient("codex", fake.env);
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const { sessionId } = await client.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+    const prompt = (text: string) =>
+      client!.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] });
+    const decisions = () =>
+      fake
+        .log()
+        .filter((message) => typeof message.id === "string" && "result" in message)
+        .map((message) => (message.result as any).decision);
+
+    await prompt("ls");
+    expect(client.permissionRequests).toHaveLength(0);
+
+    client.answers.push("reject_once");
+    await prompt("cat etc");
+    expect(client.permissionRequests).toHaveLength(1);
+    expect(client.permissionRequests[0]?.toolCall.kind).toBe("read");
+
+    await client.agent.request("session/set_mode", { sessionId, modeId: "yolo" });
+    await prompt("cat creds");
+    expect(client.permissionRequests).toHaveLength(1);
+    expect(decisions()).toEqual(["accept", "decline", "decline"]);
+    expect(textOf(client.updates, "agent_message_chunk")).toContain("skipped");
+  });
+
+  it("takes targets only from the commands Codex parsed as reads", () => {
+    expect(
+      commandTargets([
+        { type: "read", command: "cat a", name: "a", path: "/w/a" },
+        { type: "listFiles", command: "ls", path: null },
+        { type: "search", command: "rg x", query: "x", path: "src" },
+        { type: "unknown", command: "curl x" },
+      ])
+    ).toEqual([{ path: "/w/a" }, { path: "" }, { path: "src" }]);
   });
 
   it("offers the reasoning efforts model/list reports and sends the chosen one with each turn", async () => {

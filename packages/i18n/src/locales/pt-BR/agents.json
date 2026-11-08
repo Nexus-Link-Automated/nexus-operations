@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Perguntar antes de alterações",
-          "description": "Leituras, pesquisas e buscas na web são executadas livremente. Comandos de shell, alterações em arquivos e alterações no Plane pedem confirmação antes."
+          "description": "Leituras e pesquisas no diretório de trabalho são executadas livremente. Leituras em outros locais, buscas na web, comandos de shell, alterações em arquivos e alterações no Plane pedem confirmação antes."
         },
         "yolo": {
           "name": "Nunca perguntar",

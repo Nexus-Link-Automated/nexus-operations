@@ -13,6 +13,7 @@ import type { PlanEntry, ToolCallContent, ToolCallLocation } from "@agentclientp
 
 import { arrayValue, numberValue, objectValue, stringValue, type JsonObject } from "../core/json.ts";
 import type { ToolCategory } from "../core/modes.ts";
+import type { FileTarget, PathPolicy } from "../core/paths.ts";
 import type { Emit } from "../core/turn.ts";
 
 export interface ToolRunContext {
@@ -22,6 +23,7 @@ export interface ToolRunContext {
   readonly signal: AbortSignal;
   readonly emit: Emit;
   readonly fetch: typeof fetch;
+  readonly paths: PathPolicy;
 }
 
 export interface ToolResult {
@@ -38,6 +40,8 @@ export interface BuiltinTool {
   category(input: JsonObject): ToolCategory;
   title(input: JsonObject): string;
   locations?(input: JsonObject, cwd: string): ToolCallLocation[];
+  /** Files and directories this call touches, checked against the session's path rules. */
+  targets?(input: JsonObject): FileTarget[];
   run(input: JsonObject, context: ToolRunContext): Promise<ToolResult>;
 }
 
@@ -65,6 +69,8 @@ function fileLocation(input: JsonObject, cwd: string): ToolCallLocation[] {
   const raw = stringValue(input.path);
   return raw ? [{ path: path.resolve(cwd, raw) }] : [];
 }
+
+const fileTarget = (input: JsonObject): FileTarget[] => [{ path: stringValue(input.path) }];
 
 const bash: BuiltinTool = {
   name: "bash",
@@ -127,6 +133,7 @@ const read: BuiltinTool = {
   category: () => "read",
   title: (input) => `Read ${stringValue(input.path)}`,
   locations: fileLocation,
+  targets: fileTarget,
   async run(input, { cwd }) {
     const file = resolvePath(cwd, input.path);
     const info = await stat(file);
@@ -150,6 +157,7 @@ const write: BuiltinTool = {
   category: () => "edit",
   title: (input) => `Write ${stringValue(input.path)}`,
   locations: fileLocation,
+  targets: fileTarget,
   async run(input, { cwd }) {
     const file = resolvePath(cwd, input.path);
     const content = stringValue(input.content);
@@ -180,6 +188,7 @@ const edit: BuiltinTool = {
   category: () => "edit",
   title: (input) => `Edit ${stringValue(input.path)}`,
   locations: fileLocation,
+  targets: fileTarget,
   async run(input, { cwd }) {
     const file = resolvePath(cwd, input.path);
     const oldString = stringValue(input.old_string);
@@ -203,11 +212,20 @@ const edit: BuiltinTool = {
   },
 };
 
-async function listFiles(base: string, pattern: string, signal: AbortSignal, limit: number): Promise<string[]> {
+async function listFiles(
+  base: string,
+  pattern: string,
+  { paths, signal }: Pick<ToolRunContext, "paths" | "signal">,
+  limit: number
+): Promise<string[]> {
   const out: string[] = [];
+  const root = paths.searchRoot({ path: base, glob: pattern });
+  if (root === undefined) return out;
   for await (const entry of glob(pattern, { cwd: base, exclude: (name: string) => SKIP_DIRS.test(name) })) {
     if (signal.aborted) break;
     if (SKIP_DIRS.test(entry)) continue;
+    // A walk follows symlinks it finds, which can lead out of what was checked before it started.
+    if (!(await paths.allowsFound(root, path.resolve(base, entry)))) continue;
     out.push(entry);
     if (out.length >= limit) break;
   }
@@ -224,9 +242,10 @@ const globTool: BuiltinTool = {
   },
   category: () => "search",
   title: (input) => `Find ${stringValue(input.pattern)}`,
-  async run(input, { cwd, signal }) {
+  targets: (input) => [{ path: stringValue(input.path), glob: stringValue(input.pattern) }],
+  async run(input, { cwd, signal, paths }) {
     const base = input.path ? resolvePath(cwd, input.path) : cwd;
-    const files = await listFiles(base, stringValue(input.pattern) || "*", signal, MAX_GLOB_RESULTS);
+    const files = await listFiles(base, stringValue(input.pattern) || "*", { paths, signal }, MAX_GLOB_RESULTS);
     return { text: files.length ? files.join("\n") : "no matches" };
   },
 };
@@ -246,7 +265,8 @@ const grep: BuiltinTool = {
   },
   category: () => "search",
   title: (input) => `Search "${stringValue(input.pattern)}"`,
-  async run(input, { cwd, signal }) {
+  targets: (input) => [{ path: stringValue(input.path), glob: stringValue(input.glob) }],
+  async run(input, { cwd, signal, paths }) {
     const base = input.path ? resolvePath(cwd, input.path) : cwd;
     let regex: RegExp;
     try {
@@ -255,9 +275,9 @@ const grep: BuiltinTool = {
       return { text: `invalid pattern: ${(error as Error).message}`, isError: true };
     }
     const matches: string[] = [];
-    for (const file of await listFiles(base, stringValue(input.glob) || "**/*", signal, 20_000)) {
+    for (const file of await listFiles(base, stringValue(input.glob) || "**/*", { paths, signal }, 20_000)) {
       if (signal.aborted || matches.length >= MAX_GREP_MATCHES) break;
-      const full = path.join(base, file);
+      const full = path.resolve(base, file);
       const info = await stat(full).catch(() => undefined);
       if (!info?.isFile() || info.size > MAX_READ_BYTES) continue;
       const text = await readFile(full, "utf8").catch(() => "");

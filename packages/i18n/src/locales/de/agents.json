@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Vor Änderungen fragen",
-          "description": "Lesezugriffe, Suchen und Webabrufe laufen ohne Nachfrage. Bei Shell-Befehlen, Dateiänderungen und Änderungen in Plane wird zuerst nachgefragt."
+          "description": "Lesezugriffe und Suchen im Arbeitsverzeichnis laufen ohne Nachfrage. Bei Lesezugriffen an anderen Orten, Webabrufen, Shell-Befehlen, Dateiänderungen und Änderungen in Plane wird zuerst nachgefragt."
         },
         "yolo": {
           "name": "Nie fragen",

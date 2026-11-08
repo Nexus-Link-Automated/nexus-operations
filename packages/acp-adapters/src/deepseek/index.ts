@@ -29,6 +29,7 @@ import {
 } from "../core/json.ts";
 import { classifyMcpCall, toolKindForCategory, type ToolCategory } from "../core/modes.ts";
 import { effortChoices, modelCatalog } from "../core/models.ts";
+import { PATH_REFUSED_MESSAGE, gateFileRead, urlHost } from "../core/paths.ts";
 import { promptToText } from "../core/turn.ts";
 import { McpHub, type McpToolBinding } from "./mcp-hub.ts";
 import { chatSseEvents } from "./sse.ts";
@@ -299,8 +300,10 @@ class DeepSeekSession implements AdapterSession {
     if (builtin) {
       category = builtin.category(input);
       title = builtin.title(input);
-      // "Always allow" for the shell covers one program (e.g. `git`), not every command.
-      memoryKey = builtin.name === "bash" ? `bash:${commandHead(input.command)}` : builtin.name;
+      // "Always allow" for the shell covers one program (e.g. `git`) and for web fetches one host.
+      if (builtin.name === "bash") memoryKey = `bash:${commandHead(input.command)}`;
+      else if (builtin.name === "web_fetch") memoryKey = `web_fetch:${urlHost(stringValue(input.url))}`;
+      else memoryKey = builtin.name;
     } else if (mcp) {
       category = classifyMcpCall(mcp.tool, input, { readOnlyHint: mcp.readOnlyHint });
       const action = stringValue(input.action);
@@ -323,8 +326,11 @@ class DeepSeekSession implements AdapterSession {
     if (!builtin && !mcp) return this.#finish(toolCallId, { text: `unknown tool ${name}`, isError: true });
     if (!validJson) return this.#finish(toolCallId, { text: "the tool arguments were not valid JSON", isError: true });
 
+    const verdict = host.paths.check(builtin?.targets?.(input) ?? []);
+    if (verdict.access === "refused") return this.#finish(toolCallId, { text: PATH_REFUSED_MESSAGE, isError: true });
+
     const decision = await host.gate.check(
-      { toolCallId, title, kind, category, rawInput: input, memoryKey },
+      { toolCallId, title, kind, rawInput: input, ...gateFileRead({ category, memoryKey }, verdict) },
       turn.signal
     );
     if (decision === "cancelled") {
@@ -344,6 +350,7 @@ class DeepSeekSession implements AdapterSession {
             signal: turn.signal,
             emit: host.emit,
             fetch: this.#fetch,
+            paths: host.paths,
           })
         : await abortable(this.#hub.call(mcp as McpToolBinding, input, turn.signal), turn.signal);
     } catch (error) {

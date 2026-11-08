@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Demander avant les modifications",
-          "description": "Les lectures, recherches et récupérations web s’exécutent librement. Les commandes shell, les modifications de fichiers et les modifications dans Plane demandent d’abord une confirmation."
+          "description": "Les lectures et recherches dans le répertoire de travail s’exécutent librement. Les lectures ailleurs, les récupérations web, les commandes shell, les modifications de fichiers et les modifications dans Plane demandent d’abord une confirmation."
         },
         "yolo": {
           "name": "Ne jamais demander",
