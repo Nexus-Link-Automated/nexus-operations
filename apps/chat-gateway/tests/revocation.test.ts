@@ -86,6 +86,29 @@ describe("access.revoked", () => {
     expect(ada.of("resync")).toEqual([]);
   });
 
+  it("doesn't send what was queued behind it while the socket was still being set up", async () => {
+    h = await startHarness();
+    const home = h.api.addChannel({ members: [ADA.id] });
+    h.api.delayPaths.set(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`, 250);
+    const ada = h.connect({ cookie: ADA.cookie });
+    await waitUntil(() => h!.api.requestsTo(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`).length === 2);
+    await h.publish(chatEvent("access.revoked", { user_id: ADA.id }));
+    await h.publish(message(home));
+    await ada.next("ready");
+    await ada.next("resync");
+    expect(eventsOf(ada)).toEqual([]);
+  });
+
+  it("closes rather than carry on when it can't re-read the user's channels", async () => {
+    h = await startHarness();
+    h.api.addChannel({ members: [ADA.id] });
+    const ada = await h.open(ADA.cookie);
+    h.api.failPaths.set(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`, 500);
+    await h.publish(chatEvent("access.revoked", { user_id: ADA.id }));
+    expect(await ada.closed()).toBe(CloseCode.internalError);
+    expect(ada.of("resync")).toEqual([]);
+  });
+
   it("closes the socket rather than guess when the API can't be asked", async () => {
     h = await startHarness();
     h.api.addChannel({ members: [ADA.id] });

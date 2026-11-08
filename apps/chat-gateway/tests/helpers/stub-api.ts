@@ -72,6 +72,11 @@ export class StubPlaneApi {
   abortedRequests = 0;
   /** Hold back answers to paths starting with a key by that many ms. */
   readonly delayPaths = new Map<string, number>();
+  /** Answer requests to paths starting with a key with that status. */
+  readonly failPaths = new Map<string, number>();
+  /** Requests being answered right now, and the most there have been at once. */
+  inFlight = 0;
+  peakInFlight = 0;
   #server: Server | undefined;
 
   get url(): string {
@@ -82,7 +87,10 @@ export class StubPlaneApi {
   async start(): Promise<this> {
     this.#server = createServer((req, res) => {
       this.arrivedRequests += 1;
+      this.inFlight += 1;
+      this.peakInFlight = Math.max(this.peakInFlight, this.inFlight);
       res.once("close", () => {
+        this.inFlight -= 1;
         if (!res.writableFinished) this.abortedRequests += 1;
       });
       const url = new URL(req.url ?? "/", "http://api");
@@ -138,6 +146,8 @@ export class StubPlaneApi {
 
   #handle(req: IncomingMessage, url: URL): { status: number; body: unknown } {
     if (this.failWith) return { status: this.failWith, body: {} };
+    const failure = [...this.failPaths].find(([prefix]) => url.pathname.startsWith(prefix));
+    if (failure) return { status: failure[1], body: {} };
     const userId = this.users.get(String(req.headers.cookie ?? ""));
     if (!userId) {
       return { status: this.unauthenticatedStatus, body: { detail: "Authentication credentials were not provided." } };

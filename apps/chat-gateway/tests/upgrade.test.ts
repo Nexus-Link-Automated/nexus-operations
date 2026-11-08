@@ -273,6 +273,29 @@ describe("the API client", () => {
     await expect(api.currentUser(USER_COOKIE)).rejects.toMatchObject({ status: 0 });
   });
 
+  it("takes a waiting request out of the queue when its caller gives up", async () => {
+    const answers: ((response: Response) => void)[] = [];
+    const api = createPlaneApi({
+      baseUrl: "http://api.test",
+      maxConcurrent: 1,
+      fetch: () => new Promise((resolve) => answers.push(resolve)),
+    });
+    const first = api.currentUser(USER_COOKIE);
+    const abort = new AbortController();
+    const waiting = api.currentUser(USER_COOKIE, abort.signal);
+    await settle(10);
+    expect(answers).toHaveLength(1);
+    abort.abort();
+    await expect(waiting).rejects.toMatchObject({ status: 0 });
+
+    const third = api.currentUser(USER_COOKIE);
+    answers.shift()!(Response.json({ id: "a" }));
+    await expect(first).resolves.toEqual({ id: "a" });
+    await waitUntil(() => answers.length === 1);
+    answers.shift()!(Response.json({ id: "b" }));
+    await expect(third).resolves.toEqual({ id: "b" });
+  });
+
   it("lets go of the body of a refused request, so its connection can be reused", async () => {
     let cancelled = false;
     const body = new ReadableStream({

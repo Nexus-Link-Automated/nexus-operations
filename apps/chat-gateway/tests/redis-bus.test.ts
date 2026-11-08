@@ -11,12 +11,98 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { RedisEventBus, workspaceChannel } from "../src/bus.ts";
 import { silentLogger } from "../src/logger.ts";
-import { REDIS_URL, killSubscriber, redisAvailable } from "./helpers/redis.ts";
+import { REDIS_URL, killSubscriber, redisAvailable, startRedisProxy } from "./helpers/redis.ts";
 import { settle, waitUntil } from "./helpers/ws-client.ts";
 
 // Per-file names, so test files running in parallel against one Redis never hear each other.
 const W1 = `w1-${randomUUID()}`;
 const W2 = `w2-${randomUUID()}`;
+
+describe("RedisEventBus while Redis is unreachable", () => {
+  it("closes without waiting for a Redis that may never come back", async () => {
+    const bus = new RedisEventBus({ url: "redis://127.0.0.1:1", log: silentLogger });
+    // Commands waiting for the connection, as sockets joining and leaving during an outage leave behind.
+    bus.subscribe("w").catch(() => undefined);
+    bus.unsubscribe("w").catch(() => undefined);
+    await settle(50);
+    const closed = await Promise.race([bus.close().then(() => true), settle(1_000).then(() => false)]);
+    expect(closed).toBe(true);
+  });
+});
+
+describe.skipIf(!redisAvailable)("RedisEventBus on a connection that misbehaves", () => {
+  it("notices a connection that went silent, reconnects and says events may be missed", async () => {
+    const workspace = randomUUID();
+    const proxy = await startRedisProxy();
+    const publisher = new Redis(REDIS_URL);
+    const bus = new RedisEventBus({ url: proxy.url, log: silentLogger, heartbeatMs: 40, heartbeatTimeoutMs: 120 });
+    const received: string[] = [];
+    let gaps = 0;
+    bus.onMessage((_workspaceId, raw) => received.push(raw));
+    bus.onGap(() => {
+      gaps += 1;
+    });
+    try {
+      await waitUntil(() => bus.connected);
+      await bus.subscribe(workspace);
+      proxy.blackhole();
+      await waitUntil(() => gaps === 1, 3_000);
+      await publisher.publish(workspaceChannel(workspace), "after the outage");
+      await waitUntil(() => received.includes("after the outage"));
+    } finally {
+      publisher.disconnect();
+      await bus.close();
+      await proxy.close();
+    }
+  });
+
+  it("doesn't call a quiet connection dead", async () => {
+    const workspace = randomUUID();
+    const proxy = await startRedisProxy();
+    const bus = new RedisEventBus({ url: proxy.url, log: silentLogger, heartbeatMs: 40, heartbeatTimeoutMs: 120 });
+    let gaps = 0;
+    bus.onGap(() => {
+      gaps += 1;
+    });
+    try {
+      await waitUntil(() => bus.connected);
+      await bus.subscribe(workspace);
+      await settle(400);
+      expect(gaps).toBe(0);
+      expect(bus.connected).toBe(true);
+    } finally {
+      await bus.close();
+      await proxy.close();
+    }
+  });
+
+  it("only announces a gap once Redis has confirmed the subscription", async () => {
+    const workspace = randomUUID();
+    const proxy = await startRedisProxy();
+    const publisher = new Redis(REDIS_URL);
+    const connectionName = `chat-gateway-test-${randomUUID()}`;
+    const bus = new RedisEventBus({ url: proxy.url, log: silentLogger, connectionName });
+    let receivers: number | undefined;
+    bus.onGap(() => {
+      void publisher.publish(workspaceChannel(workspace), "probe").then((count) => {
+        receivers = count;
+      });
+    });
+    try {
+      await waitUntil(() => bus.connected);
+      await bus.subscribe(workspace);
+      // Commands reach Redis late, so a gap announced before the resubscription would find no one listening.
+      proxy.delayToRedis = 150;
+      await killSubscriber(connectionName);
+      await waitUntil(() => receivers !== undefined, 5_000);
+      expect(receivers).toBe(1);
+    } finally {
+      publisher.disconnect();
+      await bus.close();
+      await proxy.close();
+    }
+  });
+});
 
 describe.skipIf(!redisAvailable)("RedisEventBus", () => {
   let bus: RedisEventBus;
