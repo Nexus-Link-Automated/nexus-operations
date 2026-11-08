@@ -267,6 +267,30 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
     });
   });
 
+  it("points the app-server at the broker when the runner sets a base URL", async () => {
+    const fake = fakeCodexEnv({ OPENAI_API_KEY: "opaque-token", PLANE_CODEX_BASE_URL: "http://127.0.0.1:9/v1" });
+    client = spawnClient("codex", fake.env);
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    await client.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+    const log = fake.log();
+    expect(log.find((message) => message.argv)?.argv).toEqual([
+      "-c",
+      'openai_base_url="http://127.0.0.1:9/v1"',
+      "app-server",
+    ]);
+    expect(log.find((message) => message.method === "account/login/start")?.params).toEqual({
+      type: "apiKey",
+      apiKey: "opaque-token",
+    });
+    await client.close();
+
+    const direct = fakeCodexEnv({ OPENAI_API_KEY: "sk-test" });
+    client = spawnClient("codex", direct.env);
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    await client.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+    expect(direct.log().find((message) => message.argv)?.argv).toEqual(["app-server"]);
+  });
+
   it("uses the ChatGPT sign-in in ~/.codex with PLANE_AGENT_AUTH=chatgpt and never logs in with a key", async () => {
     const fake = fakeCodexEnv({ PLANE_AGENT_AUTH: "chatgpt", FAKE_CODEX_ACCOUNT: "chatgpt", OPENAI_API_KEY: "sk-x" });
     client = spawnClient("codex", fake.env);

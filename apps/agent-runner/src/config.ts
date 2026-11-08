@@ -38,6 +38,7 @@ const schema = z
     AGENT_RUNNER_AGENT_SHELL: z.string().default("/bin/bash"),
     AGENT_RUNNER_KILL_GRACE_MS: positiveInt(3_000),
     AGENT_RUNNER_MAX_MESSAGE_BYTES: positiveInt(8 * MiB),
+    AGENT_RUNNER_CREDENTIAL_BROKER: flag,
     AGENT_RUNNER_MAX_CONNECTIONS: positiveInt(64),
     AGENT_RUNNER_MAX_HEADER_BYTES: positiveInt(256 * 1024),
   })
@@ -66,6 +67,8 @@ export interface RunnerConfig {
   readonly killGraceMs: number;
   /** Largest frame accepted from the bridge. */
   readonly maxMessageBytes: number;
+  /** Keep provider API keys in the runner: agents get a token for a loopback proxy instead. */
+  readonly credentialBroker: boolean;
   readonly maxConnections: number;
   /** Spawn tickets carry the agent env, so the upgrade's headers can be large. */
   readonly maxHeaderBytes: number;
@@ -97,6 +100,7 @@ export function loadRunnerConfig(env: NodeJS.ProcessEnv = process.env): RunnerCo
     agentShell: e.AGENT_RUNNER_AGENT_SHELL,
     killGraceMs: e.AGENT_RUNNER_KILL_GRACE_MS,
     maxMessageBytes: e.AGENT_RUNNER_MAX_MESSAGE_BYTES,
+    credentialBroker: e.AGENT_RUNNER_CREDENTIAL_BROKER,
     maxConnections: e.AGENT_RUNNER_MAX_CONNECTIONS,
     maxHeaderBytes: e.AGENT_RUNNER_MAX_HEADER_BYTES,
   };

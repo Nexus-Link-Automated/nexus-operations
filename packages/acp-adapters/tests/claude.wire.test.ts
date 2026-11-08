@@ -10,13 +10,60 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { claudeFileTargets, createClaudeAdapter } from "../src/claude/index.ts";
+import { claudeFileTargets, createClaudeAdapter, subprocessEnvScrub } from "../src/claude/index.ts";
 import { PATH_REFUSED_MESSAGE } from "../src/core/paths.ts";
 import { inProcessClient, tempDir, textOf, updatesOfKind, type InProcessClient } from "./helpers/client.ts";
 import { fakeQuery } from "./helpers/claude.ts";
 import { runWireScenario } from "./helpers/scenario.ts";
 
 const env = { ANTHROPIC_API_KEY: "sk-ant-test", HOME: tempDir("claude-home-") };
+const BROKER_TOKEN = `pab_${"a".repeat(64)}`;
+
+describe("subprocessEnvScrub", () => {
+  const brokered = { ANTHROPIC_API_KEY: BROKER_TOKEN, PLANE_CLAUDE_BROKERED: "1" };
+
+  it("is off when the broker's token is the only credential", () => {
+    expect(subprocessEnvScrub(brokered)).toBe("0");
+    expect(
+      subprocessEnvScrub({
+        ...brokered,
+        ANTHROPIC_BASE_URL: "http://127.0.0.1:9",
+        _CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL: "1",
+        PLANE_AGENT_AUTH: "api_key",
+        MAX_THINKING_TOKENS: "8000",
+        GIT_AUTHOR_NAME: "Plane",
+      })
+    ).toBe("0");
+  });
+
+  it("stays on without the broker", () => {
+    expect(subprocessEnvScrub({ ANTHROPIC_API_KEY: "sk-ant-real" })).toBe("1");
+    expect(subprocessEnvScrub({ ANTHROPIC_API_KEY: BROKER_TOKEN })).toBe("1");
+    expect(subprocessEnvScrub({ CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat" })).toBe("1");
+    expect(subprocessEnvScrub({})).toBe("1");
+  });
+
+  it("stays on when the key is not a broker token", () => {
+    expect(subprocessEnvScrub({ ANTHROPIC_API_KEY: "sk-ant-real", PLANE_CLAUDE_BROKERED: "1" })).toBe("1");
+    expect(subprocessEnvScrub({ PLANE_CLAUDE_BROKERED: "1" })).toBe("1");
+  });
+
+  it("stays on when any other credential is left in the env", () => {
+    for (const extra of [
+      { CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat" },
+      { ANTHROPIC_AUTH_TOKEN: "t" },
+      { ANTHROPIC_CUSTOM_HEADERS: "x-api-key: real" },
+      { AWS_SECRET_ACCESS_KEY: "s" },
+      { GITHUB_TOKEN: "t" },
+      { OPENAI_API_KEY: "sk" },
+      { SENTRY_DSN: "https://k@sentry.example/1" },
+      { SLACK_WEBHOOK_URL: "https://hooks.example/x" },
+      { MAX_THINKING_TOKENS: "not-a-number" },
+    ] as Record<string, string>[]) {
+      expect(subprocessEnvScrub({ ...brokered, ...extra }), Object.keys(extra)[0]).toBe("1");
+    }
+  });
+});
 
 describe("plane-acp-claude over ndjson (mocked query())", () => {
   let client: InProcessClient | undefined;
@@ -61,6 +108,19 @@ describe("plane-acp-claude over ndjson (mocked query())", () => {
       size: 1_000_000,
       cost: { amount: 0.0123, currency: "USD" },
     });
+  });
+
+  it("drops subprocess env scrubbing only when the broker's token is the only credential", async () => {
+    const fake = fakeQuery();
+    client = inProcessClient(createClaudeAdapter({ query: fake.query as never }), {
+      ANTHROPIC_API_KEY: BROKER_TOKEN,
+      ANTHROPIC_BASE_URL: "http://127.0.0.1:9",
+      PLANE_CLAUDE_BROKERED: "1",
+    });
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const { sessionId } = await client.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+    await client.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text: "hi" }] });
+    expect(fake.calls[0]?.options.env).toMatchObject({ CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "0" });
   });
 
   it("offers a reasoning effort per model, starts on the browser's last choice and sends it each turn", async () => {

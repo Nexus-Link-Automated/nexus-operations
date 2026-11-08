@@ -32,7 +32,8 @@ import type {
   SessionInit,
   TurnContext,
 } from "../core/agent.ts";
-import { AI_PROVIDERS_SETTINGS, agentHome } from "../core/auth.ts";
+import { AGENT_AUTH_ENV, AI_PROVIDERS_SETTINGS, agentHome } from "../core/auth.ts";
+import { SECRET_ENV_NAME } from "../core/env.ts";
 import { agentInfo, PACKAGE_VERSION } from "../core/info.ts";
 import { arrayValue, errorMessage, numberValue, objectValue, stringValue, type JsonObject } from "../core/json.ts";
 import { toClaudeMcpServers, writeClaudeMcpConfig } from "../core/mcp.ts";
@@ -42,7 +43,39 @@ import { PATH_REFUSED_MESSAGE, gateFileRead, urlHost, type FileTarget } from "..
 import type { PermissionDecision } from "../core/permission.ts";
 import { promptToText } from "../core/turn.ts";
 
-export const CLAUDE_ENV = { apiKey: "ANTHROPIC_API_KEY", oauthToken: "CLAUDE_CODE_OAUTH_TOKEN" } as const;
+export const CLAUDE_ENV = {
+  apiKey: "ANTHROPIC_API_KEY",
+  oauthToken: "CLAUDE_CODE_OAUTH_TOKEN",
+  /** Set only by the agent runner's credential broker: the API key in this env is its token. */
+  brokered: "PLANE_CLAUDE_BROKERED",
+} as const;
+
+const BROKER_TOKEN = /^pab_[0-9a-f]{64}$/;
+/** Names Claude Code's own scrubbing treats as credentials that `SECRET_ENV_NAME` does not cover. */
+const CLI_CREDENTIAL_NAME =
+  /(^|_)(AUTH|COOKIE|PAT|DSN|WEBHOOK|CREDS|PASSPHRASE|SSHPASS)($|_|\d)|_(PWD|PASS|JWT)($|_|\d)|^ANTHROPIC_CUSTOM_HEADERS$/i;
+
+function looksLikeCredential(name: string, value: string): boolean {
+  if (name === AGENT_AUTH_ENV) return false;
+  // Limits such as MAX_THINKING_TOKENS.
+  if (/_TOKENS$/i.test(name) && /^\d+$/.test(value.trim())) return false;
+  return SECRET_ENV_NAME.test(name) || CLI_CREDENTIAL_NAME.test(name);
+}
+
+/**
+ * `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` for this env. Scrubbing makes Claude Code refuse to start
+ * without bubblewrap and user namespaces. It can only be dropped when there is nothing to protect:
+ * the runner brokered the key, so the tools can see at most a token that works through the broker
+ * and dies with the agent. Any other credential in the env keeps it on.
+ */
+export function subprocessEnvScrub(env: NodeJS.ProcessEnv): "0" | "1" {
+  if (env[CLAUDE_ENV.brokered]?.trim() !== "1") return "1";
+  if (!BROKER_TOKEN.test(env[CLAUDE_ENV.apiKey]?.trim() ?? "")) return "1";
+  const credentialLeft = Object.entries(env).some(
+    ([name, value]) => name !== CLAUDE_ENV.apiKey && Boolean(value?.trim()) && looksLikeCredential(name, value ?? "")
+  );
+  return credentialLeft ? "1" : "0";
+}
 
 /** Effort levels every current Claude model takes, lowest first. */
 export const CLAUDE_EFFORTS: readonly EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
@@ -316,7 +349,7 @@ class ClaudeSession implements AdapterSession {
       env: {
         ...host.env,
         // Claude Code strips Anthropic and cloud credentials from Bash, hooks and stdio MCP servers.
-        CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
+        CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: subprocessEnvScrub(host.env),
         CLAUDE_AGENT_SDK_CLIENT_APP: `plane-acp-claude/${PACKAGE_VERSION}`,
       },
       ...(this.#started ? { resume: this.#claudeSessionId } : { sessionId: this.#claudeSessionId }),

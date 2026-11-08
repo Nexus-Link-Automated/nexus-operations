@@ -36,6 +36,7 @@ import {
   type ResolveAgentCommand,
 } from "./bins.ts";
 import type { RunnerConfig } from "./config.ts";
+import { CredentialBroker } from "./credential-broker.ts";
 import { buildAgentEnv } from "./env.ts";
 import { LoginManager, type LoginFailure, type LoginTimeouts } from "./login.ts";
 import { createLogger, withMeta, type Logger } from "./logger.ts";
@@ -58,6 +59,8 @@ export interface AgentRunnerOptions {
   /** How to start the sign-in helper; defaults to `node <@plane/acp-adapters>/dist/bin/login.mjs`. */
   readonly loginHelper?: HelperCommand;
   readonly loginTimeouts?: Partial<LoginTimeouts>;
+  /** Adapter id → upstream origin for the credential broker. Tests only. */
+  readonly brokerUpstreams?: Readonly<Record<string, string>>;
 }
 
 interface RunningAgent {
@@ -88,6 +91,7 @@ export class AgentRunner {
   readonly #agents = new Set<RunningAgent>();
   readonly #uidLeases = new Map<number, number>();
   readonly #logins: LoginManager;
+  readonly #broker: CredentialBroker | undefined;
   #pending = 0;
   #shuttingDown = false;
 
@@ -107,6 +111,12 @@ export class AgentRunner {
       this.#resolve = resolver.resolve;
     }
     this.#spawner = options.spawner;
+    this.#broker = config.credentialBroker
+      ? new CredentialBroker({
+          log: this.#log,
+          ...(options.brokerUpstreams ? { upstreams: options.brokerUpstreams } : {}),
+        })
+      : undefined;
     this.#kill = options.killer ?? defaultKiller;
     this.#listProcesses = options.listProcesses ?? procProcessLister;
     this.workspaces = new WorkspaceManager({
@@ -182,6 +192,7 @@ export class AgentRunner {
   }
 
   async listen(port = this.#config.port, host = this.#config.host): Promise<AddressInfo> {
+    await this.#broker?.listen();
     await new Promise<void>((resolve, reject) => {
       this.server.once("error", reject);
       this.server.listen(port, host, () => {
@@ -213,6 +224,7 @@ export class AgentRunner {
     for (const client of this.#wss.clients) client.terminate();
     this.server.closeAllConnections();
     await httpClosed;
+    await this.#broker?.close();
     this.#log.info("agent-runner: stopped");
   }
 
@@ -260,13 +272,17 @@ export class AgentRunner {
       shell: this.#config.agentShell,
     });
     if (dropped.length > 0) log.warn("agent-runner: dropped reserved agent env names", { names: dropped });
+    const brokered = this.#broker?.broker(ticket.adapter, env);
+    if (brokered?.leftDirectBecause) {
+      log.warn("agent-runner: provider key stays in the agent's env", { blockedBy: brokered.leftDirectBecause });
+    }
 
     const uid = layout.uid;
     let releaseUid: (() => void) | undefined;
     const agentProcess = new AgentProcess({
       command,
       layout,
-      env,
+      env: brokered?.env ?? env,
       killGraceMs: this.#config.killGraceMs,
       maxMessageBytes: this.#config.maxMessageBytes,
       log,
@@ -275,11 +291,14 @@ export class AgentRunner {
       onExit: () => {
         this.#agents.delete(running);
         releaseUid?.();
+        brokered?.revoke();
       },
     });
     const running: RunningAgent = { process: agentProcess, ticket, uid };
 
+    let accepted = false;
     this.#wss.handleUpgrade(req, socket, head, (ws) => {
+      accepted = true;
       this.#agents.add(running);
       if (uid !== undefined) releaseUid = this.#leaseUid(uid, log);
       ws.once("close", () => agentProcess.terminate("connection closed"));
@@ -287,6 +306,8 @@ export class AgentRunner {
       // connects it to the agent process, which spawns here.
       this.#acp.prepareWebSocketUpgrade({ agent: agentProcess }).accept(ws);
     });
+    // A refused handshake never reaches `accept`, so no agent will ever exit to revoke this.
+    if (!accepted) brokered?.revoke();
   }
 
   #atCapacity(): boolean {

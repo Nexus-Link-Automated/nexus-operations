@@ -297,6 +297,7 @@ if (log) {
     log,
     `${JSON.stringify({ start: { codexHome: process.env.CODEX_HOME, apiKeyInEnv: "OPENAI_API_KEY" in process.env }, argv: process.argv.slice(2) })}\n`
   );
+  fs.appendFileSync(log, `${JSON.stringify({ argv: process.argv.slice(2) })}\n`);
 }
 
 process.stdin.on("data", (chunk) => {
