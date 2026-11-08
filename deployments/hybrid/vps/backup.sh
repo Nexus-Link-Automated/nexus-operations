@@ -9,6 +9,10 @@
 #   COMPOSE_PROJECT    compose project name (default: the file's own)
 #   RCLONE_CONFIG_DIR  directory holding rclone.conf (default: ./rclone)
 #   RCLONE_EXTRA_MOUNT extra docker volume for rclone, for a local test remote
+#
+# BACKUP_WORKSPACES_MAX_BYTES (in .env, default 20 GiB) caps the agents' working dirs
+# archive. An archive over it is left out and the run exits with an error, so one
+# agent's files can neither fill the staging disk nor stop the database being backed up.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -20,6 +24,7 @@ set -a; . "$env_file"; set +a
 
 : "${BACKUP_REMOTE:?BACKUP_REMOTE is not set}"
 retention_days="${BACKUP_RETENTION_DAYS:-30}"
+workspaces_max_bytes="${BACKUP_WORKSPACES_MAX_BYTES:-$((20 * 1024 * 1024 * 1024))}"
 rclone_config_dir="${RCLONE_CONFIG_DIR:-$here/rclone}"
 rclone_image="rclone/rclone:1.75.2"
 read -r -a compose_files <<<"${COMPOSE_FILES:--f docker-compose.yml}"
@@ -57,18 +62,38 @@ docker run --rm --volumes-from "$minio_container:ro" alpine:3.22 tar czf - -C /e
 # Every working dir belongs to its own uid, so the archive keeps numeric owners and
 # modes (GNU tar from the runner image). Agents may be writing meanwhile: a file that
 # changes while it is read is not an error (tar exit status 1). .tmp is scratch space.
+# --sparse stores a sparse file's holes as holes, so its apparent size costs nothing.
+# head reads one byte past the cap, so an archive that big is told apart from one that fits.
 [ -n "$(compose ps -q agent-runner)" ] || { echo "agent-runner is not running." >&2; exit 1; }
+workspaces_status=0
 compose exec -T agent-runner sh -c \
-  'tar --numeric-owner --warning=no-file-changed --exclude=./.tmp -czf - -C "$AGENT_WORKSPACES_ROOT" . || [ $? -eq 1 ]' \
-  >"$stage/agent_workspaces.tar.gz"
+  'tar --sparse --numeric-owner --warning=no-file-changed --exclude=./.tmp -czf - -C "$AGENT_WORKSPACES_ROOT" . || [ $? -eq 1 ]' \
+  | head -c "$((workspaces_max_bytes + 1))" >"$stage/agent_workspaces.tar.gz" || workspaces_status=$?
+workspaces_oversized=0
+if [ "$(stat -c %s "$stage/agent_workspaces.tar.gz")" -gt "$workspaces_max_bytes" ]; then
+  rm "$stage/agent_workspaces.tar.gz"
+  workspaces_oversized=1
+elif [ "$workspaces_status" -ne 0 ]; then
+  echo "The agent workspaces archive failed." >&2
+  exit 1
+fi
 cp "$env_file" "$stage/env"
 
 # A failed or empty dump must not replace good history through the retention step.
 [ -s "$stage/postgres.dump" ] || { echo "Postgres dump is empty." >&2; exit 1; }
-tar tzf "$stage/agent_workspaces.tar.gz" >/dev/null
-sha256sum "$stage"/postgres.dump "$stage"/uploads.tar.gz "$stage"/agent_workspaces.tar.gz "$stage"/env | sed "s#$stage/##" >"$stage/SHA256SUMS"
+checksummed=("$stage"/postgres.dump "$stage"/uploads.tar.gz "$stage"/env)
+if [ "$workspaces_oversized" -eq 0 ]; then
+  tar tzf "$stage/agent_workspaces.tar.gz" >/dev/null
+  checksummed+=("$stage"/agent_workspaces.tar.gz)
+fi
+sha256sum "${checksummed[@]}" | sed "s#$stage/##" >"$stage/SHA256SUMS"
 
 RCLONE_DATA_MOUNT="$stage:/stage:ro,z" rclone copy /stage "${BACKUP_REMOTE}${stamp}"
+if [ "$workspaces_oversized" -eq 1 ]; then
+  # Retention is skipped too: this backup is missing the workspaces older ones have.
+  echo "Backup $stamp has no agent workspaces: the archive passed BACKUP_WORKSPACES_MAX_BYTES ($workspaces_max_bytes bytes)." >&2
+  exit 1
+fi
 rclone delete "${BACKUP_REMOTE}" --min-age "${retention_days}d"
 rclone rmdirs "${BACKUP_REMOTE}" --leave-root
 

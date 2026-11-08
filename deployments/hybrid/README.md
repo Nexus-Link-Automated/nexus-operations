@@ -86,7 +86,9 @@ cd /opt/nexus-operations/deployments/hybrid/vps
 ./generate-env.sh --domain $APP_DOMAIN --release $RELEASE
 ```
 
-`bootstrap.sh` installs Docker, allows only SSH inbound, enables automatic security updates, adds swap, schedules the daily backup and installs the agent network firewall (`agents-firewall.sh`, re-applied whenever Docker starts).
+`bootstrap.sh` installs Docker, allows only SSH inbound, enables automatic security updates, adds swap, schedules the daily backup and installs the agent network firewall (`agents-firewall.sh`, re-applied whenever Docker starts and re-checked every minute).
+
+It also turns off SSH password login and limits root to keys, with `harden-ssh.sh`. It only does this when root has an authorized key that can open a shell, and it checks the new config with `sshd -t` before reloading sshd. If there is no such key it leaves SSH alone and prints a warning: add a key, confirm that logging in with it works, then run `./harden-ssh.sh`.
 
 Set up the backup remote. It must be an rclone **crypt** remote, because backups contain `.env`; `backup.sh` refuses anything else.
 
@@ -147,6 +149,8 @@ railway add --service router \
 ```
 
 `$IMAGE_REGISTRY` must match the VPS, and `web` must run the same `$RELEASE` as the backend.
+
+The router rejects request bodies larger than `ROUTER_MAX_BODY_SIZE` (default `6MiB`). Keep it above the VPS's `FILE_SIZE_LIMIT`: a browser upload is the file plus its multipart form fields. If you raise `FILE_SIZE_LIMIT`, add `--variables "ROUTER_MAX_BODY_SIZE=<bigger>"`, for example `12MiB`.
 
 Set the Tailscale secret without putting it in your shell history. The `?preauthorized=true` suffix skips device approval:
 
@@ -224,6 +228,8 @@ The database runs Postgres 18, the same major version as production, because `pg
 
 A restore does not apply the backed-up `.env`. If you are rebuilding on a new server, copy that `env` file into place as `.env` before starting the stack, or Plane cannot read its encrypted settings.
 
+The agent workspaces archive stores sparse files as holes, and is capped at `BACKUP_WORKSPACES_MAX_BYTES` (default 20 GiB, set it in `.env`). A larger archive is left out of the backup and `backup.sh` exits with an error, so the database and uploads are still backed up while the failure shows up in `systemctl status`. Retention is skipped for that run.
+
 Nothing alerts you if a backup fails. Add monitoring, or run `verify` on a schedule you will notice.
 
 ## Testing locally
@@ -245,6 +251,14 @@ Besides the smoke checks, the test:
 - Checks that the chat's working dir belongs to its own uid with mode 700, and that no agent process outlives the chat.
 
 A plain SOCKS5 proxy stands in for the tailnet. The test cannot exercise Railway's edge or a real Tailscale connection, so those are covered in step 7. It also does not install `agents-firewall.sh`, which changes the host's iptables, so check that on the VPS.
+
+The host scripts have their own tests, which use stubs on `PATH` and change nothing on the machine, and need no root:
+
+```bash
+deployments/hybrid/test/agents-firewall-test.sh    # atomic updates, --verify, and the rule order
+deployments/hybrid/test/harden-ssh-test.sh         # the SSH lockout guards
+deployments/hybrid/test/backup-workspaces-test.sh  # sparse files and the workspace archive cap
+```
 
 ## Agent chat
 
@@ -280,6 +294,10 @@ All of these are in `.env`. `generate-env.sh` writes them, and `generate-env.sh 
 | `AGENT_RUNNER_SECRET`                   | agent-bridge, agent-runner | Signs the bridge's single-use spawn tickets. 32 or more characters.                                                                          |
 | `AGENT_SESSION_TOKEN_TTL_MINUTES`       | api                        | Lifetime of each chat's token (default 120). When it expires, the chat closes with 4410, and the browser reconnects and reloads the session. |
 | `AGENT_RUNNER_CPUS`, `_MEMORY`, `_PIDS` | agent-runner               | Container limits shared by all running agents (defaults 2, `3g`, 1024).                                                                      |
+| `AGENT_RUNNER_NPROC_LIMIT`              | agent-runner               | Processes and threads each uid may own (default 256).                                                                                        |
+| `AGENT_RUNNER_FILE_SIZE_LIMIT_BYTES`    | agent-runner               | Largest file an agent can create (default 4 GiB).                                                                                            |
+| `AGENT_RUNNER_USER_DISK_LIMIT_BYTES`    | agent-runner               | Disk each workspace dir may use before its agents are refused and stopped (default 10 GiB, `0` is off).                                      |
+| `AGENT_RUNNER_TMP_SIZE`                 | agent-runner               | Size of the runner's `/tmp` tmpfs, which counts against its memory limit (default `512m`).                                                   |
 
 The compose file sets the rest:
 
@@ -298,7 +316,8 @@ To rotate a secret, change it in `.env` and run `docker compose up -d`, which re
 Agents get a full toolbox: shell, file edits, git, compilers, web access and Plane MCP. They run inside `agent-runner`, which needs to run as root to switch uids. It is limited in several ways:
 
 - It holds only the capabilities that switching uids takes (`CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETUID`, `SETGID`), and it runs with `no-new-privileges`.
-- It has CPU, memory and pids limits.
+- It has CPU, memory and pids limits, and `/tmp` is a size-limited tmpfs.
+- Each uid has its own process and file size limits, and each workspace dir has a disk cap (see `apps/agent-runner/README.md`). Over the cap, new agents are refused and running ones are stopped until someone clears files in the volume or raises the limit.
 - Each workspace and user pair gets its own uid, in the range 20000–59999. Its working dir, `HOME` and `TMPDIR` are mode 0700, and its environment is built from scratch, with only the agent's own settings and its session token.
 - When a chat ends, its processes are killed and its token is revoked.
 
@@ -313,7 +332,11 @@ docker compose exec agent-runner curl -sI https://example.com | head -1  # HTTP/
 docker compose exec agent-runner curl -m 5 http://169.254.169.254/       # refused (metadata)
 docker compose exec agent-runner curl -m 5 http://<another tailnet device>:<port>/  # refused
 sudo iptables -S NEXUS-AGENTS-FWD                                        # the rules
+sudo iptables -S FORWARD | sed -n 2p                                     # the jump to them, first in FORWARD
+sudo ./agents-firewall.sh --verify                                       # silent when nothing has drifted
 ```
+
+`nexus-ops-agents-firewall-check.timer` runs `agents-firewall.sh --verify` every minute. It only re-applies the rules when they differ, and updates are atomic: new rules are built in new chains before the jumps move, so traffic is never left unfiltered. Check its work with `journalctl -u nexus-ops-agents-firewall-check`.
 
 ### Registering an agent
 

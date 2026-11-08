@@ -13,7 +13,7 @@ export const WORKSPACE_ID = randomUUID();
 export const WORKSPACE_SLUG = "acme";
 
 /** Three members of the workspace, and someone who is signed in but not in it. */
-export const ADA = { id: "11111111-1111-4111-8111-111111111111", cookie: "session-id=ada-session" };
+export const ADA = { id: "11111111-1111-4111-8111-111111111111", cookie: "session-id=user-session" };
 export const BEN = { id: "33333333-3333-4333-8333-333333333333", cookie: "session-id=ben-session" };
 export const CARA = { id: "55555555-5555-4555-8555-555555555555", cookie: "session-id=cara-session" };
 export const OUTSIDER = { id: "44444444-4444-4444-8444-444444444444", cookie: "session-id=outsider-session" };
@@ -60,12 +60,16 @@ export class StubPlaneApi {
   readonly channels = new Map<string, StubChannel>();
   /** Every request received, in order, recorded when it arrives. */
   readonly requests: StubRequest[] = [];
-  /** What Django answers an unknown cookie with (DRF's session auth sends 403; 401 is also handled). */
-  unauthenticatedStatus = 403;
+  /** What Django answers an unknown cookie with (401; the gateway treats a 403 the same way). */
+  unauthenticatedStatus = 401;
   /** Answer every request with this status instead (e.g. 500). */
   failWith: number | undefined;
   /** Hold every answer back this long. */
   delayMs = 0;
+  /** Requests that have reached the stub, including those still being held back. */
+  arrivedRequests = 0;
+  /** Requests whose caller hung up before the answer. */
+  abortedRequests = 0;
   /** Hold back answers to paths starting with a key by that many ms. */
   readonly delayPaths = new Map<string, number>();
   #server: Server | undefined;
@@ -77,6 +81,10 @@ export class StubPlaneApi {
 
   async start(): Promise<this> {
     this.#server = createServer((req, res) => {
+      this.arrivedRequests += 1;
+      res.once("close", () => {
+        if (!res.writableFinished) this.abortedRequests += 1;
+      });
       const url = new URL(req.url ?? "/", "http://api");
       this.requests.push({
         method: req.method ?? "GET",

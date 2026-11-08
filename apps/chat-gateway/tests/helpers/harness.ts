@@ -46,8 +46,9 @@ export function testConfig(overrides: Partial<GatewayConfig> = {}): GatewayConfi
     maxConnectionsPerUser: 4,
     maxConnections: 100,
     pingIntervalMs: 30_000,
-    maxSubscriptions: 100,
     maxBufferedBytes: 1024 * 1024,
+    closeTimeoutMs: 5_000,
+    maxSubscriptions: 100,
     rateFrames: 100,
     rateWindowMs: 10_000,
     // Long enough that nothing re-checks by itself unless a test asks for it.

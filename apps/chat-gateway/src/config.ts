@@ -27,8 +27,9 @@ const schema = z.object({
   CHAT_GATEWAY_MAX_CONNECTIONS_PER_USER: positiveInt(8),
   CHAT_GATEWAY_MAX_CONNECTIONS: positiveInt(2000),
   CHAT_GATEWAY_PING_INTERVAL_MS: positiveInt(30_000),
-  CHAT_GATEWAY_MAX_SUBSCRIPTIONS: positiveInt(100),
   CHAT_GATEWAY_MAX_BUFFERED_BYTES: positiveInt(1024 * KiB),
+  CHAT_GATEWAY_CLOSE_TIMEOUT_MS: positiveInt(5_000),
+  CHAT_GATEWAY_MAX_SUBSCRIPTIONS: positiveInt(100),
   CHAT_GATEWAY_RATE_FRAMES: positiveInt(100),
   CHAT_GATEWAY_RATE_WINDOW_MS: positiveInt(10_000),
   CHAT_GATEWAY_ACCESS_TTL_MS: positiveInt(60_000),
@@ -52,10 +53,12 @@ export interface GatewayConfig {
   readonly maxConnectionsPerUser: number;
   readonly maxConnections: number;
   readonly pingIntervalMs: number;
+  /** Most that may be queued for a browser; beyond it, the browser has stopped reading and its socket is closed. */
+  readonly maxBufferedBytes: number;
+  /** How long a browser gets to finish closing a socket before it is cut. */
+  readonly closeTimeoutMs: number;
   /** Public channels one socket may follow beyond the ones its user is in. */
   readonly maxSubscriptions: number;
-  /** A socket with more than this waiting to be sent is too slow and is dropped (it reconnects and resyncs). */
-  readonly maxBufferedBytes: number;
   /** At most `rateFrames` frames from one socket per `rateWindowMs`. */
   readonly rateFrames: number;
   readonly rateWindowMs: number;
@@ -83,14 +86,15 @@ export function loadGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
     redisUrl: e.REDIS_URL,
     basePath: e.CHAT_GATEWAY_BASE_PATH,
     allowedOrigins: e.CORS_ALLOWED_ORIGINS.split(",")
-      .map((origin) => origin.trim().replace(/\/+$/, ""))
+      .map((origin) => origin.trim().replace(/\/+$/, "").toLowerCase())
       .filter(Boolean),
     maxMessageBytes: e.CHAT_GATEWAY_MAX_MESSAGE_BYTES,
     maxConnectionsPerUser: e.CHAT_GATEWAY_MAX_CONNECTIONS_PER_USER,
     maxConnections: e.CHAT_GATEWAY_MAX_CONNECTIONS,
     pingIntervalMs: e.CHAT_GATEWAY_PING_INTERVAL_MS,
-    maxSubscriptions: e.CHAT_GATEWAY_MAX_SUBSCRIPTIONS,
     maxBufferedBytes: e.CHAT_GATEWAY_MAX_BUFFERED_BYTES,
+    closeTimeoutMs: e.CHAT_GATEWAY_CLOSE_TIMEOUT_MS,
+    maxSubscriptions: e.CHAT_GATEWAY_MAX_SUBSCRIPTIONS,
     rateFrames: e.CHAT_GATEWAY_RATE_FRAMES,
     rateWindowMs: e.CHAT_GATEWAY_RATE_WINDOW_MS,
     accessTtlMs: e.CHAT_GATEWAY_ACCESS_TTL_MS,

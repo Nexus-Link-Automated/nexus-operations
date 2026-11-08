@@ -9,7 +9,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 
-from plane.chat.events import EventType
+from plane.chat.events import EventType, channel_event, member_event, publish_on_commit
 from plane.chat.exceptions import BadRequest, Conflict, Forbidden
 from plane.chat.models import Channel, ChannelMember, ChannelMemberRole
 from plane.chat.permissions import (
@@ -30,6 +30,10 @@ from plane.chat.views.base import ChatBaseEndpoint, annotate_channels
 from plane.db.models import User
 
 DUPLICATE_NAME = "A channel with this name already exists."
+
+
+def _locked(channel):
+    return Channel.objects.select_for_update().get(pk=channel.pk)
 
 
 class ChannelPayloadMixin:
@@ -60,11 +64,11 @@ class ChannelEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
         try:
             with transaction.atomic():
                 channel = serializer.save(workspace=self.workspace)
-                ChannelMember.objects.create(channel=channel, user=request.user, role=ChannelMemberRole.ADMIN)
-                # The creator's membership first, so the gateway knows the channel is theirs by the time
-                # it sees `channel.created`.
-                self.publish(EventType.MEMBER_ADDED, channel, user_id=request.user.id)
-                self.publish(EventType.CHANNEL_CREATED, channel)
+                creator = ChannelMember.objects.create(channel=channel, user=request.user, role=ChannelMemberRole.ADMIN)
+                # The creator first: the gateway only forwards a channel's events to people it knows are in it.
+                publish_on_commit(
+                    member_event(EventType.MEMBER_ADDED, creator), channel_event(EventType.CHANNEL_CREATED, channel)
+                )
         except IntegrityError:
             # Someone took the name between the check and the insert.
             raise Conflict(DUPLICATE_NAME)
@@ -80,15 +84,19 @@ class ChannelDetailEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
         channel = self.get_channel(channel_id)
         require_named_channel(channel, "A direct message has no name or description.")
         require_channel_admin(channel, self.role)
-        require_not_archived(channel)
-        serializer = ChannelUpdateSerializer(
-            channel, data=request.data, partial=True, context={"workspace_id": channel.workspace_id}
-        )
-        serializer.is_valid(raise_exception=True)
         try:
             with transaction.atomic():
-                serializer.save()
-                self.publish(EventType.CHANNEL_UPDATED, channel)
+                # Locked so overlapping edits are compared with each other's result and only real changes are
+                # announced, and so saving this edit can't write back an `archived_at` that has since changed.
+                locked = _locked(channel)
+                require_not_archived(locked)
+                serializer = ChannelUpdateSerializer(
+                    locked, data=request.data, partial=True, context={"workspace_id": channel.workspace_id}
+                )
+                serializer.is_valid(raise_exception=True)
+                if any(getattr(locked, field) != value for field, value in serializer.validated_data.items()):
+                    serializer.save()
+                    publish_on_commit(channel_event(EventType.CHANNEL_UPDATED, locked))
         except IntegrityError:
             raise Conflict(DUPLICATE_NAME)
         return Response(self.channel_payload(channel.id))
@@ -107,10 +115,15 @@ class ChannelArchiveEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
         channel = self.get_channel(channel_id)
         require_named_channel(channel, "A direct message can't be archived.")
         require_channel_admin(channel, self.role)
-        if (channel.archived_at is not None) != archived:
-            channel.archived_at = timezone.now() if archived else None
-            channel.save(update_fields=["archived_at", "updated_at", "updated_by"])
-            self.publish(EventType.CHANNEL_ARCHIVED if archived else EventType.CHANNEL_UNARCHIVED, channel)
+        with transaction.atomic():
+            # Locked so that when two requests overlap, the second sees the first and only one is announced.
+            locked = _locked(channel)
+            if (locked.archived_at is not None) != archived:
+                locked.archived_at = timezone.now() if archived else None
+                locked.save(update_fields=["archived_at", "updated_at", "updated_by"])
+                publish_on_commit(
+                    channel_event(EventType.CHANNEL_ARCHIVED if archived else EventType.CHANNEL_UNARCHIVED, locked)
+                )
         return Response(self.channel_payload(channel.id))
 
 
@@ -138,12 +151,6 @@ class DirectMessageEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
             channel, created = Channel.objects.get_or_create_dm(self.workspace, *people)
         else:
             channel, created = Channel.objects.get_or_create_group_dm(self.workspace, people)
-        if created:
-            # Opening a DM that already exists changes nothing, so it publishes nothing. Everyone in a new one
-            # is a member from the start, and each of them needs to learn it.
-            for user_id in channel.dm_key.split(":"):
-                self.publish(EventType.MEMBER_ADDED, channel, user_id=user_id)
-            self.publish(EventType.CHANNEL_CREATED, channel)
         return Response(
             self.channel_payload(channel.id), status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
         )

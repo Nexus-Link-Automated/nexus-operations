@@ -3,10 +3,27 @@
     "title": "Agen",
     "picker": {
       "label": "Agen",
-      "placeholder": "Pilih agen"
+      "trigger_label": "Agen dan model: {selection}",
+      "switch_hint": "Mengganti agen akan memulai obrolan baru.",
+      "unavailable": "Belum ada kunci API",
+      "manage_providers": "Kelola penyedia AI"
     },
     "model": {
       "label": "Model"
+    },
+    "effort": {
+      "label": "Tingkat penalaran",
+      "trigger_label": "Tingkat penalaran: {level}",
+      "hint": "Berlaku mulai pesan Anda berikutnya.",
+      "levels": {
+        "none": "Tidak ada",
+        "minimal": "Minimal",
+        "low": "Rendah",
+        "medium": "Sedang",
+        "high": "Tinggi",
+        "xhigh": "Sangat tinggi",
+        "max": "Maksimal"
+      }
     },
     "permission": {
       "label": "Tingkat izin",
@@ -131,6 +148,7 @@
         "prompt": "Agen tidak dapat menjawab pesan tersebut.",
         "set_mode": "Tidak dapat mengubah tingkat izin.",
         "set_model": "Tidak dapat mengubah model.",
+        "set_effort": "Tidak dapat mengubah tingkat penalaran.",
         "reconnect": "Tidak dapat menyambungkan kembali."
       },
       "retry": "Coba lagi"
@@ -165,12 +183,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "Kredensial dan pengaturan",
+        "model_help": "Anggota dapat mengganti model di obrolan.",
+        "model_default": "Default penyedia",
+        "model_custom": "ID model kustom",
+        "model_custom_id": "ID model",
+        "model_custom_id_help": "ID model persis seperti yang dinamai oleh penyedia.",
+        "fallback_credentials": "Kredensial cadangan",
+        "fallback_credentials_summary": "Hanya digunakan jika baik anggota maupun ruang kerja belum menambahkan kunci di pengaturan penyedia AI.",
+        "fallback_saved": "{count, plural, one{# tersimpan} other{# tersimpan}}",
         "credentials_help": "Nilai hanya dapat ditulis. Nilai yang tersimpan tetap tersembunyi; ganti nilai untuk mengubahnya.",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "Kunci API Anthropic",
-            "help": "Atau gunakan token OAuth Claude Code sebagai gantinya."
+            "help": "Digunakan jika baik anggota maupun ruang kerja tidak memiliki kunci Anthropic. Atau gunakan token OAuth Claude Code sebagai gantinya."
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "Token OAuth Claude Code",
@@ -189,8 +214,11 @@
             "help": "Opsional. Bawaannya https://api.deepseek.com."
           },
           "PLANE_AGENT_MODEL": {
-            "label": "Model bawaan",
-            "help": "ID model opsional, misalnya claude-opus-5-5. Anggota dapat mengganti model di obrolan."
+            "label": "Model bawaan"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "Tingkat penalaran bawaan",
+            "help": "Opsional, misalnya high. Digunakan jika model mendukung tingkat tersebut. Anggota dapat menggantinya di obrolan."
           },
           "GEMINI_API_KEY": {
             "label": "Kunci API Gemini",
@@ -221,7 +249,6 @@
           "required": "Kolom ini wajib diisi.",
           "slug": "Gunakan huruf kecil, angka, dan tanda hubung.",
           "default_above_max": "Tingkat bawaan tidak boleh lebih tinggi dari maksimum.",
-          "claude_auth": "Masukkan kunci API Anthropic atau token OAuth Claude Code.",
           "deepseek_auth": "Masukkan kunci API DeepSeek."
         },
         "cancel": "Batal",
@@ -249,7 +276,6 @@
       "unread": "Buka {name} (aktivitas baru)",
       "minimize": "Perkecil",
       "open_page": "Buka dalam satu halaman penuh",
-      "agent_menu_label": "Ganti agen, saat ini {agent}",
       "greeting": "Halo, saya {name}",
       "suggestions": {
         "assigned_to_me": "Apa yang ditugaskan kepada saya?",
@@ -364,7 +390,8 @@
         "connected": "Masuk sebagai {email}.",
         "connected_unknown": "Berhasil masuk.",
         "disconnected": "Akun diputuskan.",
-        "disconnect_failed": "Akun tidak dapat diputuskan."
+        "disconnect_failed": "Akun tidak dapat diputuskan.",
+        "sign_in_lost": "Login {vendor} Anda tidak lagi valid. Masuk lagi."
       }
     }
   }

@@ -16,7 +16,8 @@ browser ──WS /chat/ws?workspace=<slug> (cookie)──▶ chat-gateway ──
 
 - `GET /chat/ws?workspace=<slug>`: WebSocket upgrade. In order:
   1. Origin check (the socket is authenticated by cookie, so another site must not be able to open it).
-  2. The `Cookie` header must be present.
+  2. The `workspace` parameter and the `Cookie` header must be present, and the gateway must have room, so a
+     refused or full connection costs the API nothing.
   3. In parallel, with that cookie: `GET /api/users/me/` (who is this) and `GET /api/workspaces/<slug>/` (are
      they an active member; it also gives the workspace ID).
   4. Events must be flowing (Redis is up), then the per-user and overall connection caps.
@@ -27,8 +28,8 @@ browser ──WS /chat/ws?workspace=<slug> (cookie)──▶ chat-gateway ──
 Only the `Cookie` header is read. Plane's `session-id` cookie is `HttpOnly`, so page JavaScript can't read it to
 put anywhere else, and the gateway takes nothing from the URL.
 
-A refusal still completes the WebSocket upgrade and then closes with a code, because a browser can't see why a
-failed HTTP upgrade failed.
+A bad `Origin` or path gets a plain HTTP error. Any other refusal completes the WebSocket upgrade and then closes
+with a code, because a browser can't see why a failed HTTP upgrade failed.
 
 | Close code | Meaning                                            | The client should        |
 | ---------- | -------------------------------------------------- | ------------------------ |
@@ -128,6 +129,7 @@ and sent after `ready`, in order.
 | `CHAT_GATEWAY_ACCESS_TTL_MS`                  | 60000       | How long what the API said about a user's channels is trusted.                   |
 | `CHAT_GATEWAY_SESSION_RECHECK_MS`             | 300000      | How often each socket's cookie and workspace membership are checked again.       |
 | `CHAT_GATEWAY_PING_INTERVAL_MS`               | 30000       | WebSocket ping interval; a peer that misses one is dropped.                      |
+| `CHAT_GATEWAY_CLOSE_TIMEOUT_MS`               | 5000        | How long a browser gets to finish closing a socket before it is cut.             |
 
 ## Scaling notes
 

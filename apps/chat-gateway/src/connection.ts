@@ -93,6 +93,8 @@ export class Connection implements Recipient {
     this.#onClose = options.onClose;
     this.#log = options.log;
     this.#socket.on("message", (data, isBinary) => this.#onFrame(data, isBinary));
+    // `ws` answers a ping by itself, so one sent without reading the answer never reaches `#send`.
+    this.#socket.on("ping", () => this.#closedForNotReading());
     this.#socket.on("error", () => undefined);
     this.#socket.once("close", () => this.#teardown(true));
   }
@@ -439,13 +441,15 @@ export class Connection implements Recipient {
   // ── sending and closing ───────────────────────────────────────────────────
 
   #send(message: ServerMessage): void {
-    if (this.#closed || this.#socket.readyState !== this.#socket.OPEN) return;
-    // A browser that isn't reading would otherwise hold events in memory until it is. It reconnects and resyncs.
-    if (this.#socket.bufferedAmount > this.#config.maxBufferedBytes) {
-      this.close(CloseCode.tryAgainLater, "Not keeping up");
-      return;
-    }
+    if (this.#closed || this.#socket.readyState !== this.#socket.OPEN || this.#closedForNotReading()) return;
     this.#socket.send(encode(message));
+  }
+
+  /** A browser that has stopped reading would otherwise have everything sent to it held in memory, without limit. */
+  #closedForNotReading(): boolean {
+    if (this.#socket.bufferedAmount <= this.#config.maxBufferedBytes) return false;
+    this.close(CloseCode.tryAgainLater, "Not keeping up");
+    return true;
   }
 
   #error(code: ErrorCode, message: string, channelId?: string): void {
@@ -463,7 +467,6 @@ export class Connection implements Recipient {
       this.#hub.leave(this);
     }
     if (finished) {
-      this.#log.info("chat-gateway: socket closed");
       this.#onClose();
     }
   }
