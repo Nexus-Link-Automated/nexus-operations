@@ -103,11 +103,8 @@ export class RedisEventBus implements EventBus {
   async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
-    try {
-      await this.#redis.quit();
-    } catch {
-      this.#redis.disconnect();
-    }
+    // Not `quit`: with commands queued for a Redis that is down it would wait for good, and a subscriber has nothing to flush.
+    this.#redis.disconnect();
   }
 
   /** The connection came back: listen again, and only then tell everyone they may have missed events. */
