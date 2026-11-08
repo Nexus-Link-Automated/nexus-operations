@@ -413,6 +413,14 @@
           "message": "發生錯誤。"
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "停止發布專案",
+        "content": "目前的公開連結將會失效。再次發布此專案時會建立新連結，目前的連結不會恢復。",
+        "confirm": "停止發布",
+        "confirming": "正在停止發布"
+      }
     }
   }
 }

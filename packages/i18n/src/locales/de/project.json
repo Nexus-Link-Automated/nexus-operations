@@ -413,6 +413,14 @@
           "message": "Etwas ist schief gelaufen."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Veröffentlichung des Projekts aufheben",
+        "content": "Der aktuelle öffentliche Link funktioniert dann nicht mehr. Wenn Sie dieses Projekt erneut veröffentlichen, wird ein neuer Link erstellt, und der aktuelle Link bleibt ungültig.",
+        "confirm": "Veröffentlichung aufheben",
+        "confirming": "Veröffentlichung wird aufgehoben"
+      }
     }
   }
 }
