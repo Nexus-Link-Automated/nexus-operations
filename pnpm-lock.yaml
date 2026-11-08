@@ -783,6 +783,9 @@ importers:
       express:
         specifier: 4.22.0
         version: 4.22.0
+      ioredis:
+        specifier: 'catalog:'
+        version: 5.7.0
       ws:
         specifier: 'catalog:'
         version: 8.21.0

@@ -15,6 +15,9 @@ const schema = z.object({
   HOST: z.string().default("0.0.0.0"),
   PORT: positiveInt(3420),
   API_BASE_URL: z.url("API_BASE_URL must be a valid URL"),
+  REDIS_URL: z.string().refine((url) => /^rediss?:\/\/[^/]/.test(url), {
+    message: "REDIS_URL must be a redis:// or rediss:// URL",
+  }),
   CHAT_GATEWAY_BASE_PATH: z
     .string()
     .default("/chat")
@@ -26,6 +29,12 @@ const schema = z.object({
   CHAT_GATEWAY_PING_INTERVAL_MS: positiveInt(30_000),
   CHAT_GATEWAY_MAX_BUFFERED_BYTES: positiveInt(1024 * KiB),
   CHAT_GATEWAY_CLOSE_TIMEOUT_MS: positiveInt(5_000),
+  CHAT_GATEWAY_MAX_API_CONCURRENCY: positiveInt(32),
+  CHAT_GATEWAY_MAX_SUBSCRIPTIONS: positiveInt(100),
+  CHAT_GATEWAY_RATE_FRAMES: positiveInt(100),
+  CHAT_GATEWAY_RATE_WINDOW_MS: positiveInt(10_000),
+  CHAT_GATEWAY_ACCESS_TTL_MS: positiveInt(60_000),
+  CHAT_GATEWAY_SESSION_RECHECK_MS: positiveInt(5 * 60_000),
 });
 
 export interface GatewayConfig {
@@ -34,6 +43,8 @@ export interface GatewayConfig {
   readonly port: number;
   /** Plane API origin, e.g. `http://api:8000`. The gateway only ever reads from it, with the user's own cookie. */
   readonly apiBaseUrl: string;
+  /** Where Django publishes chat events (the same Redis as the API's `REDIS_URL`). */
+  readonly redisUrl: string;
   /** Mount point; the socket is `<basePath>/ws`, health is `<basePath>/health`. */
   readonly basePath: string;
   /** Origins allowed to open the socket; empty allows the gateway's own host only. */
@@ -47,6 +58,20 @@ export interface GatewayConfig {
   readonly maxBufferedBytes: number;
   /** How long a browser gets to finish closing a socket before it is cut. */
   readonly closeTimeoutMs: number;
+  /** Most API calls under way at once, across every socket. The rest wait their turn. */
+  readonly maxApiConcurrency: number;
+  /** Public channels one socket may follow beyond the ones its user is in. */
+  readonly maxSubscriptions: number;
+  /** At most `rateFrames` frames from one socket per `rateWindowMs`. */
+  readonly rateFrames: number;
+  readonly rateWindowMs: number;
+  /**
+   * How long what the API told the gateway about a user's channels is trusted. Each socket re-reads its user's
+   * channel list this often, which catches anything an event didn't (a missed event, a demotion).
+   */
+  readonly accessTtlMs: number;
+  /** How often each socket's cookie and workspace membership are checked again. */
+  readonly sessionRecheckMs: number;
 }
 
 export function loadGatewayConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
@@ -61,6 +86,7 @@ export function loadGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
     host: e.HOST,
     port: e.PORT,
     apiBaseUrl: e.API_BASE_URL.replace(/\/+$/, ""),
+    redisUrl: e.REDIS_URL,
     basePath: e.CHAT_GATEWAY_BASE_PATH,
     allowedOrigins: e.CORS_ALLOWED_ORIGINS.split(",")
       .map((origin) => origin.trim().replace(/\/+$/, "").toLowerCase())
@@ -71,5 +97,11 @@ export function loadGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
     pingIntervalMs: e.CHAT_GATEWAY_PING_INTERVAL_MS,
     maxBufferedBytes: e.CHAT_GATEWAY_MAX_BUFFERED_BYTES,
     closeTimeoutMs: e.CHAT_GATEWAY_CLOSE_TIMEOUT_MS,
+    maxApiConcurrency: e.CHAT_GATEWAY_MAX_API_CONCURRENCY,
+    maxSubscriptions: e.CHAT_GATEWAY_MAX_SUBSCRIPTIONS,
+    rateFrames: e.CHAT_GATEWAY_RATE_FRAMES,
+    rateWindowMs: e.CHAT_GATEWAY_RATE_WINDOW_MS,
+    accessTtlMs: e.CHAT_GATEWAY_ACCESS_TTL_MS,
+    sessionRecheckMs: e.CHAT_GATEWAY_SESSION_RECHECK_MS,
   };
 }

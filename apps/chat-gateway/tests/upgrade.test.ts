@@ -157,7 +157,7 @@ describe("a client that goes away or won't let go", () => {
   });
 
   it("closes a socket that has stopped reading its replies", async () => {
-    harness = await startHarness({ config: { maxBufferedBytes: 1024, closeTimeoutMs: 100 } });
+    harness = await startHarness({ config: { maxBufferedBytes: 1024, closeTimeoutMs: 100, rateFrames: 10_000_000 } });
     const client = await harness.open();
     await client.next("ready");
     expect(await floodWithoutReading(harness, client, () => client.socket.send("{}"))).toBe(true);
@@ -165,7 +165,7 @@ describe("a client that goes away or won't let go", () => {
   });
 
   it("closes a socket that sends pings without reading the answers", async () => {
-    harness = await startHarness({ config: { maxBufferedBytes: 1024, closeTimeoutMs: 100 } });
+    harness = await startHarness({ config: { maxBufferedBytes: 1024, closeTimeoutMs: 100, rateFrames: 10_000_000 } });
     const client = await harness.open();
     await client.next("ready");
     const payload = Buffer.alloc(125);
@@ -230,6 +230,7 @@ describe("configuration", () => {
   it("matches allowed origins however they were capitalised, as Django does", () => {
     const config = loadGatewayConfig({
       API_BASE_URL: "http://api:8000",
+      REDIS_URL: "redis://valkey:6379",
       CORS_ALLOWED_ORIGINS: " https://App.Example.com/ ,http://other.test",
     });
     expect(config.allowedOrigins).toEqual(["https://app.example.com", "http://other.test"]);
@@ -270,6 +271,29 @@ describe("the API client", () => {
         }),
     });
     await expect(api.currentUser(USER_COOKIE)).rejects.toMatchObject({ status: 0 });
+  });
+
+  it("takes a waiting request out of the queue when its caller gives up", async () => {
+    const answers: ((response: Response) => void)[] = [];
+    const api = createPlaneApi({
+      baseUrl: "http://api.test",
+      maxConcurrent: 1,
+      fetch: () => new Promise((resolve) => answers.push(resolve)),
+    });
+    const first = api.currentUser(USER_COOKIE);
+    const abort = new AbortController();
+    const waiting = api.currentUser(USER_COOKIE, abort.signal);
+    await settle(10);
+    expect(answers).toHaveLength(1);
+    abort.abort();
+    await expect(waiting).rejects.toMatchObject({ status: 0 });
+
+    const third = api.currentUser(USER_COOKIE);
+    answers.shift()!(Response.json({ id: "a" }));
+    await expect(first).resolves.toEqual({ id: "a" });
+    await waitUntil(() => answers.length === 1);
+    answers.shift()!(Response.json({ id: "b" }));
+    await expect(third).resolves.toEqual({ id: "b" });
   });
 
   it("lets go of the body of a refused request, so its connection can be reused", async () => {
