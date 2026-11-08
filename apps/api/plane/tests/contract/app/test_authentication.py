@@ -19,7 +19,7 @@ from plane.authentication.rate_limit import AuthenticationThrottle
 from plane.authentication.utils.host import base_host
 from plane.db.models import User
 from plane.settings.redis import redis_instance
-from plane.license.models import Instance
+from plane.license.models import Instance, InstanceAdmin
 
 
 def _clear_auth_throttle_keys():
@@ -1029,6 +1029,17 @@ class TestPasswordSetBeforeEmailVerification:
         assert verified_user.check_password(self.PASSWORD)
         assert verified_user.is_password_autoset is False
         assert not unverified_user.check_password(self.PASSWORD)
+
+    @pytest.mark.django_db
+    def test_instance_admin_keeps_the_password_for_the_admin_app(self, unverified_user, setup_instance):
+        InstanceAdmin.objects.create(user=unverified_user, instance=setup_instance)
+
+        self._log_in(self.EMAIL, "google")
+
+        unverified_user.refresh_from_db()
+        assert unverified_user.check_password(self.PASSWORD)
+        assert unverified_user.is_password_autoset is False
+        assert unverified_user.is_email_verified is True
 
     @pytest.mark.django_db
     def test_password_login_keeps_the_password_until_the_mailbox_is_proven(self, unverified_user):

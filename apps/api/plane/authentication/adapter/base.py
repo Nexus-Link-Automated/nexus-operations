@@ -20,6 +20,7 @@ from plane.bgtasks.user_activation_email_task import user_activation_email
 
 # Module imports
 from plane.db.models import FileAsset, Profile, User, WorkspaceMemberInvite
+from plane.license.models import InstanceAdmin
 from plane.license.utils.instance_value import get_configuration_value
 from plane.settings.storage import S3Storage
 from plane.utils.exception_logger import log_exception
@@ -344,8 +345,10 @@ class Adapter:
         # A login that proves the mailbox replaces any password set before the email
         # was verified. Changing the password also ends the sessions it opened.
         if user and not user.is_email_verified and self.user_data.get("user").get("is_password_autoset"):
-            user.set_password(uuid.uuid4().hex)
-            user.is_password_autoset = True
+            # Instance admins can only sign in to the admin app with a password, so they keep it.
+            if not InstanceAdmin.objects.filter(user=user).exists():
+                user.set_password(uuid.uuid4().hex)
+                user.is_password_autoset = True
             user.is_email_verified = True
 
         # True = new user (signup), False = returning user (login)
