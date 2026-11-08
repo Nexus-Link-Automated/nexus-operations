@@ -268,6 +268,7 @@ export class Connection implements Recipient {
     }
 
     // Ask the API, as this user: it answers 200 for a channel they can see and 404 for any other.
+    const version = this.#feedVersion;
     this.#checksInFlight += 1;
     let access: ChannelAccess;
     try {
@@ -278,7 +279,10 @@ export class Connection implements Recipient {
         this.#refuse(channel);
         this.#error("not_found", "Channel not found", channel);
       } else if (error instanceof PlaneApiError && error.isUnauthenticated) {
-        await this.#verifySession();
+        const verdict = await this.#verifySession();
+        if (verdict !== "closed" && !this.#closed) {
+          this.#error("unavailable", "Could not check the channel; try again", channel);
+        }
       } else {
         this.#log.warn("chat-gateway: could not check a channel", { error: (error as Error).message });
         this.#error("unavailable", "Could not check the channel; try again", channel);
@@ -288,6 +292,11 @@ export class Connection implements Recipient {
       this.#checksInFlight -= 1;
     }
     if (this.#closed) return;
+    // The answer may be older than a change to the user's channels, or a re-check, that happened while it travelled.
+    if (version !== this.#feedVersion || this.#suspended) {
+      this.#error("unavailable", "Could not check the channel; try again", channel);
+      return;
+    }
 
     if (access.is_member) {
       this.#feed.add(channel);
