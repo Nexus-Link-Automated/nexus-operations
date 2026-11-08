@@ -4,13 +4,16 @@
 
 """Keep chat access in step with Plane's workspace membership. Connected in `ChatConfig.ready()`."""
 
+from django.db import transaction
+from django.db.models import OuterRef, Subquery
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
 from plane.app.permissions.base import ROLE
-from plane.chat.models import ChannelMember, ChatGuestPermission
+from plane.chat.models import ChannelKind, ChannelMember, ChannelMemberRole, ChatGuestPermission
 from plane.chat.models.channel import NAMED_KINDS
+from plane.chat.permissions import lock_channel_admins
 from plane.db.models import User, WorkspaceMember
 
 # The columns whose change can end someone's time as a guest or in the workspace.
@@ -21,11 +24,44 @@ def _revoke_guest_grants(**scope):
     ChatGuestPermission.objects.filter(can_open_dms=True, **scope).update(can_open_dms=False, updated_at=timezone.now())
 
 
+def _successor(leaving):
+    """Who takes over: the longest-standing member still in the workspace, and a guest only as a last resort."""
+    workspace_role = WorkspaceMember.objects.filter(
+        workspace_id=OuterRef("workspace_id"), member_id=OuterRef("user_id"), is_active=True
+    ).values("role")[:1]
+    remaining = (
+        ChannelMember.objects.filter(channel_id=leaving.channel_id)
+        .exclude(pk=leaving.pk)
+        .annotate(workspace_role=Subquery(workspace_role))
+        .filter(workspace_role__isnull=False)
+        .order_by("created_at", "id")
+    )
+    # `min` returns the first of equals, and the rows are oldest first.
+    return min(remaining, key=lambda member: member.workspace_role < ROLE.MEMBER.value, default=None)
+
+
+def _hand_over_private_channels(**scope):
+    """A private channel keeps an admin: workspace admins can't see one they aren't in, so can't step in."""
+    leaving_admins = ChannelMember.objects.filter(
+        channel__kind=ChannelKind.PRIVATE, role=ChannelMemberRole.ADMIN, **scope
+    )
+    for leaving in leaving_admins:
+        with transaction.atomic():
+            # Giving up the seat inside the lock means two admins leaving at once can't each rely on the other.
+            if lock_channel_admins(leaving.channel_id) == [leaving.pk]:
+                successor = _successor(leaving)
+                if successor is not None:
+                    successor.role = ChannelMemberRole.ADMIN
+                    successor.save(update_fields=["role", "updated_at", "updated_by"])
+            ChannelMember.objects.filter(pk=leaving.pk).delete()
+
+
 def _end_channel_memberships(**scope):
     """Being invited back must not reopen private channels, as with Plane's project memberships.
 
     DMs and group DMs stay: their membership is fixed, and they are that person's own conversations.
     """
+    _hand_over_private_channels(**scope)
     ChannelMember.objects.filter(channel__kind__in=NAMED_KINDS, **scope).delete()
 
 

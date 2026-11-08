@@ -20,7 +20,9 @@ channel membership, which is a 403 for a public channel you can see but have not
 joined. Moderation (renaming, archiving, removing other people's messages or
 members) needs a channel admin or a workspace admin, who need not be in a public
 channel to moderate it. A private channel's last admin can't step down while others
-remain in it.
+remain in it; if they leave the workspace, someone still in it takes over (see
+`plane.chat.signals`). DMs and group DMs have no moderators: only a message's sender
+can remove it.
 
 Opening a DM or group DM needs a workspace member or admin, or a guest a workspace
 admin has granted it to (`ChatGuestPermission`).
@@ -84,7 +86,9 @@ def require_channel_member(channel):
 
 
 def is_channel_admin(channel, role):
-    """A channel admin, or a workspace admin who can see the channel."""
+    """A channel admin, or a workspace admin who can see the channel. Nobody is one in a DM or group DM."""
+    if channel.is_direct:
+        return False
     membership = channel.membership
     return is_workspace_admin(role) or (membership is not None and membership.role == ChannelMemberRole.ADMIN)
 
@@ -100,6 +104,15 @@ def require_not_archived(channel):
         raise Conflict("The channel is archived.")
 
 
+def lock_channel_admins(channel_id):
+    """The channel's admin rows' IDs, locked until the transaction ends, so admins leaving at once are taken in turn."""
+    return list(
+        ChannelMember.objects.select_for_update()
+        .filter(channel_id=channel_id, role=ChannelMemberRole.ADMIN)
+        .values_list("pk", flat=True)
+    )
+
+
 def require_another_admin(channel, member):
     """A private channel keeps a channel admin while anyone else is in it.
 
@@ -110,13 +123,8 @@ def require_another_admin(channel, member):
     """
     if channel.kind != ChannelKind.PRIVATE or member.role != ChannelMemberRole.ADMIN:
         return
-    admins = list(
-        ChannelMember.objects.select_for_update()
-        .filter(channel=channel, role=ChannelMemberRole.ADMIN)
-        .values_list("pk", flat=True)
-    )
     others = ChannelMember.objects.filter(channel=channel).exclude(pk=member.pk)
-    if admins == [member.pk] and others.exists():
+    if lock_channel_admins(channel.id) == [member.pk] and others.exists():
         raise Conflict("Make someone else a channel admin first; a private channel needs one.")
 
 
