@@ -269,7 +269,7 @@ describe("DeepSeek file tools and web fetch", () => {
 
   it("asks before a web fetch in ask_writes and remembers 'always' per host", async () => {
     const { api, call } = await open("ask_writes");
-    const fetched = () => api.requests.filter((request) => request.url.includes("example.com"));
+    const fetched = () => api.requests.filter((request) => new URL(request.url).hostname === "example.com");
     client!.answers.push("reject_once");
     expect((await call("web_fetch", { url: "https://example.com/page" })).status).toBe("failed");
     expect(client!.permissionRequests).toHaveLength(1);
@@ -291,6 +291,6 @@ describe("DeepSeek file tools and web fetch", () => {
     const { api, call } = await open("yolo");
     await call("web_fetch", { url: "https://example.com/page" });
     expect(client!.permissionRequests).toHaveLength(0);
-    expect(api.requests.some((request) => request.url.includes("example.com"))).toBe(true);
+    expect(api.requests.some((request) => new URL(request.url).hostname === "example.com")).toBe(true);
   });
 });
