@@ -61,7 +61,7 @@ export const SidebarUserMenu = observer(function SidebarUserMenu() {
       key: "agents",
       labelTranslationKey: "agents.title",
       href: `/${workspaceSlug.toString()}/agents/`,
-      access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER, EUserWorkspaceRoles.GUEST],
+      access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
       Icon: AiStarFourOutline,
     },
   ];

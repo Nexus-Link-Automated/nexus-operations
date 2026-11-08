@@ -9,12 +9,14 @@ import { observer } from "mobx-react";
 import { usePathname } from "next/navigation";
 import useSWR from "swr";
 import { AiStarFourFilled } from "@makeplane/propel/icons";
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 // components
 import { Button } from "@/components/ui/shadcn/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/shadcn/tooltip";
 // hooks
 import { useAgentChat } from "@/hooks/store/use-agent-chat";
+import { useUserPermissions } from "@/hooks/store/user";
 // local imports
 import { pickInitialAgent, recallAgent } from "../helpers";
 import { KHAIA_NAME } from "./constants";
@@ -37,15 +39,22 @@ export const KhaiaWidget = observer(function KhaiaWidget({ workspaceSlug }: Prop
   const { t } = useTranslation();
   const pathname = usePathname();
   const store = useAgentChat();
+  const { allowPermissions } = useUserPermissions();
   const { fetchAgents, openChat, closeChat } = store;
   const [open, setOpen] = useState(false);
   const launcherRef = useRef<HTMLButtonElement>(null);
   // Set when the window is minimized, so focus goes back to the bubble once it is rendered again.
   const restoreFocusRef = useRef(false);
-  useSWR(`WORKSPACE_AGENTS_${workspaceSlug}`, () => fetchAgents(workspaceSlug));
+  // Guests cannot run agents, so the list is not requested for them and the widget stays away.
+  const canUseAgents = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.WORKSPACE,
+    workspaceSlug
+  );
+  useSWR(canUseAgents ? `WORKSPACE_AGENTS_${workspaceSlug}` : null, () => fetchAgents(workspaceSlug));
 
   const agents = store.getWorkspaceAgents(workspaceSlug);
-  const hidden = isAgentsPage(pathname, workspaceSlug) || !agents?.length;
+  const hidden = !canUseAgents || isAgentsPage(pathname, workspaceSlug) || !agents?.length;
   const hasChat = store.workspaceSlug === workspaceSlug && !!store.agentId;
   const items = store.workspaceSlug === workspaceSlug ? (store.snapshot?.transcript.items.length ?? 0) : 0;
   const waitingOnPermission = !!store.snapshot?.permissions.length;
