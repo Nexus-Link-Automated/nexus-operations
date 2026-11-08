@@ -37,6 +37,8 @@ export function testConfig(overrides: Partial<GatewayConfig> = {}): GatewayConfi
     maxConnectionsPerUser: 4,
     maxConnections: 100,
     pingIntervalMs: 30_000,
+    maxBufferedBytes: 1024 * 1024,
+    closeTimeoutMs: 5_000,
     ...overrides,
   };
 }

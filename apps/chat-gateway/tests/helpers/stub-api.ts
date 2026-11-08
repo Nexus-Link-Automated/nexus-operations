@@ -36,12 +36,16 @@ export class StubPlaneApi {
   readonly members = new Set([USER_ID]);
   /** Every request received, in order. */
   readonly requests: StubRequest[] = [];
-  /** What Django answers an unknown cookie with (DRF's session auth sends 403; 401 is also handled). */
-  unauthenticatedStatus = 403;
+  /** What Django answers an unknown cookie with (401; the gateway treats a 403 the same way). */
+  unauthenticatedStatus = 401;
   /** Answer every request with this status instead (e.g. 500). */
   failWith: number | undefined;
   /** Hold every answer back this long. */
   delayMs = 0;
+  /** Requests that have reached the stub, including those still being held back. */
+  arrivedRequests = 0;
+  /** Requests whose caller hung up before the answer. */
+  abortedRequests = 0;
   #server: Server | undefined;
 
   get url(): string {
@@ -51,6 +55,10 @@ export class StubPlaneApi {
 
   async start(): Promise<this> {
     this.#server = createServer((req, res) => {
+      this.arrivedRequests += 1;
+      res.once("close", () => {
+        if (!res.writableFinished) this.abortedRequests += 1;
+      });
       void (async () => {
         if (this.delayMs) await new Promise((resolve) => setTimeout(resolve, this.delayMs));
         const { status, body } = this.handle(req);

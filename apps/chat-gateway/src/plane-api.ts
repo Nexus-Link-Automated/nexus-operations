@@ -66,7 +66,11 @@ export function createPlaneApi(options: PlaneApiOptions): PlaneApi {
     } catch (error) {
       throw new PlaneApiError(`Plane API request failed: ${(error as Error).message}`, 0);
     }
-    if (!response.ok) throw new PlaneApiError(`${path} answered ${response.status}`, response.status);
+    if (!response.ok) {
+      // Left unread, a body too large to buffer keeps its connection out of the pool.
+      await response.body?.cancel().catch(() => undefined);
+      throw new PlaneApiError(`${path} answered ${response.status}`, response.status);
+    }
     let body: unknown;
     try {
       body = await response.json();

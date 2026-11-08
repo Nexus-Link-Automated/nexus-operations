@@ -24,6 +24,8 @@ const schema = z.object({
   CHAT_GATEWAY_MAX_CONNECTIONS_PER_USER: positiveInt(8),
   CHAT_GATEWAY_MAX_CONNECTIONS: positiveInt(2000),
   CHAT_GATEWAY_PING_INTERVAL_MS: positiveInt(30_000),
+  CHAT_GATEWAY_MAX_BUFFERED_BYTES: positiveInt(1024 * KiB),
+  CHAT_GATEWAY_CLOSE_TIMEOUT_MS: positiveInt(5_000),
 });
 
 export interface GatewayConfig {
@@ -41,6 +43,10 @@ export interface GatewayConfig {
   readonly maxConnectionsPerUser: number;
   readonly maxConnections: number;
   readonly pingIntervalMs: number;
+  /** Most that may be queued for a browser; beyond it, the browser has stopped reading and its socket is closed. */
+  readonly maxBufferedBytes: number;
+  /** How long a browser gets to finish closing a socket before it is cut. */
+  readonly closeTimeoutMs: number;
 }
 
 export function loadGatewayConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
@@ -57,11 +63,13 @@ export function loadGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
     apiBaseUrl: e.API_BASE_URL.replace(/\/+$/, ""),
     basePath: e.CHAT_GATEWAY_BASE_PATH,
     allowedOrigins: e.CORS_ALLOWED_ORIGINS.split(",")
-      .map((origin) => origin.trim().replace(/\/+$/, ""))
+      .map((origin) => origin.trim().replace(/\/+$/, "").toLowerCase())
       .filter(Boolean),
     maxMessageBytes: e.CHAT_GATEWAY_MAX_MESSAGE_BYTES,
     maxConnectionsPerUser: e.CHAT_GATEWAY_MAX_CONNECTIONS_PER_USER,
     maxConnections: e.CHAT_GATEWAY_MAX_CONNECTIONS,
     pingIntervalMs: e.CHAT_GATEWAY_PING_INTERVAL_MS,
+    maxBufferedBytes: e.CHAT_GATEWAY_MAX_BUFFERED_BYTES,
+    closeTimeoutMs: e.CHAT_GATEWAY_CLOSE_TIMEOUT_MS,
   };
 }
