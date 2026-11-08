@@ -5,9 +5,13 @@
 import pytest
 from rest_framework import status
 import uuid
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
+from plane.app.serializers import ProjectListSerializer
 from plane.db.models import (
+    IssueSequence,
     Project,
     ProjectMember,
     ProjectUserProperty,
@@ -307,6 +311,71 @@ class TestProjectAPIGet(TestProjectBase):
         assert len(data) == 1
         assert data[0]["name"] == "Detailed Project"
         assert data[0]["description"] == "A detailed test project"
+
+    @staticmethod
+    def create_project_with_sequences(workspace, user, identifier, sequences):
+        """Create a project the user belongs to, with the given issue sequence rows"""
+        project = Project.objects.create(name=f"Project {identifier}", identifier=identifier, workspace=workspace)
+        ProjectMember.objects.create(project=project, member=user, role=20, is_active=True)
+        IssueSequence.objects.bulk_create(
+            [IssueSequence(project=project, workspace=workspace, sequence=sequence) for sequence in sequences]
+        )
+        return project
+
+    @pytest.mark.django_db
+    def test_list_detail_query_count_does_not_grow_with_projects(self, session_client, workspace, create_user):
+        """The details list must not run a query per project"""
+        url = self.get_project_url(workspace.slug, details=True)
+        for index in range(2):
+            self.create_project_with_sequences(workspace, create_user, f"A{index}", [1, 2])
+
+        # Warm up first so one-time lookups do not skew the first measurement
+        session_client.get(url)
+        with CaptureQueriesContext(connection) as few_projects:
+            response = session_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.json()) == 2
+
+        for index in range(5):
+            self.create_project_with_sequences(workspace, create_user, f"B{index}", [1, 2, 3])
+
+        with CaptureQueriesContext(connection) as many_projects:
+            response = session_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.json()) == 7
+
+        assert len(many_projects) == len(few_projects)
+
+    @pytest.mark.django_db
+    def test_next_work_item_sequence_values(self, session_client, workspace, create_user):
+        """next_work_item_sequence stays the highest live sequence + 1, or 1 when there is none"""
+        with_sequences = self.create_project_with_sequences(workspace, create_user, "SEQ", [1, 2, 7])
+        without_sequences = self.create_project_with_sequences(workspace, create_user, "NOSEQ", [])
+        with_soft_deleted = self.create_project_with_sequences(workspace, create_user, "DEL", [1, 3])
+        IssueSequence.objects.bulk_create(
+            [IssueSequence(project=with_soft_deleted, workspace=workspace, sequence=9, deleted_at=timezone.now())]
+        )
+        expected = {
+            str(with_sequences.id): 8,
+            str(without_sequences.id): 1,
+            str(with_soft_deleted.id): 4,
+        }
+        url = self.get_project_url(workspace.slug, details=True)
+
+        response = session_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        assert {project["id"]: project["next_work_item_sequence"] for project in response.json()} == expected
+
+        response = session_client.get(url, {"per_page": 10, "cursor": "10:0:0"})
+        assert response.status_code == status.HTTP_200_OK
+        assert {project["id"]: project["next_work_item_sequence"] for project in response.json()["results"]} == expected
+
+        response = session_client.get(self.get_project_url(workspace.slug, pk=with_sequences.id))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["next_work_item_sequence"] == 8
+
+        # A plain instance that did not come from the annotated queryset still resolves the value
+        assert ProjectListSerializer(Project.objects.get(pk=with_sequences.id)).data["next_work_item_sequence"] == 8
 
     @pytest.mark.django_db
     def test_retrieve_project_success(self, session_client, workspace, create_user):
