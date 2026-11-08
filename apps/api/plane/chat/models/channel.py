@@ -19,6 +19,7 @@ from django.db import IntegrityError, models, transaction
 from django.db.models import F, Q
 from django.db.models.functions import Lower
 
+from plane.chat.events import EventType, channel_event, member_event, publish_on_commit
 from plane.db.mixins import SoftDeletionManager
 from plane.db.models import BaseModel, WorkspaceMember
 
@@ -88,8 +89,11 @@ class ChannelManager(SoftDeletionManager):
                 # One transaction, so nobody can find the channel before its members are in it.
                 with transaction.atomic():
                     channel = self.create(workspace=workspace, kind=kind, dm_key=dm_key)
-                    for user_id in user_ids:
-                        ChannelMember.objects.create(channel=channel, user_id=user_id)
+                    members = [ChannelMember.objects.create(channel=channel, user_id=user_id) for user_id in user_ids]
+                    publish_on_commit(
+                        *[member_event(EventType.MEMBER_ADDED, member) for member in members],
+                        channel_event(EventType.CHANNEL_CREATED, channel),
+                    )
                 return channel, True
             except IntegrityError:
                 # Someone created the same DM concurrently; use theirs.
@@ -101,7 +105,8 @@ class ChannelManager(SoftDeletionManager):
             if user_id not in existing:
                 try:
                     with transaction.atomic():
-                        ChannelMember.objects.create(channel=channel, user_id=user_id)
+                        restored = ChannelMember.objects.create(channel=channel, user_id=user_id)
+                        publish_on_commit(member_event(EventType.MEMBER_ADDED, restored))
                 except IntegrityError:
                     pass  # Someone restored them concurrently.
         return channel, False

@@ -15,6 +15,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 
+from plane.chat.events import EventType, message_event, publish_on_commit
 from plane.chat.exceptions import BadRequest, Conflict, Forbidden, NotFound
 from plane.chat.models import Message
 from plane.chat.pagination import paginate_messages
@@ -62,6 +63,7 @@ class MessageEndpoint(ChatBaseEndpoint):
             body_html=data["body_html"],
             body_json=data["body_json"],
         )
+        publish_on_commit(message_event(EventType.MESSAGE_CREATED, message))
         return Response(_payload(message.id), status=status.HTTP_201_CREATED)
 
 
@@ -99,6 +101,7 @@ class MessageDetailEndpoint(ChatBaseEndpoint):
             message.save(
                 update_fields=["body_html", "body_json", "body_stripped", "edited_at", "updated_at", "updated_by"]
             )
+            publish_on_commit(message_event(EventType.MESSAGE_UPDATED, message))
         return Response(_payload(message.id))
 
     def delete(self, request, slug, channel_id, message_id):
@@ -107,18 +110,21 @@ class MessageDetailEndpoint(ChatBaseEndpoint):
         In a DM or group DM, only its sender. Removing twice is a no-op.
         """
         channel = self.get_channel(channel_id)
-        message = self._message(channel, message_id)
-        if not is_channel_admin(channel, self.role):
-            require_channel_member(channel)
-            if message.sender_id != request.user.id:
-                raise Forbidden(
-                    "Only the sender can remove a direct message."
-                    if channel.is_direct
-                    else "Only the sender or an admin can remove a message."
-                )
-        require_not_archived(channel)
-        if message.removed_at is None:
-            message.remove()
+        # Locked so that when two removals overlap, the second sees the first and only one is announced.
+        with transaction.atomic():
+            message = self._message(channel, message_id, lock=True)
+            if not is_channel_admin(channel, self.role):
+                require_channel_member(channel)
+                if message.sender_id != request.user.id:
+                    raise Forbidden(
+                        "Only the sender can remove a direct message."
+                        if channel.is_direct
+                        else "Only the sender or an admin can remove a message."
+                    )
+            require_not_archived(channel)
+            if message.removed_at is None:
+                message.remove()
+                publish_on_commit(message_event(EventType.MESSAGE_REMOVED, message))
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

@@ -113,19 +113,33 @@ def lock_channel_admins(channel_id):
     )
 
 
-def require_another_admin(channel, member):
-    """A private channel keeps a channel admin while anyone else is in it.
+def lock_member(member):
+    """`member`'s row, locked until the transaction ends, or None if they have left since it was read."""
+    return ChannelMember.objects.select_for_update().filter(pk=member.pk).first()
 
-    Workspace admins can't see a private channel they aren't in, so without one nobody could
-    rename or archive it. Refuses (409) taking away `member`'s admin role, by leaving, removal or
-    demotion, when they are the last admin and someone else remains. Call it inside the
-    transaction that makes the change: it locks the channel's admin rows.
+
+def lock_member_keeping_an_admin(channel, member):
+    """`member`'s row, locked, for taking away any admin role they hold; None if they have left.
+
+    A private channel keeps a channel admin while anyone else is in it: workspace admins can't see
+    one they aren't in, so without one nobody could rename or archive it. Refuses (409) leaving,
+    removal or demotion when they are the last admin and someone else remains. Call it inside the
+    transaction that makes the change.
+
+    The admin rows are locked first, the order every path uses, so admins leaving at once wait for
+    each other instead of deadlocking. The decision is a fresh query made once the locks are held:
+    `member` may be out of date, and so may the locking query, which can't see anyone promoted while
+    it was waiting.
     """
-    if channel.kind != ChannelKind.PRIVATE or member.role != ChannelMemberRole.ADMIN:
-        return
-    others = ChannelMember.objects.filter(channel=channel).exclude(pk=member.pk)
-    if lock_channel_admins(channel.id) == [member.pk] and others.exists():
-        raise Conflict("Make someone else a channel admin first; a private channel needs one.")
+    if channel.kind != ChannelKind.PRIVATE:
+        return lock_member(member)
+    lock_channel_admins(channel.id)
+    current = lock_member(member)
+    if current is not None and current.role == ChannelMemberRole.ADMIN:
+        others = ChannelMember.objects.filter(channel=channel).exclude(pk=current.pk)
+        if others.exists() and not others.filter(role=ChannelMemberRole.ADMIN).exists():
+            raise Conflict("Make someone else a channel admin first; a private channel needs one.")
+    return current
 
 
 def can_open_dms(user, workspace_id, role):
