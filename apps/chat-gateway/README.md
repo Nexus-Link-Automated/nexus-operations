@@ -78,8 +78,8 @@ Types: `message.created|updated|removed`, `channel.created|updated|archived|unar
 
 ### Who gets an event
 
-An event never grants anyone anything. Every event for a workspace is handed to every socket in it, and a socket
-forwards it only if it follows the channel, which it does in one of two ways:
+Every event for a workspace is handed to every socket in it, and a socket forwards it only if it follows the
+channel, which it does in one of two ways:
 
 - **its feed**: the channels the user is a member of. Read from the API when the socket opens, kept current from
   `member.added` / `member.removed` events about the user, and read again every `CHAT_GATEWAY_ACCESS_TTL_MS`.
@@ -124,18 +124,21 @@ and sent after `ready`, in order.
 | `CHAT_GATEWAY_MAX_CONNECTIONS`                | 2000        | Open sockets overall.                                                            |
 | `CHAT_GATEWAY_MAX_SUBSCRIPTIONS`              | 100         | Public channels one socket may follow beyond its own.                            |
 | `CHAT_GATEWAY_MAX_MESSAGE_BYTES`              | 16384       | Largest frame accepted from a browser.                                           |
-| `CHAT_GATEWAY_RATE_FRAMES`, `_RATE_WINDOW_MS` | 100 / 10000 | Frames one socket may send per window before it is closed (4429).                |
+| `CHAT_GATEWAY_RATE_FRAMES`, `_RATE_WINDOW_MS` | 100 / 10000 | Frames (WebSocket pings included) one socket may send per window before 4429.    |
 | `CHAT_GATEWAY_MAX_BUFFERED_BYTES`             | 1048576     | A socket with more than this unsent is too slow and is closed (1013).            |
 | `CHAT_GATEWAY_ACCESS_TTL_MS`                  | 60000       | How long what the API said about a user's channels is trusted.                   |
 | `CHAT_GATEWAY_SESSION_RECHECK_MS`             | 300000      | How often each socket's cookie and workspace membership are checked again.       |
 | `CHAT_GATEWAY_PING_INTERVAL_MS`               | 30000       | WebSocket ping interval; a peer that misses one is dropped.                      |
 | `CHAT_GATEWAY_CLOSE_TIMEOUT_MS`               | 5000        | How long a browser gets to finish closing a socket before it is cut.             |
+| `CHAT_GATEWAY_MAX_API_CONCURRENCY`            | 32          | Most API calls under way at once, across every socket; the rest wait their turn. |
 
 ## Scaling notes
 
-Each socket re-reads its user's channel list (two API calls) every `CHAT_GATEWAY_ACCESS_TTL_MS`, as that user. That
-is cheap for a team and costs more as sockets grow, since the list endpoint computes unread counts. Raise the TTL
-(the events keep the feed current in between), or share the read between one user's sockets, before it matters.
+Each socket re-reads its user's channel list (two API calls) every `CHAT_GATEWAY_ACCESS_TTL_MS`, as that user, at a
+point in the interval picked at random so that sockets opened together don't re-read together, and no more than
+`CHAT_GATEWAY_MAX_API_CONCURRENCY` calls run at once. That is cheap for a team and costs more as sockets grow, since
+the list endpoint computes unread counts. Raise the TTL (the events keep the feed current in between), or share the
+read between one user's sockets, before it matters.
 The gateway keeps no state between connections beyond what is in memory, so several instances can run behind one
 router; each listens to Redis itself.
 

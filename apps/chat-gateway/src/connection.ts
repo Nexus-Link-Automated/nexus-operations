@@ -50,8 +50,8 @@ type Verdict = "ok" | "closed" | "unknown";
  *   was asked when it did, and the answer is re-read with the feed.
  *
  * Every event for the workspace is handed to every socket in it, and a socket forwards only the ones for
- * channels it follows. So a channel the API never said the user could see never reaches them, however
- * the event got to the gateway.
+ * channels it follows. So nothing about a channel reaches a user unless the API said they could see it, or
+ * Django announced that they were added to it.
  */
 export class Connection implements Recipient {
   readonly userId: string;

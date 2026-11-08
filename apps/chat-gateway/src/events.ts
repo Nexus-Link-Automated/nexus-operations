@@ -10,7 +10,8 @@ import { z } from "zod";
  * The events Django publishes to Redis (`plane/chat/events.py` is the other half of this contract).
  *
  * IDs only, never message bodies: the browser fetches what it needs over REST, where permissions are enforced.
- * An event never grants anyone anything; the gateway decides who sees it from what the API told it.
+ * Who sees an event is decided from what the API told the gateway, and from `member.*` events about the user
+ * themselves, which Django publishes only after the change has committed.
  */
 export const EVENT_TYPES = [
   "message.created",

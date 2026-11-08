@@ -48,7 +48,7 @@ export const CloseCode = {
   unauthenticated: 4401,
   /** Signed in, but not a member of this workspace (any more). */
   forbidden: 4403,
-  /** Too many sockets open. */
+  /** Too many sockets open, or this socket sent too many frames. */
   tooManyRequests: 4429,
 } as const;
 
