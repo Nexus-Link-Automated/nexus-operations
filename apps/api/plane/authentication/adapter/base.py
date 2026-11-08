@@ -341,6 +341,13 @@ class Adapter:
                 payload={"email": email},
             )
 
+        # A login that proves the mailbox replaces any password set before the email
+        # was verified. Changing the password also ends the sessions it opened.
+        if user and not user.is_email_verified and self.user_data.get("user").get("is_password_autoset"):
+            user.set_password(uuid.uuid4().hex)
+            user.is_password_autoset = True
+            user.is_email_verified = True
+
         # True = new user (signup), False = returning user (login)
         is_signup = not bool(user)
         # If user is not present, create a new user

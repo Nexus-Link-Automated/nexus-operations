@@ -157,9 +157,9 @@ There are many other settings you can play with, but we suggest you configure `E
 
 Some endpoints are rate-limited per client IP. Two settings in `plane.env` control how that IP is determined:
 
-- **Plane directly on the internet behind the bundled proxy:** set `TRUSTED_PROXIES=private_ranges` (or your load balancer's ranges) and `NUM_PROXIES=1`.
-- **Behind an additional load balancer or CDN:** add its ranges to `TRUSTED_PROXIES` (space-separated, e.g. `TRUSTED_PROXIES=private_ranges 203.0.113.0/24`) and raise `NUM_PROXIES` by one per extra hop (e.g. `NUM_PROXIES=2`).
-- **Leaving `NUM_PROXIES` empty and `TRUSTED_PROXIES` at its default (`0.0.0.0/0`)** keeps the current behaviour.
+- **Clients reach the bundled proxy directly (default):** `TRUSTED_PROXIES=private_ranges` and `NUM_PROXIES=1`. The API uses the address the bundled proxy saw, which a client cannot change with request headers.
+- **Behind an additional load balancer or CDN:** add its ranges to `TRUSTED_PROXIES` (space-separated, e.g. `TRUSTED_PROXIES=private_ranges 203.0.113.0/24`) and raise `NUM_PROXIES` by one per extra hop (e.g. `NUM_PROXIES=2`). Otherwise every client is counted under the load balancer's address and shares one limit.
+- **Upgrading an existing install:** an empty `NUM_PROXIES` now means `1`, so set it yourself if you run behind a load balancer. `plane.env` keeps its existing `TRUSTED_PROXIES`; if that is still `0.0.0.0/0`, change it to `private_ranges` or your load balancer's ranges.
 
 Restart the services after changing these values.
 
