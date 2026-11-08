@@ -66,7 +66,8 @@ WantedBy=timers.target
 EOF
 
 # Agents run shell commands in agent-runner; keep them off the tailnet, private
-# networks and this host. Re-applied whenever Docker starts (see agents-firewall.sh).
+# networks and this host. Re-applied whenever Docker starts, and checked every minute
+# because Docker and Tailscale put their own rules back on top (see agents-firewall.sh).
 cat >/etc/systemd/system/nexus-ops-agents-firewall.service <<EOF
 [Unit]
 Description=Nexus Operations agent network firewall
@@ -83,8 +84,35 @@ ExecStart=$install_dir/agents-firewall.sh
 WantedBy=docker.service
 EOF
 
+cat >/etc/systemd/system/nexus-ops-agents-firewall-check.service <<EOF
+[Unit]
+Description=Nexus Operations agent network firewall check
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=$install_dir/agents-firewall.sh --verify
+EOF
+
+cat >/etc/systemd/system/nexus-ops-agents-firewall-check.timer <<EOF
+[Unit]
+Description=Check the Nexus Operations agent network firewall every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target
+EOF
+
 systemctl daemon-reload
 systemctl enable --now nexus-ops-backup.timer
 systemctl enable --now nexus-ops-agents-firewall.service
+systemctl enable --now nexus-ops-agents-firewall-check.timer
+
+# Last, so a problem with sshd's configuration cannot stop the steps above.
+"$install_dir/harden-ssh.sh"
 
 echo "Bootstrap complete. Next: generate-env.sh, then set up the backup remote (README.md)."
