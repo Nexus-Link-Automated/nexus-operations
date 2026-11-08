@@ -94,7 +94,10 @@ export class Connection implements Recipient {
     this.#log = options.log;
     this.#socket.on("message", (data, isBinary) => this.#onFrame(data, isBinary));
     // `ws` answers a ping by itself, so one sent without reading the answer never reaches `#send`.
-    this.#socket.on("ping", () => this.#closedForNotReading());
+    this.#socket.on("ping", () => {
+      if (this.#overRate()) this.close(CloseCode.tooManyRequests, "Too many messages");
+      else this.#closedForNotReading();
+    });
     this.#socket.on("error", () => undefined);
     this.#socket.once("close", () => this.#teardown(true));
   }
