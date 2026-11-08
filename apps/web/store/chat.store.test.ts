@@ -260,6 +260,9 @@ class FakeSocket implements TChatStoreSocket {
   reconnectNow() {
     this.log.push("reconnectNow");
   }
+  noteActivity() {
+    this.log.push("noteActivity");
+  }
   ready(reconnected = false) {
     this.handlers.onStatusChange?.("ready", null);
     this.handlers.onReady?.({ type: "ready", user_id: ME, workspace_id: WORKSPACE_ID, channels: [] }, reconnected);
@@ -590,6 +593,45 @@ describe("ChatStore", () => {
     await starting;
     expect(store.channelMap).toEqual({});
     expect(store.workspaceSlug).toBeNull();
+  });
+
+  it("counts sending as activity, so a message wakes an idle socket", async () => {
+    const { store, socket } = await setup();
+    socket.log = [];
+    await store.sendMessage("c-general", { body_html: "<p>back</p>" });
+    expect(socket.log).toContain("noteActivity");
+  });
+
+  it("counts a retry as activity", async () => {
+    const { store, socket, server } = await setup();
+    server.failSends = true;
+    await expect(store.sendMessage("c-general", { body_html: "<p>lost</p>" })).rejects.toThrow();
+    server.failSends = false;
+    socket.log = [];
+    const localId = store.pendingMessages["c-general"]![0]!.localId;
+    await store.retryMessage("c-general", localId);
+    expect(socket.log).toContain("noteActivity");
+  });
+
+  it("forwards activity to the socket, and does nothing once stopped", async () => {
+    const { store, socket } = await setup();
+    socket.log = [];
+    store.noteActivity();
+    expect(socket.log).toEqual(["noteActivity"]);
+    store.stop();
+    socket.log = [];
+    expect(() => store.noteActivity()).not.toThrow();
+    expect(socket.log).toEqual([]);
+  });
+
+  it("catches up when an idle socket comes back", async () => {
+    const { store, socket, server } = await setup();
+    socket.handlers.onStatusChange?.("paused", null);
+    expect(store.socketStatus).toBe("paused");
+    server.calls = [];
+    socket.ready(true);
+    await settle();
+    expect(server.calls).toContain("listChannels");
   });
 
   it("keeps its actions bound, so components can destructure them", async () => {

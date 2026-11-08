@@ -38,7 +38,10 @@ export type TChatStoreService = Pick<
 >;
 
 /** The socket calls the store makes. `ChatSocket` in the app; a fake in tests. */
-export type TChatStoreSocket = Pick<ChatSocket, "connect" | "close" | "subscribe" | "unsubscribe" | "reconnectNow">;
+export type TChatStoreSocket = Pick<
+  ChatSocket,
+  "connect" | "close" | "subscribe" | "unsubscribe" | "reconnectNow" | "noteActivity"
+>;
 
 export type TChatSocketFactory = (workspaceSlug: string, handlers: TChatSocketHandlers) => TChatStoreSocket;
 
@@ -140,6 +143,7 @@ export interface IChatStore {
   joinChannel: (channelId: string) => Promise<void>;
   leaveChannel: (channelId: string) => Promise<void>;
   reconnect: () => void;
+  noteActivity: () => void;
 }
 
 /**
@@ -219,6 +223,7 @@ export class ChatStore implements IChatStore {
       joinChannel: action.bound,
       leaveChannel: action.bound,
       reconnect: action.bound,
+      noteActivity: action.bound,
       upsertChannel: action,
       removeChannelLocally: action,
       upsertMessages: action,
@@ -338,6 +343,11 @@ export class ChatStore implements IChatStore {
   /** Try the socket again now, e.g. from a "reconnect" button or when the browser comes back online. */
   reconnect(): void {
     this.socket?.reconnectNow();
+  }
+
+  /** The user did something: keeps the socket from going idle, and reopens it if it already has. */
+  noteActivity(): void {
+    this.socket?.noteActivity();
   }
 
   // channels
@@ -636,6 +646,7 @@ export class ChatStore implements IChatStore {
   }
 
   private async deliver(pending: TChatPendingMessage): Promise<void> {
+    this.socket?.noteActivity();
     const slug = this.requireSlug();
     const { channelId, localId } = pending;
     const commit = this.guard();
