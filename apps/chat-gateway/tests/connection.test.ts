@@ -96,7 +96,9 @@ async function flush(): Promise<void> {
 
 const memberRow = (id: string) => [{ id, is_member: true }];
 const eventFrames = (socket: FakeSocket) =>
-  socket.sent.filter((frame) => frame.type === "event") as unknown as { event: { type: string; message_id?: string } }[];
+  socket.sent.filter((frame) => frame.type === "event") as unknown as {
+    event: { type: string; message_id?: string };
+  }[];
 
 describe("while access is being re-checked", () => {
   afterEach(() => {

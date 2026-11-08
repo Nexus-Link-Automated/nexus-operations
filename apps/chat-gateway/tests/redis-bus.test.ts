@@ -83,11 +83,10 @@ describe.skipIf(!redisAvailable)("RedisEventBus on a connection that misbehaves"
     const connectionName = `chat-gateway-test-${randomUUID()}`;
     const bus = new RedisEventBus({ url: proxy.url, log: silentLogger, connectionName });
     let receivers: number | undefined;
-    bus.onGap(() => {
-      void publisher.publish(workspaceChannel(workspace), "probe").then((count) => {
-        receivers = count;
-      });
-    });
+    const probe = async () => {
+      receivers = await publisher.publish(workspaceChannel(workspace), "probe");
+    };
+    bus.onGap(() => void probe());
     try {
       await waitUntil(() => bus.connected);
       await bus.subscribe(workspace);
