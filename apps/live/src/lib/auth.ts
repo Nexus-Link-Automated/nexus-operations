@@ -42,7 +42,9 @@ export const onAuthenticate = async ({
     userId = parsedToken.id;
     cookie = parsedToken.cookie;
   } catch (error) {
-    const appError = new AppError(error, {
+    // JSON.parse errors quote their input, and the token holds the session cookie, so don't wrap the error itself
+    const appError = new AppError("Could not parse token", {
+      code: error instanceof Error ? error.name : undefined,
       context: { operation: "onAuthenticate" },
     });
     logger.error("Token parsing failed, using request headers", appError);
