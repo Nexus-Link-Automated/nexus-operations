@@ -24,7 +24,6 @@ from plane.models.work_items import (
     UpdateWorkItem,
     WorkItem,
     WorkItemDetail,
-    WorkItemSearch,
 )
 from pydantic import Field
 
@@ -35,6 +34,7 @@ from plane_mcp.toolkit import (
     build_annotations,
     build_description,
     coerce_list,
+    dump_results,
     envelope,
     ids_of,
     missing,
@@ -74,6 +74,11 @@ WRITE_FIELDS = (
 )
 QUERY_FIELDS = ("order_by", "per_page", "cursor", "expand", "fields", "external_id", "external_source")
 
+# What the search endpoint applies when no limit is sent. The MCP always sends one
+# so that a full page can be recognised; the maximum matches the SDK's own per_page bound.
+SEARCH_DEFAULT_LIMIT = 10
+SEARCH_MAX_LIMIT = 100
+
 ACTIONS = (
     Action(
         "list",
@@ -82,20 +87,23 @@ ACTIONS = (
         read=True,
     ),
     Action("list_archived", ("project_id",), ("pql", *QUERY_FIELDS), read=True),
-    Action(
-        "retrieve",
-        ("project_id", "workitem_id"),
-        ("expand", "fields", "external_id", "external_source", "order_by"),
-        read=True,
-    ),
+    Action("retrieve", ("project_id", "workitem_id"), ("expand", "fields"), read=True),
     Action(
         "retrieve_by_identifier",
         ("workitem_identifier",),
-        ("expand", "fields", "external_id", "external_source", "order_by"),
+        ("expand", "fields"),
         note="identifier is PROJECT-N, e.g. ENG-42",
         read=True,
     ),
-    Action("search", ("query",), ("expand", "fields", "external_id", "external_source", "order_by"), read=True),
+    Action(
+        "search",
+        ("query",),
+        ("project_id", "limit"),
+        note="matches work item title and identifier only, not description, comments or other fields; "
+        f"returns at most limit results (default {SEARCH_DEFAULT_LIMIT}, max {SEARCH_MAX_LIMIT}) and sets "
+        "may_be_truncated when there may be more; omit project_id to search the whole workspace",
+        read=True,
+    ),
     Action(
         "count",
         optional=("project_id", "pql", "group_by", "sub_group_by"),
@@ -173,6 +181,13 @@ LEGACY = {
 }
 
 
+class _SearchParams(RetrieveQueryParams):
+    """What the search endpoint reads besides `search`; the SDK has no model for it."""
+
+    limit: int | None = None
+    project_id: str | None = None
+
+
 def _scoped_pql(pql: str, project_id: str) -> str:
     """Narrow a PQL filter to one project, since the count endpoint is workspace-wide."""
     if not project_id:
@@ -235,8 +250,9 @@ def register(mcp: FastMCP) -> None:
         fields: str = "",
         cursor: str = "",
         per_page: int = 0,
+        limit: int = 0,
         archive: bool | None = None,
-    ) -> WorkItem | WorkItemDetail | WorkItemSearch | dict[str, Any] | list[Any] | str | None:
+    ) -> WorkItem | WorkItemDetail | dict[str, Any] | list[Any] | str | None:
         client, workspace_slug = get_plane_client_context()
 
         if error := one_of("priority", priority, PRIORITIES):
@@ -247,13 +263,7 @@ def register(mcp: FastMCP) -> None:
             return error
 
         def retrieve_params() -> RetrieveQueryParams:
-            return RetrieveQueryParams(
-                expand=opt(expand),
-                fields=opt(fields),
-                external_id=opt(external_id),
-                external_source=opt(external_source),
-                order_by=opt(order_by),
-            )
+            return RetrieveQueryParams(expand=opt(expand), fields=opt(fields))
 
         def write_payload() -> dict[str, Any]:
             """The fields the caller supplied, and no others."""
@@ -328,7 +338,22 @@ def register(mcp: FastMCP) -> None:
         if action == "search":
             if not query:
                 return missing(action, "query")
-            return client.work_items.search(workspace_slug=workspace_slug, query=query, params=retrieve_params())
+            if limit and not 1 <= limit <= SEARCH_MAX_LIMIT:
+                return f"Error: limit must be between 1 and {SEARCH_MAX_LIMIT}."
+            applied = limit or SEARCH_DEFAULT_LIMIT
+            found = client.work_items.search(
+                workspace_slug=workspace_slug,
+                query=query,
+                params=_SearchParams(limit=applied, project_id=opt(project_id)),
+            )
+            issues = dump_results(found.issues, None)
+            result: dict[str, Any] = {"issues": issues, "limit": applied, "may_be_truncated": len(issues) >= applied}
+            if result["may_be_truncated"]:
+                result["hint"] = (
+                    f"Stopped at the limit of {applied}, so there may be more matches. Raise limit "
+                    f"(max {SEARCH_MAX_LIMIT}), pass project_id, or narrow the query."
+                )
+            return result
 
         if action == "retrieve_by_identifier":
             if not workitem_identifier:
