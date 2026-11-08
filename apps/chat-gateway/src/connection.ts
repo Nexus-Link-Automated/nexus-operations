@@ -71,7 +71,7 @@ export class Connection implements Recipient {
   readonly #timers: ReturnType<typeof setInterval>[] = [];
   /** Events that arrived before `ready`; `undefined` once the socket is live. */
   #queue: ChatEvent[] | undefined = [];
-  /** Held back while access is being re-checked after `access.revoked`. */
+  /** Set while access is being re-checked after `access.revoked`: nothing is forwarded until it is confirmed. */
   #suspended = false;
   #closed = false;
   #left = false;
@@ -131,7 +131,7 @@ export class Connection implements Recipient {
   }
 
   deliver(event: ChatEvent): void {
-    if (this.#closed || this.#suspended) return;
+    if (this.#closed) return;
     if (this.#queue) {
       if (this.#queue.length >= MAX_QUEUED_EVENTS) this.close(CloseCode.tryAgainLater, "Not keeping up");
       else this.#queue.push(event);
@@ -178,7 +178,7 @@ export class Connection implements Recipient {
       case "member.removed":
         if (own && channel) {
           // Tell them they're out, then stop: nothing about the channel follows.
-          if (this.#follows(channel)) this.#send({ type: "event", event });
+          if (this.#follows(channel)) this.#forward(event);
           this.#feed.delete(channel);
           this.#feedVersion += 1;
           this.#subscriptions.delete(channel);
@@ -188,7 +188,15 @@ export class Connection implements Recipient {
       default:
         break;
     }
-    if (channel && this.#follows(channel)) this.#send({ type: "event", event });
+    if (channel && this.#follows(channel)) this.#forward(event);
+  }
+
+  /**
+   * Send an event on, unless access is being re-checked: then it is held back (the feed still takes it into
+   * account above), and the re-check ends with `resync` or the socket closing.
+   */
+  #forward(event: ChatEvent): void {
+    if (!this.#suspended) this.#send({ type: "event", event });
   }
 
   #follows(channel: string): boolean {
