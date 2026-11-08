@@ -6,7 +6,7 @@
 
 import { randomUUID } from "node:crypto";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CloseCode } from "../src/protocol.ts";
 import { chatEvent, eventsOf, startHarness, type Harness } from "./helpers/harness.ts";
@@ -15,6 +15,7 @@ import { settle, waitUntil } from "./helpers/ws-client.ts";
 
 let h: Harness | undefined;
 afterEach(async () => {
+  vi.restoreAllMocks();
   await h?.stop();
   h = undefined;
 });
@@ -174,6 +175,8 @@ describe("re-checking on a timer", () => {
   });
 
   it("doesn't mistake its own re-read for a change when an event got there first", async () => {
+    // The first re-read comes at a random point in the interval; here it has to come after the event.
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
     h = await startHarness({ config: { accessTtlMs: 100 } });
     const home = h.api.addChannel({ members: [ADA.id] });
     const ada = await h.open(ADA.cookie);
