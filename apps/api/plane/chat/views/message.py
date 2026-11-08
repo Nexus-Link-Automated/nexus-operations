@@ -10,19 +10,29 @@ are always sent as the caller. Removing a message calls `Message.remove()`, whic
 leaves a tombstone so replies and read cursors keep working; it is never deleted.
 """
 
+from html import escape
+
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 
 from plane.chat.events import EventType
 from plane.chat.exceptions import BadRequest, Conflict, Forbidden, NotFound
-from plane.chat.models import Message
+from plane.chat.models import ChannelKind, Message, MessageReference
 from plane.chat.notifications import notify_mentions, refresh_mention_previews
 from plane.chat.pagination import paginate_messages
-from plane.chat.references import references_for, sync_references
+from plane.chat.references import references_for, sync_references, visible_work_item
 from plane.chat.permissions import is_channel_admin, require_channel_member, require_not_archived
-from plane.chat.serializers import MessageEditSerializer, MessageSerializer, MessageWriteSerializer
+from plane.chat.serializers import (
+    MessageEditSerializer,
+    MessageSerializer,
+    MessageWorkItemSerializer,
+    MessageWriteSerializer,
+)
 from plane.chat.views.base import ChatBaseEndpoint, annotate_messages
+from plane.db.models import IssueLink
+from plane.utils.host import base_host
 
 
 def _serialized(messages, user, many):
@@ -140,3 +150,62 @@ class MessageReplyEndpoint(ChatBaseEndpoint):
         if parent is None:
             raise NotFound("Message not found.")
         return _page(Message.objects.filter(parent=parent), request)
+
+
+class MessageWorkItemEndpoint(ChatBaseEndpoint):
+    def post(self, request, slug, channel_id, message_id):
+        """Link a work item created from this message, both ways, and say so in the channel.
+
+        The work item is created first through Plane's own form, so its permissions and activity stay Plane's. Linking
+        the same one again changes nothing and posts nothing.
+        """
+        channel = self.get_channel(channel_id)
+        message = Message.objects.filter(channel=channel, pk=message_id, removed_at__isnull=True).first()
+        if message is None:
+            raise NotFound("Message not found.")
+        require_channel_member(channel)
+        require_not_archived(channel)
+        serializer = MessageWorkItemSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        issue = visible_work_item(serializer.validated_data["issue_id"], request.user, message.workspace_id)
+        if issue is None:
+            raise NotFound("Work item not found.")
+
+        key = f"{issue.project.identifier}-{issue.sequence_id}"
+        anchor = message.parent_id or message.id
+        permalink = (
+            f"{base_host(request=request, is_app=True).rstrip('/')}/{slug}/messages/{channel.id}?message={anchor}"
+        )
+        # A private conversation's name doesn't belong on a work item that other people can read.
+        link_title = (
+            f"Message in #{channel.name}" if channel.kind == ChannelKind.PUBLIC else "Message in Nexus Messages"
+        )
+
+        with transaction.atomic():
+            _, created = MessageReference.objects.get_or_create(
+                message=message,
+                issue=issue,
+                defaults={"workspace_id": message.workspace_id, "created_from_message": True},
+            )
+            IssueLink.objects.get_or_create(
+                issue=issue, url=permalink, defaults={"title": link_title, "project": issue.project}
+            )
+            reply = None
+            if created:
+                reply = Message.objects.create(
+                    channel=channel,
+                    sender=request.user,
+                    body_html=f'<p>Created {escape(key)} from <a href="{escape(permalink)}">this message</a></p>',
+                )
+                MessageReference.objects.create(message=reply, issue=issue)
+
+        self.publish(EventType.MESSAGE_UPDATED, channel, message=message)
+        if reply:
+            self.publish(EventType.MESSAGE_CREATED, channel, message=reply)
+        return Response(
+            {
+                "message": _payload(message.id, request.user),
+                "reply": _payload(reply.id, request.user) if reply else None,
+            },
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )

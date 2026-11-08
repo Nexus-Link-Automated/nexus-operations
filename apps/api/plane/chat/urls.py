@@ -25,6 +25,7 @@ from plane.chat.views import (
     MessageDetailEndpoint,
     MessageEndpoint,
     MessageReplyEndpoint,
+    MessageWorkItemEndpoint,
 )
 
 CHANNEL = "channels/<uuid:channel_id>/"
@@ -45,4 +46,9 @@ urlpatterns = [
     path(f"{CHANNEL}messages/", MessageEndpoint.as_view(), name="chat-messages"),
     path(f"{CHANNEL}messages/<uuid:message_id>/", MessageDetailEndpoint.as_view(), name="chat-message"),
     path(f"{CHANNEL}messages/<uuid:message_id>/replies/", MessageReplyEndpoint.as_view(), name="chat-message-replies"),
+    path(
+        f"{CHANNEL}messages/<uuid:message_id>/work-items/",
+        MessageWorkItemEndpoint.as_view(),
+        name="chat-message-work-items",
+    ),
 ]

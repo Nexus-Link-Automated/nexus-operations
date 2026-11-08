@@ -105,7 +105,8 @@
       "open_dm_failed": "Não foi possível iniciar a conversa",
       "edit_failed": "Não foi possível salvar a edição",
       "remove_failed": "Não foi possível excluir a mensagem",
-      "message_not_found": "Esta mensagem não está mais disponível."
+      "message_not_found": "Esta mensagem não está mais disponível.",
+      "link_work_item_failed": "O item de trabalho foi criado, mas não foi possível vinculá-lo a esta mensagem."
     }
   }
 }

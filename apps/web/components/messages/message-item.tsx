@@ -25,8 +25,9 @@ import { useWorkspace } from "@/hooks/store/use-workspace";
 // store
 import type { TChatPendingMessage } from "@/store/chat.store";
 // local imports
+import { ChatCreateWorkItemAction } from "./create-work-item-action";
 import { MemberAvatar } from "./member-avatar";
-import { ChatWorkItemCard } from "./work-item-card";
+import { ChatWorkItemCards } from "./work-item-card";
 
 const noUploads = async (): Promise<string> => {
   throw new Error("Attachments are not supported in messages yet");
@@ -59,6 +60,52 @@ type Props = {
   /** Follows the same sender's previous message: no avatar or name. */
   continued: boolean;
 };
+
+type ActionsProps = {
+  message: TChatMessage;
+  workspaceSlug: string;
+  mine: boolean;
+  onEdit: () => void;
+  onRemove: () => void;
+};
+
+/** What can be done to a message, shown on hover or focus. */
+const MessageActions = observer(function MessageActions({
+  message,
+  workspaceSlug,
+  mine,
+  onEdit,
+  onRemove,
+}: ActionsProps) {
+  const { t } = useTranslation();
+  const { channelMap } = useChat();
+  const channel = channelMap[message.channel];
+  const canCreateWorkItem = !!channel?.is_member && !channel.archived_at;
+  if (!mine && !canCreateWorkItem) return null;
+  return (
+    <div className="absolute top-1 right-4 hidden items-center gap-0.5 rounded-md border border-subtle bg-layer-1 p-0.5 shadow-raised-100 group-focus-within:flex group-hover:flex">
+      {canCreateWorkItem && <ChatCreateWorkItemAction message={message} workspaceSlug={workspaceSlug} />}
+      {mine && (
+        <>
+          <IconButton
+            variant="ghost"
+            size="sm"
+            icon={<EditOutline />}
+            aria-label={t("messages.message.edit")}
+            onClick={onEdit}
+          />
+          <IconButton
+            variant="ghost"
+            size="sm"
+            icon={<DeleteOutline />}
+            aria-label={t("messages.message.remove")}
+            onClick={onRemove}
+          />
+        </>
+      )}
+    </div>
+  );
+});
 
 export const ChatMessageItem = observer(function ChatMessageItem({
   message,
@@ -197,13 +244,7 @@ export const ChatMessageItem = observer(function ChatMessageItem({
             workspaceSlug={workspaceSlug}
           />
         )}
-        {!removed && message.references.length > 0 && (
-          <div className="mt-1 flex flex-col gap-1">
-            {message.references.map((reference) => (
-              <ChatWorkItemCard key={reference.id} reference={reference} workspaceSlug={workspaceSlug} />
-            ))}
-          </div>
-        )}
+        {!removed && <ChatWorkItemCards references={message.references} workspaceSlug={workspaceSlug} />}
         {!removed && !editing && message.edited_at && (
           <span className="text-caption-sm-regular text-tertiary">{t("messages.message.edited")}</span>
         )}
@@ -213,23 +254,14 @@ export const ChatMessageItem = observer(function ChatMessageItem({
           </p>
         )}
       </div>
-      {mine && !removed && !editing && (
-        <div className="absolute top-1 right-4 hidden items-center gap-0.5 rounded-md border border-subtle bg-layer-1 p-0.5 shadow-raised-100 group-focus-within:flex group-hover:flex">
-          <IconButton
-            variant="ghost"
-            size="sm"
-            icon={<EditOutline />}
-            aria-label={t("messages.message.edit")}
-            onClick={() => setEditing(true)}
-          />
-          <IconButton
-            variant="ghost"
-            size="sm"
-            icon={<DeleteOutline />}
-            aria-label={t("messages.message.remove")}
-            onClick={() => setConfirmingRemove(true)}
-          />
-        </div>
+      {!removed && !editing && (
+        <MessageActions
+          message={message}
+          workspaceSlug={workspaceSlug}
+          mine={mine}
+          onEdit={() => setEditing(true)}
+          onRemove={() => setConfirmingRemove(true)}
+        />
       )}
       <ConfirmDialog
         isOpen={confirmingRemove}

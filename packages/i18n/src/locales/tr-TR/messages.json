@@ -105,7 +105,8 @@
       "open_dm_failed": "Sohbet başlatılamadı",
       "edit_failed": "Düzenleme kaydedilemedi",
       "remove_failed": "Mesaj silinemedi",
-      "message_not_found": "Bu mesaj artık kullanılamıyor."
+      "message_not_found": "Bu mesaj artık kullanılamıyor.",
+      "link_work_item_failed": "İş öğesi oluşturuldu ancak bu mesaja bağlanamadı."
     }
   }
 }

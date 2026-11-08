@@ -15,6 +15,7 @@ import type {
   TChatMessagePage,
   TChatMessagePageQuery,
   TChatMessageWrite,
+  TChatWorkItemLink,
 } from "@plane/types";
 import { APIService } from "../api.service";
 
@@ -132,6 +133,17 @@ export class ChatService extends APIService {
 
   async sendMessage(workspaceSlug: string, channelId: string, data: TChatMessageWrite): Promise<TChatMessage> {
     return this.call(this.post(`${this.channel(workspaceSlug, channelId)}/messages/`, data));
+  }
+
+  async linkWorkItem(
+    workspaceSlug: string,
+    channelId: string,
+    messageId: string,
+    issueId: string
+  ): Promise<TChatWorkItemLink> {
+    return this.call(
+      this.post(`${this.channel(workspaceSlug, channelId)}/messages/${messageId}/work-items/`, { issue_id: issueId })
+    );
   }
 
   async editMessage(

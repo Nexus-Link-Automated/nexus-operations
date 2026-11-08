@@ -33,6 +33,7 @@ export type TChatStoreService = Pick<
   | "listMessages"
   | "getMessage"
   | "sendMessage"
+  | "linkWorkItem"
   | "editMessage"
   | "removeMessage"
 >;
@@ -140,6 +141,7 @@ export interface IChatStore {
     body: Pick<TChatMessageWrite, "body_html" | "body_json">
   ) => Promise<void>;
   removeMessage: (channelId: string, messageId: string) => Promise<void>;
+  linkWorkItem: (channelId: string, messageId: string, issueId: string) => Promise<void>;
   markRead: (channelId: string) => Promise<void>;
   createChannel: (data: TChatChannelCreate) => Promise<TChatChannel>;
   openDm: (memberIds: string[]) => Promise<TChatChannel>;
@@ -222,6 +224,7 @@ export class ChatStore implements IChatStore {
       discardMessage: action.bound,
       editMessage: action.bound,
       removeMessage: action.bound,
+      linkWorkItem: action.bound,
       markRead: action.bound,
       createChannel: action.bound,
       openDm: action.bound,
@@ -716,6 +719,17 @@ export class ChatStore implements IChatStore {
   }
 
   /** Move the read cursor to the newest loaded message, if it isn't there already. */
+  /** Tie a work item just created from a message to it, and post the note saying so. */
+  async linkWorkItem(channelId: string, messageId: string, issueId: string): Promise<void> {
+    const slug = this.requireSlug();
+    const commit = this.guard();
+    const { message, reply } = await this.service.linkWorkItem(slug, channelId, messageId, issueId);
+    commit(() => {
+      if (!this.channelMessages[channelId]?.loaded) return;
+      this.upsertMessages(channelId, reply ? [message, reply] : [message], "newer");
+    });
+  }
+
   async markRead(channelId: string): Promise<void> {
     return this.coalesce(this.readsInFlight, channelId, async () => {
       const slug = this.workspaceSlug;

@@ -135,6 +135,7 @@ function makeStore(service: Partial<TChatStoreService> = {}) {
     listMessages: async () => ({ results: [], has_more: false }),
     getMessage: notCalled,
     sendMessage: notCalled,
+    linkWorkItem: notCalled,
     editMessage: notCalled,
     removeMessage: notCalled,
     ...service,

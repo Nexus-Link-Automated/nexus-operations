@@ -12,8 +12,11 @@ import {
   channelDisplayName,
   chatErrorMessage,
   chatMessagePermalink,
+  defaultWorkItemAssignee,
+  defaultWorkItemProject,
   localDay,
   unreadLabel,
+  workItemTitleFromMessage,
 } from "./helpers";
 
 const message = (id: string, sender: string | null, at: Date, removed = false): TChatMessage => ({
@@ -124,5 +127,53 @@ describe("chatMessagePermalink", () => {
     expect(chatMessagePermalink("acme", { id: "m2", channel_id: "c1", parent_id: "m1" })).toBe(
       "/acme/messages/c1?message=m1"
     );
+  });
+});
+
+describe("pre-filling a work item from a message", () => {
+  describe("workItemTitleFromMessage", () => {
+    it("takes the first line, trimmed", () => {
+      expect(workItemTitleFromMessage("  login is broken  \nsteps below")).toBe("login is broken");
+    });
+
+    it("fits Plane's title limit", () => {
+      expect(workItemTitleFromMessage("x".repeat(400))).toHaveLength(255);
+    });
+
+    it("is empty for a message with no text", () => {
+      expect(workItemTitleFromMessage("   ")).toBe("");
+    });
+  });
+
+  describe("defaultWorkItemAssignee", () => {
+    it("picks the first person mentioned who is in the project", () => {
+      expect(defaultWorkItemAssignee(["outsider", "ada", "bob"], ["bob", "ada", "me"], "me")).toBe("ada");
+    });
+
+    it("falls back to whoever clicked", () => {
+      expect(defaultWorkItemAssignee(["outsider"], ["me"], "me")).toBe("me");
+      expect(defaultWorkItemAssignee([], ["me"], "me")).toBe("me");
+    });
+
+    it("assigns nobody when the clicker isn't in the project either", () => {
+      expect(defaultWorkItemAssignee([], ["ada"], "me")).toBeNull();
+      expect(defaultWorkItemAssignee([], ["ada"], null)).toBeNull();
+    });
+  });
+
+  describe("defaultWorkItemProject", () => {
+    it("prefers the channel's project, then the last used, then the first joined", () => {
+      expect(defaultWorkItemProject("p2", "p3", ["p1", "p2", "p3"])).toBe("p2");
+      expect(defaultWorkItemProject(null, "p3", ["p1", "p3"])).toBe("p3");
+      expect(defaultWorkItemProject(null, null, ["p1", "p3"])).toBe("p1");
+    });
+
+    it("skips a project the user has left", () => {
+      expect(defaultWorkItemProject("gone", "also-gone", ["p1"])).toBe("p1");
+    });
+
+    it("has no answer without projects", () => {
+      expect(defaultWorkItemProject(null, null, [])).toBeUndefined();
+    });
   });
 });

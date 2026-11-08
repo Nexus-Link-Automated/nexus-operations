@@ -105,7 +105,8 @@
       "open_dm_failed": "Không thể bắt đầu cuộc trò chuyện",
       "edit_failed": "Không thể lưu nội dung sửa",
       "remove_failed": "Không thể xóa tin nhắn",
-      "message_not_found": "Tin nhắn này không còn khả dụng."
+      "message_not_found": "Tin nhắn này không còn khả dụng.",
+      "link_work_item_failed": "Mục công việc đã được tạo nhưng không thể liên kết với tin nhắn này."
     }
   }
 }

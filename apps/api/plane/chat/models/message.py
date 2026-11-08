@@ -79,6 +79,8 @@ class MessageReference(BaseModel):
     workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="chat_message_references")
     message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="references")
     issue = models.ForeignKey("db.Issue", on_delete=models.CASCADE, related_name="chat_message_references")
+    # The work item was created from this message, so it stays linked whatever the message's text says.
+    created_from_message = models.BooleanField(default=False)
 
     class Meta:
         db_table = "chat_message_references"

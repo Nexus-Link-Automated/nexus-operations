@@ -59,7 +59,7 @@ def _resolve(workspace_id, keys):
 
 def _sync(message):
     wanted = _resolve(message.workspace_id, _work_item_keys(message.body_html))
-    stale = message.references.exclude(issue_id__in=wanted)
+    stale = message.references.filter(created_from_message=False).exclude(issue_id__in=wanted)
     if stale.exists():
         stale.delete()
     existing = set(message.references.values_list("issue_id", flat=True))
@@ -70,6 +70,27 @@ def _sync(message):
             if issue_id not in existing
         ]
     )
+
+
+def _can_see(issue, role, user):
+    return role > ROLE.GUEST.value or issue.project.guest_view_all_features or issue.created_by_id == user.id
+
+
+def visible_work_item(issue_id, user, workspace_id):
+    """The work item, if `user` may see it. See `references_for` for who may."""
+    issue = (
+        Issue.issue_objects.filter(pk=issue_id, workspace_id=workspace_id, project__deleted_at__isnull=True)
+        .select_related("project")
+        .first()
+    )
+    if issue is None:
+        return None
+    role = (
+        ProjectMember.objects.filter(project_id=issue.project_id, member=user, is_active=True)
+        .values_list("role", flat=True)
+        .first()
+    )
+    return issue if role is not None and _can_see(issue, role, user) else None
 
 
 def sync_references(message):
@@ -110,8 +131,7 @@ def references_for(message_ids, user):
         issue = reference.issue
         if issue.pk not in listable:
             continue
-        role = roles[issue.project_id]
-        if role <= ROLE.GUEST.value and not issue.project.guest_view_all_features and issue.created_by_id != user.id:
+        if not _can_see(issue, roles[issue.project_id], user):
             continue
         visible.setdefault(reference.message_id, []).append(
             {

@@ -105,7 +105,8 @@
       "open_dm_failed": "Unterhaltung konnte nicht gestartet werden",
       "edit_failed": "Änderung konnte nicht gespeichert werden",
       "remove_failed": "Nachricht konnte nicht gelöscht werden",
-      "message_not_found": "Diese Nachricht ist nicht mehr verfügbar."
+      "message_not_found": "Diese Nachricht ist nicht mehr verfügbar.",
+      "link_work_item_failed": "Das Arbeitselement wurde erstellt, konnte aber nicht mit dieser Nachricht verknüpft werden."
     }
   }
 }

@@ -15,4 +15,9 @@ from .membership import (  # noqa: F401
     ChannelMemberSerializer,
     MarkReadSerializer,
 )
-from .message import MessageEditSerializer, MessageSerializer, MessageWriteSerializer  # noqa: F401
+from .message import (  # noqa: F401
+    MessageEditSerializer,
+    MessageSerializer,
+    MessageWorkItemSerializer,
+    MessageWriteSerializer,
+)

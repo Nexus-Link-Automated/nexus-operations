@@ -105,7 +105,8 @@
       "open_dm_failed": "Tidak dapat memulai percakapan",
       "edit_failed": "Tidak dapat menyimpan perubahan",
       "remove_failed": "Tidak dapat menghapus pesan",
-      "message_not_found": "Pesan ini tidak lagi tersedia."
+      "message_not_found": "Pesan ini tidak lagi tersedia.",
+      "link_work_item_failed": "Item kerja telah dibuat, tetapi tidak dapat ditautkan ke pesan ini."
     }
   }
 }
