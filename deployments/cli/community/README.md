@@ -491,6 +491,8 @@ Backing Up plane-app_uploads
 Backup completed successfully. Backup files are stored in /....../plane-app/backup/20240502-1120
 ```
 
+The backup shuts Postgres down cleanly while its data is copied and starts it again afterwards, so Plane cannot serve requests during that copy. Run the backup when a short interruption is acceptable.
+
 ---
 
 ### Restore Data (Docker Compose)
@@ -526,20 +528,22 @@ When you want to restore the previously backed-up data, follow the instructions 
    Project management tool from the future
    --------------------------------------------
    Found /opt/plane-selfhost/plane-app/backup/20240722-0914/pgdata.tar.gz
+   Found /opt/plane-selfhost/plane-app/backup/20240722-0914/redisdata.tar.gz
+   Found /opt/plane-selfhost/plane-app/backup/20240722-0914/uploads.tar.gz
    .....Restoring plane-app_pgdata
    .....Successfully restored volume plane-app_pgdata from pgdata.tar.gz
 
-   Found /opt/plane-selfhost/plane-app/backup/20240722-0914/redisdata.tar.gz
    .....Restoring plane-app_redisdata
    .....Successfully restored volume plane-app_redisdata from redisdata.tar.gz
 
-   Found /opt/plane-selfhost/plane-app/backup/20240722-0914/uploads.tar.gz
    .....Restoring plane-app_uploads
    .....Successfully restored volume plane-app_uploads from uploads.tar.gz
 
 
    Restore completed successfully.
    ```
+
+   Every archive is checked before any volume is changed. If one is damaged, the script stops with an error and leaves all volumes as they were.
 
 1. Start the Plane instance using `./setup.sh start`.
 
