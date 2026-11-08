@@ -6,6 +6,7 @@
 
 /* oxlint-disable no-await-in-loop -- session updates and tool calls must reach the client in order */
 import { randomUUID } from "node:crypto";
+import { rmSync } from "node:fs";
 import path from "node:path";
 
 import { RequestError, type PlanEntry, type StopReason, type ToolCallContent } from "@agentclientprotocol/sdk";
@@ -31,10 +32,10 @@ import type {
   SessionInit,
   TurnContext,
 } from "../core/agent.ts";
-import { AI_PROVIDERS_SETTINGS } from "../core/auth.ts";
+import { AI_PROVIDERS_SETTINGS, agentHome } from "../core/auth.ts";
 import { agentInfo, PACKAGE_VERSION } from "../core/info.ts";
-import { arrayValue, numberValue, objectValue, stringValue, type JsonObject } from "../core/json.ts";
-import { toClaudeMcpServers } from "../core/mcp.ts";
+import { arrayValue, errorMessage, numberValue, objectValue, stringValue, type JsonObject } from "../core/json.ts";
+import { toClaudeMcpServers, writeClaudeMcpConfig } from "../core/mcp.ts";
 import { effortChoices, modelCatalog } from "../core/models.ts";
 import { classifyMcpCall, toolKindForCategory, type PermissionModeId, type ToolCategory } from "../core/modes.ts";
 import type { PermissionDecision } from "../core/permission.ts";
@@ -201,6 +202,8 @@ class ClaudeSession implements AdapterSession {
   #claudeSessionId: string;
   #started: boolean;
   #active: Query | undefined;
+  /** This turn's MCP config, while the CLI has yet to load it. */
+  #mcpConfigFile: string | undefined;
 
   constructor(init: SessionInit, deps: ClaudeDeps, resumed: boolean) {
     this.#host = init.host;
@@ -277,7 +280,6 @@ class ClaudeSession implements AdapterSession {
       ...(isClaudeEffort(effort) ? { effort } : {}),
       abortController,
       includePartialMessages: true,
-      mcpServers: this.#mcpServers,
       permissionMode: claudePermissionMode(host.mode()),
       allowDangerouslySkipPermissions: true,
       canUseTool,
@@ -297,9 +299,12 @@ class ClaudeSession implements AdapterSession {
 
     const streamed = new Set<string>();
     let stopReason: StopReason = "end_turn";
-    const activeQuery = this.#deps.query({ prompt: promptToText(turn.prompt), options });
-    this.#active = activeQuery;
     try {
+      const activeQuery = this.#deps.query({
+        prompt: promptToText(turn.prompt),
+        options: this.#withMcpConfig(options),
+      });
+      this.#active = activeQuery;
       for await (const message of activeQuery) {
         const result = await this.#handle(message, turn, streamed, planToolIds);
         if (result) stopReason = result;
@@ -312,12 +317,35 @@ class ClaudeSession implements AdapterSession {
     } finally {
       this.#started = true;
       this.#active = undefined;
+      this.#removeMcpConfig();
       turn.signal.removeEventListener("abort", onAbort);
     }
   }
 
   async close(): Promise<void> {
     this.#active?.close();
+    this.#removeMcpConfig();
+  }
+
+  /**
+   * Hand the MCP servers to the CLI as a path, never through `options.mcpServers`: the SDK would
+   * put their headers (the user's Plane token) on the command line. Each turn is its own CLI start.
+   */
+  #withMcpConfig(options: Options): Options {
+    if (Object.keys(this.#mcpServers).length === 0) return options;
+    this.#mcpConfigFile = writeClaudeMcpConfig(this.#mcpServers, agentHome(this.#host.env));
+    return { ...options, extraArgs: { "mcp-config": this.#mcpConfigFile } };
+  }
+
+  #removeMcpConfig(): void {
+    const file = this.#mcpConfigFile;
+    this.#mcpConfigFile = undefined;
+    if (!file) return;
+    try {
+      rmSync(file, { force: true });
+    } catch (error) {
+      console.error(`could not remove the MCP config file: ${errorMessage(error)}`);
+    }
   }
 
   async #handle(
@@ -330,7 +358,11 @@ class ClaudeSession implements AdapterSession {
     const { messages } = turn;
     switch (message.type) {
       case "system":
-        if (message.subtype === "init" && message.session_id) this.#claudeSessionId = message.session_id;
+        if (message.subtype === "init") {
+          // The CLI reads --mcp-config once at startup, so the token leaves the disk before any tool can run.
+          this.#removeMcpConfig();
+          if (message.session_id) this.#claudeSessionId = message.session_id;
+        }
         return undefined;
       case "stream_event": {
         if (message.parent_tool_use_id !== null) return undefined;

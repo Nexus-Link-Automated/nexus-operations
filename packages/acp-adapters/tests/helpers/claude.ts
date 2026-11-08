@@ -4,7 +4,46 @@
  * See the LICENSE file for details.
  */
 
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+
 import type { HookCallback, Options, Query, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+
+import { PACKAGE_ROOT, tempDir } from "./client.ts";
+
+export const FAKE_CLAUDE = path.join(PACKAGE_ROOT, "tests/helpers/fake-claude.cjs");
+
+export interface FakeClaudeStart {
+  readonly cmdline: string[];
+  readonly mcpConfig?: { path: string; mode: number; content: { mcpServers: Record<string, unknown> } };
+}
+
+/** An executable for `pathToClaudeCodeExecutable`, the env that goes with it, and what it recorded. */
+export function fakeClaudeExecutable(): {
+  executable: string;
+  env: Record<string, string>;
+  home: string;
+  starts: () => FakeClaudeStart[];
+} {
+  const dir = tempDir("fake-claude-");
+  const executable = path.join(dir, "claude");
+  writeFileSync(executable, `#!/bin/sh\nexec "${process.execPath}" "${FAKE_CLAUDE}" "$@"\n`);
+  chmodSync(executable, 0o755);
+  const logFile = path.join(dir, "log.jsonl");
+  const home = tempDir("claude-home-");
+  return {
+    executable,
+    home,
+    env: { HOME: home, ANTHROPIC_API_KEY: "sk-ant-test", FAKE_CLAUDE_LOG: logFile },
+    starts: () =>
+      existsSync(logFile)
+        ? readFileSync(logFile, "utf8")
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => JSON.parse(line) as FakeClaudeStart)
+        : [],
+  };
+}
 
 export interface FakeQueryCall {
   readonly prompt: string;

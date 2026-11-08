@@ -25,7 +25,9 @@ ChatGPT and Google sign-ins (see [Sign-in helper](#sign-in-helper-plane-agent-lo
 - **Model**: a `configOptions` select with `id: "model"` and `category: "model"`, changed with
   `session/set_config_option`.
 - **Plane MCP** arrives as an ACP `mcpServers` entry `{type: "http", url, headers}`. Every adapter
-  advertises `mcpCapabilities.http = true` (SSE is not offered).
+  advertises `mcpCapabilities.http = true` (SSE is not offered). The headers carry the user's token and
+  must never reach a command line: Claude gets a `--mcp-config` path to a 0600 file under `HOME`, removed
+  once the CLI has started; Codex and Gemini get them over stdin; DeepSeek connects in process.
 - **Prompts** offer _Allow once_ (`allow_once`), _Always this session_ (`allow_always`, remembered per
   tool and command or Plane action) and _Deny_ (`reject_once`).
 - **Cancellation**: `session/cancel` is the business stop, and the prompt answers `stopReason: "cancelled"`.
