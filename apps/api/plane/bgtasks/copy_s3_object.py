@@ -13,6 +13,7 @@ from django.conf import settings
 
 # Module imports
 from plane.db.models import FileAsset, Page, Issue
+from plane.utils.constants import LIVE_SERVER_HTTP_TIMEOUT
 from plane.utils.exception_logger import log_exception
 from plane.settings.storage import S3Storage
 from celery import shared_task
@@ -79,7 +80,7 @@ def sync_with_external_service(entity_name, description_html):
 
         url = normalize_url_path(f"{live_url}/convert-document/")
 
-        response = requests.post(url, json=data, headers=None)
+        response = requests.post(url, json=data, headers=None, timeout=LIVE_SERVER_HTTP_TIMEOUT)
         if response.status_code == 200:
             return response.json()
     except requests.RequestException as e:

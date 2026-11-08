@@ -2,6 +2,16 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
+# Outbound HTTP timeouts, as (connect, read) seconds. `requests` has no default
+# timeout, so without one a stalled peer holds the worker for as long as it stalls.
+#
+# Each OAuth call made during a login; self-hosted GitLab and Gitea can be slow to answer.
+OAUTH_HTTP_TIMEOUT = (5, 15)
+# The image search a user is waiting on in the cover image picker.
+UNSPLASH_HTTP_TIMEOUT = (3, 10)
+# The live server's document conversion, run from a background task and slow on large documents.
+LIVE_SERVER_HTTP_TIMEOUT = (5, 60)
+
 RESTRICTED_WORKSPACE_SLUGS = [
     "404",
     "accounts",
