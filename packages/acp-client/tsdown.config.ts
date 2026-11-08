@@ -1,7 +1,7 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: { index: "src/index.ts", testing: "src/testing/index.ts" },
+  entry: { index: "src/index.ts", core: "src/core.ts", testing: "src/testing/index.ts" },
   format: ["esm"],
   platform: "browser",
   target: "es2022",
