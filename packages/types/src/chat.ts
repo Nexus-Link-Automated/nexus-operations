@@ -10,6 +10,9 @@
  * truth; these types follow them.
  */
 
+import type { TIssuePriorities } from "./issues";
+import type { TStateGroups } from "./state";
+
 export type TChatChannelKind = "public" | "private" | "dm" | "group_dm";
 
 export type TChatMemberRole = "admin" | "member";
@@ -39,6 +42,17 @@ export type TChatChannel = {
 };
 
 /** A message, or a removed message's tombstone (empty body, `removed_at` set). */
+/** A work item a message references, present only if the reader may see it. */
+export type TChatMessageReference = {
+  id: string;
+  project: string;
+  /** e.g. `EMP-142`. */
+  key: string;
+  name: string;
+  priority: TIssuePriorities;
+  state: { name: string; group: TStateGroups; color: string } | null;
+};
+
 export type TChatMessage = {
   id: string;
   workspace: string;
@@ -52,6 +66,7 @@ export type TChatMessage = {
   parent: string | null;
   reply_count: number;
   last_reply_at: string | null;
+  references: TChatMessageReference[];
   edited_at: string | null;
   removed_at: string | null;
   created_at: string;

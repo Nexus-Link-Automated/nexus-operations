@@ -27,6 +27,7 @@ class MessageSerializer(BaseSerializer):
 
     reply_count = serializers.IntegerField(read_only=True)
     last_reply_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    references = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
@@ -42,12 +43,17 @@ class MessageSerializer(BaseSerializer):
             "parent",
             "reply_count",
             "last_reply_at",
+            "references",
             "edited_at",
             "removed_at",
             "created_at",
             "updated_at",
         ]
         read_only_fields = fields
+
+    def get_references(self, message):
+        """The work items this message references, as far as the reader may see them (`references_for`)."""
+        return self.context.get("references", {}).get(message.id, [])
 
 
 class MessageWriteSerializer(serializers.Serializer):

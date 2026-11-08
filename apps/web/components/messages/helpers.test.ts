@@ -28,6 +28,7 @@ const message = (id: string, sender: string | null, at: Date, removed = false): 
   parent: null,
   reply_count: 0,
   last_reply_at: null,
+  references: [],
   edited_at: null,
   removed_at: removed ? at.toISOString() : null,
   created_at: at.toISOString(),
