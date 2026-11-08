@@ -59,15 +59,76 @@ export interface PlaneApiOptions {
   readonly baseUrl: string;
   readonly timeoutMs?: number;
   readonly fetch?: typeof fetch;
+  /** Most calls under way at once; the rest wait their turn. Default: no limit. */
+  readonly maxConcurrent?: number;
+}
+
+/** At most `limit` holders at once. A waiter whose signal aborts gives up its place. */
+class Limiter {
+  readonly #limit: number;
+  readonly #waiting = new Set<() => void>();
+  #active = 0;
+
+  constructor(limit: number) {
+    this.#limit = limit;
+  }
+
+  async acquire(signal?: AbortSignal): Promise<void> {
+    if (this.#active < this.#limit) {
+      this.#active += 1;
+      return;
+    }
+    await new Promise<void>((resolve, reject) => {
+      const onTurn = () => {
+        signal?.removeEventListener("abort", onAbort);
+        resolve();
+      };
+      const onAbort = () => {
+        this.#waiting.delete(onTurn);
+        reject(signal?.reason as Error);
+      };
+      if (signal?.aborted) {
+        reject(signal.reason as Error);
+        return;
+      }
+      this.#waiting.add(onTurn);
+      signal?.addEventListener("abort", onAbort, { once: true });
+    });
+  }
+
+  /** Hand the slot to whoever has waited longest, or give it back. */
+  release(): void {
+    const next = this.#waiting.values().next().value;
+    if (next) {
+      this.#waiting.delete(next);
+      next();
+    } else {
+      this.#active -= 1;
+    }
+  }
 }
 
 export function createPlaneApi(options: PlaneApiOptions): PlaneApi {
   const base = trimTrailingSlashes(options.baseUrl);
   const doFetch = options.fetch ?? fetch;
   const timeoutMs = options.timeoutMs ?? 15_000;
+  const limiter = new Limiter(options.maxConcurrent ?? Number.POSITIVE_INFINITY);
 
-  /** GET `path` as the user and parse the JSON body with `schema`. */
+  /** GET `path` as the user and parse the JSON body with `schema`, once there is room to. */
   const get = async <T>(path: string, cookie: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> => {
+    try {
+      await limiter.acquire(signal);
+    } catch (error) {
+      throw new PlaneApiError(`Plane API request failed: ${(error as Error).message}`, 0);
+    }
+    try {
+      return await request(path, cookie, schema, signal);
+    } finally {
+      limiter.release();
+    }
+  };
+
+  const request = async <T>(path: string, cookie: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> => {
     const timeout = AbortSignal.timeout(timeoutMs);
     let response: Response;
     try {

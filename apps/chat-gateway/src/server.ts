@@ -70,7 +70,7 @@ export class ChatGateway {
     const { config } = options;
     this.#config = config;
     this.#log = options.log ?? createLogger("chat-gateway");
-    this.#api = options.api ?? createPlaneApi({ baseUrl: config.apiBaseUrl });
+    this.#api = options.api ?? createPlaneApi({ baseUrl: config.apiBaseUrl, maxConcurrent: config.maxApiConcurrency });
     this.#bus = options.bus ?? new RedisEventBus({ url: config.redisUrl, log: this.#log });
     this.#hub = new Hub({ bus: this.#bus, log: this.#log });
     // A variable because `closeTimeout` is newer than `@types/ws`, which would reject it in an object literal.

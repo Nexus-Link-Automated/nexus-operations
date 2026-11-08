@@ -29,6 +29,7 @@ const schema = z.object({
   CHAT_GATEWAY_PING_INTERVAL_MS: positiveInt(30_000),
   CHAT_GATEWAY_MAX_BUFFERED_BYTES: positiveInt(1024 * KiB),
   CHAT_GATEWAY_CLOSE_TIMEOUT_MS: positiveInt(5_000),
+  CHAT_GATEWAY_MAX_API_CONCURRENCY: positiveInt(32),
   CHAT_GATEWAY_MAX_SUBSCRIPTIONS: positiveInt(100),
   CHAT_GATEWAY_RATE_FRAMES: positiveInt(100),
   CHAT_GATEWAY_RATE_WINDOW_MS: positiveInt(10_000),
@@ -57,6 +58,8 @@ export interface GatewayConfig {
   readonly maxBufferedBytes: number;
   /** How long a browser gets to finish closing a socket before it is cut. */
   readonly closeTimeoutMs: number;
+  /** Most API calls under way at once, across every socket. The rest wait their turn. */
+  readonly maxApiConcurrency: number;
   /** Public channels one socket may follow beyond the ones its user is in. */
   readonly maxSubscriptions: number;
   /** At most `rateFrames` frames from one socket per `rateWindowMs`. */
@@ -94,6 +97,7 @@ export function loadGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
     pingIntervalMs: e.CHAT_GATEWAY_PING_INTERVAL_MS,
     maxBufferedBytes: e.CHAT_GATEWAY_MAX_BUFFERED_BYTES,
     closeTimeoutMs: e.CHAT_GATEWAY_CLOSE_TIMEOUT_MS,
+    maxApiConcurrency: e.CHAT_GATEWAY_MAX_API_CONCURRENCY,
     maxSubscriptions: e.CHAT_GATEWAY_MAX_SUBSCRIPTIONS,
     rateFrames: e.CHAT_GATEWAY_RATE_FRAMES,
     rateWindowMs: e.CHAT_GATEWAY_RATE_WINDOW_MS,
