@@ -91,6 +91,10 @@
       "forbidden": "您已无权访问这些消息。",
       "failed": "实时更新不可用。请刷新页面后重试。"
     },
+    "notification": {
+      "mentioned_in_channel": "{name} 在 #{channel} 中提到了您",
+      "mentioned_in_dm": "{name} 在私信中提到了您"
+    },
     "errors": {
       "retry": "重试",
       "load_channels_failed": "无法加载您的对话",
@@ -100,7 +104,8 @@
       "leave_failed": "无法退出频道",
       "open_dm_failed": "无法开始对话",
       "edit_failed": "无法保存编辑",
-      "remove_failed": "无法删除消息"
+      "remove_failed": "无法删除消息",
+      "message_not_found": "此消息已不可用。"
     }
   }
 }

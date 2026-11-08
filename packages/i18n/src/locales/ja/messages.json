@@ -91,6 +91,10 @@
       "forbidden": "これらのメッセージへのアクセス権がなくなりました。",
       "failed": "リアルタイム更新を利用できません。ページを再読み込みしてもう一度お試しください。"
     },
+    "notification": {
+      "mentioned_in_channel": "{name}さんが #{channel} であなたをメンションしました",
+      "mentioned_in_dm": "{name}さんがダイレクトメッセージであなたをメンションしました"
+    },
     "errors": {
       "retry": "もう一度試す",
       "load_channels_failed": "会話を読み込めませんでした",
@@ -100,7 +104,8 @@
       "leave_failed": "チャンネルから退出できませんでした",
       "open_dm_failed": "会話を開始できませんでした",
       "edit_failed": "編集内容を保存できませんでした",
-      "remove_failed": "メッセージを削除できませんでした"
+      "remove_failed": "メッセージを削除できませんでした",
+      "message_not_found": "このメッセージは利用できなくなりました。"
     }
   }
 }

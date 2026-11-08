@@ -4,11 +4,13 @@
  * See the LICENSE file for details.
  */
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
+import { useSearchParams } from "next/navigation";
 // plane imports
 import { Button } from "@makeplane/propel/components/button";
 import { Spinner } from "@plane/blocks/spinner";
+import { setToast } from "@plane/blocks/toast";
 import { useTranslation } from "@plane/i18n";
 import { renderFormattedDate } from "@plane/utils";
 // hooks
@@ -19,6 +21,8 @@ import { ChatMessageItem, ChatPendingMessageItem } from "./message-item";
 
 /** Within this many pixels of the bottom, new messages keep the list scrolled to the bottom. */
 const STICK_TO_BOTTOM_PX = 80;
+/** How long a message opened from a link stays highlighted. */
+const HIGHLIGHT_MS = 3_000;
 
 type Props = {
   workspaceSlug: string;
@@ -65,6 +69,9 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
 
   const firstId = messages[0]?.id;
   const lastId = messages[messages.length - 1]?.id;
+  const targetMessageId = useSearchParams().get("message");
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const loaded = !!state?.loaded;
   const hasMoreOlder = !!state?.hasMoreOlder;
   const loadingOlder = !!state?.loadingOlder;
 
@@ -95,6 +102,31 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     }
     anchor.current = { firstId, scrollHeight: root.scrollHeight };
   }, [firstId, lastId, messages.length, pending.length]);
+
+  // Opened from a link to one message (an inbox mention): find it, then bring it into view.
+  useEffect(() => {
+    if (!loaded || !targetMessageId) return;
+    let cancelled = false;
+    atBottom.current = false;
+    const reveal = async () => {
+      const found = await chat.revealMessage(channelId, targetMessageId);
+      if (cancelled) return;
+      if (found) setHighlightedId(targetMessageId);
+      else setToast({ type: "error", title: t("messages.errors.message_not_found") });
+    };
+    void reveal();
+    return () => {
+      cancelled = true;
+    };
+  }, [chat, channelId, loaded, targetMessageId, t]);
+
+  useEffect(() => {
+    if (!highlightedId) return;
+    // A real ID: only one the store found gets here, so it's safe in a selector.
+    scrollRef.current?.querySelector(`[data-message-id="${highlightedId}"]`)?.scrollIntoView?.({ block: "center" });
+    const timer = setTimeout(() => setHighlightedId(null), HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [highlightedId]);
 
   if (!state || (state.loading && !state.loaded)) {
     return (
@@ -147,6 +179,7 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
             message={row.message}
             workspaceSlug={workspaceSlug}
             continued={row.continued}
+            highlighted={row.message.id === highlightedId}
           />
         )
       )}

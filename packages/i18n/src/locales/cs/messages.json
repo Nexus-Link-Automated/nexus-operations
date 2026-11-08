@@ -91,6 +91,10 @@
       "forbidden": "K těmto zprávám už nemáte přístup.",
       "failed": "Živé aktualizace nejsou k dispozici. Znovu načtěte stránku a zkuste to znovu."
     },
+    "notification": {
+      "mentioned_in_channel": "{name} vás zmiňuje v #{channel}",
+      "mentioned_in_dm": "{name} vás zmiňuje v přímé zprávě"
+    },
     "errors": {
       "retry": "Zkusit znovu",
       "load_channels_failed": "Konverzace se nepodařilo načíst",
@@ -100,7 +104,8 @@
       "leave_failed": "Kanál se nepodařilo opustit",
       "open_dm_failed": "Konverzaci se nepodařilo zahájit",
       "edit_failed": "Úpravu se nepodařilo uložit",
-      "remove_failed": "Zprávu se nepodařilo smazat"
+      "remove_failed": "Zprávu se nepodařilo smazat",
+      "message_not_found": "Tato zpráva již není dostupná."
     }
   }
 }

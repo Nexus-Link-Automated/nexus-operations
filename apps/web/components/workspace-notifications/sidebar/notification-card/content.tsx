@@ -164,10 +164,10 @@ export function NotificationContent({
 }) {
   const { data, triggered_by_details: triggeredBy } = notification;
   const emphasisClassName = isUnread ? "font-semibold" : "font-medium";
-  const notificationField = data?.issue_activity.field;
-  const newValue = data?.issue_activity.new_value;
-  const oldValue = data?.issue_activity.old_value;
-  const verb = data?.issue_activity.verb;
+  const notificationField = data?.issue_activity?.field;
+  const newValue = data?.issue_activity?.new_value;
+  const oldValue = data?.issue_activity?.old_value;
+  const verb = data?.issue_activity?.verb;
 
   const fieldData: TNotificationFieldData = {
     field: notificationField,

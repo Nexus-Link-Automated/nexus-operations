@@ -91,6 +91,10 @@
       "forbidden": "Sie haben keinen Zugriff mehr auf diese Nachrichten.",
       "failed": "Live-Aktualisierungen sind nicht verfügbar. Laden Sie die Seite neu, um es erneut zu versuchen."
     },
+    "notification": {
+      "mentioned_in_channel": "{name} hat Sie in #{channel} erwähnt",
+      "mentioned_in_dm": "{name} hat Sie in einer Direktnachricht erwähnt"
+    },
     "errors": {
       "retry": "Erneut versuchen",
       "load_channels_failed": "Unterhaltungen konnten nicht geladen werden",
@@ -100,7 +104,8 @@
       "leave_failed": "Kanal konnte nicht verlassen werden",
       "open_dm_failed": "Unterhaltung konnte nicht gestartet werden",
       "edit_failed": "Änderung konnte nicht gespeichert werden",
-      "remove_failed": "Nachricht konnte nicht gelöscht werden"
+      "remove_failed": "Nachricht konnte nicht gelöscht werden",
+      "message_not_found": "Diese Nachricht ist nicht mehr verfügbar."
     }
   }
 }

@@ -27,9 +27,20 @@ export type TNotificationIssueLite = {
   state_group: string | undefined;
 };
 
+/** What an inbox entry for a chat @mention carries. A snapshot; the server hides it once access is lost. */
+export type TNotificationChatMessage = {
+  id: string;
+  channel_id: string;
+  channel_name: string | null;
+  channel_kind: "public" | "private" | "dm" | "group_dm";
+  parent_id: string | null;
+  preview: string;
+};
+
 export type TNotificationData = {
-  issue: TNotificationIssueLite | undefined;
-  issue_activity: {
+  issue?: TNotificationIssueLite;
+  chat_message?: TNotificationChatMessage;
+  issue_activity?: {
     id: string | undefined;
     actor: string | undefined;
     field: string | undefined;

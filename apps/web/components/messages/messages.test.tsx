@@ -19,6 +19,17 @@ const ADA = "user-ada";
 const mocks = vi.hoisted(() => ({
   chat: undefined as unknown as ChatStore,
   push: (() => undefined) as (href: string) => void,
+  search: "",
+  toast: vi.fn(),
+}));
+
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useSearchParams: () => new URLSearchParams(mocks.search),
+}));
+vi.mock("@plane/blocks/toast", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  setToast: (toast: unknown) => mocks.toast(toast),
 }));
 
 vi.mock("@/hooks/store/use-chat", () => ({ useChat: () => mocks.chat }));
@@ -146,6 +157,8 @@ async function started(store: ChatStore, channels: TChatChannel[]) {
   });
 }
 
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 const inRouter = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 // The test setup has no ICU formatter, so `t()` returns a template with placeholders as they are (agents' tests see
@@ -154,6 +167,8 @@ const byTemplate = (fixed: string) => (content: string) => content.includes(fixe
 
 beforeEach(() => {
   mocks.push = () => undefined;
+  mocks.search = "";
+  mocks.toast.mockClear();
 });
 
 describe("ChatUnreadCount", () => {
@@ -264,6 +279,49 @@ describe("CreateChannelDialog", () => {
 });
 
 describe("ChatMessageList", () => {
+  describe("opened from a link to one message", () => {
+    const list = async (results: TChatMessage[]) => {
+      const { store } = makeStore({
+        listMessages: async () => ({ results, has_more: false }),
+        markRead: async () => channel({}),
+      });
+      mocks.chat = store;
+      await started(store, [channel({})]);
+      await store.openChannel("c-general");
+      return render(<ChatMessageList workspaceSlug="acme" channelId="c-general" intro={null} />);
+    };
+
+    it("highlights the message and brings it into view", async () => {
+      const scrollIntoView = vi.fn();
+      // oxlint-disable-next-line no-extend-native -- jsdom doesn't implement scrollIntoView
+      Element.prototype.scrollIntoView = scrollIntoView;
+      mocks.search = "message=m2";
+      const { container } = await list([message("m1", ADA, "first", 0), message("m2", ADA, "second", 1)]);
+      await vi.waitFor(() =>
+        expect(container.querySelector('[data-message-id="m2"]')?.className).toContain("bg-accent-subtle")
+      );
+      expect(container.querySelector('[data-message-id="m1"]')?.className).not.toContain("bg-accent-subtle");
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
+      expect(mocks.toast).not.toHaveBeenCalled();
+    });
+
+    it("says so when the message can't be found", async () => {
+      mocks.search = "message=gone";
+      const { container } = await list([message("m1", ADA, "first", 0)]);
+      await vi.waitFor(() =>
+        expect(mocks.toast).toHaveBeenCalledWith({ type: "error", title: "This message is no longer available." })
+      );
+      expect(container.querySelector(".bg-accent-subtle")).toBeNull();
+    });
+
+    it("highlights nothing without a link", async () => {
+      const { container } = await list([message("m1", ADA, "first", 0)]);
+      await settle();
+      expect(container.querySelector(".bg-accent-subtle")).toBeNull();
+      expect(mocks.toast).not.toHaveBeenCalled();
+    });
+  });
+
   it("groups messages, shows a deleted message as such, and the pending ones last", async () => {
     const { store } = makeStore({
       listMessages: async () => ({

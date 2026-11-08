@@ -91,6 +91,10 @@
       "forbidden": "Artık bu mesajlara erişiminiz yok.",
       "failed": "Canlı güncellemeler kullanılamıyor. Tekrar denemek için sayfayı yeniden yükleyin."
     },
+    "notification": {
+      "mentioned_in_channel": "{name}, #{channel} kanalında sizden bahsetti",
+      "mentioned_in_dm": "{name}, doğrudan mesajda sizden bahsetti"
+    },
     "errors": {
       "retry": "Tekrar deneyin",
       "load_channels_failed": "Sohbetleriniz yüklenemedi",
@@ -100,7 +104,8 @@
       "leave_failed": "Kanaldan ayrılınamadı",
       "open_dm_failed": "Sohbet başlatılamadı",
       "edit_failed": "Düzenleme kaydedilemedi",
-      "remove_failed": "Mesaj silinemedi"
+      "remove_failed": "Mesaj silinemedi",
+      "message_not_found": "Bu mesaj artık kullanılamıyor."
     }
   }
 }

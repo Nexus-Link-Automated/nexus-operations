@@ -91,6 +91,10 @@
       "forbidden": "U hebt geen toegang meer tot deze berichten.",
       "failed": "Live-updates zijn niet beschikbaar. Laad de pagina opnieuw om het nog eens te proberen."
     },
+    "notification": {
+      "mentioned_in_channel": "{name} heeft u genoemd in #{channel}",
+      "mentioned_in_dm": "{name} heeft u genoemd in een direct bericht"
+    },
     "errors": {
       "retry": "Opnieuw proberen",
       "load_channels_failed": "Uw gesprekken konden niet worden geladen",
@@ -100,7 +104,8 @@
       "leave_failed": "Het kanaal kon niet worden verlaten",
       "open_dm_failed": "Het gesprek kon niet worden gestart",
       "edit_failed": "De wijziging kon niet worden opgeslagen",
-      "remove_failed": "Het bericht kon niet worden verwijderd"
+      "remove_failed": "Het bericht kon niet worden verwijderd",
+      "message_not_found": "Dit bericht is niet meer beschikbaar."
     }
   }
 }

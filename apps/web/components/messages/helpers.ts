@@ -89,3 +89,11 @@ export function chatErrorMessage(error: unknown): string | undefined {
   }
   return undefined;
 }
+
+/** A link to a message in its channel. A thread reply opens at its thread's first message, the one the channel shows. */
+export function chatMessagePermalink(
+  workspaceSlug: string,
+  message: { id: string; channel_id: string; parent_id: string | null }
+): string {
+  return `/${workspaceSlug}/messages/${message.channel_id}?message=${message.parent_id ?? message.id}`;
+}

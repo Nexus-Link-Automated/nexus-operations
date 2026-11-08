@@ -91,6 +91,10 @@
       "forbidden": "Non ha più accesso a questi messaggi.",
       "failed": "Gli aggiornamenti in tempo reale non sono disponibili. Ricarichi la pagina per riprovare."
     },
+    "notification": {
+      "mentioned_in_channel": "Menzione di {name} in #{channel}",
+      "mentioned_in_dm": "Menzione di {name} in un messaggio diretto"
+    },
     "errors": {
       "retry": "Riprova",
       "load_channels_failed": "Impossibile caricare le conversazioni",
@@ -100,7 +104,8 @@
       "leave_failed": "Impossibile uscire dal canale",
       "open_dm_failed": "Impossibile avviare la conversazione",
       "edit_failed": "Impossibile salvare la modifica",
-      "remove_failed": "Impossibile eliminare il messaggio"
+      "remove_failed": "Impossibile eliminare il messaggio",
+      "message_not_found": "Questo messaggio non è più disponibile."
     }
   }
 }

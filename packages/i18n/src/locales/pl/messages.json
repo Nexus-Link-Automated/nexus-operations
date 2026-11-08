@@ -91,6 +91,10 @@
       "forbidden": "Nie masz już dostępu do tych wiadomości.",
       "failed": "Aktualizacje na żywo są niedostępne. Odśwież stronę, aby spróbować ponownie."
     },
+    "notification": {
+      "mentioned_in_channel": "Wzmianka od {name} w #{channel}",
+      "mentioned_in_dm": "Wzmianka od {name} w wiadomości bezpośredniej"
+    },
     "errors": {
       "retry": "Spróbuj ponownie",
       "load_channels_failed": "Nie udało się wczytać rozmów",
@@ -100,7 +104,8 @@
       "leave_failed": "Nie udało się opuścić kanału",
       "open_dm_failed": "Nie udało się rozpocząć rozmowy",
       "edit_failed": "Nie udało się zapisać zmiany",
-      "remove_failed": "Nie udało się usunąć wiadomości"
+      "remove_failed": "Nie udało się usunąć wiadomości",
+      "message_not_found": "Ta wiadomość nie jest już dostępna."
     }
   }
 }
