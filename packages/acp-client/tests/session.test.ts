@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AgentCloseCode } from "../src/close-codes.ts";
 import {
@@ -14,7 +14,7 @@ import {
   INVALID_PARAMS,
   type AgentChatSnapshot,
 } from "../src/session.ts";
-import { modelOption, type TranscriptItem } from "../src/transcript.ts";
+import { effortOption, modelOption, type TranscriptItem } from "../src/transcript.ts";
 import { createFakeAgent, type FakeAgentOptions } from "../src/testing/fake-agent.ts";
 import { memoryTransport, type MemoryTransport } from "../src/testing/memory-transport.ts";
 
@@ -177,6 +177,49 @@ describe("AgentChatSession: prompts", () => {
     expect(session.snapshot.prompting).toBe(false);
   });
 
+  it("stops the running turn and frees the composer when a new session starts", async () => {
+    const { session, fake } = await ready();
+    const oldSessionId = session.snapshot.sessionId!;
+    const turn = session.prompt("/sleep");
+    await waitFor(session, (snapshot) => snapshot.prompting);
+
+    const newSessionId = await session.newSession();
+
+    expect(fake.log.cancelled).toEqual([oldSessionId]);
+    expect(session.snapshot.sessionId).toBe(newSessionId);
+    expect(session.snapshot.prompting).toBe(false);
+    expect(await turn).toBe("cancelled");
+    expect(session.snapshot.prompting).toBe(false);
+    expect(session.snapshot.transcript.items).toEqual([]);
+
+    expect(await session.prompt("hello")).toBe("end_turn");
+    expect(session.snapshot.prompting).toBe(false);
+  });
+
+  it("frees the composer even when the old turn is still winding down, and ignores it when it ends", async () => {
+    const { session, fake } = await ready();
+    const oldSessionId = session.snapshot.sessionId!;
+    const turn = session.prompt("/sleep");
+    const old = fake.sessions.get(oldSessionId)!;
+    await vi.waitFor(() => expect(old.cancel).toBeDefined());
+    const finishOldTurn = old.cancel!;
+    old.cancel = () => undefined;
+
+    await session.newSession();
+    expect(fake.log.cancelled).toEqual([oldSessionId]);
+    expect(session.snapshot.prompting).toBe(false);
+
+    const next = session.prompt("/sleep");
+    expect(session.snapshot.prompting).toBe(true);
+    finishOldTurn();
+    await turn;
+    expect(session.snapshot.prompting).toBe(true);
+
+    await session.cancel();
+    await next;
+    expect(session.snapshot.prompting).toBe(false);
+  });
+
   it("marks a failed turn and rethrows the agent's error", async () => {
     const { session } = await ready();
     await expect(session.prompt("/fail")).rejects.toMatchObject({ code: -32603 });
@@ -206,6 +249,59 @@ describe("AgentChatSession: modes and models", () => {
     await session.setModel("smart");
     const option = modelOption(session.snapshot.transcript);
     expect(option?.type === "select" && option.currentValue).toBe("smart");
+  });
+
+  it("changes the effort through the thought_level option, which only models that take one have", async () => {
+    const { session } = await ready();
+    expect(effortOption(session.snapshot.transcript)).toBeUndefined();
+    await expect(session.setEffort("high")).rejects.toMatchObject({ code: INVALID_PARAMS });
+    await session.setModel("smart");
+    expect(effortOption(session.snapshot.transcript)?.currentValue).toBe("medium");
+    await session.setEffort("high");
+    expect(effortOption(session.snapshot.transcript)?.currentValue).toBe("high");
+  });
+
+  it("reloads on the same model and effort after a 4410, and keeps them through a failed load", async () => {
+    const { session, fake, current } = await ready();
+    await session.setModel("smart");
+    await session.setEffort("high");
+    current().closeWith(AgentCloseCode.sessionExpired);
+    await waitFor(session, (snapshot) => snapshot.status === "reconnecting");
+    await waitFor(session, (snapshot) => snapshot.status === "ready");
+    expect(fake.log.loadRequests.at(-1)?._meta).toEqual({
+      "plane/initialModel": "smart",
+      "plane/initialEffort": "high",
+    });
+    expect(effortOption(session.snapshot.transcript)?.currentValue).toBe("high");
+
+    // A failed load empties the transcript, but not the choices a new chat starts on.
+    await expect(session.loadSession("missing")).rejects.toBeInstanceOf(AgentRequestError);
+    expect(modelOption(session.snapshot.transcript)).toBeUndefined();
+    expect(session.choices).toEqual({ initialModel: "smart", initialEffort: "high" });
+    await session.newSession(session.choices);
+    expect(effortOption(session.snapshot.transcript)?.currentValue).toBe("high");
+  });
+
+  it("starts a session on the requested model and effort, and keeps them across a reconnect", async () => {
+    const { session, fake, current } = await ready({ loadSession: false });
+    await session.newSession({ initialModeId: "ask_all", initialModel: "smart", initialEffort: "low" });
+    expect(fake.log.newSession.at(-1)?._meta).toEqual({
+      "plane/initialModeId": "ask_all",
+      "plane/initialModel": "smart",
+      "plane/initialEffort": "low",
+    });
+    expect(modelOption(session.snapshot.transcript)?.currentValue).toBe("smart");
+    expect(effortOption(session.snapshot.transcript)?.currentValue).toBe("low");
+
+    current().closeWith(AgentCloseCode.agentUnavailable);
+    await waitFor(session, (snapshot) => snapshot.status === "closed");
+    expect(await session.reconnect()).toEqual({ resumed: false });
+    expect(fake.log.newSession.at(-1)?._meta).toEqual({
+      "plane/initialModeId": "ask_all",
+      "plane/initialModel": "smart",
+      "plane/initialEffort": "low",
+    });
+    expect(effortOption(session.snapshot.transcript)?.currentValue).toBe("low");
   });
 });
 

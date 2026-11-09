@@ -199,6 +199,9 @@ export class AgentBridge {
     }
 
     this.#wss.handleUpgrade(req, socket, head, (ws) => {
+      // `ws` reports a bad frame as an `error` event, which ends the process if nothing listens. This
+      // listener has to stay for the socket's whole life: the SDK drops its own when a session closes.
+      ws.on("error", (error) => this.#log.warn("agent-bridge: websocket error", { error: error.message }));
       if (!admission.ok) {
         ws.close(admission.code, admission.reason);
         return;

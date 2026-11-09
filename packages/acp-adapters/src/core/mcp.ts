@@ -4,7 +4,13 @@
  * See the LICENSE file for details.
  */
 
+import { randomUUID } from "node:crypto";
+import { writeFileSync } from "node:fs";
+import path from "node:path";
+
 import type { McpServer } from "@agentclientprotocol/sdk";
+
+import { ensurePrivateDir } from "./auth.ts";
 
 /**
  * Converters from ACP `mcpServers` entries to each provider's format. Headers and env values carry
@@ -26,6 +32,17 @@ export function toClaudeMcpServers(servers: readonly McpServer[]): Record<string
     }
   }
   return out;
+}
+
+/**
+ * Write a Claude Code MCP config to a new file only its owner can read and return its path, for
+ * `--mcp-config`. The Agent SDK's `mcpServers` option puts the JSON itself on the command line,
+ * which any process on the machine can read.
+ */
+export function writeClaudeMcpConfig(servers: Record<string, ClaudeMcpServer>, home: string): string {
+  const file = path.join(ensurePrivateDir(path.join(home, ".plane-acp")), `mcp-${randomUUID()}.json`);
+  writeFileSync(file, JSON.stringify({ mcpServers: servers }), { mode: 0o600, flag: "wx" });
+  return file;
 }
 
 /** One `mcp_servers.<name>` table of Codex's config, passed as a `thread/start` config override. */

@@ -26,7 +26,8 @@ const MODE_DESCRIPTIONS: Record<PermissionModeId, { name: string; description: s
   ask_all: { name: "Ask every time", description: "Ask before every tool call, including reads." },
   ask_writes: {
     name: "Ask before changes",
-    description: "Reads, search and web fetches run freely; shell commands, file writes and Plane changes ask first.",
+    description:
+      "Reads and searches in the working directory run freely; reads elsewhere, web fetches, shell commands, file writes and Plane changes ask first.",
   },
   yolo: { name: "Never ask", description: "Run every tool without asking." },
 };
@@ -57,6 +58,8 @@ export function initialModeId(meta: unknown, env: NodeJS.ProcessEnv): Permission
 export type ToolCategory =
   | "read"
   | "search"
+  /** A read or search outside the session's working directory. */
+  | "read_outside"
   | "fetch"
   | "think"
   | "execute"
@@ -67,7 +70,7 @@ export type ToolCategory =
   | "mcp_write"
   | "other";
 
-const FREE_IN_ASK_WRITES: ReadonlySet<ToolCategory> = new Set(["read", "search", "fetch", "think", "mcp_read"]);
+const FREE_IN_ASK_WRITES: ReadonlySet<ToolCategory> = new Set(["read", "search", "think", "mcp_read"]);
 
 /** The mode gate: does this category need a `session/request_permission` round trip in `mode`? */
 export function requiresPermission(mode: PermissionModeId, category: ToolCategory): boolean {
@@ -79,6 +82,7 @@ export function requiresPermission(mode: PermissionModeId, category: ToolCategor
 export function toolKindForCategory(category: ToolCategory): ToolKind {
   switch (category) {
     case "read":
+    case "read_outside":
     case "mcp_read":
       return "read";
     case "search":

@@ -90,7 +90,7 @@ describe("events that arrive while a socket is still being set up", () => {
     expect(ada.of("ready")).toEqual([]);
   });
 
-  it("don't reach a socket that has left", async () => {
+  it("leave nothing behind when the socket goes away during setup", async () => {
     h = await startHarness();
     h.api.addChannel({ members: [ADA.id] });
     h.api.delayPaths.set(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`, 150);
@@ -101,6 +101,18 @@ describe("events that arrive while a socket is still being set up", () => {
     await settle(250);
     expect((await h.http("/chat/health")).body).toMatchObject({ workspaces: 0, connections: 0 });
     expect(h.memory!.subscribed.size).toBe(0);
+  });
+});
+
+describe("how hard it leans on the API", () => {
+  it("never asks it more than a limited number of things at once", async () => {
+    h = await startHarness({ config: { maxApiConcurrency: 3, maxConnectionsPerUser: 20, maxConnections: 20 } });
+    h.api.addChannel({ members: [ADA.id] });
+    h.api.delayMs = 40;
+    const clients = Array.from({ length: 12 }, () => h!.connect({ cookie: ADA.cookie }));
+    await Promise.all(clients.map((client) => client.next("ready", 15_000)));
+    expect(h.api.peakInFlight).toBeLessThanOrEqual(3);
+    expect(h.gateway.connectionCount).toBe(12);
   });
 });
 
