@@ -74,7 +74,10 @@ describe("process and file size limits", () => {
       spawner: (command, args, options: SpawnOptions) => {
         calls.push([command, args]);
         const { uid: _uid, gid: _gid, ...rest } = options;
-        return spawn(command, args, rest);
+        // Only the command line is under test. Really applying --nproc counts everything this user is already
+        // running, so on a busy machine the agent couldn't start.
+        const [agent, ...agentArgs] = args.slice(args.indexOf("--") + 1);
+        return spawn(agent!, agentArgs, rest);
       },
     });
     runner = started.runner;
