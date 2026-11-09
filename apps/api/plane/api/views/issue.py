@@ -42,7 +42,7 @@ from drf_spectacular.utils import (
 )
 
 # Module imports
-from plane.nexus.pql import PQLError, apply_pql
+from plane.nexus.pql import PQLError, apply_pql, pql_statement_timeout
 from plane.api.serializers import (
     IssueAttachmentSerializer,
     IssueActivitySerializer,
@@ -383,6 +383,7 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
             404: PROJECT_NOT_FOUND_RESPONSE,
         },
     )
+    @pql_statement_timeout
     def get(self, request, slug, project_id):
         """List work items
 

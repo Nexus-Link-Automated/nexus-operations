@@ -154,7 +154,7 @@ def validate_next_path(next_path: str) -> str:
     return next_path
 
 
-def get_safe_redirect_url(base_url: str, next_path: str = "", params: dict = {}) -> str:
+def get_safe_redirect_url(base_url: str, next_path: str = "", params: dict | None = None) -> str:
     """
     Safely construct a redirect URL with validated next_path.
 

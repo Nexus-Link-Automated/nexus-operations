@@ -257,7 +257,8 @@ class WorkspaceJoinEndpoint(BaseAPIView):
 
 
 class UserWorkspaceInvitationsViewSet(BaseViewSet):
-    serializer_class = WorkSpaceMemberInviteSerializer
+    # The acceptance token is only delivered in the invitation email.
+    serializer_class = WorkSpaceMemberInvitePublicSerializer
     model = WorkspaceMemberInvite
 
     def get_queryset(self):
@@ -275,6 +276,15 @@ class UserWorkspaceInvitationsViewSet(BaseViewSet):
     @invalidate_cache(path="/api/workspaces/", user=False)
     @invalidate_cache(path="/api/users/me/workspaces/", multiple=True)
     def create(self, request):
+        # A matching account email does not show the user controls that address.
+        # Without a verified email, the link in the invitation email is the way
+        # to accept (WorkspaceJoinEndpoint).
+        if not request.user.is_email_verified:
+            return Response(
+                {"error": "Verify your email address to accept workspace invitations"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         invitations = request.data.get("invitations", [])
         workspace_invitations = WorkspaceMemberInvite.objects.filter(
             pk__in=invitations, email=request.user.email

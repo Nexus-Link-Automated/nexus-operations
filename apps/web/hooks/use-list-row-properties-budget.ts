@@ -12,12 +12,12 @@ import { useLayoutEffect, useState } from "react";
 const TITLE_MIN_WIDTH_PX = 240;
 /** `gap-0.5` between the leading group (checkbox, identifier, chevron) and the title. */
 const LEADING_GAP_PX = 2;
-/** `gap-3` between the title side and the properties side of the row. */
+/** `gap-x-2` plus the title side's `mr-1` between the title side and the properties side of the row. */
 const ROW_GAP_PX = 12;
-/** `gap-2` between the properties and the quick actions. */
+/** `gap-x-2` between the properties and the quick actions. */
 const QUICK_ACTIONS_GAP_PX = 8;
 
-/** Breakpoints at which the row switches from stacked to single-line (`md:flex-row` / `lg:flex-row`). */
+/** Breakpoints at which the row switches from stacked to single-line (`md:flex-nowrap` / `lg:flex-nowrap`). */
 const SINGLE_LINE_QUERY = {
   md: "(min-width: 768px)",
   lg: "(min-width: 1024px)",

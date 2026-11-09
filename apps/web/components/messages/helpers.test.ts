@@ -57,6 +57,15 @@ describe("buildMessageRows", () => {
     ]);
   });
 
+  it("starts a new block at midnight, and at exactly five minutes", () => {
+    const rows = buildMessageRows([
+      message("1", "ada", at(5, 23, 59)),
+      message("2", "ada", at(6, 0, 1)),
+      message("3", "ada", at(6, 0, 6)),
+    ]);
+    expect(rows.flatMap((r) => (r.kind === "message" ? [r.continued] : []))).toEqual([false, false, false]);
+  });
+
   it("never groups across a removed message", () => {
     const rows = buildMessageRows([
       message("1", "ada", at(5, 9, 0)),

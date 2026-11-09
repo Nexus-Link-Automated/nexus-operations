@@ -3,10 +3,27 @@
     "title": "Agenten",
     "picker": {
       "label": "Agent",
-      "placeholder": "Agenten auswählen"
+      "trigger_label": "Agent und Modell: {selection}",
+      "switch_hint": "Beim Wechseln des Agenten wird ein neuer Chat gestartet.",
+      "unavailable": "Noch kein API-Schlüssel",
+      "manage_providers": "KI-Anbieter verwalten"
     },
     "model": {
       "label": "Modell"
+    },
+    "effort": {
+      "label": "Denkaufwand",
+      "trigger_label": "Denkaufwand: {level}",
+      "hint": "Gilt ab Ihrer nächsten Nachricht.",
+      "levels": {
+        "none": "Keiner",
+        "minimal": "Minimal",
+        "low": "Niedrig",
+        "medium": "Mittel",
+        "high": "Hoch",
+        "xhigh": "Sehr hoch",
+        "max": "Maximal"
+      }
     },
     "permission": {
       "label": "Berechtigungsstufe",
@@ -17,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Vor Änderungen fragen",
-          "description": "Lesezugriffe, Suchen und Webabrufe laufen ohne Nachfrage. Bei Shell-Befehlen, Dateiänderungen und Änderungen in Plane wird zuerst nachgefragt."
+          "description": "Lesezugriffe und Suchen im Arbeitsverzeichnis laufen ohne Nachfrage. Bei Lesezugriffen an anderen Orten, Webabrufen, Shell-Befehlen, Dateiänderungen und Änderungen in Plane wird zuerst nachgefragt."
         },
         "yolo": {
           "name": "Nie fragen",
@@ -93,6 +110,9 @@
       "title": "Diese Aktion zulassen?",
       "allow_once": "Einmal zulassen",
       "allow_always": "In diesem Chat immer zulassen",
+      "allow_always_command": "Genau diesen Befehl in diesem Chat immer zulassen",
+      "allow_always_file": "Änderungen an dieser Datei in diesem Chat immer zulassen",
+      "allow_always_tool": "Dieses Tool in diesem Chat immer zulassen",
       "reject_once": "Ablehnen",
       "reject_always": "Immer ablehnen"
     },
@@ -131,6 +151,7 @@
         "prompt": "Der Agent konnte diese Nachricht nicht beantworten.",
         "set_mode": "Die Berechtigungsstufe konnte nicht geändert werden.",
         "set_model": "Das Modell konnte nicht geändert werden.",
+        "set_effort": "Der Denkaufwand konnte nicht geändert werden.",
         "reconnect": "Die Verbindung konnte nicht wiederhergestellt werden."
       },
       "retry": "Erneut versuchen"
@@ -165,12 +186,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "Anmeldedaten und Einstellungen",
+        "model_help": "Mitglieder können im Chat das Modell wechseln.",
+        "model_default": "Standard des Anbieters",
+        "model_custom": "Benutzerdefinierte Modell-ID",
+        "model_custom_id": "Modell-ID",
+        "model_custom_id_help": "Die Modell-ID genau so, wie der Anbieter sie angibt.",
+        "fallback_credentials": "Ersatz-Anmeldedaten",
+        "fallback_credentials_summary": "Nur verwendet, wenn weder das Mitglied noch der Arbeitsbereich in den Einstellungen der KI-Anbieter einen Schlüssel hinterlegt hat.",
+        "fallback_saved": "{count, plural, one{# gespeichert} other{# gespeichert}}",
         "credentials_help": "Werte können nur geschrieben werden. Gespeicherte Werte bleiben verborgen; ersetzen Sie einen Wert, um ihn zu ändern.",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "Anthropic-API-Schlüssel",
-            "help": "Alternativ ein OAuth-Token für Claude Code verwenden."
+            "help": "Wird verwendet, wenn weder das Mitglied noch der Arbeitsbereich einen Anthropic-Schlüssel hat. Alternativ ein OAuth-Token für Claude Code verwenden."
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "OAuth-Token für Claude Code",
@@ -189,8 +217,11 @@
             "help": "Optional. Standardwert: https://api.deepseek.com."
           },
           "PLANE_AGENT_MODEL": {
-            "label": "Standardmodell",
-            "help": "Optionale Modell-ID, z. B. claude-opus-5-5. Mitglieder können im Chat das Modell wechseln."
+            "label": "Standardmodell"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "Standard-Denkaufwand",
+            "help": "Optional, z. B. high. Wird verwendet, wenn das Modell diese Stufe unterstützt. Mitglieder können ihn im Chat wechseln."
           },
           "GEMINI_API_KEY": {
             "label": "Gemini-API-Schlüssel",
@@ -221,7 +252,6 @@
           "required": "Dieses Feld ist erforderlich.",
           "slug": "Nur Kleinbuchstaben, Ziffern und Bindestriche verwenden.",
           "default_above_max": "Die Standardstufe darf nicht über der maximalen Stufe liegen.",
-          "claude_auth": "Anthropic-API-Schlüssel oder OAuth-Token für Claude Code eingeben.",
           "deepseek_auth": "DeepSeek-API-Schlüssel eingeben."
         },
         "cancel": "Abbrechen",
@@ -249,7 +279,6 @@
       "unread": "{name} öffnen (neue Aktivität)",
       "minimize": "Minimieren",
       "open_page": "Als ganze Seite öffnen",
-      "agent_menu_label": "Agent wechseln, aktuell {agent}",
       "greeting": "Hallo, ich bin {name}",
       "suggestions": {
         "assigned_to_me": "Was ist mir zugewiesen?",
@@ -364,7 +393,8 @@
         "connected": "Angemeldet als {email}.",
         "connected_unknown": "Angemeldet.",
         "disconnected": "Konto getrennt.",
-        "disconnect_failed": "Das Konto konnte nicht getrennt werden."
+        "disconnect_failed": "Das Konto konnte nicht getrennt werden.",
+        "sign_in_lost": "Ihre Anmeldung bei {vendor} ist nicht mehr gültig. Melden Sie sich erneut an."
       }
     }
   }

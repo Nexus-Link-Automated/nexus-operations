@@ -413,6 +413,14 @@
           "message": "Algo salió mal."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Retirar la publicación del proyecto",
+        "content": "El enlace público actual dejará de funcionar. Al volver a publicar este proyecto se creará un enlace nuevo y el enlace actual no volverá a funcionar.",
+        "confirm": "Retirar publicación",
+        "confirming": "Retirando publicación"
+      }
     }
   }
 }

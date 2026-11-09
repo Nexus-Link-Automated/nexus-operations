@@ -14,6 +14,12 @@ class Item(BaseModel):
     name: str = ""
 
 
+class WorkItem(BaseModel):
+    id: str
+    description_binary: str | None = None
+    state: str | None = None
+
+
 class Page:
     """A response carrying a complete pagination envelope."""
 
@@ -53,6 +59,19 @@ def test_none_and_empty_pages_are_empty_lists():
 def test_plain_dicts_survive_both_paths(fields):
     """The `hasattr` guard protected only the no-fields branch, so this raised."""
     assert dump_results([{"id": "a", "name": "n"}], fields) == [{"id": "a", "name": "n"}]
+
+
+def test_nulls_and_editor_state_are_left_out_of_a_listing():
+    assert dump_results([WorkItem(id="a", description_binary="AAECAw==")], None) == [{"id": "a"}]
+
+
+def test_a_sparse_fieldset_cannot_bring_editor_state_back():
+    item = WorkItem(id="a", description_binary="AAECAw==", state="s-1")
+    assert dump_results([item], "description_binary,state") == [{"state": "s-1"}]
+
+
+def test_plain_dict_records_are_trimmed_the_same_way():
+    assert dump_results([{"id": "a", "state": None, "description_binary": "AA=="}], None) == [{"id": "a"}]
 
 
 def test_a_complete_page_keeps_every_envelope_field():

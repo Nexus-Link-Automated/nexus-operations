@@ -112,9 +112,12 @@ export function InstanceEmailForm(props: IInstanceEmailForm) {
     const payload: Partial<EmailFormValues> = { ...formData, ENABLE_SMTP: "1" };
 
     try {
-      await updateInstanceConfigurations(payload);
+      const response = await updateInstanceConfigurations(payload);
       // the saved values become the new baseline, so Save disables again until the next edit
-      reset(payload);
+      reset({
+        ...payload,
+        EMAIL_HOST_PASSWORD: response.find((item) => item.key === "EMAIL_HOST_PASSWORD")?.value ?? "",
+      });
       setToast({
         type: "success",
         title: "Success",

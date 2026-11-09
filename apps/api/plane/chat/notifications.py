@@ -14,6 +14,7 @@ disappears once its message is removed or its receiver can no longer see the cha
 
 import uuid
 
+from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 
 from plane.bgtasks.notification_task import get_new_comment_mentions
@@ -107,7 +108,9 @@ def _notify(message, previous_html):
 def notify_mentions(message, previous_html=None):
     """Add an inbox entry for everyone newly mentioned in `message`. The message is already saved, so never raises."""
     try:
-        _notify(message, previous_html)
+        # A savepoint: callers may be inside a transaction, which a failed query here would otherwise abort.
+        with transaction.atomic():
+            _notify(message, previous_html)
     except Exception as error:
         log_exception(error)
 
@@ -115,7 +118,8 @@ def notify_mentions(message, previous_html=None):
 def refresh_mention_previews(message):
     """Keep inbox entries in step with an edit or a removal, so text its author took back doesn't linger there."""
     try:
-        _entries(message).update(data=_data(message))
+        with transaction.atomic():
+            _entries(message).update(data=_data(message))
     except Exception as error:
         log_exception(error)
 

@@ -315,8 +315,8 @@ class ModuleArchiveUnarchiveEndpoint(BaseAPIView):
                 estimate__type="points",
             ).exists()
 
-            data = ModuleDetailSerializer(queryset.first()).data
             modules = queryset.first()
+            data = ModuleDetailSerializer(modules).data
 
             data["estimate_distribution"] = {}
 

@@ -8,7 +8,16 @@ from fastmcp import FastMCP
 from plane.models.work_items import PaginatedWorkItemActivityResponse, WorkItemActivity
 
 from plane_mcp.client import get_plane_client_context
-from plane_mcp.toolkit import Action, build_annotations, build_description, envelope, missing, needs, page_params
+from plane_mcp.toolkit import (
+    DEFAULT_PAGE_SIZE,
+    Action,
+    build_annotations,
+    build_description,
+    envelope,
+    missing,
+    needs,
+    page_params,
+)
 
 NAME = "workitem_activity"
 TITLE = "Work item activity"
@@ -48,7 +57,7 @@ def register(mcp: FastMCP) -> None:
                 workspace_slug=workspace_slug,
                 project_id=project_id,
                 work_item_id=workitem_id,
-                params=page_params(cursor, per_page),
+                params=page_params(cursor, per_page or DEFAULT_PAGE_SIZE),
             )
             return envelope(response)
 

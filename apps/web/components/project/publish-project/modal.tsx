@@ -13,7 +13,9 @@ import { Controller, useForm } from "react-hook-form";
 import { SPACE_BASE_PATH, SPACE_BASE_URL } from "@plane/constants";
 import { Button } from "@makeplane/propel/components/button";
 import { GlobeOutline, NewTabOutline } from "@makeplane/propel/icons";
+import { ConfirmDialog } from "@plane/blocks/dialog";
 import { setToast } from "@plane/blocks/toast";
+import { useTranslation } from "@plane/i18n";
 import type { TProjectPublishLayouts, TProjectPublishSettings } from "@plane/types";
 // ui
 import { Switch } from "@makeplane/propel/components/switch";
@@ -67,8 +69,11 @@ export const PublishProjectModal = observer(function PublishProjectModal(props: 
   const { isOpen, onClose, projectId } = props;
   // states
   const [isUnPublishing, setIsUnPublishing] = useState(false);
+  const [isUnPublishConfirmOpen, setIsUnPublishConfirmOpen] = useState(false);
   // router
   const { workspaceSlug } = useParams();
+  // plane hooks
+  const { t } = useTranslation();
   // store hooks
   const {
     fetchPublishSettings,
@@ -131,6 +136,7 @@ export const PublishProjectModal = observer(function PublishProjectModal(props: 
     setIsUnPublishing(true);
 
     await unPublishProject(workspaceSlug.toString(), projectId, publishId)
+      .then(() => setIsUnPublishConfirmOpen(false))
       .catch(() =>
         setToast({
           type: "error",
@@ -215,7 +221,7 @@ export const PublishProjectModal = observer(function PublishProjectModal(props: 
                     size="md"
                     stretch="auto"
                     label={isUnPublishing ? "Unpublishing" : "Unpublish"}
-                    onClick={() => void handleUnPublishProject(watch("id") ?? "")}
+                    onClick={() => setIsUnPublishConfirmOpen(true)}
                     loading={isUnPublishing}
                   />
                 )}
@@ -384,6 +390,19 @@ export const PublishProjectModal = observer(function PublishProjectModal(props: 
             )}
           </DialogActions>
         </form>
+        {/* Nested in the content so the publish modal stays open behind it; outside the form so it cannot submit it. */}
+        <ConfirmDialog
+          isOpen={isUnPublishConfirmOpen}
+          title={t("project.publish.unpublish_dialog.title")}
+          content={t("project.publish.unpublish_dialog.content")}
+          handleClose={() => setIsUnPublishConfirmOpen(false)}
+          handleSubmit={() => handleUnPublishProject(watch("id") ?? "")}
+          isSubmitting={isUnPublishing}
+          primaryButtonText={{
+            default: t("project.publish.unpublish_dialog.confirm"),
+            loading: t("project.publish.unpublish_dialog.confirming"),
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

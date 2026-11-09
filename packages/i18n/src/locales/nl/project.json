@@ -413,6 +413,14 @@
           "message": "Er is iets misgegaan."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Projectpublicatie intrekken",
+        "content": "De huidige openbare koppeling werkt dan niet meer. Als je dit project opnieuw publiceert, wordt er een nieuwe koppeling gemaakt en blijft de huidige koppeling buiten werking.",
+        "confirm": "Publicatie intrekken",
+        "confirming": "Publicatie wordt ingetrokken"
+      }
     }
   }
 }

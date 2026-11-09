@@ -3,10 +3,27 @@
     "title": "에이전트",
     "picker": {
       "label": "에이전트",
-      "placeholder": "에이전트 선택"
+      "trigger_label": "에이전트 및 모델: {selection}",
+      "switch_hint": "에이전트를 전환하면 새 채팅이 시작됩니다.",
+      "unavailable": "아직 API 키 없음",
+      "manage_providers": "AI 공급자 관리"
     },
     "model": {
       "label": "모델"
+    },
+    "effort": {
+      "label": "추론 수준",
+      "trigger_label": "추론 수준: {level}",
+      "hint": "다음 메시지부터 적용됩니다.",
+      "levels": {
+        "none": "없음",
+        "minimal": "최소",
+        "low": "낮음",
+        "medium": "중간",
+        "high": "높음",
+        "xhigh": "매우 높음",
+        "max": "최대"
+      }
     },
     "permission": {
       "label": "권한 수준",
@@ -17,7 +34,7 @@
         },
         "ask_writes": {
           "name": "변경 전 확인",
-          "description": "읽기, 검색, 웹 가져오기는 확인 없이 실행됩니다. 셸 명령, 파일 변경, Plane 변경은 먼저 확인합니다."
+          "description": "작업 디렉터리 안의 읽기와 검색은 확인 없이 실행됩니다. 다른 위치 읽기, 웹 가져오기, 셸 명령, 파일 변경, Plane 변경은 먼저 확인합니다."
         },
         "yolo": {
           "name": "확인 안 함",
@@ -93,6 +110,9 @@
       "title": "이 작업을 허용하시겠습니까?",
       "allow_once": "한 번 허용",
       "allow_always": "이 채팅에서 항상 허용",
+      "allow_always_command": "이 채팅에서 정확히 이 명령을 항상 허용",
+      "allow_always_file": "이 채팅에서 이 파일 편집을 항상 허용",
+      "allow_always_tool": "이 채팅에서 이 도구를 항상 허용",
       "reject_once": "거부",
       "reject_always": "항상 거부"
     },
@@ -131,6 +151,7 @@
         "prompt": "에이전트가 해당 메시지에 답변할 수 없습니다.",
         "set_mode": "권한 수준을 변경할 수 없습니다.",
         "set_model": "모델을 변경할 수 없습니다.",
+        "set_effort": "추론 수준을 변경할 수 없습니다.",
         "reconnect": "다시 연결할 수 없습니다."
       },
       "retry": "다시 시도"
@@ -165,12 +186,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "자격 증명 및 설정",
+        "model_help": "멤버는 채팅에서 모델을 전환할 수 있습니다.",
+        "model_default": "공급자 기본값",
+        "model_custom": "사용자 지정 모델 ID",
+        "model_custom_id": "모델 ID",
+        "model_custom_id_help": "공급자가 지정한 그대로의 모델 ID입니다.",
+        "fallback_credentials": "대체 자격 증명",
+        "fallback_credentials_summary": "멤버와 워크스페이스 모두 AI 공급자 설정에 키를 추가하지 않은 경우에만 사용됩니다.",
+        "fallback_saved": "{count, plural, one{#개 저장됨} other{#개 저장됨}}",
         "credentials_help": "값은 쓰기 전용입니다. 저장된 값은 표시되지 않으며, 변경하려면 값을 새로 입력하세요.",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "Anthropic API 키",
-            "help": "또는 Claude Code OAuth 토큰을 대신 사용할 수 있습니다."
+            "help": "멤버와 워크스페이스 모두 Anthropic 키가 없는 경우에 사용됩니다. 또는 Claude Code OAuth 토큰을 대신 사용할 수 있습니다."
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "Claude Code OAuth 토큰",
@@ -189,8 +217,11 @@
             "help": "선택 사항입니다. 기본값은 https://api.deepseek.com입니다."
           },
           "PLANE_AGENT_MODEL": {
-            "label": "기본 모델",
-            "help": "선택 사항인 모델 ID입니다(예: claude-opus-5-5). 멤버는 채팅에서 모델을 전환할 수 있습니다."
+            "label": "기본 모델"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "기본 추론 수준",
+            "help": "선택 사항입니다(예: high). 모델이 해당 수준을 지원할 때 사용됩니다. 멤버는 채팅에서 전환할 수 있습니다."
           },
           "GEMINI_API_KEY": {
             "label": "Gemini API 키",
@@ -221,7 +252,6 @@
           "required": "필수 입력 항목입니다.",
           "slug": "영문 소문자, 숫자, 하이픈을 사용하세요.",
           "default_above_max": "기본 수준은 최대 수준보다 높을 수 없습니다.",
-          "claude_auth": "Anthropic API 키 또는 Claude Code OAuth 토큰을 입력하세요.",
           "deepseek_auth": "DeepSeek API 키를 입력하세요."
         },
         "cancel": "취소",
@@ -249,7 +279,6 @@
       "unread": "{name} 열기(새 활동)",
       "minimize": "최소화",
       "open_page": "전체 페이지로 열기",
-      "agent_menu_label": "에이전트 전환(현재: {agent})",
       "greeting": "안녕하세요, {name}입니다",
       "suggestions": {
         "assigned_to_me": "나에게 할당된 항목은 무엇인가요?",
@@ -364,7 +393,8 @@
         "connected": "{email}(으)로 로그인했습니다.",
         "connected_unknown": "로그인했습니다.",
         "disconnected": "계정 연결이 해제되었습니다.",
-        "disconnect_failed": "계정 연결을 해제할 수 없습니다."
+        "disconnect_failed": "계정 연결을 해제할 수 없습니다.",
+        "sign_in_lost": "{vendor} 로그인이 더 이상 유효하지 않습니다. 다시 로그인하세요."
       }
     }
   }

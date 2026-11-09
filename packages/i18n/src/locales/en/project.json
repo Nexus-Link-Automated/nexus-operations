@@ -413,6 +413,14 @@
           "message": "Something went wrong."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Unpublish project",
+        "content": "The current public link will stop working. Publishing this project again creates a new link, and the current link will not work again.",
+        "confirm": "Unpublish",
+        "confirming": "Unpublishing"
+      }
     }
   }
 }

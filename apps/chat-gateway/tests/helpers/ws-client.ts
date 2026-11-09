@@ -5,7 +5,7 @@
  */
 
 /* oxlint-disable no-await-in-loop -- polling */
-import { WebSocket } from "ws";
+import { WebSocket, type ClientOptions } from "ws";
 
 export type Frame = Record<string, unknown> & { type?: string };
 
@@ -19,8 +19,8 @@ export class ChatClient {
   readonly opened: Promise<void>;
   readonly socket: WebSocket;
 
-  constructor(url: string, headers: Record<string, string>) {
-    this.socket = new WebSocket(url, { headers });
+  constructor(url: string, headers: Record<string, string>, options: ClientOptions = {}) {
+    this.socket = new WebSocket(url, { headers, ...options });
     this.socket.on("message", (data) => this.frames.push(JSON.parse(String(data)) as Frame));
     this.socket.on("close", (code, reason) => {
       this.closeCode = code;

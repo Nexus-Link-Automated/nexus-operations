@@ -413,6 +413,14 @@
           "message": "出了些问题。"
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "停止发布项目",
+        "content": "当前的公开链接将失效。再次发布此项目时会创建新链接，当前链接不会恢复。",
+        "confirm": "停止发布",
+        "confirming": "正在停止发布"
+      }
     }
   }
 }

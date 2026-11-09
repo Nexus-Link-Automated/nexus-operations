@@ -36,7 +36,7 @@ from plane.nexus.models import (
     ReleaseTag,
     ReleaseWorkItem,
 )
-from plane.nexus.pql import PQLError, apply_pql
+from plane.nexus.pql import PQLError, apply_pql, pql_statement_timeout
 from plane.nexus.serializers.release import (
     InitiativeSerializer,
     MilestoneSerializer,
@@ -213,6 +213,7 @@ class ReleaseChangelogAPIEndpoint(_ReleaseBase):
 
 
 class ReleaseWorkItemAPIEndpoint(_ReleaseBase):
+    @pql_statement_timeout
     def get(self, request, slug, release_id):
         release = self.get_release(release_id)
         issues = self.visible_issues().filter(release_work_items__release=release)
@@ -388,6 +389,7 @@ class MilestoneDetailAPIEndpoint(_MilestoneBase):
 
 
 class MilestoneWorkItemAPIEndpoint(_MilestoneBase):
+    @pql_statement_timeout
     def get(self, request, slug, project_id, milestone_id):
         milestone = self.get_milestone(milestone_id)
         try:
@@ -508,6 +510,7 @@ class InitiativeProjectAPIEndpoint(_InitiativeBase):
 
 
 class InitiativeWorkItemAPIEndpoint(_InitiativeBase):
+    @pql_statement_timeout
     def get(self, request, slug, initiative_id):
         initiative = self.get_initiative(initiative_id)
         issues = self.visible_issues().filter(nexus_initiative_links__initiative=initiative)

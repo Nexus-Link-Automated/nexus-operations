@@ -10,7 +10,8 @@ import { z } from "zod";
  * The events Django publishes to Redis (`plane/chat/events.py` is the other half of this contract).
  *
  * IDs only, never message bodies: the browser fetches what it needs over REST, where permissions are enforced.
- * An event never grants anyone anything; the gateway decides who sees it from what the API told it.
+ * Who sees an event is decided from what the API told the gateway, and from `member.*` events about the user
+ * themselves, which Django publishes only after the change has committed.
  */
 export const EVENT_TYPES = [
   "message.created",
@@ -50,8 +51,12 @@ export const chatEventSchema = z.object({
 
 export type ChatEvent = z.infer<typeof chatEventSchema>;
 
+/** Far more than an event of IDs can be; anything bigger is not one, and is not passed on to every socket. */
+const MAX_EVENT_CHARS = 4 * 1024;
+
 /** The event in a Redis message, or `undefined` if it isn't one (a type this gateway doesn't know, or garbage). */
 export function parseEvent(raw: string): ChatEvent | undefined {
+  if (raw.length > MAX_EVENT_CHARS) return undefined;
   let json: unknown;
   try {
     json = JSON.parse(raw);
