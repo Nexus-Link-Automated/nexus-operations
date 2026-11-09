@@ -12,6 +12,7 @@ import type { Connection, Hocuspocus } from "@hocuspocus/server";
 import type { Request } from "express";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
+import { writeSyncStep2 } from "y-protocols/sync";
 import * as Y from "yjs";
 import { CollaborationController } from "@/controllers/collaboration.controller";
 import { HocusPocusServerManager } from "@/hocuspocus";
@@ -263,6 +264,25 @@ describe("collaboration connections and document access", () => {
     api.removeRole(PROJECT_ID, MEMBER);
     expireAccessCheck(MEMBER);
     editor.type(" after removal");
+
+    await vi.waitFor(() => expect(editor.denied).toHaveBeenCalled(), { timeout: 5_000 });
+    expect(editor.closes).toContain(4403);
+    expect(serverText()).toBe("before removal");
+  });
+
+  it("re-checks access for an edit delivered as a sync step", async () => {
+    await openSynced(OTHER_MEMBER);
+    const editor = await openSynced(MEMBER);
+    editor.type("before removal");
+    await vi.waitFor(() => expect(serverText()).toBe("before removal"));
+
+    api.removeRole(PROJECT_ID, MEMBER);
+    expireAccessCheck(MEMBER);
+    const edit = new Y.Doc();
+    edit.getText(FIELD).insert(0, "after removal");
+    const message = new OutgoingMessage(PAGE_ID).createSyncMessage();
+    writeSyncStep2(message.encoder, edit);
+    editor.provider.configuration.websocketProvider.webSocket!.send(message.toUint8Array());
 
     await vi.waitFor(() => expect(editor.denied).toHaveBeenCalled(), { timeout: 5_000 });
     expect(editor.closes).toContain(4403);
