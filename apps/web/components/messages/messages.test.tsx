@@ -110,6 +110,7 @@ function makeStore(service: Partial<TChatStoreService> = {}) {
     subscribe: vi.fn(),
     unsubscribe: vi.fn(),
     reconnectNow: vi.fn(),
+    noteActivity: vi.fn(),
   };
   const fullService = {
     me: notCalled,
@@ -168,6 +169,16 @@ describe("ChatUnreadCount", () => {
 });
 
 describe("ChatConnectionBanner", () => {
+  it("says nothing about a socket closed for being idle, or on its way back", () => {
+    const onReconnect = vi.fn();
+    const { container, rerender } = render(
+      <ChatConnectionBanner status="paused" closedReason={null} onReconnect={onReconnect} />
+    );
+    expect(container.firstChild).toBeNull();
+    rerender(<ChatConnectionBanner status="connecting" closedReason={null} onReconnect={onReconnect} />);
+    expect(container.firstChild).toBeNull();
+  });
+
   it("says nothing while connected, and why live updates stopped otherwise", async () => {
     const onReconnect = vi.fn();
     const { rerender, container } = render(

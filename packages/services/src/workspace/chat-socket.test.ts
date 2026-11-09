@@ -84,6 +84,8 @@ function setup(options: Partial<TChatSocketOptions> = {}) {
   return { client, sockets, current: () => sockets[sockets.length - 1]!, ...handlers };
 }
 
+const statuses = (onStatusChange: ReturnType<typeof vi.fn>) => onStatusChange.mock.calls.map((call) => call[0]);
+
 describe("chatSocketUrl", () => {
   it.each([
     ["https://ops.example.com", "/chat", "wss://ops.example.com/chat/ws?workspace=acme"],
@@ -156,7 +158,7 @@ describe("ChatSocket", () => {
     expect(current().sent.at(-1)).toEqual({ type: "unsubscribe", channel_id: "c1" });
 
     current().drop(ChatCloseCode.goingAway);
-    vi.runOnlyPendingTimers();
+    vi.advanceTimersByTime(1_000);
     expect(sockets).toHaveLength(2);
     current().ready();
     expect(current().sent).toEqual([{ type: "subscribe", channel_id: "c2" }]);
@@ -181,7 +183,7 @@ describe("ChatSocket", () => {
     current().ready();
     current().drop(ChatCloseCode.internalError);
     expect(client.status).toBe("reconnecting");
-    vi.runOnlyPendingTimers();
+    vi.advanceTimersByTime(1_000);
     current().ready();
     expect(onReady).toHaveBeenNthCalledWith(2, expect.anything(), true);
   });
@@ -400,5 +402,184 @@ describe("ChatSocket", () => {
     fail = false;
     vi.advanceTimersByTime(50);
     expect(sockets).toHaveLength(1);
+  });
+
+  describe("going idle", () => {
+    const MINUTE = 60_000;
+
+    function connected(options: Partial<TChatSocketOptions> = {}) {
+      // The fake never answers pings, and an unanswered ping reopens the socket; these tests are about idling.
+      const context = setup({ idleTimeoutMs: 30 * MINUTE, pingIntervalMs: 24 * 60 * MINUTE, ...options });
+      context.client.connect();
+      context.current().ready();
+      context.onStatusChange.mockClear();
+      return context;
+    }
+
+    it("closes after the timeout with no activity, without a retry or a reconnecting status", () => {
+      const { client, sockets, current, onStatusChange } = connected();
+      vi.advanceTimersByTime(30 * MINUTE - 1);
+      expect(client.status).toBe("ready");
+      vi.advanceTimersByTime(1);
+      expect(client.status).toBe("paused");
+      expect(current().closedWith).toBe(ChatCloseCode.normal);
+      // An hour later it still hasn't tried to come back.
+      vi.advanceTimersByTime(60 * MINUTE);
+      expect(sockets).toHaveLength(1);
+      expect(statuses(onStatusChange)).toEqual(["paused"]);
+    });
+
+    it("defaults to 30 minutes", () => {
+      const { client, current } = setup({ pingIntervalMs: 24 * 60 * MINUTE });
+      client.connect();
+      current().ready();
+      vi.advanceTimersByTime(30 * MINUTE - 1);
+      expect(client.status).toBe("ready");
+      vi.advanceTimersByTime(1);
+      expect(client.status).toBe("paused");
+    });
+
+    it("counts from the latest activity", () => {
+      const { client } = connected();
+      vi.advanceTimersByTime(20 * MINUTE);
+      client.noteActivity();
+      vi.advanceTimersByTime(29 * MINUTE);
+      expect(client.status).toBe("ready");
+      vi.advanceTimersByTime(MINUTE);
+      expect(client.status).toBe("paused");
+    });
+
+    it("doesn't count a ping or an inbound frame as the user being here", () => {
+      const { client, sockets, current } = connected({ pingIntervalMs: 25_000 });
+      // Inside the pong window, so this one socket stays admitted until the idle timeout.
+      for (let elapsed = 0; elapsed < 30 * MINUTE; elapsed += 10_000) {
+        vi.advanceTimersByTime(10_000);
+        if (client.status === "ready") current().receive({ type: "pong" });
+      }
+      expect(client.status).toBe("paused");
+      expect(sockets).toHaveLength(1);
+    });
+
+    it("reopens on the next activity, quietly, and reports it as a reconnect so the owner catches up", () => {
+      const { client, sockets, current, onStatusChange, onReady } = connected();
+      client.subscribe("c-open");
+      vi.advanceTimersByTime(30 * MINUTE);
+      onStatusChange.mockClear();
+      onReady.mockClear();
+
+      client.noteActivity();
+      expect(sockets).toHaveLength(2);
+      expect(statuses(onStatusChange)).toEqual(["connecting"]);
+      current().ready();
+      expect(onReady.mock.calls[0]![1]).toBe(true);
+      expect(current().sent).toContainEqual({ type: "subscribe", channel_id: "c-open" });
+      expect(statuses(onStatusChange)).toEqual(["connecting", "ready"]);
+    });
+
+    it("can go idle again after coming back", () => {
+      const { client, current } = connected();
+      vi.advanceTimersByTime(30 * MINUTE);
+      client.noteActivity();
+      current().ready();
+      vi.advanceTimersByTime(30 * MINUTE);
+      expect(client.status).toBe("paused");
+    });
+
+    it("doesn't open a second socket for activity while connected", () => {
+      const { client, sockets } = connected();
+      client.noteActivity();
+      client.noteActivity();
+      expect(sockets).toHaveLength(1);
+    });
+
+    it("stays shut when the browser comes back online", () => {
+      const { client, sockets } = connected();
+      vi.advanceTimersByTime(30 * MINUTE);
+      client.reconnectNow();
+      expect(sockets).toHaveLength(1);
+      expect(client.status).toBe("paused");
+    });
+
+    it("drops a pending retry when it goes idle", () => {
+      const { client, sockets, current } = connected({ maxBackoffMs: 60 * MINUTE, initialBackoffMs: 60 * MINUTE });
+      vi.advanceTimersByTime(29 * MINUTE);
+      current().drop(ChatCloseCode.abnormal);
+      vi.advanceTimersByTime(MINUTE);
+      expect(client.status).toBe("paused");
+      vi.advanceTimersByTime(120 * MINUTE);
+      expect(sockets).toHaveLength(1);
+    });
+
+    it("reports a real failure while coming back, and retries it with backoff", () => {
+      const { client, sockets, current, onStatusChange } = connected();
+      vi.advanceTimersByTime(30 * MINUTE);
+      client.noteActivity();
+      onStatusChange.mockClear();
+      current().drop(ChatCloseCode.abnormal);
+      expect(statuses(onStatusChange)).toEqual(["reconnecting"]);
+      vi.advanceTimersByTime(1_000);
+      expect(sockets).toHaveLength(3);
+    });
+
+    it("stays closed after close(), even if the user comes back", () => {
+      const { client, sockets } = connected();
+      vi.advanceTimersByTime(30 * MINUTE);
+      client.close();
+      client.noteActivity();
+      expect(sockets).toHaveLength(1);
+      expect(client.status).toBe("closed");
+    });
+
+    it("doesn't overwrite 'sign in again' when the idle timeout passes", () => {
+      const { client, current } = connected();
+      current().drop(ChatCloseCode.unauthenticated);
+      vi.advanceTimersByTime(60 * MINUTE);
+      expect(client.status).toBe("closed");
+      expect(client.closedReason).toBe("unauthenticated");
+      client.noteActivity();
+      expect(client.status).toBe("closed");
+    });
+
+    it("starts a fresh backoff after an idle gap", () => {
+      const { client, sockets, current } = connected();
+      // An outage earlier on leaves the backoff high.
+      for (let drops = 0; drops < 4; drops++) {
+        current().drop(ChatCloseCode.abnormal);
+        vi.advanceTimersByTime(MINUTE / 2);
+      }
+      current().ready();
+      vi.advanceTimersByTime(30 * MINUTE);
+      expect(client.status).toBe("paused");
+
+      client.noteActivity();
+      current().ready();
+      const before = sockets.length;
+      current().drop(ChatCloseCode.abnormal);
+      vi.advanceTimersByTime(1_000);
+      expect(sockets).toHaveLength(before + 1);
+    });
+
+    it("stays quiet when the browser comes online during the reopen", () => {
+      const { client, sockets, onStatusChange } = connected();
+      vi.advanceTimersByTime(30 * MINUTE);
+      client.noteActivity();
+      onStatusChange.mockClear();
+      client.reconnectNow();
+      expect(sockets).toHaveLength(3);
+      expect(client.status).toBe("connecting");
+      expect(onStatusChange).not.toHaveBeenCalled();
+    });
+
+    it("doesn't send anything while paused, and subscribes on the way back", () => {
+      const { client, current } = connected();
+      vi.advanceTimersByTime(30 * MINUTE);
+      const paused = current();
+      const sent = paused.sent.length;
+      client.subscribe("c-later");
+      expect(paused.sent).toHaveLength(sent);
+      client.noteActivity();
+      current().ready();
+      expect(current().sent).toContainEqual({ type: "subscribe", channel_id: "c-later" });
+    });
   });
 });

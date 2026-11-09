@@ -39,7 +39,10 @@ export type TChatStoreService = Pick<
 >;
 
 /** The socket calls the store makes. `ChatSocket` in the app; a fake in tests. */
-export type TChatStoreSocket = Pick<ChatSocket, "connect" | "close" | "subscribe" | "unsubscribe" | "reconnectNow">;
+export type TChatStoreSocket = Pick<
+  ChatSocket,
+  "connect" | "close" | "subscribe" | "unsubscribe" | "reconnectNow" | "noteActivity"
+>;
 
 export type TChatSocketFactory = (workspaceSlug: string, handlers: TChatSocketHandlers) => TChatStoreSocket;
 
@@ -145,6 +148,7 @@ export interface IChatStore {
   joinChannel: (channelId: string) => Promise<void>;
   leaveChannel: (channelId: string) => Promise<void>;
   reconnect: () => void;
+  noteActivity: () => void;
 }
 
 /**
@@ -231,6 +235,7 @@ export class ChatStore implements IChatStore {
       joinChannel: action.bound,
       leaveChannel: action.bound,
       reconnect: action.bound,
+      noteActivity: action.bound,
       upsertChannel: action,
       removeChannelLocally: action,
       upsertMessages: action,
@@ -318,6 +323,8 @@ export class ChatStore implements IChatStore {
         runInAction(() => {
           this.socketStatus = status;
           this.socketClosedReason = closedReason;
+          // Events just stopped, so what's held now is unbroken. A send landing before `ready` mustn't move this.
+          if (status === "paused" || status === "reconnecting") this.noteCatchUpCursors();
         }),
     });
     this.socket.connect();
@@ -354,6 +361,11 @@ export class ChatStore implements IChatStore {
   /** Try the socket again now, e.g. from a "reconnect" button or when the browser comes back online. */
   reconnect(): void {
     this.socket?.reconnectNow();
+  }
+
+  /** The user did something: keeps the socket from going idle, and reopens it if it already has. */
+  noteActivity(): void {
+    this.socket?.noteActivity();
   }
 
   // channels
@@ -699,6 +711,7 @@ export class ChatStore implements IChatStore {
   }
 
   private async deliver(pending: TChatPendingMessage): Promise<void> {
+    this.socket?.noteActivity();
     const slug = this.requireSlug();
     const { channelId, localId } = pending;
     const commit = this.guard();
@@ -850,10 +863,7 @@ export class ChatStore implements IChatStore {
   /** After a reconnect or a `resync`: what may have happened while events weren't arriving. */
   private resync(): Promise<void> {
     // Live events can land before the catch-up reaches a channel, so note now where its unbroken history ends.
-    for (const [channelId, state] of Object.entries(this.channelMessages)) {
-      const newest = state.ids[state.ids.length - 1];
-      if (state.loaded && newest && !this.catchUpCursors.has(channelId)) this.catchUpCursors.set(channelId, newest);
-    }
+    this.noteCatchUpCursors();
     if (this.resyncing) {
       this.resyncing.again = true;
       return this.resyncing.promise;
@@ -877,6 +887,14 @@ export class ChatStore implements IChatStore {
     })();
     this.resyncing = entry;
     return entry.promise;
+  }
+
+  /** Records where each loaded channel's unbroken history ends, unless an earlier gap already has. */
+  private noteCatchUpCursors(): void {
+    for (const [channelId, state] of Object.entries(this.channelMessages)) {
+      const newest = state.ids[state.ids.length - 1];
+      if (state.loaded && newest && !this.catchUpCursors.has(channelId)) this.catchUpCursors.set(channelId, newest);
+    }
   }
 
   private async catchUp(channelId: string): Promise<void> {

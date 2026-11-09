@@ -24,9 +24,10 @@ export const ChatCloseCode = {
  * - `connecting`: the first connection is opening, or waiting for `ready`.
  * - `ready`: admitted; events flow.
  * - `reconnecting`: the socket dropped and a retry is scheduled or under way.
+ * - `paused`: closed on purpose because the user went idle; the next `noteActivity()` reopens it. Not a fault.
  * - `closed`: stopped for good, either by `close()` or because the gateway said not to retry (`closedReason`).
  */
-export type TChatSocketStatus = "idle" | "connecting" | "ready" | "reconnecting" | "closed";
+export type TChatSocketStatus = "idle" | "connecting" | "ready" | "reconnecting" | "paused" | "closed";
 
 /** Why the socket stopped for good: sign in again, not a member (any more), or a bad request. */
 export type TChatSocketClosedReason = "unauthenticated" | "forbidden" | "bad_request";
@@ -74,6 +75,8 @@ export type TChatSocketOptions = TChatSocketHandlers & {
   /** Retry delays: `initial * 2^attempt`, capped at `max`, with jitter. */
   initialBackoffMs?: number;
   maxBackoffMs?: number;
+  /** With no `noteActivity()` for this long, the socket is closed until the next one. */
+  idleTimeoutMs?: number;
   /** For tests: a value in [0, 1) used for jitter. */
   random?: () => number;
 };
@@ -124,6 +127,9 @@ function parseFrame(data: unknown): TChatServerFrame | undefined {
  * workspace: it waits for `ready` before anything else, re-sends the explicit subscriptions after every `ready`,
  * pings to notice a dead socket, and reconnects with backoff unless the gateway said not to (4400, 4401, 4403).
  *
+ * Its pings would keep a socket open for as long as a tab is, so it closes itself after `idleTimeoutMs` without
+ * `noteActivity()` and reopens on the next one, with no backoff.
+ *
  * It holds no chat data. The owner fetches over REST on `onReady(…, reconnected)` and `onResync`.
  */
 export class ChatSocket {
@@ -136,11 +142,14 @@ export class ChatSocket {
   private readonly pongTimeoutMs: number;
   private readonly initialBackoffMs: number;
   private readonly maxBackoffMs: number;
+  private readonly idleTimeoutMs: number;
   private readonly random: () => number;
 
   private socket: ChatWebSocketLike | null = null;
   private detach: (() => void) | null = null;
   private stopped = false;
+  private paused = false;
+  private lastActivityAt = 0;
   private admitted = false;
   private everReady = false;
   private attempt = 0;
@@ -149,6 +158,7 @@ export class ChatSocket {
   private readyTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private pongTimer: ReturnType<typeof setTimeout> | null = null;
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly subscriptions = new Set<string>();
   private readonly resubscribes = new Map<string, { tries: number; timer: ReturnType<typeof setTimeout> | null }>();
 
@@ -168,6 +178,7 @@ export class ChatSocket {
     this.pongTimeoutMs = options.pongTimeoutMs ?? 10_000;
     this.initialBackoffMs = options.initialBackoffMs ?? 1_000;
     this.maxBackoffMs = options.maxBackoffMs ?? 30_000;
+    this.idleTimeoutMs = options.idleTimeoutMs ?? 30 * 60_000;
     this.random = options.random ?? Math.random;
   }
 
@@ -176,24 +187,40 @@ export class ChatSocket {
     if (this.socket || this.retryTimer) return;
     this.stopped = false;
     this.closedReason = null;
-    this.open();
+    this.startIdleClock();
+    this.open(this.takePaused() ? "connecting" : undefined);
+  }
+
+  /**
+   * The user did something. Pushes the idle deadline back, and reopens a socket that was closed for being idle. Cheap
+   * enough to call on every mouse move: it only records the time, and the idle timer re-arms itself when it fires.
+   */
+  noteActivity(): void {
+    this.lastActivityAt = Date.now();
+    if (!this.takePaused()) return;
+    this.startIdleClock();
+    // A quick, expected reopen: `connecting`, so nothing tells the user it dropped. A real failure still reports.
+    this.open("connecting");
   }
 
   /** Close for good: no reconnect. */
   close(): void {
     this.stopped = true;
+    this.paused = false;
+    this.clearIdleTimer();
     this.clearRetry();
     this.teardown(ChatCloseCode.normal);
     this.setStatus("closed", null);
   }
 
-  /** Reconnect now instead of waiting out the backoff (e.g. the browser came back online). */
+  /** Reconnect now instead of waiting out the backoff (e.g. the browser came back online). An idle socket stays shut. */
   reconnectNow(): void {
-    if (this.stopped || this.closedReason) return;
+    if (this.stopped || this.closedReason || this.paused) return;
     if (this.socket && this.admitted) return;
     this.clearRetry();
     this.teardown(ChatCloseCode.normal);
-    this.open();
+    // Still on the way back from idle: stay quiet, as `noteActivity()` promised.
+    this.open(this.status === "connecting" ? "connecting" : undefined);
   }
 
   /**
@@ -218,9 +245,9 @@ export class ChatSocket {
     return [...this.subscriptions];
   }
 
-  private open(): void {
+  private open(status: TChatSocketStatus = this.everReady ? "reconnecting" : "connecting"): void {
     this.admitted = false;
-    this.setStatus(this.everReady ? "reconnecting" : "connecting", null);
+    this.setStatus(status, null);
     let socket: ChatWebSocketLike;
     try {
       socket = this.createWebSocket(this.url);
@@ -316,6 +343,7 @@ export class ChatSocket {
 
   private stop(reason: TChatSocketClosedReason): void {
     this.stopped = true;
+    this.clearIdleTimer();
     this.closedReason = reason;
     this.setStatus("closed", reason);
   }
@@ -357,6 +385,38 @@ export class ChatSocket {
     const entry = this.resubscribes.get(channelId);
     if (entry?.timer) clearTimeout(entry.timer);
     this.resubscribes.delete(channelId);
+  }
+
+  private startIdleClock(): void {
+    this.lastActivityAt = Date.now();
+    this.armIdleTimer(this.idleTimeoutMs);
+  }
+
+  private armIdleTimer(delay: number): void {
+    this.clearIdleTimer();
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = null;
+      const remaining = this.lastActivityAt + this.idleTimeoutMs - Date.now();
+      if (remaining > 0) this.armIdleTimer(remaining);
+      else this.pause();
+    }, delay);
+  }
+
+  /** Close because the user is idle: no retry, and whatever was pending is dropped. */
+  private pause(): void {
+    this.paused = true;
+    // Whatever failed before the idle gap is no reason to wait after it.
+    this.attempt = 0;
+    this.clearRetry();
+    this.teardown(ChatCloseCode.normal);
+    this.setStatus("paused", null);
+  }
+
+  /** Whether the socket was paused; it no longer is. */
+  private takePaused(): boolean {
+    const paused = this.paused;
+    this.paused = false;
+    return paused;
   }
 
   private startPinging(): void {
@@ -412,6 +472,11 @@ export class ChatSocket {
   private clearPongTimer(): void {
     if (this.pongTimer) clearTimeout(this.pongTimer);
     this.pongTimer = null;
+  }
+
+  private clearIdleTimer(): void {
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = null;
   }
 
   private clearRetry(): void {
