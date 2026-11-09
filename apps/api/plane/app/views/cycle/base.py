@@ -410,7 +410,6 @@ class CycleViewSet(BaseViewSet):
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def retrieve(self, request, slug, project_id, pk):
-        queryset = self.get_queryset().filter(archived_at__isnull=True).filter(pk=pk)
         data = (
             self.get_queryset()
             .filter(pk=pk)
@@ -459,7 +458,6 @@ class CycleViewSet(BaseViewSet):
         if data is None:
             return Response({"error": "Cycle not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        queryset = queryset.first()
         # Fetch the project timezone
         project = Project.objects.get(id=self.kwargs.get("project_id"))
         project_timezone = project.timezone
