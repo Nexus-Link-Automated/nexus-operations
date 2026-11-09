@@ -570,6 +570,39 @@ describe("ChatSocket", () => {
       expect(onStatusChange).not.toHaveBeenCalled();
     });
 
+    it("stays connected while the tab is visible, however long nobody touches it", () => {
+      const { client, sockets } = connected({ isVisible: () => true });
+      vi.advanceTimersByTime(5 * 60 * MINUTE);
+      expect(client.status).toBe("ready");
+      expect(sockets).toHaveLength(1);
+    });
+
+    it("goes idle once the tab is hidden, even after a long visible spell", () => {
+      let visible = true;
+      const { client } = connected({ isVisible: () => visible });
+      vi.advanceTimersByTime(2 * 60 * MINUTE);
+      expect(client.status).toBe("ready");
+      visible = false;
+      vi.advanceTimersByTime(30 * MINUTE);
+      expect(client.status).toBe("paused");
+    });
+
+    it("reads the document's visibility by default", () => {
+      vi.stubGlobal("document", { visibilityState: "visible" });
+      try {
+        const { client, current } = setup({ pingIntervalMs: 24 * 60 * MINUTE });
+        client.connect();
+        current().ready();
+        vi.advanceTimersByTime(60 * MINUTE);
+        expect(client.status).toBe("ready");
+        vi.stubGlobal("document", { visibilityState: "hidden" });
+        vi.advanceTimersByTime(30 * MINUTE);
+        expect(client.status).toBe("paused");
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it("doesn't send anything while paused, and subscribes on the way back", () => {
       const { client, current } = connected();
       vi.advanceTimersByTime(30 * MINUTE);
