@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Preguntar antes de hacer cambios",
-          "description": "Las lecturas, búsquedas y consultas web se ejecutan libremente. Los comandos de shell, los cambios en archivos y los cambios en Plane piden confirmación primero."
+          "description": "Las lecturas y búsquedas en el directorio de trabajo se ejecutan libremente. Las lecturas en otras ubicaciones, las consultas web, los comandos de shell, los cambios en archivos y los cambios en Plane piden confirmación primero."
         },
         "yolo": {
           "name": "No preguntar nunca",

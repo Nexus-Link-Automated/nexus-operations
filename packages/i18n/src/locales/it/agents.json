@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Chiedere prima delle modifiche",
-          "description": "Letture, ricerche e recuperi di contenuti web vengono eseguiti liberamente. I comandi della shell, le modifiche ai file e le modifiche in Plane richiedono prima una conferma."
+          "description": "Letture e ricerche nella directory di lavoro vengono eseguite liberamente. Letture altrove, recuperi di contenuti web, comandi della shell, modifiche ai file e modifiche in Plane richiedono prima una conferma."
         },
         "yolo": {
           "name": "Non chiedere mai",

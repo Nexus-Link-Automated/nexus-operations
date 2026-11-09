@@ -26,6 +26,7 @@ import {
 import { errorMessage, objectValue, stringValue } from "./json.ts";
 import { EFFORT_ENV, INITIAL_EFFORT_META_KEY, INITIAL_MODEL_META_KEY, findModel, resolveEffort } from "./models.ts";
 import { initialModeId, isPermissionModeId, sessionModeState, type PermissionModeId } from "./modes.ts";
+import { PathPolicy } from "./paths.ts";
 import { PermissionGate } from "./permission.ts";
 import { MessageWriter, ToolCallTracker, type Emit } from "./turn.ts";
 
@@ -60,6 +61,8 @@ export interface SessionHost {
   readonly cwd: string;
   readonly emit: Emit;
   readonly gate: PermissionGate;
+  /** What the adapters' own file tools may touch. */
+  readonly paths: PathPolicy;
   readonly toolCalls: ToolCallTracker;
   readonly client: AgentContext;
   readonly env: NodeJS.ProcessEnv;
@@ -248,6 +251,7 @@ export function createAgent(adapter: AgentAdapter, options: CreateAgentOptions =
       client,
       env,
       gate: new PermissionGate(client, sessionId, () => mutable.mode),
+      paths: new PathPolicy(params.cwd, env),
       toolCalls: new ToolCallTracker(emit),
       mode: () => mutable.mode,
       model: () => mutable.model,

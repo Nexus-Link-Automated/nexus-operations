@@ -3,7 +3,7 @@
 // (tests/codex-app-server-client.test.ts). It speaks the app-server's newline-delimited JSON-RPC
 // over stdio and is driven by the prompt text:
 //   "hello" streams reasoning + a message; "run" asks to run a command; "ls" asks to run a read-only
-//   command; "plane" asks to call a Plane MCP tool; "wait" streams one delta then waits for
+//   command; "cat etc" / "cat creds" ask to read a file outside the cwd / a sign-in file; "plane" asks to call a Plane MCP tool; "wait" streams one delta then waits for
 //   turn/interrupt; anything else answers "ok".
 // Every message it receives is appended to $FAKE_CODEX_LOG (JSONL) so tests can assert on
 // thread/start params, approval replies and approval policies; the first line of each run is
@@ -25,6 +25,7 @@ let nextServerRequest = 1;
 const pendingReplies = new Map();
 let activeTurn;
 let turnCount = 0;
+let threadCwd = "/work";
 
 function send(payload) {
   process.stdout.write(`${JSON.stringify(payload)}
@@ -89,8 +90,12 @@ async function runTurn(text) {
     complete();
     return;
   }
-  if (text === "run" || text === "ls") {
-    const command = text === "run" ? "touch a.txt" : "ls";
+  if (text === "run" || text === "ls" || text === "cat etc" || text === "cat creds") {
+    const reads = {
+      "cat etc": "/etc/hostname",
+      "cat creds": path.join(process.env.HOME || "/tmp", ".codex", "auth.json"),
+    };
+    const command = text === "run" ? "touch a.txt" : text === "ls" ? "ls" : `cat ${reads[text]}`;
     const itemId = `cmd-${n}`;
     const reply = await ask("item/commandExecution/requestApproval", {
       itemId,
@@ -98,8 +103,14 @@ async function runTurn(text) {
       environmentId: null,
       kind: "command",
       command,
-      cwd: "/work",
-      commandActions: text === "run" ? [{ type: "unknown", command }] : [{ type: "listFiles", command, path: null }],
+      // The real server reports the command's own directory; only `run` keeps a fixed one for the goldens.
+      cwd: text === "run" ? "/work" : threadCwd,
+      commandActions:
+        text === "run"
+          ? [{ type: "unknown", command }]
+          : text === "ls"
+            ? [{ type: "listFiles", command, path: null }]
+            : [{ type: "read", command, name: path.basename(reads[text]), path: reads[text] }],
     });
     if (reply.result && reply.result.decision === "accept") {
       notify("item/started", {
@@ -248,6 +259,7 @@ function handle(msg) {
       });
       return;
     case "thread/start":
+      threadCwd = msg.params.cwd;
       send({
         id: msg.id,
         result: {

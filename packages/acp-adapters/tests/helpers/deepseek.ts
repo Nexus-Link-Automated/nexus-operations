@@ -38,7 +38,7 @@ function toolCall(id: string, name: string, args: Record<string, unknown>): Even
 /**
  * The scripted DeepSeek: decides from the conversation so far. Prompts: "hello" (reasoning + text),
  * "write" (built-in write tool), "plane create" / "plane list" (MCP tool), "wait" (hangs), "long"
- * (finish_reason length), "filter" (content_filter), "loop" (tool calls forever). After a tool
+ * (finish_reason length), "filter" (content_filter), "loop" (tool calls forever), "tool:<name>:<json args>" (that tool call). After a tool
  * result it answers "done: <result>".
  */
 export function scriptedCompletion(body: { messages: Message[] }): Completion {
@@ -54,6 +54,9 @@ export function scriptedCompletion(body: { messages: Message[] }): Completion {
       ],
     };
   }
+  // A prompt naming one tool call: `tool:<name>:<json args>`.
+  const scripted = /^tool:([a-z_]+):(.*)$/s.exec(String(lastUser));
+  if (scripted) return { events: toolCall("call_t", scripted[1]!, JSON.parse(scripted[2]!)) };
   switch (lastUser) {
     case "hello":
       return {

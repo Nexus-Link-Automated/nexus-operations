@@ -38,6 +38,7 @@ import { arrayValue, errorMessage, numberValue, objectValue, stringValue, type J
 import { toClaudeMcpServers, writeClaudeMcpConfig } from "../core/mcp.ts";
 import { effortChoices, modelCatalog } from "../core/models.ts";
 import { classifyMcpCall, toolKindForCategory, type PermissionModeId, type ToolCategory } from "../core/modes.ts";
+import { PATH_REFUSED_MESSAGE, gateFileRead, urlHost, type FileTarget } from "../core/paths.ts";
 import type { PermissionDecision } from "../core/permission.ts";
 import { promptToText } from "../core/turn.ts";
 
@@ -177,7 +178,12 @@ export function describeClaudeTool(name: string, input: JsonObject, cwd: string)
     case "LS":
       return { title: `List ${stringValue(input.path)}`, category: "search", memoryKey: name };
     case "WebFetch":
-      return { title: `Fetch ${stringValue(input.url)}`, category: "fetch", memoryKey: name };
+      // "Always allow" for a web fetch covers one host.
+      return {
+        title: `Fetch ${stringValue(input.url)}`,
+        category: "fetch",
+        memoryKey: `${name}:${urlHost(stringValue(input.url))}`,
+      };
     case "WebSearch":
       return { title: `Search the web: ${stringValue(input.query)}`, category: "fetch", memoryKey: name };
     case "Task":
@@ -191,6 +197,30 @@ export function describeClaudeTool(name: string, input: JsonObject, cwd: string)
       return { title: name, category: "other", memoryKey: name };
   }
 }
+
+/** What Claude Code's own file tools touch, for the session's path rules. */
+export function claudeFileTargets(name: string, input: JsonObject): FileTarget[] {
+  switch (name) {
+    case "Read":
+    case "Write":
+    case "Edit":
+    case "MultiEdit":
+      return [{ path: stringValue(input.file_path) }];
+    case "NotebookEdit":
+      return [{ path: stringValue(input.notebook_path) }];
+    case "Glob":
+      return [{ path: stringValue(input.path), glob: stringValue(input.pattern) }];
+    case "Grep":
+      return [{ path: stringValue(input.path), glob: stringValue(input.glob) }];
+    case "LS":
+      return [{ path: stringValue(input.path) }];
+    default:
+      return [];
+  }
+}
+
+/** `refused`: the path rules said no, in any mode; no one was asked. */
+type ClaudeDecision = PermissionDecision | "refused";
 
 /** TodoWrite only updates the task list, so it is shown as a `plan` and never gated. */
 const PLAN_TOOL = "TodoWrite";
@@ -226,11 +256,11 @@ class ClaudeSession implements AdapterSession {
     const abortController = new AbortController();
     const onAbort = () => abortController.abort();
     turn.signal.addEventListener("abort", onAbort, { once: true });
-    const decisions = new Map<string, Promise<PermissionDecision>>();
+    const decisions = new Map<string, Promise<ClaudeDecision>>();
     const planToolIds = new Set<string>();
 
     /** One gate decision per tool use, shared by the hook and `canUseTool`. */
-    const decide = (toolUseId: string, name: string, input: JsonObject): Promise<PermissionDecision> => {
+    const decide = (toolUseId: string, name: string, input: JsonObject): Promise<ClaudeDecision> => {
       if (name === PLAN_TOOL) return Promise.resolve("allowed");
       let decision = decisions.get(toolUseId);
       if (!decision) {
@@ -243,15 +273,10 @@ class ClaudeSession implements AdapterSession {
             rawInput: input,
             ...(tool.locations ? { locations: tool.locations } : {}),
           });
+          const verdict = host.paths.check(claudeFileTargets(name, input));
+          if (verdict.access === "refused") return "refused";
           return host.gate.check(
-            {
-              toolCallId,
-              title: tool.title,
-              kind,
-              category: tool.category,
-              rawInput: input,
-              memoryKey: tool.memoryKey,
-            },
+            { toolCallId, title: tool.title, kind, rawInput: input, ...gateFileRead(tool, verdict) },
             turn.signal
           );
         })();
@@ -457,7 +482,7 @@ class ClaudeSession implements AdapterSession {
   }
 }
 
-function hookOutput(decision: PermissionDecision): HookJSONOutput {
+function hookOutput(decision: ClaudeDecision): HookJSONOutput {
   if (decision === "allowed")
     return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow" } };
   return {
@@ -470,7 +495,8 @@ function hookOutput(decision: PermissionDecision): HookJSONOutput {
   };
 }
 
-function denyMessage(decision: PermissionDecision): string {
+function denyMessage(decision: ClaudeDecision): string {
+  if (decision === "refused") return PATH_REFUSED_MESSAGE;
   return decision === "cancelled" ? "The user cancelled the turn." : "The user denied this tool call. Do not retry it.";
 }
 

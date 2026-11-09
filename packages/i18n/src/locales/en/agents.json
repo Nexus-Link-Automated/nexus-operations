@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Ask before changes",
-          "description": "Reads, searches and web fetches run freely. Shell commands, file changes and Plane changes ask first."
+          "description": "Reads and searches in the working directory run freely. Reads elsewhere, web fetches, shell commands, file changes and Plane changes ask first."
         },
         "yolo": {
           "name": "Never ask",
