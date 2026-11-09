@@ -406,7 +406,7 @@ export class ChatSocket {
     if (this.readyTimer) clearTimeout(this.readyTimer);
     this.readyTimer = null;
     this.clearPongTimer();
-    for (const channelId of [...this.resubscribes.keys()]) this.forgetResubscribe(channelId);
+    for (const channelId of this.resubscribes.keys()) this.forgetResubscribe(channelId);
   }
 
   private clearPongTimer(): void {

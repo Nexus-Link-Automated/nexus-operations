@@ -281,7 +281,7 @@ class FakeSocket implements TChatStoreSocket {
   }
 }
 
-function gate() {
+function holdOpen() {
   let open!: () => void;
   const opened = new Promise<void>((resolve) => (open = resolve));
   return { opened, open };
@@ -642,7 +642,7 @@ describe("ChatStore", () => {
     const { store, server, socket } = await setup((s) => s.post("c-general", ADA, "before"));
     await store.openChannel("c-general");
     for (let i = 0; i < 120; i++) server.post("c-general", ADA, `missed${i}`);
-    const list = gate();
+    const list = holdOpen();
     server.holds.set("listChannels", list.opened);
     socket.ready(true);
     await settle();
@@ -680,7 +680,7 @@ describe("ChatStore", () => {
 
   it("doesn't lose a message that arrives while the channel is loading", async () => {
     const { store, server, socket } = await setup((s) => s.post("c-general", ADA, "first"));
-    const load = gate();
+    const load = holdOpen();
     server.holds.set("listMessages", load.opened);
     void store.openChannel("c-general");
     await settle();
@@ -693,7 +693,7 @@ describe("ChatStore", () => {
 
   it("keeps a channel that appears while the channel list is in flight", async () => {
     const { store, server } = await setup();
-    const list = gate();
+    const list = holdOpen();
     server.holds.set("listChannels", list.opened);
     void store.fetchChannels();
     await settle();
@@ -708,7 +708,7 @@ describe("ChatStore", () => {
     await store.openChannel("c-general");
     const message = server.messages[0]!;
     const event = { workspace_id: WORKSPACE_ID, channel_id: "c-general", message_id: message.id, at: "t" };
-    const slow = gate();
+    const slow = holdOpen();
     server.holds.set("getMessage", slow.opened);
     socket.emit({ type: "message.updated", ...event });
     await settle();
@@ -732,7 +732,7 @@ describe("ChatStore", () => {
 
   it("drops a load that lands after a browsed channel was closed", async () => {
     const { store, server } = await setup((s) => s.post("c-open", ADA, "first"));
-    const load = gate();
+    const load = holdOpen();
     server.holds.set("listMessages", load.opened);
     void store.openChannel("c-open");
     await settle();
