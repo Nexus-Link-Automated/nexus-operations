@@ -9,16 +9,17 @@ from django.core.cache import cache
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
-from django.test import Client
+from django.test import Client, RequestFactory
 from django.core.exceptions import ValidationError
 from unittest.mock import patch
 
+from plane.authentication.adapter.base import Adapter
 from plane.authentication.provider.credentials.magic_code import MagicCodeProvider
 from plane.authentication.rate_limit import AuthenticationThrottle
 from plane.authentication.utils.host import base_host
 from plane.db.models import User
 from plane.settings.redis import redis_instance
-from plane.license.models import Instance
+from plane.license.models import Instance, InstanceAdmin
 
 
 def _clear_auth_throttle_keys():
@@ -962,3 +963,123 @@ class TestBotUserAdminSignInBlocked:
         assert response.status_code == 302
         assert "ADMIN_AUTHENTICATION_FAILED" in response.url
         assert "_auth_user_id" not in django_client.session
+
+
+@pytest.mark.contract
+class TestPasswordSetBeforeEmailVerification:
+    """A login that proves the mailbox replaces a password set before the email was verified."""
+
+    EMAIL = "user@plane.so"
+    PASSWORD = "user@123"
+    USER_ME_URL = "/api/users/me/"
+
+    @pytest.fixture
+    def unverified_user(self, db):
+        user = User.objects.create(email=self.EMAIL, username=uuid.uuid4().hex)
+        user.set_password(self.PASSWORD)
+        user.save()
+        return user
+
+    @staticmethod
+    def _log_in(email, provider, proves_mailbox=True):
+        adapter = Adapter(request=RequestFactory().get("/", HTTP_USER_AGENT="pytest"), provider=provider)
+        adapter.set_user_data(
+            {
+                "email": email,
+                "user": {
+                    "avatar": "",
+                    "first_name": "",
+                    "last_name": "",
+                    "provider_id": "",
+                    "is_password_autoset": proves_mailbox,
+                },
+            }
+        )
+        return adapter.complete_login_or_signup()
+
+    @pytest.mark.django_db
+    @pytest.mark.parametrize("provider", ["google", "github", "gitlab", "gitea", "magic-code"])
+    def test_login_that_proves_the_mailbox_retires_the_password(self, unverified_user, provider):
+        self._log_in(self.EMAIL, provider)
+
+        unverified_user.refresh_from_db()
+        assert not unverified_user.check_password(self.PASSWORD)
+        assert unverified_user.is_password_autoset is True
+        assert unverified_user.is_email_verified is True
+
+        # Later logins leave the replacement alone.
+        replacement_hash = unverified_user.password
+        self._log_in(self.EMAIL, provider)
+        unverified_user.refresh_from_db()
+        assert unverified_user.password == replacement_hash
+
+    @pytest.mark.django_db
+    def test_only_the_unverified_account_loses_its_password(self, unverified_user):
+        verified_user = User.objects.create(
+            email="verified@plane.so", username=uuid.uuid4().hex, is_email_verified=True
+        )
+        verified_user.set_password(self.PASSWORD)
+        verified_user.save()
+
+        self._log_in(verified_user.email, "google")
+        self._log_in(self.EMAIL, "google")
+
+        verified_user.refresh_from_db()
+        unverified_user.refresh_from_db()
+        assert verified_user.check_password(self.PASSWORD)
+        assert verified_user.is_password_autoset is False
+        assert not unverified_user.check_password(self.PASSWORD)
+
+    @pytest.mark.django_db
+    def test_instance_admin_keeps_the_password_for_the_admin_app(self, unverified_user, setup_instance):
+        InstanceAdmin.objects.create(user=unverified_user, instance=setup_instance)
+
+        self._log_in(self.EMAIL, "google")
+
+        unverified_user.refresh_from_db()
+        assert unverified_user.check_password(self.PASSWORD)
+        assert unverified_user.is_password_autoset is False
+        assert unverified_user.is_email_verified is True
+
+    @pytest.mark.django_db
+    def test_password_login_keeps_the_password_until_the_mailbox_is_proven(self, unverified_user):
+        self._log_in(self.EMAIL, "email", proves_mailbox=False)
+
+        unverified_user.refresh_from_db()
+        assert unverified_user.check_password(self.PASSWORD)
+        assert unverified_user.is_email_verified is False
+
+        self._log_in(self.EMAIL, "google")
+
+        unverified_user.refresh_from_db()
+        assert not unverified_user.check_password(self.PASSWORD)
+        assert unverified_user.is_email_verified is True
+
+    @pytest.mark.django_db
+    def test_retiring_the_password_ends_existing_sessions(self, django_client, unverified_user, setup_instance):
+        django_client.force_login(unverified_user)
+        assert django_client.get(self.USER_ME_URL).status_code == status.HTTP_200_OK
+
+        self._log_in(self.EMAIL, "google")
+
+        assert django_client.get(self.USER_ME_URL).status_code == status.HTTP_401_UNAUTHORIZED
+
+    @pytest.mark.django_db
+    @patch("plane.bgtasks.magic_link_code_task.magic_link.delay")
+    def test_magic_code_sign_in_retires_the_password(
+        self, mock_magic_link, django_client, api_client, unverified_user, setup_instance
+    ):
+        ri = redis_instance()
+        ri.delete(f"magic_{self.EMAIL}", f"magic_{self.EMAIL}:issued")
+
+        response = api_client.post(reverse("magic-generate"), {"email": self.EMAIL}, format="json")
+        assert response.status_code == status.HTTP_200_OK
+        token = json.loads(ri.get(f"magic_{self.EMAIL}"))["token"]
+
+        response = django_client.post(reverse("magic-sign-in"), {"email": self.EMAIL, "code": token}, follow=False)
+        assert response.status_code == 302
+        assert "error_code" not in response.url
+
+        unverified_user.refresh_from_db()
+        assert not unverified_user.check_password(self.PASSWORD)
+        assert unverified_user.is_email_verified is True
