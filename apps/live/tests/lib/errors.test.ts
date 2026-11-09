@@ -4,7 +4,9 @@
  * See the LICENSE file for details.
  */
 
+import type { IncomingMessage } from "node:http";
 import { inspect } from "node:util";
+import type { ConnectionConfiguration } from "@hocuspocus/server";
 import { logger } from "@plane/logger";
 import { AxiosError, AxiosHeaders } from "axios";
 import type { InternalAxiosRequestConfig } from "axios";
@@ -14,6 +16,7 @@ import { AppError } from "@/lib/errors";
 import type { HocusPocusServerContext } from "@/types";
 
 vi.mock("@/services/user.service", () => ({ UserService: vi.fn() }));
+vi.mock("@/env", () => ({ env: { API_BASE_URL: "http://api.test" } }));
 
 const COOKIE_SECRET = "cookie-secret-value";
 const BEARER_SECRET = "bearer-secret-value";
@@ -255,6 +258,9 @@ describe("AppError", () => {
             requestParameters: new URLSearchParams(),
             context: {} as HocusPocusServerContext,
             token,
+            documentName: "doc-1",
+            connectionConfig: {} as ConnectionConfiguration,
+            request: {} as IncomingMessage,
           })
         ).rejects.toThrow("Credentials not provided")
       );
