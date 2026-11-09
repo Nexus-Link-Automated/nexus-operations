@@ -3,10 +3,27 @@
     "title": "Agenti",
     "picker": {
       "label": "Agent",
-      "placeholder": "Vyberte agenta"
+      "trigger_label": "Agent a model: {selection}",
+      "switch_hint": "Přepnutím agenta zahájíte nový chat.",
+      "unavailable": "Zatím žádný API klíč",
+      "manage_providers": "Spravovat poskytovatele AI"
     },
     "model": {
       "label": "Jazykový model"
+    },
+    "effort": {
+      "label": "Úroveň uvažování",
+      "trigger_label": "Úroveň uvažování: {level}",
+      "hint": "Platí od vaší příští zprávy.",
+      "levels": {
+        "none": "Žádná",
+        "minimal": "Minimální",
+        "low": "Nízká",
+        "medium": "Střední",
+        "high": "Vysoká",
+        "xhigh": "Velmi vysoká",
+        "max": "Maximální"
+      }
     },
     "permission": {
       "label": "Úroveň oprávnění",
@@ -131,6 +148,7 @@
         "prompt": "Agent na tuto zprávu nedokázal odpovědět.",
         "set_mode": "Úroveň oprávnění se nepodařilo změnit.",
         "set_model": "Model se nepodařilo změnit.",
+        "set_effort": "Úroveň uvažování se nepodařilo změnit.",
         "reconnect": "Opětovné připojení se nezdařilo."
       },
       "retry": "Zkusit znovu"
@@ -165,12 +183,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "Přihlašovací údaje a nastavení",
+        "model_help": "Členové mohou modely přepínat v chatu.",
+        "model_default": "Výchozí model poskytovatele",
+        "model_custom": "Vlastní ID modelu",
+        "model_custom_id": "ID modelu",
+        "model_custom_id_help": "ID modelu přesně tak, jak ho uvádí poskytovatel.",
+        "fallback_credentials": "Záložní přihlašovací údaje",
+        "fallback_credentials_summary": "Použijí se jen tehdy, když ani člen, ani pracovní prostor nepřidal klíč v nastavení poskytovatelů AI.",
+        "fallback_saved": "{count, plural, one{uloženo: #} few{uloženo: #} many{uloženo: #} other{uloženo: #}}",
         "credentials_help": "Hodnoty jsou pouze pro zápis. Uložené hodnoty zůstávají skryté; chcete-li hodnotu změnit, nahraďte ji.",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "API klíč Anthropic",
-            "help": "Nebo místo něj použijte OAuth token Claude Code."
+            "help": "Použije se, když ani člen, ani pracovní prostor nemá klíč Anthropic. Nebo místo něj použijte OAuth token Claude Code."
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "OAuth token Claude Code",
@@ -189,8 +214,11 @@
             "help": "Volitelné. Výchozí hodnota je https://api.deepseek.com."
           },
           "PLANE_AGENT_MODEL": {
-            "label": "Výchozí model",
-            "help": "Volitelné ID modelu, např. claude-opus-5-5. Členové mohou modely přepínat v chatu."
+            "label": "Výchozí model"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "Výchozí úroveň uvažování",
+            "help": "Volitelné, např. high. Použije se, pokud model tuto úroveň podporuje. Členové ji mohou přepnout v chatu."
           },
           "GEMINI_API_KEY": {
             "label": "API klíč Gemini",
@@ -221,7 +249,6 @@
           "required": "Toto pole je povinné.",
           "slug": "Použijte malá písmena, číslice a pomlčky.",
           "default_above_max": "Výchozí úroveň nemůže být vyšší než maximální.",
-          "claude_auth": "Zadejte API klíč Anthropic nebo OAuth token Claude Code.",
           "deepseek_auth": "Zadejte API klíč DeepSeek."
         },
         "cancel": "Zrušit",
@@ -249,7 +276,6 @@
       "unread": "Otevřít {name} (nová aktivita)",
       "minimize": "Minimalizovat",
       "open_page": "Otevřít na celé stránce",
-      "agent_menu_label": "Změnit agenta, nyní {agent}",
       "greeting": "Dobrý den, jsem {name}",
       "suggestions": {
         "assigned_to_me": "Co je mi přiřazeno?",
@@ -364,7 +390,8 @@
         "connected": "Přihlášeno jako {email}.",
         "connected_unknown": "Přihlášeno.",
         "disconnected": "Účet byl odpojen.",
-        "disconnect_failed": "Účet se nepodařilo odpojit."
+        "disconnect_failed": "Účet se nepodařilo odpojit.",
+        "sign_in_lost": "Vaše přihlášení k {vendor} už není platné. Přihlaste se znovu."
       }
     }
   }

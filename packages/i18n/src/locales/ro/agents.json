@@ -3,10 +3,27 @@
     "title": "Agenți",
     "picker": {
       "label": "Agent",
-      "placeholder": "Alegeți un agent"
+      "trigger_label": "Agent și model: {selection}",
+      "switch_hint": "Schimbarea agentului începe un chat nou.",
+      "unavailable": "Nicio cheie API încă",
+      "manage_providers": "Gestionați furnizorii AI"
     },
     "model": {
       "label": "Model"
+    },
+    "effort": {
+      "label": "Nivel de raționament",
+      "trigger_label": "Nivel de raționament: {level}",
+      "hint": "Se aplică de la următorul mesaj.",
+      "levels": {
+        "none": "Niciunul",
+        "minimal": "Minim",
+        "low": "Scăzut",
+        "medium": "Mediu",
+        "high": "Ridicat",
+        "xhigh": "Foarte ridicat",
+        "max": "Maxim"
+      }
     },
     "permission": {
       "label": "Nivel de permisiuni",
@@ -131,6 +148,7 @@
         "prompt": "Agentul nu a putut răspunde la acest mesaj.",
         "set_mode": "Nivelul de permisiuni nu a putut fi schimbat.",
         "set_model": "Modelul nu a putut fi schimbat.",
+        "set_effort": "Nivelul de raționament nu a putut fi schimbat.",
         "reconnect": "Reconectarea a eșuat."
       },
       "retry": "Încercați din nou"
@@ -165,12 +183,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "Credențiale și setări",
+        "model_help": "Membrii pot schimba modelul în chat.",
+        "model_default": "Implicit al furnizorului",
+        "model_custom": "ID de model personalizat",
+        "model_custom_id": "ID-ul modelului",
+        "model_custom_id_help": "ID-ul modelului exact așa cum îl denumește furnizorul.",
+        "fallback_credentials": "Credențiale de rezervă",
+        "fallback_credentials_summary": "Folosite doar când nici membrul, nici spațiul de lucru nu au adăugat o cheie în setările furnizorilor AI.",
+        "fallback_saved": "{count, plural, one{salvate: #} few{salvate: #} other{salvate: #}}",
         "credentials_help": "Valorile pot fi doar scrise. Valorile salvate rămân ascunse; înlocuiți una pentru a o modifica.",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "Cheie API Anthropic",
-            "help": "Sau folosiți în schimb un token OAuth Claude Code."
+            "help": "Folosită când nici membrul, nici spațiul de lucru nu au o cheie Anthropic. Sau folosiți în schimb un token OAuth Claude Code."
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "Token OAuth Claude Code",
@@ -189,8 +214,11 @@
             "help": "Opțional. Valoarea implicită este https://api.deepseek.com."
           },
           "PLANE_AGENT_MODEL": {
-            "label": "Model implicit",
-            "help": "ID de model opțional, de ex. claude-opus-5-5. Membrii pot schimba modelul în chat."
+            "label": "Model implicit"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "Nivel de raționament implicit",
+            "help": "Opțional, de ex. high. Se folosește atunci când modelul acceptă acest nivel. Membrii îl pot schimba în chat."
           },
           "GEMINI_API_KEY": {
             "label": "Cheie API Gemini",
@@ -221,7 +249,6 @@
           "required": "Acest câmp este obligatoriu.",
           "slug": "Folosiți litere mici, cifre și cratime.",
           "default_above_max": "Nivelul implicit nu poate depăși nivelul maxim.",
-          "claude_auth": "Introduceți o cheie API Anthropic sau un token OAuth Claude Code.",
           "deepseek_auth": "Introduceți o cheie API DeepSeek."
         },
         "cancel": "Anulați",
@@ -249,7 +276,6 @@
       "unread": "Deschideți {name} (activitate nouă)",
       "minimize": "Minimizați",
       "open_page": "Deschideți pe toată pagina",
-      "agent_menu_label": "Schimbați agentul, acum {agent}",
       "greeting": "Bună ziua, sunt {name}",
       "suggestions": {
         "assigned_to_me": "Ce îmi este atribuit?",
@@ -364,7 +390,8 @@
         "connected": "Autentificat ca {email}.",
         "connected_unknown": "Autentificat.",
         "disconnected": "Cont deconectat.",
-        "disconnect_failed": "Contul nu a putut fi deconectat."
+        "disconnect_failed": "Contul nu a putut fi deconectat.",
+        "sign_in_lost": "Autentificarea dvs. la {vendor} nu mai este validă. Autentificați-vă din nou."
       }
     }
   }

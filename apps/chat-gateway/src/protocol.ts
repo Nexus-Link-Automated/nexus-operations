@@ -40,7 +40,7 @@ export const CloseCode = {
   normal: 1000,
   goingAway: 1001,
   internalError: 1011,
-  /** The socket couldn't keep up; reconnect and resync. */
+  /** The browser stopped reading what it was sent: reconnect, then fetch what was missed. */
   tryAgainLater: 1013,
   /** The URL or a frame is wrong; reconnecting as-is will fail again. */
   badRequest: 4400,
@@ -48,7 +48,7 @@ export const CloseCode = {
   unauthenticated: 4401,
   /** Signed in, but not a member of this workspace (any more). */
   forbidden: 4403,
-  /** Too many sockets open, or too many frames sent. */
+  /** Too many sockets open, or this socket sent too many frames. */
   tooManyRequests: 4429,
 } as const;
 

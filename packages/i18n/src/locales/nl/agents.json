@@ -3,10 +3,27 @@
     "title": "Agenten",
     "picker": {
       "label": "Agent",
-      "placeholder": "Kies een agent"
+      "trigger_label": "Agent en model: {selection}",
+      "switch_hint": "Als u van agent wisselt, begint er een nieuwe chat.",
+      "unavailable": "Nog geen API-sleutel",
+      "manage_providers": "AI-providers beheren"
     },
     "model": {
       "label": "Model"
+    },
+    "effort": {
+      "label": "Redeneerniveau",
+      "trigger_label": "Redeneerniveau: {level}",
+      "hint": "Geldt vanaf uw volgende bericht.",
+      "levels": {
+        "none": "Geen",
+        "minimal": "Minimaal",
+        "low": "Laag",
+        "medium": "Gemiddeld",
+        "high": "Hoog",
+        "xhigh": "Zeer hoog",
+        "max": "Maximaal"
+      }
     },
     "permission": {
       "label": "Machtigingsniveau",
@@ -131,6 +148,7 @@
         "prompt": "De agent kon dat bericht niet beantwoorden.",
         "set_mode": "Kan het machtigingsniveau niet wijzigen.",
         "set_model": "Kan het model niet wijzigen.",
+        "set_effort": "Kan het redeneerniveau niet wijzigen.",
         "reconnect": "Kan niet opnieuw verbinden."
       },
       "retry": "Opnieuw proberen"
@@ -165,12 +183,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "Inloggegevens en instellingen",
+        "model_help": "Leden kunnen in de chat van model wisselen.",
+        "model_default": "Standaard van de provider",
+        "model_custom": "Aangepaste model-ID",
+        "model_custom_id": "Model-ID",
+        "model_custom_id_help": "De model-ID precies zoals de provider die noemt.",
+        "fallback_credentials": "Reserve-inloggegevens",
+        "fallback_credentials_summary": "Alleen gebruikt wanneer noch het lid noch de werkruimte een sleutel heeft toegevoegd in de instellingen voor AI-providers.",
+        "fallback_saved": "{count, plural, one{# opgeslagen} other{# opgeslagen}}",
         "credentials_help": "Waarden kunnen alleen worden geschreven. Opgeslagen waarden blijven verborgen; vervang een waarde om deze te wijzigen.",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "Anthropic API-sleutel",
-            "help": "Of gebruik in plaats daarvan een Claude Code OAuth-token."
+            "help": "Gebruikt wanneer noch het lid noch de werkruimte een Anthropic-sleutel heeft. Of gebruik in plaats daarvan een Claude Code OAuth-token."
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "Claude Code OAuth-token",
@@ -189,8 +214,11 @@
             "help": "Optioneel. Standaard https://api.deepseek.com."
           },
           "PLANE_AGENT_MODEL": {
-            "label": "Standaardmodel",
-            "help": "Optionele model-ID, bijv. claude-opus-5-5. Leden kunnen in de chat van model wisselen."
+            "label": "Standaardmodel"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "Standaardredeneerniveau",
+            "help": "Optioneel, bijv. high. Wordt gebruikt als het model dat niveau ondersteunt. Leden kunnen het in de chat wijzigen."
           },
           "GEMINI_API_KEY": {
             "label": "Gemini API-sleutel",
@@ -221,7 +249,6 @@
           "required": "Dit veld is verplicht.",
           "slug": "Gebruik kleine letters, cijfers en koppeltekens.",
           "default_above_max": "Het standaardniveau kan niet hoger zijn dan het maximum.",
-          "claude_auth": "Voer een Anthropic API-sleutel of een Claude Code OAuth-token in.",
           "deepseek_auth": "Voer een DeepSeek API-sleutel in."
         },
         "cancel": "Annuleren",
@@ -249,7 +276,6 @@
       "unread": "{name} openen (nieuwe activiteit)",
       "minimize": "Minimaliseren",
       "open_page": "Openen op volledige pagina",
-      "agent_menu_label": "Agent wisselen, nu {agent}",
       "greeting": "Hallo, ik ben {name}",
       "suggestions": {
         "assigned_to_me": "Wat is aan mij toegewezen?",
@@ -364,7 +390,8 @@
         "connected": "Ingelogd als {email}.",
         "connected_unknown": "Ingelogd.",
         "disconnected": "Account ontkoppeld.",
-        "disconnect_failed": "Het account kon niet worden ontkoppeld."
+        "disconnect_failed": "Het account kon niet worden ontkoppeld.",
+        "sign_in_lost": "Uw aanmelding bij {vendor} is niet meer geldig. Log opnieuw in."
       }
     }
   }

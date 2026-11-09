@@ -3,10 +3,27 @@
     "title": "Agenti",
     "picker": {
       "label": "Agente",
-      "placeholder": "Selezionare un agente"
+      "trigger_label": "Agente e modello: {selection}",
+      "switch_hint": "Cambiando agente si avvia una nuova chat.",
+      "unavailable": "Ancora nessuna chiave API",
+      "manage_providers": "Gestisci i fornitori di IA"
     },
     "model": {
       "label": "Modello"
+    },
+    "effort": {
+      "label": "Livello di ragionamento",
+      "trigger_label": "Livello di ragionamento: {level}",
+      "hint": "Si applica dal prossimo messaggio.",
+      "levels": {
+        "none": "Nessuno",
+        "minimal": "Minimo",
+        "low": "Basso",
+        "medium": "Medio",
+        "high": "Alto",
+        "xhigh": "Molto alto",
+        "max": "Massimo"
+      }
     },
     "permission": {
       "label": "Livello di autorizzazione",
@@ -131,6 +148,7 @@
         "prompt": "L'agente non è riuscito a rispondere a quel messaggio.",
         "set_mode": "Impossibile modificare il livello di autorizzazione.",
         "set_model": "Impossibile modificare il modello.",
+        "set_effort": "Impossibile modificare il livello di ragionamento.",
         "reconnect": "Impossibile riconnettersi."
       },
       "retry": "Riprova"
@@ -165,12 +183,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "Credenziali e impostazioni",
+        "model_help": "I membri possono cambiare modello nella chat.",
+        "model_default": "Predefinito del fornitore",
+        "model_custom": "ID modello personalizzato",
+        "model_custom_id": "ID del modello",
+        "model_custom_id_help": "L’ID del modello esattamente come lo indica il fornitore.",
+        "fallback_credentials": "Credenziali di riserva",
+        "fallback_credentials_summary": "Usate solo quando né il membro né lo spazio di lavoro hanno aggiunto una chiave nelle impostazioni dei fornitori di IA.",
+        "fallback_saved": "{count, plural, one{# salvata} many{# salvate} other{# salvate}}",
         "credentials_help": "I valori sono di sola scrittura. I valori salvati restano nascosti; per modificarne uno, sostituirlo.",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "Chiave API Anthropic",
-            "help": "In alternativa, usare un token OAuth di Claude Code."
+            "help": "Usata quando né il membro né lo spazio di lavoro hanno una chiave Anthropic. In alternativa, usare un token OAuth di Claude Code."
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "Token OAuth di Claude Code",
@@ -189,8 +214,11 @@
             "help": "Facoltativo. Il valore predefinito è https://api.deepseek.com."
           },
           "PLANE_AGENT_MODEL": {
-            "label": "Modello predefinito",
-            "help": "ID del modello facoltativo, ad esempio claude-opus-5-5. I membri possono cambiare modello nella chat."
+            "label": "Modello predefinito"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "Livello di ragionamento predefinito",
+            "help": "Facoltativo, ad esempio high. Usato quando il modello supporta quel livello. I membri possono cambiarlo nella chat."
           },
           "GEMINI_API_KEY": {
             "label": "Chiave API Gemini",
@@ -221,7 +249,6 @@
           "required": "Questo campo è obbligatorio.",
           "slug": "Usare lettere minuscole, numeri e trattini.",
           "default_above_max": "Il livello predefinito non può essere superiore al massimo.",
-          "claude_auth": "Inserire una chiave API Anthropic o un token OAuth di Claude Code.",
           "deepseek_auth": "Inserire una chiave API DeepSeek."
         },
         "cancel": "Annulla",
@@ -249,7 +276,6 @@
       "unread": "Apri {name} (nuova attività)",
       "minimize": "Riduci a icona",
       "open_page": "Apri a pagina intera",
-      "agent_menu_label": "Cambia agente, attuale: {agent}",
       "greeting": "Buongiorno, sono {name}",
       "suggestions": {
         "assigned_to_me": "Cosa mi è stato assegnato?",
@@ -364,7 +390,8 @@
         "connected": "Accesso effettuato come {email}.",
         "connected_unknown": "Accesso effettuato.",
         "disconnected": "Account disconnesso.",
-        "disconnect_failed": "Impossibile disconnettere l'account."
+        "disconnect_failed": "Impossibile disconnettere l'account.",
+        "sign_in_lost": "L'accesso a {vendor} non è più valido. Accedere di nuovo."
       }
     }
   }

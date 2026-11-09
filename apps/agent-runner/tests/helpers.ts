@@ -48,6 +48,10 @@ export function runnerConfig(root: string, overrides: Partial<RunnerConfig> = {}
     maxMessageBytes: 1024 * 1024,
     maxConnections: 8,
     maxHeaderBytes: 256 * 1024,
+    processLimit: 256,
+    fileSizeLimitBytes: 1024 * 1024 * 1024,
+    userDiskLimitBytes: 0,
+    diskCheckIntervalMs: 60_000,
     ...overrides,
   };
 }
