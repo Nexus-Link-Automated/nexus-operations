@@ -23,10 +23,11 @@ export abstract class PageCoreService extends APIService {
     super();
   }
 
-  async fetchDetails(pageId: string): Promise<TPage> {
+  async fetchDetails(pageId: string, options?: { trackVisit?: boolean }): Promise<TPage> {
     try {
       const response = await this.get(`${this.basePath}/pages/${pageId}/`, {
         headers: this.getHeader(),
+        ...(options?.trackVisit === false && { params: { track_visit: false } }),
       });
       return response?.data as TPage;
     } catch (error) {
