@@ -24,7 +24,7 @@ export const ChatCloseCode = {
  * - `connecting`: the first connection is opening, or waiting for `ready`.
  * - `ready`: admitted; events flow.
  * - `reconnecting`: the socket dropped and a retry is scheduled or under way.
- * - `paused`: closed on purpose because the user went idle; the next `noteActivity()` reopens it. Not a fault.
+ * - `paused`: closed on purpose because a hidden tab went idle; the next `noteActivity()` reopens it. Not a fault.
  * - `closed`: stopped for good, either by `close()` or because the gateway said not to retry (`closedReason`).
  */
 export type TChatSocketStatus = "idle" | "connecting" | "ready" | "reconnecting" | "paused" | "closed";
@@ -75,8 +75,10 @@ export type TChatSocketOptions = TChatSocketHandlers & {
   /** Retry delays: `initial * 2^attempt`, capped at `max`, with jitter. */
   initialBackoffMs?: number;
   maxBackoffMs?: number;
-  /** With no `noteActivity()` for this long, the socket is closed until the next one. */
+  /** With no `noteActivity()` for this long and the tab hidden, the socket is closed until the next one. */
   idleTimeoutMs?: number;
+  /** Whether someone could be reading the page. Defaults to the document's visibility. */
+  isVisible?: () => boolean;
   /** For tests: a value in [0, 1) used for jitter. */
   random?: () => number;
 };
@@ -127,8 +129,9 @@ function parseFrame(data: unknown): TChatServerFrame | undefined {
  * workspace: it waits for `ready` before anything else, re-sends the explicit subscriptions after every `ready`,
  * pings to notice a dead socket, and reconnects with backoff unless the gateway said not to (4400, 4401, 4403).
  *
- * Its pings would keep a socket open for as long as a tab is, so it closes itself after `idleTimeoutMs` without
- * `noteActivity()` and reopens on the next one, with no backoff.
+ * Its pings would keep a socket open for as long as a tab is, so a hidden tab closes it after `idleTimeoutMs` without
+ * `noteActivity()` and reopens on the next one, with no backoff. A visible tab stays connected: someone may be reading
+ * it without touching anything.
  *
  * It holds no chat data. The owner fetches over REST on `onReady(…, reconnected)` and `onResync`.
  */
@@ -143,6 +146,7 @@ export class ChatSocket {
   private readonly initialBackoffMs: number;
   private readonly maxBackoffMs: number;
   private readonly idleTimeoutMs: number;
+  private readonly isVisible: () => boolean;
   private readonly random: () => number;
 
   private socket: ChatWebSocketLike | null = null;
@@ -179,6 +183,8 @@ export class ChatSocket {
     this.initialBackoffMs = options.initialBackoffMs ?? 1_000;
     this.maxBackoffMs = options.maxBackoffMs ?? 30_000;
     this.idleTimeoutMs = options.idleTimeoutMs ?? 30 * 60_000;
+    this.isVisible =
+      options.isVisible ?? (() => typeof document !== "undefined" && document.visibilityState === "visible");
     this.random = options.random ?? Math.random;
   }
 
@@ -398,11 +404,12 @@ export class ChatSocket {
       this.idleTimer = null;
       const remaining = this.lastActivityAt + this.idleTimeoutMs - Date.now();
       if (remaining > 0) this.armIdleTimer(remaining);
+      else if (this.isVisible()) this.armIdleTimer(this.idleTimeoutMs);
       else this.pause();
     }, delay);
   }
 
-  /** Close because the user is idle: no retry, and whatever was pending is dropped. */
+  /** Close because the tab is hidden and idle: no retry, and whatever was pending is dropped. */
   private pause(): void {
     this.paused = true;
     // Whatever failed before the idle gap is no reason to wait after it.
