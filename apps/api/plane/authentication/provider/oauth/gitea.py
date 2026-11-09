@@ -15,6 +15,7 @@ from plane.authentication.adapter.error import (
     AUTHENTICATION_ERROR_CODES,
     AuthenticationException,
 )
+from plane.utils.constants import OAUTH_HTTP_TIMEOUT
 
 
 class GiteaOAuthProvider(OauthAdapter):
@@ -117,7 +118,7 @@ class GiteaOAuthProvider(OauthAdapter):
         try:
             # Gitea may not provide email in user response, so fetch it separately
             emails_url = f"{self.userinfo_url}/emails"
-            response = requests.get(emails_url, headers=headers)
+            response = requests.get(emails_url, headers=headers, timeout=OAUTH_HTTP_TIMEOUT)
             if not response.ok:
                 raise AuthenticationException(
                     error_code=AUTHENTICATION_ERROR_CODES["GITEA_OAUTH_PROVIDER_ERROR"],

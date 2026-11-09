@@ -57,6 +57,10 @@ export class PdfTimeoutError extends Schema.TaggedError<PdfTimeoutError>()("PdfT
   operation: Schema.NonEmptyTrimmedString,
 }) {}
 
+export class PdfExportBusyError extends Schema.TaggedError<PdfExportBusyError>()("PdfExportBusyError", {
+  message: Schema.NonEmptyTrimmedString,
+}) {}
+
 export type PdfExportError =
   | PdfValidationError
   | PdfAuthenticationError
@@ -64,4 +68,5 @@ export type PdfExportError =
   | PdfMetadataFetchError
   | PdfImageProcessingError
   | PdfGenerationError
-  | PdfTimeoutError;
+  | PdfTimeoutError
+  | PdfExportBusyError;
