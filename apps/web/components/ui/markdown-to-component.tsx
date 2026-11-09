@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import React from "react";
+import React, { createContext, useContext } from "react";
 import ReactMarkdown from "react-markdown";
 
 interface CustomComponentProps {
@@ -59,12 +59,30 @@ function UnorderedList({ children }: { children: React.ReactNode }) {
   return <ul className="mb-4 ml-8 list-disc text-body-xs-regular text-secondary">{children}</ul>;
 }
 
+/** An image inside a link must not become a second link: anchors cannot nest. */
+const InsideLinkContext = createContext(false);
+
 function Link({ href, children }: CustomComponentProps) {
   return (
-    <a href={href} className="underline hover:no-underline" target="_blank" rel="noopener noreferrer">
-      {children}
-    </a>
+    <InsideLinkContext.Provider value={true}>
+      <a href={href} className="underline hover:no-underline" target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    </InsideLinkContext.Provider>
   );
+}
+
+const isWebLink = (url: string | undefined): url is string => !!url && /^https?:\/\//i.test(url);
+
+/**
+ * Markdown images become links, so the browser requests nothing until the reader clicks. The
+ * markdown here is model output: an <img> would fetch whatever address the model wrote, unprompted.
+ */
+function ImageLink({ src, alt }: React.ComponentProps<"img">) {
+  const insideLink = useContext(InsideLinkContext);
+  const label = alt || src;
+  if (insideLink || !isWebLink(src)) return <>{label}</>;
+  return <Link href={src}>{label}</Link>;
 }
 
 export function MarkdownRenderer({ markdown, options = {} }: Props) {
@@ -75,10 +93,11 @@ export function MarkdownRenderer({ markdown, options = {} }: Props) {
     ol: OrderedList,
     ul: UnorderedList,
     a: Link,
+    img: ImageLink,
   };
 
   return (
-    <ReactMarkdown components={customComponents} {...options}>
+    <ReactMarkdown {...options} components={customComponents}>
       {markdown}
     </ReactMarkdown>
   );

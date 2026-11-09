@@ -29,8 +29,10 @@ class BaseModel(AuditModel):
                 user = get_current_user()
 
                 if user is None or user.is_anonymous:
-                    self.created_by = None
-                    self.updated_by = None
+                    # Background jobs have no request user: only a new row starts unattributed
+                    if self._state.adding:
+                        self.created_by = None
+                        self.updated_by = None
                 else:
                     # Check if the model is being created or updated
                     if self._state.adding:

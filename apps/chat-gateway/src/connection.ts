@@ -50,8 +50,8 @@ type Verdict = "ok" | "closed" | "unknown";
  *   was asked when it did, and the answer is re-read with the feed.
  *
  * Every event for the workspace is handed to every socket in it, and a socket forwards only the ones for
- * channels it follows. So a channel the API never said the user could see never reaches them, however
- * the event got to the gateway.
+ * channels it follows. So nothing about a channel reaches a user unless the API said they could see it, or
+ * Django announced that they were added to it.
  */
 export class Connection implements Recipient {
   readonly userId: string;
@@ -68,10 +68,10 @@ export class Connection implements Recipient {
   readonly #subscriptions = new Set<string>();
   /** Channels the API said the user can't see → until when to believe that without asking again. */
   readonly #denied = new Map<string, number>();
-  readonly #timers: ReturnType<typeof setInterval>[] = [];
+  readonly #timers: NodeJS.Timeout[] = [];
   /** Events that arrived before `ready`; `undefined` once the socket is live. */
   #queue: ChatEvent[] | undefined = [];
-  /** Held back while access is being re-checked after `access.revoked`. */
+  /** Set while access is being re-checked after `access.revoked`: nothing is forwarded until it is confirmed. */
   #suspended = false;
   #closed = false;
   #left = false;
@@ -93,6 +93,11 @@ export class Connection implements Recipient {
     this.#onClose = options.onClose;
     this.#log = options.log;
     this.#socket.on("message", (data, isBinary) => this.#onFrame(data, isBinary));
+    // `ws` answers a ping by itself, so one sent without reading the answer never reaches `#send`.
+    this.#socket.on("ping", () => {
+      if (this.#overRate()) this.close(CloseCode.tooManyRequests, "Too many messages");
+      else this.#closedForNotReading();
+    });
     this.#socket.on("error", () => undefined);
     this.#socket.once("close", () => this.#teardown(true));
   }
@@ -121,15 +126,29 @@ export class Connection implements Recipient {
     const queued = this.#queue ?? [];
     this.#queue = undefined;
     for (const event of queued) this.#route(event);
-    this.#timers.push(
-      setInterval(() => void this.#syncAccess(), this.#config.accessTtlMs),
-      setInterval(() => void this.#verifySession(), this.#config.sessionRecheckMs)
-    );
-    for (const timer of this.#timers) timer.unref();
+    // Sending `ready` or the queued events can close the socket.
+    if (this.#closed) return;
+    this.#every(this.#config.accessTtlMs, () => void this.#syncAccess());
+    this.#every(this.#config.sessionRecheckMs, () => void this.#verifySession());
+  }
+
+  /**
+   * Run `task` every `periodMs`, the first time at a random point within the first period, so sockets that opened
+   * together (a restart, a reconnect storm) don't all ask the API at the same moment for ever after.
+   */
+  #every(periodMs: number, task: () => void): void {
+    const first = setTimeout(() => {
+      task();
+      const interval = setInterval(task, periodMs);
+      interval.unref();
+      this.#timers.push(interval);
+    }, Math.random() * periodMs);
+    first.unref();
+    this.#timers.push(first);
   }
 
   deliver(event: ChatEvent): void {
-    if (this.#closed || this.#suspended) return;
+    if (this.#closed) return;
     if (this.#queue) {
       if (this.#queue.length >= MAX_QUEUED_EVENTS) this.close(CloseCode.tryAgainLater, "Not keeping up");
       else this.#queue.push(event);
@@ -176,7 +195,7 @@ export class Connection implements Recipient {
       case "member.removed":
         if (own && channel) {
           // Tell them they're out, then stop: nothing about the channel follows.
-          if (this.#follows(channel)) this.#send({ type: "event", event });
+          if (this.#follows(channel)) this.#forward(event);
           this.#feed.delete(channel);
           this.#feedVersion += 1;
           this.#subscriptions.delete(channel);
@@ -186,7 +205,15 @@ export class Connection implements Recipient {
       default:
         break;
     }
-    if (channel && this.#follows(channel)) this.#send({ type: "event", event });
+    if (channel && this.#follows(channel)) this.#forward(event);
+  }
+
+  /**
+   * Send an event on, unless access is being re-checked: then it is held back (the feed still takes it into
+   * account above), and the re-check ends with `resync` or the socket closing.
+   */
+  #forward(event: ChatEvent): void {
+    if (!this.#suspended) this.#send({ type: "event", event });
   }
 
   #follows(channel: string): boolean {
@@ -258,6 +285,7 @@ export class Connection implements Recipient {
     }
 
     // Ask the API, as this user: it answers 200 for a channel they can see and 404 for any other.
+    const version = this.#feedVersion;
     this.#checksInFlight += 1;
     let access: ChannelAccess;
     try {
@@ -268,7 +296,10 @@ export class Connection implements Recipient {
         this.#refuse(channel);
         this.#error("not_found", "Channel not found", channel);
       } else if (error instanceof PlaneApiError && error.isUnauthenticated) {
-        await this.#verifySession();
+        const verdict = await this.#verifySession();
+        if (verdict !== "closed" && !this.#closed) {
+          this.#error("unavailable", "Could not check the channel; try again", channel);
+        }
       } else {
         this.#log.warn("chat-gateway: could not check a channel", { error: (error as Error).message });
         this.#error("unavailable", "Could not check the channel; try again", channel);
@@ -278,6 +309,11 @@ export class Connection implements Recipient {
       this.#checksInFlight -= 1;
     }
     if (this.#closed) return;
+    // The answer may be older than a change to the user's channels, or a re-check, that happened while it travelled.
+    if (version !== this.#feedVersion || this.#suspended) {
+      this.#error("unavailable", "Could not check the channel; try again", channel);
+      return;
+    }
 
     if (access.is_member) {
       this.#feed.add(channel);
@@ -338,17 +374,21 @@ export class Connection implements Recipient {
    * Read the user's channels again and make the feed and subscriptions match, telling the browser if its
    * channels changed under it. Catches what no event did: a missed event, a demotion, a removed channel.
    */
-  async #syncAccess(force = false): Promise<void> {
-    if (this.#closed || (this.#syncing && !force)) return;
+  async #syncAccess(force = false): Promise<boolean> {
+    if (this.#closed || (this.#syncing && !force)) return false;
     this.#syncing = true;
     try {
       for (let attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt += 1) {
         const version = this.#feedVersion;
         // oxlint-disable-next-line no-await-in-loop -- a retry only when an event changed the feed meanwhile
         const { members, visible } = await this.#loadChannels();
-        if (this.#closed) return;
-        // An event changed the feed while this read was under way; what was read may be older. Read again.
-        if (version !== this.#feedVersion && attempt < MAX_SYNC_ATTEMPTS) continue;
+        if (this.#closed) return false;
+        // An event changed the feed while this read was under way, so what was read may be older. Read again, and if
+        // that keeps happening leave the feed as the events have made it; the next re-read will try again.
+        if (version !== this.#feedVersion) {
+          if (attempt < MAX_SYNC_ATTEMPTS) continue;
+          return false;
+        }
 
         const changed = members.size !== this.#feed.size || [...members].some((channel) => !this.#feed.has(channel));
         this.#replaceFeed(members);
@@ -361,12 +401,14 @@ export class Connection implements Recipient {
           }
         }
         if (changed || force) this.#send({ type: "resync", reason: "membership_changed" });
-        return;
+        return true;
       }
+      return false;
     } catch (error) {
-      if (this.#closed) return;
+      if (this.#closed) return false;
       if (error instanceof PlaneApiError && error.isUnauthenticated) await this.#verifySession();
       else this.#log.warn("chat-gateway: could not re-read the user's channels", { error: (error as Error).message });
+      return false;
     } finally {
       this.#syncing = false;
     }
@@ -421,7 +463,13 @@ export class Connection implements Recipient {
       this.close(CloseCode.internalError, "Could not re-check access");
       return;
     }
-    await this.#syncAccess(true);
+    // What was held back is gone, so the browser has to refetch; and the feed must be right before anything flows.
+    const synced = await this.#syncAccess(true);
+    if (this.#closed) return;
+    if (!synced) {
+      this.close(CloseCode.internalError, "Could not re-check access");
+      return;
+    }
     this.#suspended = false;
   }
 
@@ -439,13 +487,15 @@ export class Connection implements Recipient {
   // ── sending and closing ───────────────────────────────────────────────────
 
   #send(message: ServerMessage): void {
-    if (this.#closed || this.#socket.readyState !== this.#socket.OPEN) return;
-    // A browser that isn't reading would otherwise hold events in memory until it is. It reconnects and resyncs.
-    if (this.#socket.bufferedAmount > this.#config.maxBufferedBytes) {
-      this.close(CloseCode.tryAgainLater, "Not keeping up");
-      return;
-    }
+    if (this.#closed || this.#socket.readyState !== this.#socket.OPEN || this.#closedForNotReading()) return;
     this.#socket.send(encode(message));
+  }
+
+  /** A browser that has stopped reading would otherwise have everything sent to it held in memory, without limit. */
+  #closedForNotReading(): boolean {
+    if (this.#socket.bufferedAmount <= this.#config.maxBufferedBytes) return false;
+    this.close(CloseCode.tryAgainLater, "Not keeping up");
+    return true;
   }
 
   #error(code: ErrorCode, message: string, channelId?: string): void {
@@ -463,7 +513,6 @@ export class Connection implements Recipient {
       this.#hub.leave(this);
     }
     if (finished) {
-      this.#log.info("chat-gateway: socket closed");
       this.#onClose();
     }
   }

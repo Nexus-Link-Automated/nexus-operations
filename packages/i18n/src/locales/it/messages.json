@@ -12,7 +12,7 @@
       "title": "Canali",
       "browse": "Sfoglia i canali",
       "create": "Crea un canale",
-      "none": "Non si è ancora unito a nessun canale."
+      "none": "Non ti sei ancora unito a nessun canale."
     },
     "dms": {
       "title": "Messaggi diretti",
@@ -23,12 +23,12 @@
       "member_count": "{count, plural, one {# membro} many {# membri} other {# membri}}",
       "join": "Unisciti",
       "leave": "Esci dal canale",
-      "join_prompt": "Sta visualizzando #{name}. Si unisca per inviare messaggi.",
+      "join_prompt": "Stai visualizzando #{name}. Unisciti per inviare messaggi.",
       "archived": "Questo canale è archiviato. È possibile leggerlo, ma non inviare messaggi.",
       "intro_title": "Questo è l'inizio di #{name}",
       "intro_description": "Tutto ciò che viene scritto in questo canale compare qui.",
       "not_found_title": "Conversazione non trovata",
-      "not_found_description": "Non esiste oppure non ha accesso."
+      "not_found_description": "Non esiste oppure non hai accesso."
     },
     "dm": {
       "intro_title": "Questo è l'inizio della conversazione con {name}",
@@ -47,14 +47,14 @@
     },
     "browse": {
       "title": "Sfoglia i canali",
-      "description": "Canali pubblici a cui non si è unito.",
+      "description": "Canali pubblici a cui non ti sei unito.",
       "search": "Cerca canali",
       "empty": "Nessun canale a cui unirsi.",
       "open": "Apri"
     },
     "new_dm": {
       "title": "Nuovo messaggio",
-      "description": "{count, plural, one {Scelga una persona.} many {Scelga una persona, o fino a # per un gruppo.} other {Scelga una persona, o fino a # per un gruppo.}}",
+      "description": "{count, plural, one {Scegli una persona.} many {Scegli una persona, o fino a # per un gruppo.} other {Scegli una persona, o fino a # per un gruppo.}}",
       "search": "Cerca persone",
       "empty": "Nessun risultato.",
       "submit": "Avvia conversazione"
@@ -87,9 +87,9 @@
     "connection": {
       "reconnecting": "Riconnessione in corso. I nuovi messaggi compariranno quando la connessione tornerà.",
       "reconnect": "Riconnetti ora",
-      "signed_out": "La sessione è scaduta. Acceda di nuovo per ricevere i nuovi messaggi.",
-      "forbidden": "Non ha più accesso a questi messaggi.",
-      "failed": "Gli aggiornamenti in tempo reale non sono disponibili. Ricarichi la pagina per riprovare."
+      "signed_out": "La sessione è scaduta. Accedi di nuovo per ricevere i nuovi messaggi.",
+      "forbidden": "Non hai più accesso a questi messaggi.",
+      "failed": "Gli aggiornamenti in tempo reale non sono disponibili. Ricarica la pagina per riprovare."
     },
     "notification": {
       "mentioned_in_channel": "Menzione di {name} in #{channel}",

@@ -36,6 +36,8 @@ await chat.prompt("List my open work items"); // resolves with the stop reason
   merge by `messageId`, tool calls are tracked by `toolCallId`, plus plan, usage, mode, config options,
   commands, session info, compaction and notices (including the bridge's `_meta["plane/notice"]` fallback).
 - **`describeClose(code)`**: what a bridge close code means (`reason`, `canReconnect`, `autoReconnect`).
+- **`@plane/acp-client/core`**: the close codes, the error classes and the transcript reducer on their own,
+  with no runtime dependency on the SDK or zod. Import from it in code that loads before a chat opens.
 
 `pnpm --filter @plane/acp-client test` runs the reducer tests, the session against an in-memory fake ACP
 agent (SDK `agent()`), and the transport against a browser-shaped fake WebSocket. The fake agent and the

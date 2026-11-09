@@ -413,6 +413,14 @@
           "message": "Une erreur s'est produite."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Dépublier le projet",
+        "content": "Le lien public actuel cessera de fonctionner. Si vous publiez à nouveau ce projet, un nouveau lien sera créé et le lien actuel restera inactif.",
+        "confirm": "Dépublier",
+        "confirming": "Dépublication en cours"
+      }
     }
   }
 }

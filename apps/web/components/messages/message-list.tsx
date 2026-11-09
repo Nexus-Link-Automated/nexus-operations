@@ -37,6 +37,17 @@ type ScrollPosition = { contentHeight: number; row: Element | null; rowTop: numb
 function readScrollPosition(root: HTMLElement, content: HTMLElement): ScrollPosition {
   const viewportTop = root.getBoundingClientRect().top;
   const contentHeight = content.offsetHeight;
+function isAtBottom(el: HTMLElement): boolean {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < STICK_TO_BOTTOM_PX;
+}
+
+/** `anchor`, while there is one, is the row to hold still instead of the first one on screen. */
+function readScrollPosition(root: HTMLElement, content: HTMLElement, anchor?: Element | null): ScrollPosition {
+  const viewportTop = root.getBoundingClientRect().top;
+  const contentHeight = content.offsetHeight;
+  if (anchor?.isConnected) {
+    return { contentHeight, row: anchor, rowTop: anchor.getBoundingClientRect().top - viewportTop };
+  }
   for (const row of root.querySelectorAll("[data-message-id]")) {
     const { top, bottom } = row.getBoundingClientRect();
     if (bottom > viewportTop) return { contentHeight, row, rowTop: top - viewportTop };
@@ -46,8 +57,11 @@ function readScrollPosition(root: HTMLElement, content: HTMLElement): ScrollPosi
 
 function DayDivider({ day }: { day: string }) {
   const { t } = useTranslation();
-  const today = localDay(new Date().toISOString());
-  const yesterday = localDay(new Date(Date.now() - 86_400_000).toISOString());
+  const now = new Date();
+  const today = localDay(now.toISOString());
+  // The calendar day before, not 24 hours ago: days around a clock change aren't 24 hours long.
+  now.setDate(now.getDate() - 1);
+  const yesterday = localDay(now.toISOString());
   const label =
     day === today
       ? t("messages.day.today")
@@ -80,20 +94,28 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
   const atBottom = useRef(true);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const position = useRef<ScrollPosition>({ contentHeight: 0, row: null, rowTop: 0 });
+  const pendingCount = useRef(pending.length);
+  /** The message opened from a link, held in place while the rows around it are still rendering. */
+  const revealRow = useRef<Element | null>(null);
 
   const firstId = messages[0]?.id;
   const lastId = messages[messages.length - 1]?.id;
   const targetMessageId = useSearchParams().get("message");
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  // Strings for the reveal effect's dependencies: `t` is a new function on every render.
+  const notFoundTitle = t("messages.errors.message_not_found");
+  const loadFailedTitle = t("messages.errors.load_messages_failed");
   const loaded = !!state?.loaded;
   const hasMoreOlder = !!state?.hasMoreOlder;
   const loadingOlder = !!state?.loadingOlder;
+  const olderFailed = !!state?.olderFailed;
 
   // Scrolled to the top: fetch the page before.
   useEffect(() => {
     const root = scrollRef.current;
     const target = topRef.current;
-    if (!root || !target || !hasMoreOlder || typeof IntersectionObserver === "undefined") return;
+    // After a failure, wait for the retry button: a new observer would fire at once and ask again.
+    if (!root || !target || !hasMoreOlder || olderFailed || typeof IntersectionObserver === "undefined") return;
     const intersection = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) void chat.loadOlderMessages(channelId);
@@ -102,7 +124,7 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     );
     intersection.observe(target);
     return () => intersection.disconnect();
-  }, [chat, channelId, hasMoreOlder, loadingOlder]);
+  }, [chat, channelId, hasMoreOlder, loadingOlder, olderFailed]);
 
   // Stay at the bottom if already there; otherwise keep the same messages on screen, whatever changed above them.
   const holdPosition = useCallback(() => {
@@ -111,6 +133,7 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     if (!root || !content) return;
     const { row, rowTop } = position.current;
     if (atBottom.current) {
+    if (atBottom.current && !revealRow.current?.isConnected) {
       root.scrollTop = root.scrollHeight;
     } else if (row?.isConnected) {
       // Measured rather than assumed: browsers with scroll anchoring may already have made this correction.
@@ -121,6 +144,15 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
   }, []);
 
   useLayoutEffect(holdPosition, [holdPosition, firstId, lastId, messages.length, pending.length]);
+    position.current = readScrollPosition(root, content, revealRow.current);
+  }, []);
+
+  useLayoutEffect(() => {
+    // Sending shows the message: its row, and Retry if it fails, must not end up out of sight.
+    if (pending.length > pendingCount.current) atBottom.current = true;
+    pendingCount.current = pending.length;
+    holdPosition();
+  }, [holdPosition, firstId, lastId, messages.length, pending.length]);
 
   // Message bodies are editors that render after their row does, so the content grows after the commit above.
   const observeContent = useCallback(
@@ -142,17 +174,27 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     const reveal = async () => {
       const found = await chat.revealMessage(channelId, targetMessageId);
       if (cancelled) return;
-      if (found) setHighlightedId(targetMessageId);
-      else setToast({ type: "error", title: t("messages.errors.message_not_found") });
+      if (found) {
+        setHighlightedId(targetMessageId);
+        return;
+      }
+      // Nothing to bring into view, so go back to following the list from wherever it is.
+      if (scrollRef.current) atBottom.current = isAtBottom(scrollRef.current);
+      setToast({
+        type: "error",
+        title: chat.getMessagesState(channelId)?.olderFailed ? loadFailedTitle : notFoundTitle,
+      });
     };
     void reveal();
     return () => {
       cancelled = true;
     };
-  }, [chat, channelId, loaded, targetMessageId, t]);
+  }, [chat, channelId, loaded, targetMessageId, notFoundTitle, loadFailedTitle]);
 
   useEffect(() => {
     if (!highlightedId) return;
+    const root = scrollRef.current;
+    const content = contentRef.current;
     // A real ID: only one the store found gets here, so it's safe in a selector.
     scrollRef.current?.querySelector(`[data-message-id="${highlightedId}"]`)?.scrollIntoView?.({ block: "center" });
     // Now, not on the scroll event: bodies still rendering would otherwise put the list back where it was.
@@ -160,6 +202,18 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
       position.current = readScrollPosition(scrollRef.current, contentRef.current);
     }
     const timer = setTimeout(() => setHighlightedId(null), HIGHLIGHT_MS);
+    const row = root?.querySelector(`[data-message-id="${highlightedId}"]`) ?? null;
+    row?.scrollIntoView?.({ block: "center" });
+    // Now, not on the scroll event: bodies still rendering would otherwise put the list back where it was.
+    if (root && content) {
+      revealRow.current = row;
+      position.current = readScrollPosition(root, content, row);
+    }
+    const timer = setTimeout(() => {
+      revealRow.current = null;
+      if (scrollRef.current) atBottom.current = isAtBottom(scrollRef.current);
+      setHighlightedId(null);
+    }, HIGHLIGHT_MS);
     return () => clearTimeout(timer);
   }, [highlightedId]);
 
@@ -201,6 +255,9 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
         if (content?.offsetHeight !== position.current.contentHeight) return;
         atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_TO_BOTTOM_PX;
         position.current = readScrollPosition(el, content);
+        if (!content || content.offsetHeight !== position.current.contentHeight) return;
+        atBottom.current = isAtBottom(el);
+        position.current = readScrollPosition(el, content, revealRow.current);
       }}
     >
       {/* mt-auto: a short channel sits at the bottom, next to the composer. */}
@@ -208,6 +265,19 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
       <div ref={observeContent} className="flex flex-col">
         {hasMoreOlder ? (
           <div className="flex justify-center py-3">{loadingOlder && <Spinner />}</div>
+          <div className="flex justify-center py-3">
+            {olderFailed ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                stretch="auto"
+                label={t("messages.errors.retry")}
+                onClick={() => void chat.loadOlderMessages(channelId)}
+              />
+            ) : (
+              loadingOlder && <Spinner />
+            )}
+          </div>
         ) : (
           <div className="px-4 pt-6 pb-2">{intro}</div>
         )}

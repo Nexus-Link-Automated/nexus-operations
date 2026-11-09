@@ -8,9 +8,10 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
+from django.db import connection
 from django.urls import reverse
 
-from plane.chat.models import ChannelKind, ChannelMember, ChannelNotificationLevel
+from plane.chat.models import ChannelKind, ChannelMember, ChannelNotificationLevel, Message
 from plane.chat.notifications import CHAT_MENTION_SENDER
 from plane.db.models import Notification, WorkspaceMember
 
@@ -184,6 +185,25 @@ class TestEditing:
         self.edit(member, channel, message, url, mention(member2.user.id), text="never mind")
         assert inbox(member2)[0]["data"]["chat_message"]["preview"] == "never mind"
 
+    def test_an_edit_doesnt_reach_someone_who_lost_the_channel(self, member, member2, make_channel, post, url):
+        channel = make_channel(kind=ChannelKind.PRIVATE, members=[member.user, member2.user])
+        message = post(member, channel, mention(member2.user.id), text="before")
+        ChannelMember.objects.filter(channel=channel, user=member2.user).delete()
+        self.edit(member, channel, message, url, text="after they left")
+        assert entries(member2.user).get().data["chat_message"]["preview"] == "before"
+
+    def test_a_failed_query_while_notifying_keeps_the_edit(self, member, member2, make_channel, post, url):
+        channel = make_channel(members=[member.user, member2.user])
+        message = post(member, channel, mention(member2.user.id))
+
+        def broken(*_args):
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1/0")
+
+        with mock.patch("plane.chat.notifications._notify", broken):
+            self.edit(member, channel, message, url, text="kept")
+        assert Message.objects.get(pk=message["id"]).body_stripped.strip() == "kept"
+
 
 @pytest.mark.contract
 class TestWhatTheInboxShows:
@@ -196,6 +216,24 @@ class TestWhatTheInboxShows:
         assert inbox(member2) == []
         assert unread_mentions(member2) == 0
         assert entries(member2.user).get().data["chat_message"]["preview"] == ""
+
+    def test_a_failed_query_while_refreshing_keeps_the_removal(self, member, member2, make_channel, post, url):
+        channel = make_channel(members=[member.user, member2.user])
+        message = post(member, channel, mention(member2.user.id))
+
+        def broken(*_args):
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1/0")
+
+        with mock.patch("plane.chat.notifications._data", broken):
+            response = member.client.delete(url(f"channels/{channel.id}/messages/{message['id']}/"))
+        assert response.status_code == 204, response.content
+        assert Message.objects.get(pk=message["id"]).removed_at is not None
+
+    def test_a_preview_is_plain_text(self, member, member2, make_channel, post, inbox):
+        channel = make_channel(members=[member.user, member2.user])
+        post(member, channel, mention(member2.user.id), text="Q&amp;A")
+        assert inbox(member2)[0]["data"]["chat_message"]["preview"] == "Q&A"
 
     def test_losing_access_to_the_channel_hides_the_entry(
         self, member, member2, make_channel, post, inbox, unread_mentions

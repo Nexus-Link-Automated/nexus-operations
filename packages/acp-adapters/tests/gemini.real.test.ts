@@ -120,6 +120,27 @@ describe.skipIf(!BUNDLE)("plane-acp-gemini against the real Gemini CLI", () => {
       ["create", "Bearer plane_api_token", "acme"],
     ]);
 
+    // Gemini refuses a read outside the workspace itself, before any permission request.
+    const send = (text: string) =>
+      client!.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] });
+    const beforeFiles = client.permissionRequests.length;
+    await send('CALL:read_file|{"file_path":"/etc/hostname"}');
+    expect(client.permissionRequests.length).toBe(beforeFiles);
+    // A glob's pattern is not confined by Gemini, so the adapter asks, or refuses without asking.
+    client.answers.push("reject_once");
+    await send('CALL:glob|{"pattern":"/etc/*"}');
+    expect(client.permissionRequests.length).toBe(beforeFiles + 1);
+    await send('CALL:glob|{"pattern":"/proc/*/environ"}');
+    expect(client.permissionRequests.length).toBe(beforeFiles + 1);
+    // Web tools ask in ask_writes, including the search Gemini declares as `kind: search`.
+    client.answers.push("reject_once");
+    await send('CALL:web_fetch|{"prompt":"summarize https://example.com/"}');
+    expect(client.permissionRequests.at(-1)?.toolCall.kind).toBe("fetch");
+    expect(client.permissionRequests.length).toBe(beforeFiles + 2);
+    client.answers.push("reject_once");
+    await send('CALL:google_web_search|{"query":"plane"}');
+    expect(client.permissionRequests.length).toBe(beforeFiles + 3);
+
     // Gemini's own slash commands do not run.
     const mark = client.updates.length;
     await client.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text: "/about" }] });

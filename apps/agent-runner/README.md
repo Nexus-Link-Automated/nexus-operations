@@ -85,6 +85,29 @@ Every dir the runner chowns sits in a root-owned parent, so an agent cannot swap
 
 The sign-in helper follows the same rules.
 
+### Limits
+
+Each agent runs under `prlimit` (which sets the limits and execs the agent, so the pid and process
+group are the agent's own), with soft and hard limits both set so it cannot raise them:
+
+- `RLIMIT_NPROC` (`AGENT_RUNNER_NPROC_LIMIT`, default 256). It counts every task the uid owns, threads
+  included, across all of that workspace dir's agents, so `uid` isolation makes it per tenant.
+- `RLIMIT_FSIZE` (`AGENT_RUNNER_FILE_SIZE_LIMIT_BYTES`, default 4 GiB): the largest file an agent can
+  create or grow. It also caps sparse files, because growing a file past it fails with `EFBIG`.
+
+`RLIMIT_AS` is deliberately not set: Node reserves large virtual address ranges up front and would
+abort. The limits apply only in `uid` isolation; with `none` the uid is the developer's own.
+
+The disk cap (`AGENT_RUNNER_USER_DISK_LIMIT_BYTES`, default 10 GiB, `0` is off) covers one workspace
+dir: its working dir, `HOME` and `TMPDIR`, counted in allocated blocks. A connection for a dir over the
+cap is refused with 507 and no agent starts. While agents run, each dir is scanned every
+`AGENT_RUNNER_DISK_CHECK_INTERVAL_MS` (default 60 s), and every agent of a dir over the cap is stopped.
+The scan is a `du` child process, one at a time, so it never blocks the event loop. A scan that fails
+is logged and ignored; one still running after 30 s counts as over the cap.
+
+Nothing is deleted for the user. To get a dir back under the cap, remove files from the volume by hand
+or raise the limit.
+
 ### Stopping
 
 - When the socket closes, the whole process group gets SIGTERM, then SIGKILL after
@@ -94,6 +117,39 @@ The sign-in helper follows the same rules.
 
 `AGENT_RUNNER_ISOLATION=none` runs agents as the runner's own user, for local development only. With
 `uid` (the default) the runner refuses to start unless it is root.
+
+### Credential broker
+
+The scrubbing above covers the tools an agent runs, not the adapter or vendor CLI itself, which starts with the
+key in its environment under the same uid as its tools (and Codex writes it to `auth.json` in that uid's home).
+`AGENT_RUNNER_CREDENTIAL_BROKER=true` keeps the key out of agent uids altogether:
+
+- The runner listens on `127.0.0.1` on an ephemeral port. For each agent it takes the API key out of the env it
+  spawns, keeps it in memory only, and gives the agent an opaque token plus the proxy's URL as the vendor's
+  base URL (see the adapter README for each vendor's settings).
+- The proxy finds the agent by token, replaces it with the real key, and forwards to that vendor's fixed host.
+  Agents share the runner's loopback, so the token alone tells them apart. Nothing in a request can choose the
+  upstream. An unknown or revoked token gets 401.
+- Responses stream through unbuffered, WebSocket upgrades are relayed, and redirects are returned to the client
+  rather than followed. Neither requests nor their auth headers are logged. Tokens die when the agent exits,
+  and any stream still open is cut.
+- `AGENT_RUNNER_CREDENTIAL_BROKER` is off by default and needs a smoke test with a real key for every provider
+  before it is enabled.
+- With the broker off, the Claude adapter needs bubblewrap and working user namespaces to start, because it runs
+  Claude Code with subprocess env scrubbing on. When the key is brokered and no other credential is in the
+  agent's env, there is nothing left to scrub, so the adapter turns it off and Claude starts without them.
+
+Not brokered, so these agents keep their credential in the environment (a warning is logged when an API key is
+left behind):
+
+- An admin env that points the vendor elsewhere: `ANTHROPIC_BASE_URL`, `ANTHROPIC_UNIX_SOCKET`,
+  `GOOGLE_GEMINI_BASE_URL`, `DEEPSEEK_BASE_URL`, or a proxy (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`), since the
+  broker only talks directly to the vendor's own host.
+- An agent whose env has `ANTHROPIC_AUTH_TOKEN` or `CLAUDE_CODE_OAUTH_TOKEN` (not API keys).
+- ChatGPT and Google account sign-ins, which live in the agent's home.
+
+A key from before the flag was turned on may still sit in `~/.codex-api-key/auth.json`; Codex overwrites it with
+the token at the next Codex session, so remove those files once when enabling the flag.
 
 ## Environment
 
@@ -109,8 +165,13 @@ The sign-in helper follows the same rules.
 | `AGENT_RUNNER_AGENT_SHELL`                      | `/bin/bash`              | `SHELL` agents see                                           |
 | `AGENT_RUNNER_KILL_GRACE_MS`                    | `3000`                   | SIGTERM → SIGKILL                                            |
 | `AGENT_RUNNER_MAX_MESSAGE_BYTES`                | 8 MiB                    | Largest frame from the bridge                                |
+| `AGENT_RUNNER_CREDENTIAL_BROKER`                | `false`                  | Keep API keys in the runner; see Credential broker           |
 | `AGENT_RUNNER_MAX_CONNECTIONS`                  | `64`                     |                                                              |
 | `AGENT_RUNNER_MAX_HEADER_BYTES`                 | 256 KiB                  | Tickets carry the agent env, so upgrade headers can be large |
+| `AGENT_RUNNER_NPROC_LIMIT`                      | `256`                    | `RLIMIT_NPROC` for each uid (see [Limits](#limits))          |
+| `AGENT_RUNNER_FILE_SIZE_LIMIT_BYTES`            | 4 GiB                    | `RLIMIT_FSIZE` for each agent                                |
+| `AGENT_RUNNER_USER_DISK_LIMIT_BYTES`            | 10 GiB                   | Disk cap per workspace dir; `0` is off                       |
+| `AGENT_RUNNER_DISK_CHECK_INTERVAL_MS`           | `60000`                  | How often running agents' dirs are checked                   |
 | `LOG_LEVEL`, `APP_VERSION`                      |                          | Agent stderr is logged at `debug`                            |
 
 Give the container cpu, memory and pids limits.

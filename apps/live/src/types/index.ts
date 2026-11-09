@@ -32,4 +32,7 @@ export type HocusPocusServerContext = {
   documentType: TDocumentTypes;
   workspaceSlug: string | null;
   userId: string;
+  // When this connection's access to the document was last checked against the API
+  accessCheckedAt?: number;
+  accessRecheck?: Promise<void>;
 };

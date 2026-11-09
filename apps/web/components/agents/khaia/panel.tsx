@@ -19,17 +19,30 @@ import { useAgentChat } from "@/hooks/store/use-agent-chat";
 import { useAppRouter } from "@/hooks/use-app-router";
 // local imports
 import { AgentChatStatusBanner } from "../connection-banner";
+import { AgentEffortMenu } from "../effort-menu";
+import { AgentModelPicker } from "../model-picker";
 import { AgentPermissionLevelSelect } from "../permission-level-select";
 import { TranscriptView } from "../transcript/transcript-view";
-import { KhaiaAgentMenu } from "./agent-menu";
 import { KhaiaAvatar } from "./avatar";
 import { KhaiaComposer } from "./composer";
 import { KHAIA_NAME, KHAIA_SUGGESTIONS } from "./constants";
 
-function HeaderButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+function HeaderButton({
+  label,
+  onClick,
+  disabled,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
   return (
     <Tooltip>
-      <TooltipTrigger render={<Button variant="ghost" size="icon-sm" aria-label={label} onClick={onClick} />}>
+      <TooltipTrigger
+        render={<Button variant="ghost" size="icon-sm" aria-label={label} disabled={disabled} onClick={onClick} />}
+      >
         {children}
       </TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>
@@ -78,7 +91,8 @@ export const KhaiaPanel = observer(function KhaiaPanel({ workspaceSlug, onMinimi
   const { t } = useTranslation();
   const router = useAppRouter();
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const { snapshot, canPrompt, sendPrompt, cancelTurn, startNewSession, respondToPermission } = useAgentChat();
+  const { snapshot, activeAgent, canPrompt, sendPrompt, cancelTurn, startNewSession, respondToPermission } =
+    useAgentChat();
   const transcript = snapshot?.transcript;
   const prompting = !!snapshot?.prompting;
 
@@ -104,10 +118,12 @@ export const KhaiaPanel = observer(function KhaiaPanel({ workspaceSlug, onMinimi
         <KhaiaAvatar />
         <div className="flex min-w-0 flex-col items-start">
           <CardTitle>{KHAIA_NAME}</CardTitle>
-          <KhaiaAgentMenu workspaceSlug={workspaceSlug} />
+          {activeAgent && (
+            <span className="max-w-full truncate text-caption-md-regular text-tertiary">{activeAgent.name}</span>
+          )}
         </div>
         <CardAction>
-          <HeaderButton label={t("agents.sessions.new")} onClick={() => void startNewSession()}>
+          <HeaderButton label={t("agents.sessions.new")} disabled={prompting} onClick={() => void startNewSession()}>
             <NewChatOutline />
           </HeaderButton>
           <HeaderButton label={t("agents.khaia.open_page")} onClick={() => router.push(`/${workspaceSlug}/agents/`)}>
@@ -142,7 +158,13 @@ export const KhaiaPanel = observer(function KhaiaPanel({ workspaceSlug, onMinimi
           prompting={prompting}
           onSend={(text) => void sendPrompt(text)}
           onStop={() => void cancelTurn()}
-          toolbar={<AgentPermissionLevelSelect />}
+          toolbar={
+            <>
+              <AgentModelPicker />
+              <AgentEffortMenu />
+              <AgentPermissionLevelSelect />
+            </>
+          }
         />
       </CardFooter>
     </Card>

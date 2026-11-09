@@ -69,7 +69,7 @@ type ActionsProps = {
   onRemove: () => void;
 };
 
-/** What can be done to a message, shown on hover or focus. */
+/** What can be done to a message in a channel the reader can post in, shown on hover or focus. */
 const MessageActions = observer(function MessageActions({
   message,
   workspaceSlug,
@@ -78,13 +78,9 @@ const MessageActions = observer(function MessageActions({
   onRemove,
 }: ActionsProps) {
   const { t } = useTranslation();
-  const { channelMap } = useChat();
-  const channel = channelMap[message.channel];
-  const canCreateWorkItem = !!channel?.is_member && !channel.archived_at;
-  if (!mine && !canCreateWorkItem) return null;
   return (
     <div className="absolute top-1 right-4 hidden items-center gap-0.5 rounded-md border border-subtle bg-layer-1 p-0.5 shadow-raised-100 group-focus-within:flex group-hover:flex">
-      {canCreateWorkItem && <ChatCreateWorkItemAction message={message} workspaceSlug={workspaceSlug} />}
+      <ChatCreateWorkItemAction message={message} workspaceSlug={workspaceSlug} />
       {mine && (
         <>
           <IconButton
@@ -114,14 +110,18 @@ export const ChatMessageItem = observer(function ChatMessageItem({
   highlighted,
 }: Props) {
   const { t } = useTranslation();
-  const { userId, editMessage, removeMessage } = useChat();
+  const { userId, channelMap, editMessage, removeMessage } = useChat();
   const { getUserDetails } = useMember();
   const { getWorkspaceBySlug } = useWorkspace();
   const [editing, setEditing] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [busy, setBusy] = useState(false);
   const editorRef = useRef<EditorRefApi>(null);
+  const saving = useRef(false);
 
+  const channel = channelMap[message.channel];
+  // The API refuses both once the user has left or the channel is archived.
+  const canChange = !!channel?.is_member && !channel.archived_at;
   const mine = !!message.sender && message.sender === userId;
   const removed = !!message.removed_at;
   const name = (message.sender && getUserDetails(message.sender)?.display_name) || t("messages.unknown_member");
@@ -129,7 +129,8 @@ export const ChatMessageItem = observer(function ChatMessageItem({
 
   const save = async () => {
     const document = editorRef.current?.getDocument();
-    if (!document || isCommentEmpty(document.html)) return;
+    if (!document || isCommentEmpty(document.html) || saving.current) return;
+    saving.current = true;
     setBusy(true);
     try {
       await editMessage(message.channel, message.id, {
@@ -140,6 +141,7 @@ export const ChatMessageItem = observer(function ChatMessageItem({
     } catch {
       setToast({ type: "error", title: t("messages.errors.edit_failed") });
     } finally {
+      saving.current = false;
       setBusy(false);
     }
   };
@@ -158,8 +160,8 @@ export const ChatMessageItem = observer(function ChatMessageItem({
 
   return (
     <article
-      aria-label={t("messages.message.label", { name, time })}
       data-message-id={message.id}
+      aria-label={t("messages.message.label", { name, time })}
       className={cn(
         "group relative flex gap-3 px-4 transition-colors hover:bg-layer-transparent-hover",
         continued ? "py-0.5" : "pt-2 pb-0.5",
@@ -254,7 +256,7 @@ export const ChatMessageItem = observer(function ChatMessageItem({
           </p>
         )}
       </div>
-      {!removed && !editing && (
+      {canChange && !removed && !editing && (
         <MessageActions
           message={message}
           workspaceSlug={workspaceSlug}

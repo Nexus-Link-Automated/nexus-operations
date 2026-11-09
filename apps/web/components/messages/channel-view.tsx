@@ -17,6 +17,7 @@ import type { TChatChannel } from "@plane/types";
 // hooks
 import { useChat } from "@/hooks/store/use-chat";
 import { useMember } from "@/hooks/store/use-member";
+import { useAppRouter } from "@/hooks/use-app-router";
 // local imports
 import { ChatComposer } from "./composer";
 import { channelDisplayName } from "./helpers";
@@ -32,6 +33,7 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
   const { t } = useTranslation();
   const chat = useChat();
   const { getUserDetails } = useMember();
+  const router = useAppRouter();
   const [notFound, setNotFound] = useState(false);
   const [joining, setJoining] = useState(false);
   const channel = chat.channelMap[channelId];
@@ -91,6 +93,8 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
   const leave = async () => {
     try {
       await chat.leaveChannel(channel.id);
+      // A private channel can't be read from outside, so there's nothing left to show here.
+      if (channel.kind === "private") router.push(`/${workspaceSlug}/messages`);
     } catch (error) {
       setToast({
         type: "error",

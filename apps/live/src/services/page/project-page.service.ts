@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { logger } from "@plane/logger";
 import { AppError } from "@/lib/errors";
 import { PageService } from "./extended.service";
 
@@ -27,5 +28,21 @@ export class ProjectPageService extends PageService {
     this.setHeader("Cookie", params.cookie);
     // set base path
     this.basePath = `/api/workspaces/${workspaceSlug}/projects/${projectId}`;
+  }
+
+  /**
+   * Fetches the role of the user whose cookie this service uses, in this project
+   */
+  async fetchCurrentUserRole(): Promise<number> {
+    try {
+      const response = await this.get(`${this.basePath}/project-members/me/`, {
+        headers: this.getHeader(),
+      });
+      return response?.data?.role as number;
+    } catch (error) {
+      const appError = new AppError(error, { context: { operation: "fetchCurrentUserRole" } });
+      logger.error("Failed to fetch project role", appError);
+      throw appError;
+    }
   }
 }

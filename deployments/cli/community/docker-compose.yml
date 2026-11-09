@@ -37,7 +37,7 @@ x-proxy-env: &proxy-env
   LISTEN_HTTPS_PORT: ${LISTEN_HTTPS_PORT:-443}
   BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-uploads}
   SITE_ADDRESS: ${SITE_ADDRESS:-:80}
-  TRUSTED_PROXIES: ${TRUSTED_PROXIES:-0.0.0.0/0}
+  TRUSTED_PROXIES: ${TRUSTED_PROXIES:-private_ranges}
 
 x-mq-env: &mq-env # RabbitMQ Settings
   RABBITMQ_HOST: ${RABBITMQ_HOST:-plane-mq}
@@ -61,15 +61,24 @@ x-app-env: &app-env
   SECRET_KEY: ${SECRET_KEY}
   AMQP_URL: ${AMQP_URL:-amqp://plane:plane@plane-mq:5672/plane}
   API_KEY_RATE_LIMIT: ${API_KEY_RATE_LIMIT:-60/minute}
-  NUM_PROXIES: ${NUM_PROXIES:-}
+  NUM_PROXIES: ${NUM_PROXIES:-1}
   MINIO_ENDPOINT_SSL: ${MINIO_ENDPOINT_SSL:-0}
   LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY}
   WEBHOOK_ALLOWED_IPS: ${WEBHOOK_ALLOWED_IPS:-}
   WEBHOOK_ALLOWED_HOSTS: ${WEBHOOK_ALLOWED_HOSTS:-}
 
+# Caps each container's log at 50 MB (5 files of 10 MB). The driver is named because max-size and max-file
+# are rejected by some other drivers, such as journald, when a daemon uses one of those by default.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   web:
     image: makeplane/plane-frontend:${APP_RELEASE:-stable}
+    logging: *logging
     deploy:
       replicas: ${WEB_REPLICAS:-1}
       restart_policy:
@@ -80,6 +89,7 @@ services:
 
   space:
     image: makeplane/plane-space:${APP_RELEASE:-stable}
+    logging: *logging
     deploy:
       replicas: ${SPACE_REPLICAS:-1}
       restart_policy:
@@ -91,6 +101,7 @@ services:
 
   admin:
     image: makeplane/plane-admin:${APP_RELEASE:-stable}
+    logging: *logging
     deploy:
       replicas: ${ADMIN_REPLICAS:-1}
       restart_policy:
@@ -102,6 +113,7 @@ services:
   live:
     stop_grace_period: 30s
     image: makeplane/plane-live:${APP_RELEASE:-stable}
+    logging: *logging
     environment:
       <<: [*live-env, *redis-env]
     deploy:
@@ -111,9 +123,16 @@ services:
     depends_on:
       - api
       - web
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/live/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
 
   api:
     image: makeplane/plane-backend:${APP_RELEASE:-stable}
+    logging: *logging
     command: ./bin/docker-entrypoint-api.sh
     deploy:
       replicas: ${API_REPLICAS:-1}
@@ -127,9 +146,18 @@ services:
       - plane-db
       - plane-redis
       - plane-mq
+    healthcheck:
+      # GET / answers without using the database, so a database restart does not fail this check.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # Covers waiting for migrations on an upgrade. The period ends at the first passing check.
+      start_period: 300s
 
   worker:
     image: makeplane/plane-backend:${APP_RELEASE:-stable}
+    logging: *logging
     command: ./bin/docker-entrypoint-worker.sh
     deploy:
       replicas: ${WORKER_REPLICAS:-1}
@@ -147,6 +175,7 @@ services:
 
   beat-worker:
     image: makeplane/plane-backend:${APP_RELEASE:-stable}
+    logging: *logging
     command: ./bin/docker-entrypoint-beat.sh
     deploy:
       replicas: ${BEAT_WORKER_REPLICAS:-1}
@@ -164,6 +193,7 @@ services:
 
   migrator:
     image: makeplane/plane-backend:${APP_RELEASE:-stable}
+    logging: *logging
     command: ./bin/docker-entrypoint-migrator.sh
     deploy:
       replicas: 1
@@ -180,6 +210,7 @@ services:
   # Comment this if you already have a database running
   plane-db:
     image: postgres:15.7-alpine
+    logging: *logging
     command: postgres -c 'max_connections=1000'
     deploy:
       replicas: 1
@@ -189,18 +220,34 @@ services:
       <<: *db-env
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # -h is required: PGHOST can name this service, and Swarm only routes to a service once it is healthy.
+      test: ["CMD-SHELL", 'pg_isready -h 127.0.0.1 -p 5432 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      # Covers crash recovery. The period ends at the first passing check.
+      start_period: 300s
 
   plane-redis:
     image: valkey/valkey:7.2.11-alpine
+    logging: *logging
     deploy:
       replicas: 1
       restart_policy:
         condition: any
     volumes:
       - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
 
   plane-mq:
     image: rabbitmq:3.13.6-management-alpine
+    logging: *logging
     deploy:
       replicas: 1
       restart_policy:
@@ -209,10 +256,17 @@ services:
       <<: *mq-env
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+      start_period: 120s
 
   # Comment this if you using any external s3 compatible storage
   plane-minio:
     image: docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+    logging: *logging
     command: server /export --console-address ":9090"
     deploy:
       replicas: 1
@@ -222,10 +276,17 @@ services:
       <<: *minio-env
     volumes:
       - uploads:/export
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   # Comment this if you already have a reverse proxy running
   proxy:
     image: makeplane/plane-proxy:${APP_RELEASE:-stable}
+    logging: *logging
     deploy:
       replicas: 1
       restart_policy:

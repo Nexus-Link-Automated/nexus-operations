@@ -3,10 +3,27 @@
     "title": "代理",
     "picker": {
       "label": "代理",
-      "placeholder": "選擇代理"
+      "trigger_label": "代理與模型：{selection}",
+      "switch_hint": "切換代理會開始新的聊天。",
+      "unavailable": "尚無 API 金鑰",
+      "manage_providers": "管理 AI 供應商"
     },
     "model": {
       "label": "模型"
+    },
+    "effort": {
+      "label": "推理強度",
+      "trigger_label": "推理強度：{level}",
+      "hint": "從您的下一則訊息開始生效。",
+      "levels": {
+        "none": "無",
+        "minimal": "最低",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "xhigh": "超高",
+        "max": "最高"
+      }
     },
     "permission": {
       "label": "權限等級",
@@ -17,7 +34,7 @@
         },
         "ask_writes": {
           "name": "變更前詢問",
-          "description": "讀取、搜尋和網頁擷取可直接執行。Shell 指令、檔案變更和 Plane 變更會先詢問。"
+          "description": "工作目錄內的讀取和搜尋可直接執行。讀取其他位置、網頁擷取、Shell 指令、檔案變更和 Plane 變更會先詢問。"
         },
         "yolo": {
           "name": "一律不詢問",
@@ -93,6 +110,9 @@
       "title": "要允許此動作嗎？",
       "allow_once": "允許一次",
       "allow_always": "在此聊天中一律允許",
+      "allow_always_command": "在此聊天中一律允許這條完全相同的指令",
+      "allow_always_file": "在此聊天中一律允許編輯此檔案",
+      "allow_always_tool": "在此聊天中一律允許此工具",
       "reject_once": "拒絕",
       "reject_always": "一律拒絕"
     },
@@ -131,6 +151,7 @@
         "prompt": "代理無法回覆該訊息。",
         "set_mode": "無法變更權限等級。",
         "set_model": "無法變更模型。",
+        "set_effort": "無法變更推理強度。",
         "reconnect": "無法重新連線。"
       },
       "retry": "再試一次"
@@ -165,12 +186,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "憑證與設定",
+        "model_help": "成員可以在聊天中切換模型。",
+        "model_default": "供應商預設",
+        "model_custom": "自訂模型 ID",
+        "model_custom_id": "模型 ID",
+        "model_custom_id_help": "與供應商命名完全一致的模型 ID。",
+        "fallback_credentials": "備用憑證",
+        "fallback_credentials_summary": "僅在成員和工作空間都未在 AI 供應商設定中新增金鑰時使用。",
+        "fallback_saved": "{count, plural, one{已儲存 # 個} other{已儲存 # 個}}",
         "credentials_help": "這些值僅能寫入。已儲存的值會保持隱藏；如需變更，請替換該值。",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "Anthropic API 金鑰",
-            "help": "或改用 Claude Code OAuth 權杖。"
+            "help": "當成員和工作空間都沒有 Anthropic 金鑰時使用。或改用 Claude Code OAuth 權杖。"
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "Claude Code OAuth 權杖",
@@ -189,8 +217,11 @@
             "help": "選填。預設為 https://api.deepseek.com。"
           },
           "PLANE_AGENT_MODEL": {
-            "label": "預設模型",
-            "help": "選填的模型 ID，例如 claude-opus-5-5。成員可以在聊天中切換模型。"
+            "label": "預設模型"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "預設推理強度",
+            "help": "選填，例如 high。在模型支援該等級時使用。成員可以在聊天中切換。"
           },
           "GEMINI_API_KEY": {
             "label": "Gemini API 金鑰",
@@ -221,7 +252,6 @@
           "required": "此欄位為必填。",
           "slug": "請使用小寫英文字母、數字和連字號。",
           "default_above_max": "預設等級不能高於最高等級。",
-          "claude_auth": "請輸入 Anthropic API 金鑰或 Claude Code OAuth 權杖。",
           "deepseek_auth": "請輸入 DeepSeek API 金鑰。"
         },
         "cancel": "取消",
@@ -249,7 +279,6 @@
       "unread": "開啟 {name}（有新動態）",
       "minimize": "最小化",
       "open_page": "在完整頁面中開啟",
-      "agent_menu_label": "切換代理（目前：{agent}）",
       "greeting": "您好，我是 {name}",
       "suggestions": {
         "assigned_to_me": "指派給我的有哪些？",
@@ -364,7 +393,8 @@
         "connected": "已以 {email} 登入。",
         "connected_unknown": "已登入。",
         "disconnected": "已中斷帳號連線。",
-        "disconnect_failed": "無法中斷帳號連線。"
+        "disconnect_failed": "無法中斷帳號連線。",
+        "sign_in_lost": "您的 {vendor} 登入已失效，請重新登入。"
       }
     }
   }

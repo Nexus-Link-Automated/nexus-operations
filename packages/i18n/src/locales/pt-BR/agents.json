@@ -3,10 +3,27 @@
     "title": "Agentes",
     "picker": {
       "label": "Agente",
-      "placeholder": "Escolha um agente"
+      "trigger_label": "Agente e modelo: {selection}",
+      "switch_hint": "Trocar de agente inicia uma nova conversa.",
+      "unavailable": "Ainda sem chave de API",
+      "manage_providers": "Gerenciar provedores de IA"
     },
     "model": {
       "label": "Modelo"
+    },
+    "effort": {
+      "label": "Nível de raciocínio",
+      "trigger_label": "Nível de raciocínio: {level}",
+      "hint": "Aplica-se a partir da sua próxima mensagem.",
+      "levels": {
+        "none": "Nenhum",
+        "minimal": "Mínimo",
+        "low": "Baixo",
+        "medium": "Médio",
+        "high": "Alto",
+        "xhigh": "Muito alto",
+        "max": "Máximo"
+      }
     },
     "permission": {
       "label": "Nível de permissão",
@@ -17,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Perguntar antes de alterações",
-          "description": "Leituras, pesquisas e buscas na web são executadas livremente. Comandos de shell, alterações em arquivos e alterações no Plane pedem confirmação antes."
+          "description": "Leituras e pesquisas no diretório de trabalho são executadas livremente. Leituras em outros locais, buscas na web, comandos de shell, alterações em arquivos e alterações no Plane pedem confirmação antes."
         },
         "yolo": {
           "name": "Nunca perguntar",
@@ -93,6 +110,9 @@
       "title": "Permitir esta ação?",
       "allow_once": "Permitir uma vez",
       "allow_always": "Sempre permitir nesta conversa",
+      "allow_always_command": "Sempre permitir exatamente este comando nesta conversa",
+      "allow_always_file": "Sempre permitir edições neste arquivo nesta conversa",
+      "allow_always_tool": "Sempre permitir esta ferramenta nesta conversa",
       "reject_once": "Negar",
       "reject_always": "Sempre negar"
     },
@@ -131,6 +151,7 @@
         "prompt": "O agente não conseguiu responder a essa mensagem.",
         "set_mode": "Não foi possível alterar o nível de permissão.",
         "set_model": "Não foi possível alterar o modelo.",
+        "set_effort": "Não foi possível alterar o nível de raciocínio.",
         "reconnect": "Não foi possível reconectar."
       },
       "retry": "Tentar novamente"
@@ -165,12 +186,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "Credenciais e configurações",
+        "model_help": "Os membros podem trocar de modelo na conversa.",
+        "model_default": "Padrão do provedor",
+        "model_custom": "ID de modelo personalizado",
+        "model_custom_id": "ID do modelo",
+        "model_custom_id_help": "O ID do modelo exatamente como o provedor o nomeia.",
+        "fallback_credentials": "Credenciais de reserva",
+        "fallback_credentials_summary": "Usadas apenas quando nem o membro nem o espaço de trabalho adicionaram uma chave nas configurações de provedores de IA.",
+        "fallback_saved": "{count, plural, one{# salva} many{# salvas} other{# salvas}}",
         "credentials_help": "Os valores são somente de gravação. Os valores salvos permanecem ocultos; substitua um para alterá-lo.",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "Chave de API da Anthropic",
-            "help": "Ou use um token OAuth do Claude Code."
+            "help": "Usada quando nem o membro nem o espaço de trabalho têm uma chave da Anthropic. Ou use um token OAuth do Claude Code."
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "Token OAuth do Claude Code",
@@ -189,8 +217,11 @@
             "help": "Opcional. O padrão é https://api.deepseek.com."
           },
           "PLANE_AGENT_MODEL": {
-            "label": "Modelo padrão",
-            "help": "ID de modelo opcional, por exemplo, claude-opus-5-5. Os membros podem trocar de modelo na conversa."
+            "label": "Modelo padrão"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "Nível de raciocínio padrão",
+            "help": "Opcional, por exemplo, high. Usado quando o modelo aceita esse nível. Os membros podem trocá-lo na conversa."
           },
           "GEMINI_API_KEY": {
             "label": "Chave de API do Gemini",
@@ -221,7 +252,6 @@
           "required": "Este campo é obrigatório.",
           "slug": "Use letras minúsculas, números e hifens.",
           "default_above_max": "O nível padrão não pode ser maior que o máximo.",
-          "claude_auth": "Insira uma chave de API da Anthropic ou um token OAuth do Claude Code.",
           "deepseek_auth": "Insira uma chave de API da DeepSeek."
         },
         "cancel": "Cancelar",
@@ -249,7 +279,6 @@
       "unread": "Abrir {name} (nova atividade)",
       "minimize": "Minimizar",
       "open_page": "Abrir em página inteira",
-      "agent_menu_label": "Trocar de agente, atual: {agent}",
       "greeting": "Olá, eu sou {name}",
       "suggestions": {
         "assigned_to_me": "O que está atribuído a mim?",
@@ -364,7 +393,8 @@
         "connected": "Conectado como {email}.",
         "connected_unknown": "Conectado.",
         "disconnected": "Conta desconectada.",
-        "disconnect_failed": "Não foi possível desconectar a conta."
+        "disconnect_failed": "Não foi possível desconectar a conta.",
+        "sign_in_lost": "Seu login no {vendor} não é mais válido. Entre novamente."
       }
     }
   }

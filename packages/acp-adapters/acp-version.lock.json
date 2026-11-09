@@ -31,6 +31,6 @@
     "id": "plane-acp-adapters-golden",
     "manifest_path": "tests/golden/manifest.json",
     "hash_algorithm": "sha256",
-    "sha256": "796233eff6ed870db76cea00163f010543858b9d5f2dbee590e64815428523e9"
+    "sha256": "e178c62b718aca57c30941a003577ff24ca58c0d2bb3caebebe4d85d0b36f537"
   }
 }

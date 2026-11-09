@@ -47,9 +47,13 @@ export const recoverWithDefault =
     );
 
 /**
- * Wraps a promise-returning function with proper Effect error handling
+ * Wraps a promise-returning function with proper Effect error handling.
+ * A function that declares the signal parameter is told when the effect is interrupted, such as by a timeout.
  */
-export const tryAsync = <A, E>(fn: () => Promise<A>, onError: (cause: unknown) => E): Effect.Effect<A, E> =>
+export const tryAsync = <A, E>(
+  fn: (signal: AbortSignal) => Promise<A>,
+  onError: (cause: unknown) => E
+): Effect.Effect<A, E> =>
   Effect.tryPromise({
     try: fn,
     catch: onError,

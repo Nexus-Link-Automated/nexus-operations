@@ -60,7 +60,8 @@ export class ChatGateway {
   readonly #wss: WebSocketServer;
   readonly #sessions = new Set<Connection>();
   readonly #perUser = new Map<string, number>();
-  #pendingAdmissions = 0;
+  /** Upgrades still being authenticated. */
+  readonly #admitting = new Set<Duplex>();
   #shuttingDown = false;
   /** Set while shutting down: called once the last socket has closed. */
   #onDrained: (() => void) | undefined;
@@ -69,10 +70,17 @@ export class ChatGateway {
     const { config } = options;
     this.#config = config;
     this.#log = options.log ?? createLogger("chat-gateway");
-    this.#api = options.api ?? createPlaneApi({ baseUrl: config.apiBaseUrl });
+    this.#api = options.api ?? createPlaneApi({ baseUrl: config.apiBaseUrl, maxConcurrent: config.maxApiConcurrency });
     this.#bus = options.bus ?? new RedisEventBus({ url: config.redisUrl, log: this.#log });
     this.#hub = new Hub({ bus: this.#bus, log: this.#log });
-    this.#wss = new WebSocketServer({ noServer: true, maxPayload: config.maxMessageBytes, perMessageDeflate: false });
+    // A variable because `closeTimeout` is newer than `@types/ws`, which would reject it in an object literal.
+    const socketOptions = {
+      noServer: true,
+      maxPayload: config.maxMessageBytes,
+      perMessageDeflate: false,
+      closeTimeout: config.closeTimeoutMs,
+    };
+    this.#wss = new WebSocketServer(socketOptions);
 
     this.app = express();
     this.app.disable("x-powered-by");
@@ -121,6 +129,7 @@ export class ChatGateway {
     if (this.#shuttingDown) return;
     this.#shuttingDown = true;
     const httpClosed = new Promise<void>((resolve) => this.server.close(() => resolve()));
+    for (const socket of this.#admitting) socket.destroy();
     for (const session of this.#sessions) session.close(CloseCode.goingAway, "Server shutting down");
     const drained = new Promise<void>((resolve) => {
       if (this.#sessions.size === 0) resolve();
@@ -141,7 +150,12 @@ export class ChatGateway {
 
   async #handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
     socket.on("error", () => undefined);
-    const url = new URL(req.url ?? "/", "http://gateway.invalid");
+    let url: URL;
+    try {
+      url = new URL(req.url ?? "/", "http://gateway.invalid");
+    } catch {
+      return rejectHttp(socket, 400, "Bad Request");
+    }
     if (url.pathname !== `${this.#config.basePath}/ws`) return rejectHttp(socket, 404, "Not Found");
     if (this.#shuttingDown) return rejectHttp(socket, 503, "Service Unavailable");
     if (!originAllowed(req, this.#config.allowedOrigins)) {
@@ -149,18 +163,21 @@ export class ChatGateway {
       return rejectHttp(socket, 403, "Forbidden");
     }
 
-    // Abort the admission work if the browser gives up while we authenticate. Node doesn't read an
-    // upgraded socket until `ws` takes it over, so without `resume()` a browser that leaves would go unnoticed.
+    // Abort the admission work if the browser gives up while we authenticate. `end` as well as `close`: the HTTP
+    // server keeps sockets half-open, so a clean hang-up never reaches `close`. `resume()` because Node leaves an
+    // upgraded socket unread until `ws` takes it over, and anything unread would hide the hang-up behind it.
     const abort = new AbortController();
     const onGone = () => abort.abort();
+    socket.once("end", onGone);
     socket.once("close", onGone);
     socket.resume();
-    this.#pendingAdmissions += 1;
+    this.#admitting.add(socket);
     let admission: Admission | Refusal;
     try {
       admission = await this.#admit(req, url, abort.signal);
     } finally {
-      this.#pendingAdmissions -= 1;
+      this.#admitting.delete(socket);
+      socket.off("end", onGone);
       socket.off("close", onGone);
     }
 
@@ -196,11 +213,18 @@ export class ChatGateway {
     if (!SLUG.test(slug)) return refuse(CloseCode.badRequest, "The workspace query parameter is required");
     const cookie = req.headers.cookie;
     if (!cookie) return refuse(CloseCode.unauthenticated, "Not signed in");
+    // Before asking the API, so a full gateway or a flood of upgrades can't become a flood of API calls. Every
+    // upgrade still being authenticated counts, so there is no need to look again once the API has answered.
+    if (this.#sessions.size + this.#admitting.size > this.#config.maxConnections) {
+      return refuse(CloseCode.tooManyRequests, "The chat service is at capacity");
+    }
 
     const [user, workspace] = await Promise.allSettled([
       this.#api.currentUser(cookie, signal),
       this.#api.workspace(cookie, slug, signal),
     ]);
+    // The browser left, or the gateway is stopping: the failed calls say nothing about the API, and no one is listening.
+    if (signal.aborted) return refuse(CloseCode.goingAway, "Connection abandoned");
     // Check the user first: an anonymous request is refused by every endpoint, and that says nothing about the workspace.
     if (user.status === "rejected") {
       const status = user.reason instanceof PlaneApiError ? user.reason.status : 0;
@@ -225,9 +249,6 @@ export class ChatGateway {
     const userId = user.value.id;
     // A socket with no events behind it is no use to anyone; the browser retries.
     if (!this.#bus.connected) return refuse(CloseCode.internalError, "Live updates are unavailable");
-    if (this.#sessions.size + this.#pendingAdmissions > this.#config.maxConnections) {
-      return refuse(CloseCode.tooManyRequests, "The chat service is at capacity");
-    }
     const held = this.#perUser.get(userId) ?? 0;
     if (held >= this.#config.maxConnectionsPerUser) {
       return refuse(CloseCode.tooManyRequests, "Too many open chat connections");
@@ -265,6 +286,10 @@ export class ChatGateway {
       },
     });
     this.#sessions.add(connection);
+    const openedAt = Date.now();
+    ws.once("close", (code) => {
+      log.info("chat-gateway: socket closed", { code, durationMs: Date.now() - openedAt });
+    });
     this.#keepAlive(ws);
     log.info("chat-gateway: socket opened");
     void connection.start();
@@ -298,5 +323,6 @@ function rejectHttp(socket: Duplex, status: number, message: string): void {
     socket.destroy();
     return;
   }
-  socket.end(`HTTP/1.1 ${status} ${message}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+  // Destroy once written: the HTTP server keeps sockets half-open, so `end()` alone would wait on the client for good.
+  socket.end(`HTTP/1.1 ${status} ${message}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`, () => socket.destroy());
 }
