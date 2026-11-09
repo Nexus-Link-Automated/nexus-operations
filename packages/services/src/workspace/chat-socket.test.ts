@@ -450,12 +450,14 @@ describe("ChatSocket", () => {
     });
 
     it("doesn't count a ping or an inbound frame as the user being here", () => {
-      const { client, current } = connected({ pingIntervalMs: 25_000 });
-      for (let elapsed = 0; elapsed < 30 * MINUTE; elapsed += 20_000) {
-        vi.advanceTimersByTime(20_000);
-        current().receive({ type: "pong" });
+      const { client, sockets, current } = connected({ pingIntervalMs: 25_000 });
+      // Inside the pong window, so this one socket stays admitted until the idle timeout.
+      for (let elapsed = 0; elapsed < 30 * MINUTE; elapsed += 10_000) {
+        vi.advanceTimersByTime(10_000);
+        if (client.status === "ready") current().receive({ type: "pong" });
       }
       expect(client.status).toBe("paused");
+      expect(sockets).toHaveLength(1);
     });
 
     it("reopens on the next activity, quietly, and reports it as a reconnect so the owner catches up", () => {
@@ -536,6 +538,36 @@ describe("ChatSocket", () => {
       expect(client.closedReason).toBe("unauthenticated");
       client.noteActivity();
       expect(client.status).toBe("closed");
+    });
+
+    it("starts a fresh backoff after an idle gap", () => {
+      const { client, sockets, current } = connected();
+      // An outage earlier on leaves the backoff high.
+      for (let drops = 0; drops < 4; drops++) {
+        current().drop(ChatCloseCode.abnormal);
+        vi.advanceTimersByTime(MINUTE / 2);
+      }
+      current().ready();
+      vi.advanceTimersByTime(30 * MINUTE);
+      expect(client.status).toBe("paused");
+
+      client.noteActivity();
+      current().ready();
+      const before = sockets.length;
+      current().drop(ChatCloseCode.abnormal);
+      vi.advanceTimersByTime(1_000);
+      expect(sockets).toHaveLength(before + 1);
+    });
+
+    it("stays quiet when the browser comes online during the reopen", () => {
+      const { client, sockets, onStatusChange } = connected();
+      vi.advanceTimersByTime(30 * MINUTE);
+      client.noteActivity();
+      onStatusChange.mockClear();
+      client.reconnectNow();
+      expect(sockets).toHaveLength(3);
+      expect(client.status).toBe("connecting");
+      expect(onStatusChange).not.toHaveBeenCalled();
     });
 
     it("doesn't send anything while paused, and subscribes on the way back", () => {

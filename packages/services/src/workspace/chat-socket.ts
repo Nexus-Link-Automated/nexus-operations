@@ -219,7 +219,8 @@ export class ChatSocket {
     if (this.socket && this.admitted) return;
     this.clearRetry();
     this.teardown(ChatCloseCode.normal);
-    this.open();
+    // Still on the way back from idle: stay quiet, as `noteActivity()` promised.
+    this.open(this.status === "connecting" ? "connecting" : undefined);
   }
 
   /**
@@ -404,6 +405,8 @@ export class ChatSocket {
   /** Close because the user is idle: no retry, and whatever was pending is dropped. */
   private pause(): void {
     this.paused = true;
+    // Whatever failed before the idle gap is no reason to wait after it.
+    this.attempt = 0;
     this.clearRetry();
     this.teardown(ChatCloseCode.normal);
     this.setStatus("paused", null);

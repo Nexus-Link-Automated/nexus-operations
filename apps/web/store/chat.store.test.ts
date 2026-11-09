@@ -643,13 +643,39 @@ describe("ChatStore", () => {
   });
 
   it("catches up when an idle socket comes back", async () => {
-    const { store, socket, server } = await setup();
+    const { store, socket, server } = await setup((s) => {
+      s.post("c-general", ADA, "before");
+    });
+    await store.openChannel("c-general");
     socket.handlers.onStatusChange?.("paused", null);
     expect(store.socketStatus).toBe("paused");
+    server.post("c-general", ADA, "missed");
     server.calls = [];
     socket.ready(true);
     await settle();
     expect(server.calls).toContain("listChannels");
+    expect(bodies(store, "c-general")).toEqual(["before", "missed"]);
+  });
+
+  it("doesn't skip what it missed when a send lands before the idle socket is back", async () => {
+    const { store, socket, server } = await setup((s) => {
+      for (let i = 0; i < 3; i++) s.post("c-general", ADA, `before ${i}`);
+    });
+    await store.openChannel("c-general");
+    socket.handlers.onStatusChange?.("paused", null);
+    // More than the newest-page re-read can repair.
+    for (let i = 0; i < 120; i++) server.post("c-general", ADA, `missed ${i}`);
+    await store.sendMessage("c-general", { body_html: "<p>mine</p>" });
+
+    socket.ready(true);
+    await settle();
+
+    const shown = bodies(store, "c-general");
+    expect(shown).toHaveLength(124);
+    expect(shown.slice(0, 123)).toEqual([
+      ...Array.from({ length: 3 }, (_, i) => `before ${i}`),
+      ...Array.from({ length: 120 }, (_, i) => `missed ${i}`),
+    ]);
   });
 
   it("keeps its actions bound, so components can destructure them", async () => {

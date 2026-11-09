@@ -323,6 +323,8 @@ export class ChatStore implements IChatStore {
         runInAction(() => {
           this.socketStatus = status;
           this.socketClosedReason = closedReason;
+          // Events just stopped, so what's held now is unbroken. A send landing before `ready` mustn't move this.
+          if (status === "paused" || status === "reconnecting") this.noteCatchUpCursors();
         }),
     });
     this.socket.connect();
@@ -861,10 +863,7 @@ export class ChatStore implements IChatStore {
   /** After a reconnect or a `resync`: what may have happened while events weren't arriving. */
   private resync(): Promise<void> {
     // Live events can land before the catch-up reaches a channel, so note now where its unbroken history ends.
-    for (const [channelId, state] of Object.entries(this.channelMessages)) {
-      const newest = state.ids[state.ids.length - 1];
-      if (state.loaded && newest && !this.catchUpCursors.has(channelId)) this.catchUpCursors.set(channelId, newest);
-    }
+    this.noteCatchUpCursors();
     if (this.resyncing) {
       this.resyncing.again = true;
       return this.resyncing.promise;
@@ -888,6 +887,14 @@ export class ChatStore implements IChatStore {
     })();
     this.resyncing = entry;
     return entry.promise;
+  }
+
+  /** Records where each loaded channel's unbroken history ends, unless an earlier gap already has. */
+  private noteCatchUpCursors(): void {
+    for (const [channelId, state] of Object.entries(this.channelMessages)) {
+      const newest = state.ids[state.ids.length - 1];
+      if (state.loaded && newest && !this.catchUpCursors.has(channelId)) this.catchUpCursors.set(channelId, newest);
+    }
   }
 
   private async catchUp(channelId: string): Promise<void> {
