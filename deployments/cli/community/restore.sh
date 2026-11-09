@@ -17,6 +17,23 @@ Project management tool from the future
 EOF
 }
 
+# Reads the whole archive and checks its layout, so a damaged file is caught
+# while the volumes are still intact.
+function validateArchive() {
+    local backupFolder=$1
+    local restoreFile=$2
+
+    docker run --rm \
+        -e TAR_NAME="$restoreFile" \
+        -v "$backupFolder":/backup:ro \
+        busybox sh -c '
+            gzip -t "/backup/${TAR_NAME}.tar.gz" &&
+            tar -tzf "/backup/${TAR_NAME}.tar.gz" > /tmp/contents &&
+            grep -q "^${TAR_NAME}/" /tmp/contents &&
+            { [ "$TAR_NAME" != "pgdata" ] || grep -q "^pgdata/PG_VERSION$" /tmp/contents; }
+        '
+}
+
 function restoreSingleVolume() {
     selectedVolume=$1
     backupFolder=$2
@@ -41,7 +58,7 @@ function restoreSingleVolume() {
         -e TAR_NAME="$restoreFile" \
         -v "$selectedVolume":"/vol" \
         -v "$backupFolder":/backup \
-        busybox sh -c 'mkdir -p /restore && tar -xzf "/backup/${TAR_NAME}.tar.gz" -C /restore && mv /restore/${TAR_NAME}/* /vol'
+        busybox sh -c 'mkdir -p /restore && tar -xzf "/backup/${TAR_NAME}.tar.gz" -C /restore && cp -a "/restore/${TAR_NAME}/." /vol/'
     
     if [ $? -ne 0 ]; then
         echo "Error: Failed to restore volume ${selectedVolume} from ${restoreFile}.tar.gz"
@@ -55,6 +72,8 @@ function restoreSingleVolume() {
 function restoreData() {
     print_header
     local BACKUP_FOLDER=${1:-$PWD}
+    # docker would read a relative path as a volume name
+    BACKUP_FOLDER=$(cd "$BACKUP_FOLDER" && pwd) || exit 1
 
     local dockerServiceStatus
     dockerServiceStatus=$($COMPOSE_CMD ls --filter name=plane-app --format=json | jq -r .[0].Status)
@@ -77,7 +96,11 @@ function restoreData() {
     fi
     
 
-    for BACKUP_FILE in $BACKUP_FOLDER/*.tar.gz; do
+    # Every archive is validated before the first volume is touched
+    local restoreVolumes=()
+    local restoreFiles=()
+
+    for BACKUP_FILE in "$BACKUP_FOLDER"/*.tar.gz; do
         if [ -e "$BACKUP_FILE" ]; then
             
             local restoreFileName
@@ -93,9 +116,12 @@ function restoreData() {
 
             if [ -z "$docVol" ]; then
                 echo "Skipping: No volume found with name $restoreVolName"
+            elif validateArchive "$BACKUP_FOLDER" "$restoreFileName"; then
+                restoreVolumes+=("$docVol")
+                restoreFiles+=("$restoreFileName")
             else
-                echo ".....Restoring $docVol"
-                restoreSingleVolume "$docVol" "$BACKUP_FOLDER" "$restoreFileName"
+                echo "Error: ${restoreFileName}.tar.gz is not a valid backup archive. No volumes were changed."
+                exit 1
             fi
         else
             echo "No .tar.gz files found in the current directory."
@@ -103,6 +129,15 @@ function restoreData() {
             echo "Please provide the path to the backup file."
             echo ""
             echo "Usage: ./restore.sh /path/to/backup"
+            exit 1
+        fi
+    done
+
+    local index
+    for index in "${!restoreVolumes[@]}"; do
+        echo ".....Restoring ${restoreVolumes[$index]}"
+        if ! restoreSingleVolume "${restoreVolumes[$index]}" "$BACKUP_FOLDER" "${restoreFiles[$index]}"; then
+            echo "Restore failed. Volumes restored before this error keep the backup's data."
             exit 1
         fi
     done
