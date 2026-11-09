@@ -45,7 +45,7 @@ vi.mock("@/hooks/store/use-member", () => {
 // The rich-text editor is Plane's own and tested there; here a message body is just its HTML as text.
 vi.mock("@/components/editor/lite-text", () => ({
   LiteTextEditor: ({ initialValue, id }: { initialValue: string; id: string }) => (
-    <div data-testid={id}>{initialValue.replace(/<[^>]+>/g, "")}</div>
+    <div data-testid={id}>{new DOMParser().parseFromString(initialValue, "text/html").body.textContent}</div>
   ),
 }));
 
