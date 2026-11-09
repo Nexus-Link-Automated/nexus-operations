@@ -204,6 +204,7 @@ describe("KhaiaWidget", () => {
     await waitFor(() => expect(store.canPrompt).toBe(true));
     const turn = store.sendPrompt("/sleep");
     await waitFor(() => expect(store.snapshot?.prompting).toBe(true));
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "New chat" }).disabled).toBe(true);
     await userEvent.click(screen.getByRole("button", { name: /^Agent and model/ }));
     expect((await screen.findByRole("menuitemradio", { name: /Codex/ })).getAttribute("aria-disabled")).toBe("true");
     expect(screen.getByRole("menuitemradio", { name: "Smart" }).getAttribute("aria-disabled")).toBe("true");

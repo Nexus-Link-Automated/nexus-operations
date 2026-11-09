@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AgentCloseCode } from "../src/close-codes.ts";
 import {
@@ -174,6 +174,49 @@ describe("AgentChatSession: prompts", () => {
     await waitFor(session, (snapshot) => snapshot.prompting);
     await session.cancel();
     expect(await turn).toBe("cancelled");
+    expect(session.snapshot.prompting).toBe(false);
+  });
+
+  it("stops the running turn and frees the composer when a new session starts", async () => {
+    const { session, fake } = await ready();
+    const oldSessionId = session.snapshot.sessionId!;
+    const turn = session.prompt("/sleep");
+    await waitFor(session, (snapshot) => snapshot.prompting);
+
+    const newSessionId = await session.newSession();
+
+    expect(fake.log.cancelled).toEqual([oldSessionId]);
+    expect(session.snapshot.sessionId).toBe(newSessionId);
+    expect(session.snapshot.prompting).toBe(false);
+    expect(await turn).toBe("cancelled");
+    expect(session.snapshot.prompting).toBe(false);
+    expect(session.snapshot.transcript.items).toEqual([]);
+
+    expect(await session.prompt("hello")).toBe("end_turn");
+    expect(session.snapshot.prompting).toBe(false);
+  });
+
+  it("frees the composer even when the old turn is still winding down, and ignores it when it ends", async () => {
+    const { session, fake } = await ready();
+    const oldSessionId = session.snapshot.sessionId!;
+    const turn = session.prompt("/sleep");
+    const old = fake.sessions.get(oldSessionId)!;
+    await vi.waitFor(() => expect(old.cancel).toBeDefined());
+    const finishOldTurn = old.cancel!;
+    old.cancel = () => undefined;
+
+    await session.newSession();
+    expect(fake.log.cancelled).toEqual([oldSessionId]);
+    expect(session.snapshot.prompting).toBe(false);
+
+    const next = session.prompt("/sleep");
+    expect(session.snapshot.prompting).toBe(true);
+    finishOldTurn();
+    await turn;
+    expect(session.snapshot.prompting).toBe(true);
+
+    await session.cancel();
+    await next;
     expect(session.snapshot.prompting).toBe(false);
   });
 

@@ -37,8 +37,18 @@ export function tempDir(prefix = "acp-"): string {
   return mkdtempSync(path.join(tmpdir(), prefix));
 }
 
-/** `hold`: leave the prompt open until the agent withdraws it (`$/cancel_request`). */
-export type PermissionAnswer = "allow_once" | "allow_always" | "reject_once" | "cancelled" | "hold";
+/**
+ * `hold`: leave the prompt open until the agent withdraws it (`$/cancel_request`). `ignore`: never
+ * answer, even when it is withdrawn. `afterMs`: answer once that much time has passed.
+ */
+export type PermissionAnswer =
+  | "allow_once"
+  | "allow_always"
+  | "reject_once"
+  | "cancelled"
+  | "hold"
+  | "ignore"
+  | { readonly afterMs: number; readonly answer: "allow_once" | "reject_once" };
 
 /** An SDK `client()` connected to an agent, recording everything the agent sends. */
 export interface TestClient {
@@ -61,7 +71,13 @@ function connectClient(stream: Stream, onClose: () => Promise<void>): TestClient
     })
     .onRequest("session/request_permission", async ({ params, signal }): Promise<RequestPermissionResponse> => {
       permissionRequests.push(params);
-      const answer = answers.shift() ?? "allow_once";
+      let answer = answers.shift() ?? "allow_once";
+      if (typeof answer === "object") {
+        const { afterMs, answer: delayed } = answer;
+        await new Promise((resolve) => setTimeout(resolve, afterMs));
+        answer = delayed;
+      }
+      if (answer === "ignore") return new Promise<RequestPermissionResponse>(() => {});
       if (answer === "hold") {
         await new Promise<void>((resolve) => {
           if (signal.aborted) resolve();

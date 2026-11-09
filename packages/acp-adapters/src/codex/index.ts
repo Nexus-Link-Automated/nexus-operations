@@ -27,7 +27,7 @@ import { toCodexMcpServers } from "../core/mcp.ts";
 import { MODEL_ENV, effortChoices } from "../core/models.ts";
 import { classifyMcpCall, toolKindForCategory, type PermissionModeId, type ToolCategory } from "../core/modes.ts";
 import type { FileTarget } from "../core/paths.ts";
-import { fileMemory, shellCommandMemory, type PermissionDecision } from "../core/permission.ts";
+import { fileMemory, shellCommandMemory, type PermissionCheck, type PermissionDecision } from "../core/permission.ts";
 import { promptToText } from "../core/turn.ts";
 import {
   CODEX_BASE_URL_ENV,
@@ -140,6 +140,14 @@ interface TurnState {
   /** Files of each `fileChange` item; its approval request names only the item. */
   readonly fileChangePaths: Map<string, string[]>;
   lastError: string | undefined;
+  /** Codex reported this turn's end, as opposed to the adapter giving up on it. */
+  completedByCodex: boolean;
+  /** A person is deciding on an approval; Codex says nothing until they answer. */
+  awaitingApproval: boolean;
+  /** When the last approval was answered: Codex's silence before that does not count as a stall. */
+  approvalAnsweredAt: number;
+  /** Aborts on cancellation and when the turn ends, so an open approval cannot outlive its turn. */
+  readonly approvalSignal: AbortSignal;
   readonly done: Promise<{ status: string; error: string | undefined }>;
   finish(status: string, error?: string): void;
 }
@@ -179,6 +187,8 @@ class CodexSession implements AdapterSession {
   #threadId = "";
   #catalog: ModelCatalog | undefined;
   #turn: TurnState | undefined;
+  /** Turns the adapter gave up on: Codex still reports their end, maybe during the next turn. */
+  readonly #abandonedTurns = new Set<string>();
   /** Approved MCP calls waiting for their `mcpToolCall` item, by `server:tool`. */
   readonly #approvedMcpCards = new Map<string, string[]>();
   /** Shown at the start of the next turn; nothing may precede the `session/new` response. */
@@ -257,9 +267,11 @@ class CodexSession implements AdapterSession {
     if (!client || client.closed) throw new Error("codex app-server is not running");
     const outcome = deferred<{ status: string; error: string | undefined }>();
     let settled = false;
+    const ended = new AbortController();
     const finish: TurnState["finish"] = (status, error) => {
       if (settled) return;
       settled = true;
+      ended.abort();
       outcome.resolve({ status, error });
     };
     const done = outcome.promise;
@@ -270,6 +282,10 @@ class CodexSession implements AdapterSession {
       summarisedItems: new Set(),
       fileChangePaths: new Map(),
       lastError: undefined,
+      completedByCodex: false,
+      awaitingApproval: false,
+      approvalAnsweredAt: 0,
+      approvalSignal: AbortSignal.any([context.signal, ended.signal]),
       done,
       finish,
     };
@@ -293,8 +309,8 @@ class CodexSession implements AdapterSession {
     const startedAt = Date.now();
     const watchdog = setInterval(
       () => {
-        const quietFor = Date.now() - client.lastActivityAt();
-        if (quietFor >= stallMs) {
+        const quietFor = Date.now() - Math.max(client.lastActivityAt(), state.approvalAnsweredAt);
+        if (!state.awaitingApproval && quietFor >= stallMs) {
           interrupt();
           state.finish("failed", `codex app-server stalled: no output for ${duration(quietFor)}`);
         } else if (Date.now() - startedAt >= turnMs) {
@@ -316,7 +332,8 @@ class CodexSession implements AdapterSession {
       state.turnId = stringValue(objectValue(started.turn).id);
       if (context.signal.aborted) onAbort();
       const result = await done;
-      await this.#queue;
+      // After a failure the queue may still be parked on an approval nobody will answer.
+      if (result.status !== "failed") await this.#queue;
       if (context.signal.aborted || result.status === "interrupted") return "cancelled";
       if (result.status === "failed") throw new Error(result.error ?? state.lastError ?? "codex turn failed");
       return "end_turn";
@@ -326,6 +343,7 @@ class CodexSession implements AdapterSession {
     } finally {
       clearInterval(watchdog);
       context.signal.removeEventListener("abort", onAbort);
+      if (state.turnId && !state.completedByCodex) this.#abandonedTurns.add(state.turnId);
       if (this.#turn === state) this.#turn = undefined;
     }
   }
@@ -418,7 +436,11 @@ class CodexSession implements AdapterSession {
         return;
       case "turn/completed": {
         const turn = objectValue(params.turn);
-        if (state.turnId && stringValue(turn.id) && stringValue(turn.id) !== state.turnId) return;
+        const id = stringValue(turn.id);
+        // Can arrive before this turn's own `turn/start` has returned, when `state.turnId` is not set yet.
+        if (id && this.#abandonedTurns.delete(id)) return;
+        if (state.turnId && id && id !== state.turnId) return;
+        state.completedByCodex = true;
         state.finish(
           stringValue(turn.status) || "completed",
           stringValue(objectValue(turn.error).message) || state.lastError
@@ -472,7 +494,6 @@ class CodexSession implements AdapterSession {
       client.respondError(request.id, -32000, "no active turn");
       return;
     }
-    const signal = state.context.signal;
     const toolCalls = this.#host.toolCalls;
 
     if (method === "item/commandExecution/requestApproval" || method === "item/fileChange/requestApproval") {
@@ -495,19 +516,16 @@ class CodexSession implements AdapterSession {
       const decision: PermissionDecision =
         verdict.access === "refused"
           ? "rejected"
-          : await this.#host.gate.check(
-              {
-                toolCallId,
-                title,
-                kind,
-                category,
-                rawInput: isCommand ? { command } : {},
-                ...(isCommand
-                  ? shellCommandMemory(`codex:command:${JSON.stringify(stringValue(params.cwd))}`, command)
-                  : fileMemory(this.#host.cwd, state.fileChangePaths.get(stringValue(params.itemId)) ?? [])),
-              },
-              signal
-            );
+          : await this.#askGate(state, {
+              toolCallId,
+              title,
+              kind,
+              category,
+              rawInput: isCommand ? { command } : {},
+              ...(isCommand
+                ? shellCommandMemory(`codex:command:${JSON.stringify(stringValue(params.cwd))}`, command)
+                : fileMemory(this.#host.cwd, state.fileChangePaths.get(stringValue(params.itemId)) ?? [])),
+            });
       // An accepted call is completed by its `item/completed`; a refused one never runs.
       if (decision !== "allowed")
         await toolCalls.update(toolCallId, { status: "failed", rawOutput: { error: "denied by the user" } });
@@ -530,10 +548,14 @@ class CodexSession implements AdapterSession {
       const title = `${server}: ${toolName}${action ? ` ${action}` : ""}`;
       const kind = toolKindForCategory(category);
       const toolCallId = await toolCalls.start(undefined, { title, kind, rawInput: toolParams });
-      const decision = await this.#host.gate.check(
-        { toolCallId, title, kind, category, rawInput: toolParams, memoryKey: `mcp:${server}:${toolName}:${action}` },
-        signal
-      );
+      const decision = await this.#askGate(state, {
+        toolCallId,
+        title,
+        kind,
+        category,
+        rawInput: toolParams,
+        memoryKey: `mcp:${server}:${toolName}:${action}`,
+      });
       if (decision === "allowed") {
         const key = `${server}:${toolName}`;
         this.#approvedMcpCards.set(key, [...(this.#approvedMcpCards.get(key) ?? []), toolCallId]);
@@ -550,6 +572,17 @@ class CodexSession implements AdapterSession {
 
     // Permission escalations, user-input forms, dynamic tools, auth refresh: not offered over ACP.
     client.respondError(request.id, -32601, `${method} is not supported by the Plane ACP adapter`);
+  }
+
+  /** Ask the gate with the stall clock stopped, restarting it from the moment the answer comes. */
+  async #askGate(state: TurnState, check: PermissionCheck): Promise<PermissionDecision> {
+    state.awaitingApproval = true;
+    try {
+      return await this.#host.gate.check(check, state.approvalSignal);
+    } finally {
+      state.awaitingApproval = false;
+      state.approvalAnsweredAt = Date.now();
+    }
   }
 }
 

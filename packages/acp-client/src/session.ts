@@ -291,10 +291,12 @@ export class AgentChatSession {
     }
   }
 
-  /** Start a new conversation. The transcript is reset. */
+  /** Start a new conversation, stopping any turn still running. The transcript is reset. */
   async newSession(options: NewSessionOptions = {}): Promise<string> {
     const link = this.#requireLink();
     const { connection } = link;
+    // Nothing could reach the old turn once the session id moves on.
+    if (this.#prompting) await this.cancel();
     this.#buffered = [];
     try {
       const result = await connection.agent.request("session/new", {
@@ -304,6 +306,8 @@ export class AgentChatSession {
       });
       this.#cancelPermissions();
       this.#sessionId = result.sessionId;
+      // The old prompt's `finally` only clears this while its own session is current.
+      this.#prompting = false;
       let transcript = createTranscript(result);
       for (const notification of this.#buffered) {
         if (notification.sessionId === result.sessionId)

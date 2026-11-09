@@ -412,4 +412,58 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
     expect(updatesOfKind(client.updates, "notice")[0]).toMatchObject({ title: "MCP server broken failed to start" });
     expect(fake.log().some((message) => message.method === "turn/interrupt")).toBe(true);
   });
+
+  describe("waiting on a person", () => {
+    const start = async (env: NodeJS.ProcessEnv) => {
+      const fake = fakeCodexEnv(env);
+      const spawned = spawnClient("codex", fake.env);
+      client = spawned;
+      await spawned.agent.request("initialize", { protocolVersion: 1 });
+      const { sessionId } = await spawned.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+      const prompt = (text: string) =>
+        spawned.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] });
+      return { fake, spawned, prompt };
+    };
+
+    it("does not count an open approval as a stall, and restarts the clock from the answer", async () => {
+      // The answer comes after the stall limit, then Codex is quiet for longer than a watchdog tick.
+      const { fake, spawned, prompt } = await start({
+        PLANE_CODEX_STALL_TIMEOUT_MS: "2000",
+        FAKE_CODEX_APPROVAL_PAUSE_MS: "1200",
+      });
+      spawned.answers.push({ afterMs: 2300, answer: "allow_once" });
+      await expect(prompt("run")).resolves.toMatchObject({ stopReason: "end_turn" });
+      expect(textOf(spawned.updates, "agent_message_chunk")).toContain("ran it");
+      expect(fake.log().some((message) => message.method === "turn/interrupt")).toBe(false);
+    });
+
+    it("still stalls when Codex goes quiet after the approval is answered", async () => {
+      const { spawned, prompt } = await start({
+        PLANE_CODEX_STALL_TIMEOUT_MS: "300",
+        FAKE_CODEX_APPROVAL_PAUSE_MS: "5000",
+      });
+      spawned.answers.push("allow_once");
+      await expect(prompt("run")).rejects.toMatchObject({ message: expect.stringContaining("stalled") });
+    });
+
+    it("withdraws an open approval when the turn times out, and the next turn still runs", async () => {
+      const { fake, spawned, prompt } = await start({ PLANE_CODEX_TURN_TIMEOUT_MS: "500" });
+      spawned.answers.push("hold");
+      await expect(prompt("run")).rejects.toMatchObject({ message: expect.stringContaining("timed out") });
+      await expect(prompt("hello")).resolves.toMatchObject({ stopReason: "end_turn" });
+      expect(textOf(spawned.updates, "agent_message_chunk")).toContain("Hi there");
+      const decisions = fake
+        .log()
+        .filter((message) => typeof message.id === "string" && "result" in message)
+        .map((message) => (message.result as any).decision);
+      expect(decisions).toEqual(["cancel"]);
+    });
+
+    it("ends a failed turn even when the client never answers the withdrawn approval", async () => {
+      const { spawned, prompt } = await start({ PLANE_CODEX_TURN_TIMEOUT_MS: "500" });
+      spawned.answers.push("ignore");
+      await expect(prompt("run")).rejects.toMatchObject({ message: expect.stringContaining("timed out") });
+      expect(spawned.permissionRequests).toHaveLength(1);
+    });
+  });
 });
