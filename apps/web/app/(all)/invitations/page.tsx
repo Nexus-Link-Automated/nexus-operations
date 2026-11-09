@@ -22,6 +22,7 @@ import { setToast } from "@plane/blocks/toast";
 import type { IWorkspaceMemberInvitation } from "@plane/types";
 import { getFileURL, truncateText } from "@plane/utils";
 // components
+import { InvitationVerifyEmailNotice } from "@/components/onboarding/invitation-verify-email-notice";
 import { USER_WORKSPACES_LIST } from "@plane/constants";
 // hooks
 import { useWorkspace } from "@/hooks/store/use-workspace";
@@ -48,6 +49,8 @@ function UserInvitationsPage() {
   const { fetchWorkspaces } = useWorkspace();
 
   const { data: invitations } = useSWR("USER_WORKSPACE_INVITATIONS", () => workspaceService.userWorkspaceInvitations());
+
+  const canAcceptInvitations = !!currentUser?.is_email_verified;
 
   const redirectWorkspaceSlug =
     // currentUserSettings?.workspace?.last_workspace_slug ||
@@ -80,11 +83,11 @@ function UserInvitationsPage() {
         mutate(USER_WORKSPACES_LIST);
         const firstInviteId = invitationsRespond[0];
         const redirectWorkspace = invitations?.find((i) => i.id === firstInviteId)?.workspace;
-        updateUserProfile({ last_workspace_id: redirectWorkspace?.id })
+        return updateUserProfile({ last_workspace_id: redirectWorkspace?.id })
           .then(() => {
             setIsJoiningWorkspaces(false);
-            fetchWorkspaces().then(() => {
-              router.push(`/${redirectWorkspace?.slug}`);
+            return fetchWorkspaces().then(() => {
+              return router.push(`/${redirectWorkspace?.slug}`);
             });
           })
           .catch(() => {
@@ -135,10 +138,11 @@ function UserInvitationsPage() {
                       <button
                         key={invitation.id}
                         type="button"
-                        className={`flex w-full cursor-pointer items-center gap-2 rounded-sm border px-3.5 py-5 text-left ${
+                        className={`flex w-full cursor-pointer items-center gap-2 rounded-sm border px-3.5 py-5 text-left disabled:cursor-not-allowed ${
                           isSelected ? "border-accent-strong" : "border-subtle hover:bg-layer-1"
                         }`}
                         aria-pressed={isSelected}
+                        disabled={!canAcceptInvitations}
                         onClick={() => handleInvitation(invitation, isSelected ? "withdraw" : "accepted")}
                       >
                         <span className="flex-shrink-0">
@@ -164,6 +168,7 @@ function UserInvitationsPage() {
                     );
                   })}
                 </div>
+                {!canAcceptInvitations && <InvitationVerifyEmailNotice />}
                 <div className="flex items-center gap-3">
                   <Button
                     variant="primary"
