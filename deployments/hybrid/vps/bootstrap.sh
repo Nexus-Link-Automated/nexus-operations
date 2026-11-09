@@ -50,6 +50,10 @@ After=network-online.target docker.service
 [Service]
 Type=oneshot
 ExecStart=$install_dir/backup.sh
+# Staging runs tar over every volume; keep it from starving the application.
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
 EOF
 
 cat >/etc/systemd/system/nexus-ops-backup.timer <<EOF

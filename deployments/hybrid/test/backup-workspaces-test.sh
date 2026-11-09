@@ -50,7 +50,9 @@ for i in "${!args[@]}"; do
       case "${rest[0]}" in
         config) echo "type = crypt" ;;
         copy)
-          cp -r "$stage" "$STUB_DIR/uploaded"
+          # backup.sh uploads in two steps, so this adds to what is there.
+          mkdir -p "$STUB_DIR/uploaded"
+          cp -r "$stage"/. "$STUB_DIR/uploaded/"
           ;;
         delete) echo "delete" >>"$STUB_DIR/retention" ;;
         rmdirs) ;;
@@ -74,6 +76,7 @@ export STUB_DIR="$work"
 export ENV_FILE="$work/env"
 export RCLONE_CONFIG_DIR="$work/rclone"
 export BACKUP_REMOTE="crypt-test:"
+export BACKUP_STAGING_DIR="$work/staging"
 cat >"$ENV_FILE" <<'EOF'
 POSTGRES_USER=plane
 EOF
@@ -117,6 +120,33 @@ if grep -q 'BACKUP_WORKSPACES_MAX_BYTES' "$work/out"; then
   pass "the error names the limit"
 else
   fail "the error does not name the limit"
+fi
+if [ -s "$work/uploaded/WORKSPACES_OMITTED" ] && grep -q WORKSPACES_OMITTED "$work/uploaded/SHA256SUMS"; then
+  pass "an oversized archive leaves a checksummed marker in the backup"
+else
+  fail "the WORKSPACES_OMITTED marker was not uploaded"
+fi
+
+listed() { awk '{ print $2 }' "$work/uploaded/SHA256SUMS" | sort | tr '\n' ' '; }
+
+reset
+if BACKUP_EXTRA_PATHS="$work/stubdata" run \
+  && [ "$(listed)" = "agent_workspaces.tar.gz env extra.tar.gz postgres.dump uploads.tar.gz " ] \
+  && [ ! -e "$work/uploaded/WORKSPACES_OMITTED" ] \
+  && (cd "$work/uploaded" && sha256sum -c SHA256SUMS >/dev/null); then
+  pass "the checksums cover the workspaces archive and the extra paths, with no marker"
+else
+  fail "the checksums are wrong for a normal backup with extra paths: $(listed) $(cat "$work/out")"
+fi
+
+reset
+if BACKUP_EXTRA_PATHS="$work/stubdata" BACKUP_WORKSPACES_MAX_BYTES=1024 STUB_RUNNER_BYTES=1048576 run; then
+  fail "an oversized archive with extra paths did not fail the run"
+elif [ "$(listed)" = "WORKSPACES_OMITTED env extra.tar.gz postgres.dump uploads.tar.gz " ] \
+  && (cd "$work/uploaded" && sha256sum -c SHA256SUMS >/dev/null); then
+  pass "the checksums cover the marker and the extra paths when the workspaces are left out"
+else
+  fail "the checksums are wrong for an oversized backup with extra paths: $(listed) $(cat "$work/out")"
 fi
 
 reset
