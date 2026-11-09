@@ -6,7 +6,7 @@
 
 import { IncomingMessage, MessageType, OutgoingMessage } from "@hocuspocus/server";
 import type { Connection, beforeHandleMessagePayload } from "@hocuspocus/server";
-import { messageYjsUpdate } from "y-protocols/sync";
+import { messageYjsSyncStep2, messageYjsUpdate } from "y-protocols/sync";
 import { logger } from "@plane/logger";
 import { EUserProjectRoles } from "@plane/types";
 import { AppError } from "@/lib/errors";
@@ -68,7 +68,10 @@ const isDocumentEdit = (data: Uint8Array): boolean => {
   const message = new IncomingMessage(data);
   message.readVarString();
   const type = message.readVarUint();
-  return (type === MessageType.Sync || type === MessageType.SyncReply) && message.readVarUint() === messageYjsUpdate;
+  if (type !== MessageType.Sync && type !== MessageType.SyncReply) return false;
+  const syncStep = message.readVarUint();
+  // Hocuspocus applies the content of both of these to the document.
+  return syncStep === messageYjsSyncStep2 || syncStep === messageYjsUpdate;
 };
 
 const refreshConnectionAccess = async (

@@ -21,6 +21,7 @@ vi.mock("@/extensions/title-update/title-update-manager", () => ({
   },
 }));
 vi.mock("@/services/page/handler", () => ({ getPageService: vi.fn() }));
+vi.mock("@/env", () => ({ env: { API_BASE_URL: "http://api.test" } }));
 
 const context = { userId: "user-1", workspaceSlug: "acme" } as HocusPocusServerContext;
 
