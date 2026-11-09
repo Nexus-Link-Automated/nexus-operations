@@ -110,6 +110,9 @@
       "title": "Autoriser cette action ?",
       "allow_once": "Autoriser une fois",
       "allow_always": "Toujours autoriser dans cette conversation",
+      "allow_always_command": "Toujours autoriser exactement cette commande dans cette conversation",
+      "allow_always_file": "Toujours autoriser les modifications de ce fichier dans cette conversation",
+      "allow_always_tool": "Toujours autoriser cet outil dans cette conversation",
       "reject_once": "Refuser",
       "reject_always": "Toujours refuser"
     },

@@ -110,6 +110,9 @@
       "title": "Cho phép thao tác này?",
       "allow_once": "Cho phép một lần",
       "allow_always": "Luôn cho phép trong cuộc trò chuyện này",
+      "allow_always_command": "Luôn cho phép đúng lệnh này trong cuộc trò chuyện này",
+      "allow_always_file": "Luôn cho phép chỉnh sửa tệp này trong cuộc trò chuyện này",
+      "allow_always_tool": "Luôn cho phép công cụ này trong cuộc trò chuyện này",
       "reject_once": "Từ chối",
       "reject_always": "Luôn từ chối"
     },

@@ -70,6 +70,20 @@ describe("agent chat helpers", () => {
     expect(permissionOptionLabel(t, { optionId: "b", kind: "other" as never, name: "Custom" })).toBe("Custom");
   });
 
+  it("names what an always-allow answer covers", () => {
+    const always = (scope: unknown) =>
+      permissionOptionLabel(t, {
+        optionId: "a",
+        kind: "allow_always",
+        name: "x",
+        _meta: { "plane/memoryScope": scope },
+      });
+    expect(always("command")).toBe("Always allow this exact command in this chat");
+    expect(always("file")).toBe("Always allow edits to this file in this chat");
+    expect(always("tool")).toBe("Always allow this tool in this chat");
+    expect(always("something-new")).toBe("Always allow in this chat");
+  });
+
   it("formats tool input as JSON and truncates it", () => {
     expect(formatJson({ a: 1 })).toBe('{\n  "a": 1\n}');
     expect(formatJson("x".repeat(10), 4)).toBe("xxxx…");

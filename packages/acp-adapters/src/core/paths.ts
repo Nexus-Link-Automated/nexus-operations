@@ -10,6 +10,7 @@ import path from "node:path";
 
 import { agentHome } from "./auth.ts";
 import type { ToolCategory } from "./modes.ts";
+import type { MemoryScope } from "./permission.ts";
 
 /** What a file tool may do with a path: go ahead, need the user's approval, or not touch it at all. */
 export type PathAccess = "inside" | "outside" | "refused";
@@ -190,13 +191,21 @@ export class PathPolicy {
  * path, so one approval does not open up the whole disk. Other categories pass through.
  */
 export function gateFileRead(
-  tool: { readonly category: ToolCategory; readonly memoryKey: string },
+  tool: {
+    readonly category: ToolCategory;
+    readonly memoryKey: string | null;
+    readonly memoryScope?: MemoryScope | undefined;
+  },
   verdict: PathVerdict
-): { category: ToolCategory; memoryKey: string } {
+): { category: ToolCategory; memoryKey: string | null; memoryScope: MemoryScope | undefined } {
   if (verdict.access !== "outside" || (tool.category !== "read" && tool.category !== "search")) {
-    return { category: tool.category, memoryKey: tool.memoryKey };
+    return { category: tool.category, memoryKey: tool.memoryKey, memoryScope: tool.memoryScope };
   }
-  return { category: "read_outside", memoryKey: `${tool.memoryKey}:${verdict.target ?? ""}` };
+  return {
+    category: "read_outside",
+    memoryKey: tool.memoryKey === null ? null : `${tool.memoryKey}:${verdict.target ?? ""}`,
+    memoryScope: "path",
+  };
 }
 
 /** The host of an http(s) URL, for "Always allow" on web fetches; the raw text when it does not parse. */

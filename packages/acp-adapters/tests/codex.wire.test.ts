@@ -39,7 +39,7 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
       agentName: "plane-acp-codex",
       cwd: tempDir(),
       mcpServers: [planeMcp],
-      prompts: { plain: { text: "hello", reply: "Hi there" }, gated: "run", read: "ls", wait: "wait" },
+      prompts: { plain: { text: "hello", reply: "Hi there" }, gated: "run", read: "plane list", wait: "wait" },
       otherModel: "gpt-mini",
     });
 
@@ -102,17 +102,19 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
         .filter((message) => typeof message.id === "string" && "result" in message)
         .map((message) => (message.result as any).decision);
 
+    // Codex escalated it, so it asks even though Codex parsed it as a plain listing.
     await prompt("ls");
-    expect(client.permissionRequests).toHaveLength(0);
+    expect(client.permissionRequests).toHaveLength(1);
 
     client.answers.push("reject_once");
     await prompt("cat etc");
-    expect(client.permissionRequests).toHaveLength(1);
-    expect(client.permissionRequests[0]?.toolCall.kind).toBe("read");
+    expect(client.permissionRequests).toHaveLength(2);
+    expect(client.permissionRequests[1]?.toolCall.kind).toBe("execute");
 
+    // Refused without asking, even in yolo.
     await client.agent.request("session/set_mode", { sessionId, modeId: "yolo" });
     await prompt("cat creds");
-    expect(client.permissionRequests).toHaveLength(1);
+    expect(client.permissionRequests).toHaveLength(2);
     expect(decisions()).toEqual(["accept", "decline", "decline"]);
     expect(textOf(client.updates, "agent_message_chunk")).toContain("skipped");
   });
@@ -126,6 +128,62 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
         { type: "unknown", command: "curl x" },
       ])
     ).toEqual([{ path: "/w/a" }, { path: "" }, { path: "src" }]);
+  });
+
+  async function startSession() {
+    client = spawnClient("codex", fakeCodexEnv().env);
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const { sessionId } = await client.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+    return (text: string) => client!.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] });
+  }
+
+  it("asks about a command Codex escalated even if its parser labels it a search", async () => {
+    const prompt = await startSession();
+    await prompt("search");
+    expect(client!.permissionRequests).toHaveLength(1);
+    expect(client!.permissionRequests[0]?.toolCall).toMatchObject({
+      title: "Run: find . -name x -delete",
+      kind: "execute",
+    });
+  });
+
+  it("remembers an 'always' for the exact command Codex reports, including its shell wrapper", async () => {
+    const prompt = await startSession();
+    client!.answers.push("allow_always");
+    await prompt("cmd /bin/bash -lc 'git status'");
+    expect(client!.permissionRequests).toHaveLength(1);
+    await prompt("cmd /bin/bash -lc 'git status'");
+    expect(client!.permissionRequests).toHaveLength(1);
+    // Another command through the same shell wrapper is a new question.
+    await prompt("cmd /bin/bash -lc 'git log'");
+    expect(client!.permissionRequests).toHaveLength(2);
+    // A compound script is never offered "always", and answering it anyway remembers nothing.
+    client!.answers.push("allow_always");
+    await prompt("cmd /bin/bash -lc 'git status; id'");
+    const compound = client!.permissionRequests.at(-1)!;
+    expect(compound.options.map((option) => option.optionId)).toEqual(["allow_once", "reject_once"]);
+    await prompt("cmd /bin/bash -lc 'git status; id'");
+    expect(client!.permissionRequests).toHaveLength(4);
+  });
+
+  it("remembers file changes per file, from the paths on the started item", async () => {
+    const prompt = await startSession();
+    client!.answers.push("allow_always");
+    await prompt("patch a.txt");
+    expect(client!.permissionRequests.at(-1)!.options[1]).toMatchObject({
+      optionId: "allow_always",
+      _meta: { "plane/memoryScope": "file" },
+    });
+    await prompt("patch a.txt");
+    expect(client!.permissionRequests).toHaveLength(1);
+    await prompt("patch b.txt");
+    expect(client!.permissionRequests).toHaveLength(2);
+    // Several files in one change: one exact approval at most.
+    await prompt("patch a.txt c.txt");
+    expect(client!.permissionRequests.at(-1)!.options.map((option) => option.optionId)).toEqual([
+      "allow_once",
+      "reject_once",
+    ]);
   });
 
   it("offers the reasoning efforts model/list reports and sends the chosen one with each turn", async () => {

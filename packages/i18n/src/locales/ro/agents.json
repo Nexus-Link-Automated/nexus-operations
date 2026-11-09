@@ -110,6 +110,9 @@
       "title": "Permiteți această acțiune?",
       "allow_once": "Permiteți o dată",
       "allow_always": "Permiteți mereu în acest chat",
+      "allow_always_command": "Permiteți mereu exact această comandă în acest chat",
+      "allow_always_file": "Permiteți mereu modificările acestui fișier în acest chat",
+      "allow_always_tool": "Permiteți mereu acest instrument în acest chat",
       "reject_once": "Refuzați",
       "reject_always": "Refuzați mereu"
     },

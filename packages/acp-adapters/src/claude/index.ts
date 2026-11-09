@@ -40,7 +40,7 @@ import { toClaudeMcpServers, writeClaudeMcpConfig } from "../core/mcp.ts";
 import { effortChoices, modelCatalog } from "../core/models.ts";
 import { classifyMcpCall, toolKindForCategory, type PermissionModeId, type ToolCategory } from "../core/modes.ts";
 import { PATH_REFUSED_MESSAGE, gateFileRead, urlHost, type FileTarget } from "../core/paths.ts";
-import type { PermissionDecision } from "../core/permission.ts";
+import { fileMemory, shellCommandMemory, type MemoryScope, type PermissionDecision } from "../core/permission.ts";
 import { promptToText } from "../core/turn.ts";
 
 export const CLAUDE_ENV = {
@@ -160,7 +160,8 @@ interface ToolDescription {
   readonly title: string;
   readonly category: ToolCategory;
   readonly locations?: { path: string }[];
-  readonly memoryKey: string;
+  readonly memoryKey: string | null;
+  readonly memoryScope?: MemoryScope;
 }
 
 /** Title, gate category and "always allow" scope for a Claude Code tool call. */
@@ -189,14 +190,14 @@ export function describeClaudeTool(name: string, input: JsonObject, cwd: string)
       return withLocations({
         title: `${name === "Write" ? "Write" : "Edit"} ${file}`,
         category: "edit",
-        memoryKey: name,
+        ...fileMemory(cwd, [file]),
       });
     case "Bash": {
       const command = stringValue(input.command);
       return {
         title: `Run: ${command.slice(0, 120)}`,
         category: "execute",
-        memoryKey: `Bash:${command.trim().split(/\s+/)[0] ?? ""}`,
+        ...shellCommandMemory("Bash", command),
       };
     }
     case "BashOutput":
@@ -216,6 +217,7 @@ export function describeClaudeTool(name: string, input: JsonObject, cwd: string)
         title: `Fetch ${stringValue(input.url)}`,
         category: "fetch",
         memoryKey: `${name}:${urlHost(stringValue(input.url))}`,
+        memoryScope: "host",
       };
     case "WebSearch":
       return { title: `Search the web: ${stringValue(input.query)}`, category: "fetch", memoryKey: name };

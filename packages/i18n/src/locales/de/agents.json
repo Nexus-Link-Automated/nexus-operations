@@ -110,6 +110,9 @@
       "title": "Diese Aktion zulassen?",
       "allow_once": "Einmal zulassen",
       "allow_always": "In diesem Chat immer zulassen",
+      "allow_always_command": "Genau diesen Befehl in diesem Chat immer zulassen",
+      "allow_always_file": "Änderungen an dieser Datei in diesem Chat immer zulassen",
+      "allow_always_tool": "Dieses Tool in diesem Chat immer zulassen",
       "reject_once": "Ablehnen",
       "reject_always": "Immer ablehnen"
     },

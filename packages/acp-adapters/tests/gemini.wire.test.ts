@@ -399,13 +399,22 @@ describe("Gemini file tools and web tools", () => {
   it("counts web search as a fetch even though Gemini declares it a search", () => {
     const description = describeGeminiToolCall(
       { toolCallId: "google_web_search__1", title: 'Searching the web for: "x"', kind: "search" },
-      []
+      [],
+      "/w"
     );
     expect(description).toEqual({ category: "fetch", memoryKey: "gemini:google_web_search" });
   });
 
   it("remembers 'always' for one web fetch, not every fetch", () => {
-    const description = describeGeminiToolCall({ toolCallId: "web_fetch__1", title: "Fetch one", kind: "fetch" }, []);
-    expect(description).toEqual({ category: "fetch", memoryKey: "gemini:web_fetch:Fetch one" });
+    const description = describeGeminiToolCall(
+      { toolCallId: "web_fetch__1", title: "Fetch one", kind: "fetch" },
+      [],
+      "/w"
+    );
+    expect(description).toEqual({
+      category: "fetch",
+      memoryKey: "gemini:web_fetch:Fetch one",
+      memoryScope: "request",
+    });
   });
 });

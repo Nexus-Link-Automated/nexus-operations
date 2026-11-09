@@ -110,6 +110,9 @@
       "title": "¿Permitir esta acción?",
       "allow_once": "Permitir una vez",
       "allow_always": "Permitir siempre en esta conversación",
+      "allow_always_command": "Permitir siempre exactamente este comando en esta conversación",
+      "allow_always_file": "Permitir siempre las ediciones de este archivo en esta conversación",
+      "allow_always_tool": "Permitir siempre esta herramienta en esta conversación",
       "reject_once": "Denegar",
       "reject_always": "Denegar siempre"
     },

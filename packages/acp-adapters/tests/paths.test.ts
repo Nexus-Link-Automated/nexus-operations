@@ -200,7 +200,13 @@ describe("gateFileRead", () => {
     expect(gateFileRead(read, { access: "outside", target: "/etc/hostname" })).toEqual({
       category: "read_outside",
       memoryKey: "Read:/etc/hostname",
+      memoryScope: "path",
     });
+  });
+
+  it("does not make a call rememberable by moving it outside", () => {
+    const unremembered = { category: "search" as const, memoryKey: null };
+    expect(gateFileRead(unremembered, { access: "outside", target: "/x" }).memoryKey).toBeNull();
   });
 
   it("leaves inside reads and other categories alone", () => {

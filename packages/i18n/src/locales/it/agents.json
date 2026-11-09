@@ -110,6 +110,9 @@
       "title": "Consentire questa azione?",
       "allow_once": "Consenti una volta",
       "allow_always": "Consenti sempre in questa chat",
+      "allow_always_command": "Consenti sempre esattamente questo comando in questa chat",
+      "allow_always_file": "Consenti sempre le modifiche a questo file in questa chat",
+      "allow_always_tool": "Consenti sempre questo strumento in questa chat",
       "reject_once": "Nega",
       "reject_always": "Nega sempre"
     },
