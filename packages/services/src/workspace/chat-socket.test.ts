@@ -212,7 +212,7 @@ describe("ChatSocket", () => {
     expect(sockets).toHaveLength(1);
   });
 
-  it("backs off exponentially, with a cap, and resets once admitted", () => {
+  it("backs off exponentially, with a cap, and resets once a socket has stayed up", () => {
     const { client, current, sockets } = setup({ initialBackoffMs: 1000, maxBackoffMs: 8000 });
     client.connect();
     // random() = 0.5, so each delay is 3/4 of the ceiling: 750, 1500, 3000, 6000, 6000.
@@ -225,9 +225,86 @@ describe("ChatSocket", () => {
       expect(sockets).toHaveLength(i + 2);
     }
     current().ready();
+    vi.advanceTimersByTime(30_000);
     current().drop(ChatCloseCode.abnormal);
     vi.advanceTimersByTime(750);
     expect(sockets).toHaveLength(delays.length + 2);
+  });
+
+  it("keeps backing off a socket that closes right after ready", () => {
+    const { client, current, sockets } = setup({ initialBackoffMs: 1000, maxBackoffMs: 8000 });
+    client.connect();
+    current().drop(ChatCloseCode.abnormal);
+    vi.advanceTimersByTime(750);
+    expect(sockets).toHaveLength(2);
+    current().ready();
+    current().drop(ChatCloseCode.abnormal);
+    vi.advanceTimersByTime(1499);
+    expect(sockets).toHaveLength(2);
+    vi.advanceTimersByTime(1);
+    expect(sockets).toHaveLength(3);
+  });
+
+  it("reopens a socket that never says ready, and stops counting once it does", () => {
+    const { client, current, sockets } = setup({ readyTimeoutMs: 1000, initialBackoffMs: 100 });
+    client.connect();
+    current().accept();
+    vi.advanceTimersByTime(999);
+    expect(sockets).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    expect(sockets[0]!.closedWith).toBe(ChatCloseCode.normal);
+    vi.advanceTimersByTime(75);
+    expect(sockets).toHaveLength(2);
+    current().ready();
+    vi.advanceTimersByTime(1000);
+    expect(sockets).toHaveLength(2);
+    expect(sockets[1]!.closedWith).toBeUndefined();
+  });
+
+  it("asks again for a channel the gateway couldn't check, a limited number of times", () => {
+    const { client, current } = setup({ initialBackoffMs: 1000, maxBackoffMs: 1000 });
+    const subscribes = () => current().sent.filter((f) => (f as { type: string }).type === "subscribe");
+    client.connect();
+    current().ready();
+    client.subscribe("c1");
+    expect(subscribes()).toHaveLength(1);
+    for (let tries = 1; tries <= 5; tries++) {
+      current().receive({ type: "error", code: "unavailable", message: "try again", channel_id: "c1" });
+      vi.advanceTimersByTime(750);
+      expect(subscribes()).toHaveLength(1 + tries);
+    }
+    current().receive({ type: "error", code: "unavailable", message: "try again", channel_id: "c1" });
+    vi.advanceTimersByTime(5000);
+    expect(subscribes()).toHaveLength(6);
+  });
+
+  it("doesn't ask again for a channel it stopped following", () => {
+    const { client, current } = setup({ initialBackoffMs: 1000 });
+    client.connect();
+    current().ready();
+    client.subscribe("c1");
+    current().receive({ type: "error", code: "unavailable", message: "try again", channel_id: "c1" });
+    client.unsubscribe("c1");
+    vi.advanceTimersByTime(5000);
+    expect(current().sent.filter((f) => (f as { type: string }).type === "subscribe")).toHaveLength(1);
+  });
+
+  it("unsubscribes again when a channel it dropped finishes subscribing late", () => {
+    const onSubscribed = vi.fn();
+    const { client, current } = setup({ onSubscribed });
+    client.connect();
+    current().ready();
+    client.subscribe("c1");
+    client.unsubscribe("c1");
+    current().receive({ type: "subscribed", channel_id: "c1" });
+    expect(current().sent.filter((f) => (f as { type: string }).type === "unsubscribe")).toHaveLength(2);
+    expect(onSubscribed).not.toHaveBeenCalled();
+  });
+
+  it("keeps a secure scheme for a wss base URL", () => {
+    expect(chatSocketUrl({ workspaceSlug: "acme", baseUrl: "wss://ops.example.com", basePath: "/chat" })).toBe(
+      "wss://ops.example.com/chat/ws?workspace=acme"
+    );
   });
 
   it("waits longer after 4429", () => {
@@ -242,7 +319,12 @@ describe("ChatSocket", () => {
   });
 
   it("pings, and reopens a socket that stops answering", () => {
-    const { client, current, sockets } = setup({ pingIntervalMs: 1000, pongTimeoutMs: 500, initialBackoffMs: 100 });
+    const { client, current, sockets } = setup({
+      pingIntervalMs: 1000,
+      pongTimeoutMs: 500,
+      initialBackoffMs: 100,
+      readyTimeoutMs: 120_000,
+    });
     client.connect();
     current().ready();
     vi.advanceTimersByTime(1000);

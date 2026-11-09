@@ -65,6 +65,8 @@ export type TChatSocketOptions = TChatSocketHandlers & {
   basePath?: string;
   /** Injectable for tests. Defaults to `new WebSocket(url)`. */
   createWebSocket?: (url: string) => ChatWebSocketLike;
+  /** A socket that hasn't said `ready` after this long is treated as dead and reopened. */
+  readyTimeoutMs?: number;
   /** How often to ping once ready. The gateway answers with `pong`. */
   pingIntervalMs?: number;
   /** A socket that sends nothing for this long after a ping is treated as dead and reopened. */
@@ -77,6 +79,10 @@ export type TChatSocketOptions = TChatSocketHandlers & {
 };
 
 const OPEN = 1;
+/** A socket that lasted this long earns a fresh backoff; one that closes sooner keeps backing off. */
+const STABLE_CONNECTION_MS = 30_000;
+/** How many times one socket re-asks for a channel the gateway answered `unavailable` for. */
+const MAX_RESUBSCRIBE_TRIES = 5;
 
 /** `value` without trailing slashes (a loop, not a regex, so long inputs stay linear). */
 function trimTrailingSlashes(value: string): string {
@@ -95,7 +101,7 @@ export function chatSocketUrl(options: { workspaceSlug: string; baseUrl?: string
   const base = options.baseUrl?.trim() || (typeof window === "undefined" ? "" : window.location.origin);
   if (!base) throw new Error("chatSocketUrl: no base URL and no page origin");
   const url = new URL(path, new URL(base).origin);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.protocol = url.protocol === "https:" || url.protocol === "wss:" ? "wss:" : "ws:";
   url.searchParams.set("workspace", options.workspaceSlug);
   return url.toString();
 }
@@ -125,6 +131,7 @@ export class ChatSocket {
 
   private readonly options: TChatSocketOptions;
   private readonly createWebSocket: (url: string) => ChatWebSocketLike;
+  private readonly readyTimeoutMs: number;
   private readonly pingIntervalMs: number;
   private readonly pongTimeoutMs: number;
   private readonly initialBackoffMs: number;
@@ -137,10 +144,13 @@ export class ChatSocket {
   private admitted = false;
   private everReady = false;
   private attempt = 0;
+  private readyAt = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private readyTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private pongTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly subscriptions = new Set<string>();
+  private readonly resubscribes = new Map<string, { tries: number; timer: ReturnType<typeof setTimeout> | null }>();
 
   status: TChatSocketStatus = "idle";
   closedReason: TChatSocketClosedReason | null = null;
@@ -153,6 +163,7 @@ export class ChatSocket {
       basePath: options.basePath ?? CHAT_GATEWAY_BASE_PATH,
     });
     this.createWebSocket = options.createWebSocket ?? ((url) => new WebSocket(url) as unknown as ChatWebSocketLike);
+    this.readyTimeoutMs = options.readyTimeoutMs ?? 30_000;
     this.pingIntervalMs = options.pingIntervalMs ?? 25_000;
     this.pongTimeoutMs = options.pongTimeoutMs ?? 10_000;
     this.initialBackoffMs = options.initialBackoffMs ?? 1_000;
@@ -192,11 +203,13 @@ export class ChatSocket {
    */
   subscribe(channelId: string): void {
     this.subscriptions.add(channelId);
+    this.forgetResubscribe(channelId);
     if (this.admitted) this.send({ type: "subscribe", channel_id: channelId });
   }
 
   unsubscribe(channelId: string): void {
     if (!this.subscriptions.delete(channelId)) return;
+    this.forgetResubscribe(channelId);
     if (this.admitted) this.send({ type: "unsubscribe", channel_id: channelId });
   }
 
@@ -229,6 +242,8 @@ export class ChatSocket {
       socket.removeEventListener("message", onMessage);
       socket.removeEventListener("close", onClose);
     };
+    // Pings only start after `ready`, so this is what notices a socket that stalls before it.
+    this.readyTimer = setTimeout(() => this.reopenDeadSocket(), this.readyTimeoutMs);
   }
 
   private handleFrame(data: unknown): void {
@@ -239,7 +254,7 @@ export class ChatSocket {
     if (!this.admitted) {
       if (frame.type !== "ready") return;
       this.admitted = true;
-      this.attempt = 0;
+      this.readyAt = Date.now();
       const reconnected = this.everReady;
       this.everReady = true;
       for (const channelId of this.subscriptions) this.send({ type: "subscribe", channel_id: channelId });
@@ -256,16 +271,28 @@ export class ChatSocket {
         this.options.onResync?.(frame.reason);
         break;
       case "subscribed":
+        this.forgetResubscribe(frame.channel_id);
+        // Dropped while the gateway was still checking it: the `unsubscribe` got there first, so send another.
+        if (!this.subscriptions.has(frame.channel_id)) {
+          this.send({ type: "unsubscribe", channel_id: frame.channel_id });
+          break;
+        }
         this.options.onSubscribed?.(frame.channel_id);
         break;
       case "unsubscribed":
         // Access lost: asking again would only be refused again until something changes (e.g. a re-join).
-        if (frame.reason === "access_lost") this.subscriptions.delete(frame.channel_id);
+        if (frame.reason === "access_lost") {
+          this.subscriptions.delete(frame.channel_id);
+          this.forgetResubscribe(frame.channel_id);
+        }
         this.options.onUnsubscribed?.(frame.channel_id, frame.reason);
         break;
       case "error":
         if (frame.channel_id && (frame.code === "not_found" || frame.code === "too_many_subscriptions")) {
           this.subscriptions.delete(frame.channel_id);
+          this.forgetResubscribe(frame.channel_id);
+        } else if (frame.channel_id && frame.code === "unavailable") {
+          this.scheduleResubscribe(frame.channel_id);
         }
         this.options.onError?.(frame);
         break;
@@ -296,15 +323,40 @@ export class ChatSocket {
   private scheduleRetry(slow: boolean): void {
     this.socket = null;
     this.setStatus(this.everReady ? "reconnecting" : "connecting", null);
+    if (this.readyAt && Date.now() - this.readyAt >= STABLE_CONNECTION_MS) this.attempt = 0;
+    this.readyAt = 0;
     const base = slow ? Math.max(this.initialBackoffMs * 5, 5_000) : this.initialBackoffMs;
     const ceiling = Math.min(this.maxBackoffMs, base * 2 ** this.attempt);
     this.attempt += 1;
-    // Full jitter on the upper half, so a gateway restart doesn't bring every tab back at once.
-    const delay = Math.round(ceiling / 2 + (ceiling / 2) * this.random());
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
       if (!this.stopped) this.open();
-    }, delay);
+    }, this.jittered(ceiling));
+  }
+
+  /** Full jitter on the upper half, so a gateway restart doesn't bring every tab back at once. */
+  private jittered(ceiling: number): number {
+    return Math.round(ceiling / 2 + (ceiling / 2) * this.random());
+  }
+
+  /** The gateway couldn't check this channel just now: ask again a few times, backing off. */
+  private scheduleResubscribe(channelId: string): void {
+    if (!this.subscriptions.has(channelId)) return;
+    const entry = this.resubscribes.get(channelId) ?? { tries: 0, timer: null };
+    if (entry.timer || entry.tries >= MAX_RESUBSCRIBE_TRIES) return;
+    const ceiling = Math.min(this.maxBackoffMs, this.initialBackoffMs * 2 ** entry.tries);
+    entry.tries += 1;
+    entry.timer = setTimeout(() => {
+      entry.timer = null;
+      if (this.admitted && this.subscriptions.has(channelId)) this.send({ type: "subscribe", channel_id: channelId });
+    }, this.jittered(ceiling));
+    this.resubscribes.set(channelId, entry);
+  }
+
+  private forgetResubscribe(channelId: string): void {
+    const entry = this.resubscribes.get(channelId);
+    if (entry?.timer) clearTimeout(entry.timer);
+    this.resubscribes.delete(channelId);
   }
 
   private startPinging(): void {
@@ -315,13 +367,17 @@ export class ChatSocket {
       if (!this.pongTimer) {
         this.pongTimer = setTimeout(() => {
           this.pongTimer = null;
-          // No answer: the socket is dead even if the browser hasn't noticed. Drop it and reconnect.
-          const dead = this.socket;
-          this.teardown(ChatCloseCode.normal);
-          if (dead && !this.stopped) this.scheduleRetry(false);
+          this.reopenDeadSocket();
         }, this.pongTimeoutMs);
       }
     }, this.pingIntervalMs);
+  }
+
+  /** No answer: the socket is dead even if the browser hasn't noticed. Drop it and reconnect. */
+  private reopenDeadSocket(): void {
+    const dead = this.socket;
+    this.teardown(ChatCloseCode.normal);
+    if (dead && !this.stopped) this.scheduleRetry(false);
   }
 
   private send(frame: TChatClientFrame): void {
@@ -347,7 +403,10 @@ export class ChatSocket {
   private stopTimers(): void {
     if (this.pingTimer) clearInterval(this.pingTimer);
     this.pingTimer = null;
+    if (this.readyTimer) clearTimeout(this.readyTimer);
+    this.readyTimer = null;
     this.clearPongTimer();
+    for (const channelId of [...this.resubscribes.keys()]) this.forgetResubscribe(channelId);
   }
 
   private clearPongTimer(): void {
