@@ -21,6 +21,7 @@ import { CONTROLLERS } from "@/controllers";
 import { env } from "@/env";
 // hocuspocus server
 import { HocusPocusServerManager } from "@/hocuspocus";
+import { MAX_COLLABORATION_MESSAGE_BYTES } from "@/lib/collaboration-socket-guard";
 import { drainCollaborationServer, withinShutdownDeadline } from "@/lib/drain-server";
 // redis
 import { redisManager } from "@/redis";
@@ -36,7 +37,7 @@ export class Server {
 
   constructor() {
     this.app = express();
-    expressWs(this.app);
+    expressWs(this.app, undefined, { wsOptions: { maxPayload: MAX_COLLABORATION_MESSAGE_BYTES } });
     this.setupMiddleware();
     this.router = express.Router();
     this.app.set("port", env.PORT || 3000);
