@@ -7,7 +7,7 @@
 //   turn/interrupt; anything else answers "ok".
 // Every message it receives is appended to $FAKE_CODEX_LOG (JSONL) so tests can assert on
 // thread/start params, approval replies and approval policies; the first line of each run is
-// `{ start: { codexHome, apiKeyInEnv } }`.
+// `{ start: { codexHome, apiKeyInEnv }, argv }`.
 // Accounts: signed in with an API key unless FAKE_CODEX_SIGNED_IN=0; FAKE_CODEX_ACCOUNT=chatgpt
 // signs in with ChatGPT instead. `account/login/start {type: "chatgptDeviceCode"}` completes after
 // a moment (FAKE_CODEX_LOGIN=fail fails it, =hang never completes) and writes $CODEX_HOME/auth.json.
@@ -283,7 +283,7 @@ function handle(msg) {
 if (log) {
   fs.appendFileSync(
     log,
-    `${JSON.stringify({ start: { codexHome: process.env.CODEX_HOME, apiKeyInEnv: "OPENAI_API_KEY" in process.env } })}\n`
+    `${JSON.stringify({ start: { codexHome: process.env.CODEX_HOME, apiKeyInEnv: "OPENAI_API_KEY" in process.env }, argv: process.argv.slice(2) })}\n`
   );
 }
 

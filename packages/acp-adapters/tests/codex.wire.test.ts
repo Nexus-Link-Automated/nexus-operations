@@ -44,6 +44,7 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
     });
 
     const log = fake.log();
+    expect(log[0]?.argv).toEqual(["app-server"]);
     const threadStart = log.find((message) => message.method === "thread/start")?.params as Record<string, unknown>;
     expect(threadStart).toMatchObject({
       approvalPolicy: "untrusted",

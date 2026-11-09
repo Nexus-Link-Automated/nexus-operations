@@ -11,7 +11,7 @@ import { inProcessClient, tempDir, textOf, updatesOfKind, type InProcessClient }
 import { fakeQuery } from "./helpers/claude.ts";
 import { runWireScenario } from "./helpers/scenario.ts";
 
-const env = { ANTHROPIC_API_KEY: "sk-ant-test" };
+const env = { ANTHROPIC_API_KEY: "sk-ant-test", HOME: tempDir("claude-home-") };
 
 describe("plane-acp-claude over ndjson (mocked query())", () => {
   let client: InProcessClient | undefined;
@@ -40,8 +40,9 @@ describe("plane-acp-claude over ndjson (mocked query())", () => {
       permissionMode: "default",
       settingSources: [],
       sessionId,
-      mcpServers: { plane: { type: "http", url: "http://mcp/mcp", headers: { Authorization: "Bearer t" } } },
     });
+    expect(first?.options.mcpServers).toBeUndefined();
+    expect(first?.options.extraArgs?.["mcp-config"]).toMatch(/\/\.plane-acp\/mcp-[^/]+\.json$/);
     expect(first?.options.resume).toBeUndefined();
     expect(first?.options.env).toMatchObject({
       CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
