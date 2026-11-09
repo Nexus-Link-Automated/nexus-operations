@@ -1,11 +1,15 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: ["src/start.ts"],
+  entry: {
+    start: "src/start.ts",
+    "pdf-render.worker": "src/lib/pdf/pdf-render.worker.ts",
+  },
   outDir: "dist",
   format: ["esm"],
   dts: false,
   clean: true,
   sourcemap: false,
-  exports: true,
+  // Generating exports from two entries would replace the "." export that `node apps/live` relies on.
+  exports: false,
 });

@@ -7,6 +7,7 @@ import logging
 
 # Third party imports
 from celery import shared_task
+from celery.exceptions import Retry
 
 # Django imports
 # Third party imports
@@ -16,12 +17,12 @@ from django.template.loader import render_to_string
 # Module imports
 from plane.db.models import Project, ProjectMemberInvite, User
 from plane.license.utils.instance_value import get_email_configuration
-from plane.utils.email import generate_plain_text_from_html
+from plane.utils.email import EMAIL_TASK_MAX_RETRIES, generate_plain_text_from_html, send_email_with_retry
 from plane.utils.exception_logger import log_exception
 
 
-@shared_task
-def project_invitation(email, project_id, token, current_site, invitor):
+@shared_task(bind=True, max_retries=EMAIL_TASK_MAX_RETRIES)
+def project_invitation(self, email, project_id, token, current_site, invitor):
     try:
         user = User.objects.get(email=invitor)
         project = Project.objects.get(pk=project_id)
@@ -76,9 +77,11 @@ def project_invitation(email, project_id, token, current_site, invitor):
         )
 
         msg.attach_alternative(html_content, "text/html")
-        msg.send()
+        send_email_with_retry(self, msg, EMAIL_HOST)
         logging.getLogger("plane.worker").info("Email sent successfully.")
         return
+    except Retry:
+        raise
     except (Project.DoesNotExist, ProjectMemberInvite.DoesNotExist):
         return
     except Exception as e:

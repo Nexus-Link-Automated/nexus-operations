@@ -59,10 +59,13 @@ export const PageVersionsMainContent = observer(function PageVersionsMainContent
     pageId && activeVersion ? () => fetchVersionDetails(pageId, activeVersion) : null
   );
 
+  const versionDescriptionHTML = versionDetails?.description_html;
+
   const handleRestoreVersion = async () => {
-    if (!restoreEnabled) return;
+    if (!restoreEnabled || versionDescriptionHTML == null) return;
     setIsRestoring(true);
-    await handleRestore(versionDetails?.description_html ?? "<p></p>")
+    await handleRestore(versionDescriptionHTML)
+      // oxlint-disable-next-line promise/always-return
       .then(() => {
         setToast({
           type: "success",
@@ -129,6 +132,7 @@ export const PageVersionsMainContent = observer(function PageVersionsMainContent
                   isRestoring ? t("page_navigation_pane.tabs.version_history.restoring") : t("common.actions.restore")
                 }
                 onClick={() => void handleRestoreVersion()}
+                disabled={versionDescriptionHTML == null}
                 loading={isRestoring}
               />
             )}

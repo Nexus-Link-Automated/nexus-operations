@@ -49,6 +49,7 @@ class TestAPITokenLogMiddleware:
             HTTP_X_AGENT_BRIDGE_SECRET=self.BRIDGE_SECRET,
         )
         request.user = AnonymousUser()
+        request.auth = self.API_KEY
         response = HttpResponse(b"{}")
         with patch("plane.middleware.logger.process_logs") as process_logs:
             middleware.process_request(request, response, request_body=b"")
@@ -77,6 +78,21 @@ class TestAPITokenLogMiddleware:
     def test_no_log_without_api_key(self, middleware, request_factory):
         request = request_factory.get("/api/v1/workspaces/")
         request.user = AnonymousUser()
+        with patch("plane.middleware.logger.process_logs") as process_logs:
+            middleware.process_request(request, HttpResponse(b"{}"), request_body=b"")
+            assert not process_logs.delay.called
+
+    @pytest.mark.parametrize("auth", [None, "a-different-key"])
+    def test_no_log_when_authentication_did_not_accept_the_key(self, middleware, request_factory, auth):
+        request = request_factory.get("/api/v1/workspaces/", HTTP_X_API_KEY=self.API_KEY)
+        request.user = AnonymousUser()
+        request.auth = auth
+        with patch("plane.middleware.logger.process_logs") as process_logs:
+            middleware.process_request(request, HttpResponse(b"{}"), request_body=b"")
+            assert not process_logs.delay.called
+
+    def test_no_log_when_authentication_never_ran(self, middleware, request_factory):
+        request = request_factory.get("/api/v1/workspaces/", HTTP_X_API_KEY=self.API_KEY)
         with patch("plane.middleware.logger.process_logs") as process_logs:
             middleware.process_request(request, HttpResponse(b"{}"), request_body=b"")
             assert not process_logs.delay.called

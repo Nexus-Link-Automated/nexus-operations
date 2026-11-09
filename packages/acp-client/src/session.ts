@@ -22,6 +22,7 @@ import {
 } from "@agentclientprotocol/sdk";
 
 import { describeClose, type CloseInfo } from "./close-codes.ts";
+import { AgentDisconnectedError, AgentRequestError, INVALID_PARAMS } from "./errors.ts";
 import {
   appendNotice,
   appendTurnEnd,
@@ -30,6 +31,7 @@ import {
   applySessionSetup,
   applySessionUpdate,
   createTranscript,
+  effortOption,
   modelOption,
   type TranscriptState,
 } from "./transcript.ts";
@@ -37,9 +39,9 @@ import type { AgentTransport, AgentTransportFactory } from "./transport.ts";
 
 /** `session/new` `_meta` key for the starting permission level (clamped by the bridge). */
 export const INITIAL_MODE_META_KEY = "plane/initialModeId";
-
-/** JSON-RPC "invalid params": what the bridge answers to a `session/set_mode` above the admin max. */
-export const INVALID_PARAMS = -32602;
+/** `session/new|load` `_meta` keys for the starting model and effort (ignored when the agent lacks them). */
+export const INITIAL_MODEL_META_KEY = "plane/initialModel";
+export const INITIAL_EFFORT_META_KEY = "plane/initialEffort";
 
 export type AgentChatStatus = "idle" | "connecting" | "ready" | "reconnecting" | "closed";
 
@@ -62,30 +64,6 @@ export interface AgentChatSnapshot {
   readonly close: CloseInfo | null;
 }
 
-/** A JSON-RPC error answer from the agent or the bridge. */
-export class AgentRequestError extends Error {
-  readonly code: number;
-  readonly data: unknown;
-
-  constructor(code: number, message: string, data?: unknown) {
-    super(message);
-    this.name = "AgentRequestError";
-    this.code = code;
-    this.data = data;
-  }
-}
-
-/** The request could not complete because the connection is gone (or was never opened). */
-export class AgentDisconnectedError extends Error {
-  readonly close: CloseInfo | null;
-
-  constructor(close: CloseInfo | null) {
-    super(close ? `Agent connection closed (${close.code})` : "Not connected to the agent");
-    this.name = "AgentDisconnectedError";
-    this.close = close;
-  }
-}
-
 export interface AgentChatSessionOptions {
   /** Opens a connection; called again for every reconnect. */
   readonly transport: AgentTransportFactory;
@@ -97,6 +75,21 @@ export interface AgentChatSessionOptions {
 export interface NewSessionOptions {
   /** Requested starting permission level; the bridge clamps it to the admin maximum. */
   readonly initialModeId?: string;
+  /** Starting model id, e.g. the one last used with this agent. Ignored when the agent does not offer it. */
+  readonly initialModel?: string;
+  /** Starting reasoning effort. Ignored when the model does not take it. */
+  readonly initialEffort?: string;
+}
+
+/** `session/load` takes the same starting choices except the permission level, which the bridge sets. */
+export type LoadSessionOptions = Omit<NewSessionOptions, "initialModeId">;
+
+function startMeta(options: NewSessionOptions): { _meta?: Record<string, string> } {
+  const meta: Record<string, string> = {};
+  if (options.initialModeId) meta[INITIAL_MODE_META_KEY] = options.initialModeId;
+  if (options.initialModel) meta[INITIAL_MODEL_META_KEY] = options.initialModel;
+  if (options.initialEffort) meta[INITIAL_EFFORT_META_KEY] = options.initialEffort;
+  return Object.keys(meta).length > 0 ? { _meta: meta } : {};
 }
 
 export interface ReconnectResult {
@@ -109,7 +102,9 @@ interface Link {
   readonly transport: AgentTransport;
 }
 
-interface PermissionEntry extends PendingPermission {
+interface PermissionEntry {
+  /** One object for the request's lifetime, so snapshots keep its identity and memoized UI can rely on it. */
+  readonly pending: PendingPermission;
   readonly resolve: (response: RequestPermissionResponse) => void;
 }
 
@@ -117,6 +112,9 @@ type Listener = (snapshot: AgentChatSnapshot) => void;
 
 /** How long a failed request waits for the socket's close event, to report its close code. */
 const CLOSE_GRACE_MS = 50;
+
+/** Streamed updates share one snapshot per this interval, about one animation frame. */
+const EMIT_COALESCE_MS = 16;
 
 function delay(ms: number): Promise<null> {
   return new Promise((resolve) => {
@@ -168,11 +166,15 @@ export class AgentChatSession {
   #capabilities: AgentCapabilities | null = null;
   #sessionId: string | null = null;
   #transcript: TranscriptState = createTranscript();
+  /** The last model and effort a session reported; kept while a load is pending or after it failed. */
+  #choices: LoadSessionOptions = {};
   #prompting = false;
   #close: CloseInfo | null = null;
   /** Updates for a session whose `session/new` response has not arrived yet. */
   #buffered: SessionNotification[] | undefined;
   #snapshot: AgentChatSnapshot;
+  /** Set while streamed updates are waiting for their coalesced emit. */
+  #emitTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: AgentChatSessionOptions) {
     this.#options = options;
@@ -183,7 +185,17 @@ export class AgentChatSession {
   }
 
   get snapshot(): AgentChatSnapshot {
+    // Listeners wait for the coalesced emit; a direct read is never behind the stream.
+    if (this.#emitTimer !== undefined) this.#snapshot = this.#buildSnapshot();
     return this.#snapshot;
+  }
+
+  /**
+   * The model and effort the chat last ran on, to start a replacement session on the same ones.
+   * Unlike the transcript, this survives a `session/load` that is still pending or failed.
+   */
+  get choices(): LoadSessionOptions {
+    return this.#choices;
   }
 
   /** The agent can resume a session (`session/load`). */
@@ -259,19 +271,23 @@ export class AgentChatSession {
     }
   }
 
-  /** Start a new conversation. The transcript is reset. */
+  /** Start a new conversation, stopping any turn still running. The transcript is reset. */
   async newSession(options: NewSessionOptions = {}): Promise<string> {
     const link = this.#requireLink();
     const { connection } = link;
+    // Nothing could reach the old turn once the session id moves on.
+    if (this.#prompting) await this.cancel();
     this.#buffered = [];
     try {
       const result = await connection.agent.request("session/new", {
         cwd: "/",
         mcpServers: [],
-        ...(options.initialModeId ? { _meta: { [INITIAL_MODE_META_KEY]: options.initialModeId } } : {}),
+        ...startMeta(options),
       });
       this.#cancelPermissions();
       this.#sessionId = result.sessionId;
+      // The old prompt's `finally` only clears this while its own session is current.
+      this.#prompting = false;
       let transcript = createTranscript(result);
       for (const notification of this.#buffered) {
         if (notification.sessionId === result.sessionId)
@@ -288,7 +304,7 @@ export class AgentChatSession {
   }
 
   /** Resume a conversation. The agent replays its history as `session/update`s. */
-  async loadSession(sessionId: string): Promise<void> {
+  async loadSession(sessionId: string, options: LoadSessionOptions = {}): Promise<void> {
     const link = this.#requireLink();
     const { connection } = link;
     if (!this.supportsLoad) throw new AgentRequestError(-32601, "This agent cannot resume sessions");
@@ -297,7 +313,12 @@ export class AgentChatSession {
     this.#transcript = createTranscript();
     this.#emit();
     try {
-      const result = await connection.agent.request("session/load", { sessionId, cwd: "/", mcpServers: [] });
+      const result = await connection.agent.request("session/load", {
+        sessionId,
+        cwd: "/",
+        mcpServers: [],
+        ...startMeta(options),
+      });
       if (this.#sessionId === sessionId) {
         this.#transcript = applySessionSetup(this.#transcript, result);
         this.#emit();
@@ -401,6 +422,13 @@ export class AgentChatSession {
     await this.setConfigOption(option.id, value);
   }
 
+  /** Change the reasoning effort (the `thought_level` config option). */
+  async setEffort(value: string): Promise<void> {
+    const option = effortOption(this.#transcript);
+    if (!option) throw new AgentRequestError(INVALID_PARAMS, "This model has no reasoning effort option");
+    await this.setConfigOption(option.id, value);
+  }
+
   /** Answer a permission request with one of its options, or `null` to cancel it. */
   respondToPermission(id: string, optionId: string | null): void {
     this.#settlePermission(
@@ -417,16 +445,17 @@ export class AgentChatSession {
   async reconnect(): Promise<ReconnectResult> {
     const sessionId = this.#sessionId;
     const modeId = this.#transcript.modes?.currentModeId;
+    const choices = this.#choices;
     this.#status = "reconnecting";
     try {
       await this.#open();
       let resumed = false;
       if (sessionId && this.supportsLoad) {
-        await this.loadSession(sessionId);
+        await this.loadSession(sessionId, choices);
         resumed = true;
       } else if (sessionId) {
         const previous = this.#transcript;
-        await this.newSession(modeId ? { initialModeId: modeId } : {});
+        await this.newSession({ ...choices, ...(modeId ? { initialModeId: modeId } : {}) });
         // Keep the conversation on screen, but the plan and usage belonged to the old session.
         const carried = { ...previous, ...pickSetup(this.#transcript), plan: null, usage: null };
         this.#transcript = appendNotice(carried, "info", "", null, "new_session");
@@ -518,7 +547,8 @@ export class AgentChatSession {
       return;
     }
     this.#transcript = applySessionUpdate(this.#transcript, notification.update);
-    this.#emit();
+    this.#trackChoices();
+    this.#emitCoalesced();
   }
 
   #requestPermission(params: RequestPermissionRequest, signal: AbortSignal): Promise<RequestPermissionResponse> {
@@ -528,10 +558,7 @@ export class AgentChatSession {
     return new Promise((resolve) => {
       const id = `perm-${++this.#permissionCounter}`;
       this.#permissions.set(id, {
-        id,
-        sessionId: params.sessionId,
-        toolCall: params.toolCall,
-        options: params.options,
+        pending: { id, sessionId: params.sessionId, toolCall: params.toolCall, options: params.options },
         resolve,
       });
       // `$/cancel_request` from the agent, or the connection closing.
@@ -556,8 +583,8 @@ export class AgentChatSession {
 
   #cancelPermissions(sessionId?: string): void {
     for (const entry of this.#permissions.values()) {
-      if (sessionId === undefined || entry.sessionId === sessionId) {
-        this.#settlePermission(entry.id, { outcome: { outcome: "cancelled" } });
+      if (sessionId === undefined || entry.pending.sessionId === sessionId) {
+        this.#settlePermission(entry.pending.id, { outcome: { outcome: "cancelled" } });
       }
     }
   }
@@ -569,13 +596,31 @@ export class AgentChatSession {
       capabilities: this.#capabilities,
       sessionId: this.#sessionId,
       transcript: this.#transcript,
-      permissions: [...this.#permissions.values()].map(({ resolve: _resolve, ...pending }) => pending),
+      permissions: [...this.#permissions.values()].map((entry) => entry.pending),
       prompting: this.#prompting,
       close: this.#close,
     };
   }
 
+  #trackChoices(): void {
+    const model = modelOption(this.#transcript)?.currentValue;
+    // A transcript without a model option is one being reset (a load in flight): keep the last choices.
+    if (typeof model === "string") {
+      const effort = effortOption(this.#transcript)?.currentValue;
+      this.#choices = { initialModel: model, ...(typeof effort === "string" ? { initialEffort: effort } : {}) };
+    }
+  }
+
+  /** For `session/update`s, which arrive per token and per history item on a replay. */
+  #emitCoalesced(): void {
+    this.#emitTimer ??= setTimeout(() => this.#emit(), EMIT_COALESCE_MS);
+  }
+
+  /** Publish now. This also delivers anything a coalesced emit was waiting on, such as the last chunks of a turn. */
   #emit(): void {
+    clearTimeout(this.#emitTimer);
+    this.#emitTimer = undefined;
+    this.#trackChoices();
     this.#snapshot = this.#buildSnapshot();
     for (const listener of this.#listeners) listener(this.#snapshot);
   }

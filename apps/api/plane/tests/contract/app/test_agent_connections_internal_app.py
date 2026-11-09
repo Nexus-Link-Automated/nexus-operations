@@ -79,10 +79,23 @@ class TestAgentConnectionAuthorize:
         }
 
     @pytest.mark.django_db
-    def test_guest_is_authorized(self, bridge_client, workspace):
+    @pytest.mark.parametrize("role", [15, 20])
+    def test_member_and_admin_are_authorized(self, bridge_client, workspace, role):
+        user = User.objects.create(email=f"conn-role-{role}@plane.so", username=f"conn-role-{role}")
+        WorkspaceMember.objects.create(workspace=workspace, member=user, role=role)
+        assert bridge_client.post(AUTHORIZE_URL, _who(user, workspace), format="json").status_code == 200
+
+    @pytest.mark.django_db
+    def test_guest_is_rejected(self, bridge_client, workspace):
         guest = User.objects.create(email="conn-guest@plane.so", username="conn-guest")
         WorkspaceMember.objects.create(workspace=workspace, member=guest, role=5)
-        assert bridge_client.post(AUTHORIZE_URL, _who(guest, workspace), format="json").status_code == 200
+        assert bridge_client.post(AUTHORIZE_URL, _who(guest, workspace), format="json").status_code == 403
+        assert bridge_client.put(CONNECTIONS_URL, _connect(guest, workspace), format="json").status_code == 403
+        assert (
+            bridge_client.delete(CONNECTIONS_URL, _who(guest, workspace, provider="openai"), format="json").status_code
+            == 403
+        )
+        assert not AgentProviderCredential.objects.exists()
 
     @pytest.mark.django_db
     def test_inactive_bot_or_non_member_is_rejected(self, bridge_client, create_user, workspace, create_bot_user):

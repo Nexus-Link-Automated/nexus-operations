@@ -7,6 +7,7 @@
 import { useState } from "react";
 import type { PageProps } from "@react-pdf/renderer";
 import { pdf } from "@react-pdf/renderer";
+import { escape as escapeHTML } from "lodash-es";
 import { Controller, useForm } from "react-hook-form";
 import { useParams } from "react-router";
 // plane editor
@@ -146,6 +147,7 @@ export function ExportPageModal(props: Props) {
     }, 300);
   };
 
+  // oxlint-disable-next-line unicorn/consistent-function-scoping
   const initiateDownload = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -160,7 +162,7 @@ export function ExportPageModal(props: Props) {
   // handle export as a PDF
   const handleExportAsPDF = async () => {
     try {
-      const pageContent = `<h1 class="page-title">${pageTitle}</h1>${editorRef?.getDocument().html ?? "<p></p>"}`;
+      const pageContent = `<h1 class="page-title">${escapeHTML(pageTitle)}</h1>${editorRef?.getDocument().html ?? "<p></p>"}`;
       const parsedPageContent = await replaceCustomComponentsFromHTMLContent({
         htmlContent: pageContent,
         noAssets: selectedContentVariety === "no-assets",

@@ -12,6 +12,8 @@ import { env } from "@/env";
 import { getExtensions } from "@/extensions";
 // lib
 import { onAuthenticate } from "@/lib/auth";
+import { releaseDocumentOnClose } from "@/lib/collaboration-socket-guard";
+import { recheckDocumentAccess } from "@/lib/document-access";
 import { onStateless } from "@/lib/stateless";
 
 export class HocusPocusServerManager {
@@ -45,6 +47,8 @@ export class HocusPocusServerManager {
     this.server = new Hocuspocus({
       name: this.serverName,
       onAuthenticate,
+      connected: releaseDocumentOnClose,
+      beforeHandleMessage: recheckDocumentAccess,
       onStateless,
       extensions: getExtensions(),
       debounce: 10000,

@@ -51,16 +51,18 @@ from plane.nexus.models import (
     WorkItemWorkLog,
 )
 from plane.nexus.pql import PQLError, apply_pql, pql_fields
-from plane.nexus.serializers.work_item import WorkItemWorkLogSerializer, related_work_items
+from plane.nexus.serializers.work_item import IssuePageSerializer, WorkItemWorkLogSerializer, related_work_items
 from plane.utils.host import base_host
 from plane.utils.order_queryset import order_issue_queryset
 from plane.utils.permissions import ProjectAdminPermission, WorkspaceEntityPermission, WorkspaceUserPermission
 
 from .base import NexusAPIView, NexusProjectAPIView
+from plane.nexus.pql import pql_statement_timeout
 
 # --------------------------------------------------------------------------- shared
 
 FILTERS_UNSUPPORTED = "The structured `filters` parameter is not supported here; filter with `pql` instead."
+WORK_ITEM_DEFAULT_PER_PAGE = 50
 
 
 def pql_error(exc: PQLError) -> Response:
@@ -147,10 +149,18 @@ def _work_item_page(view, request, queryset, default_order: str):
             queryset = queryset.filter(**{param: request.GET[param]})
     queryset = queryset.select_related("project", "workspace", "state", "parent")
     queryset, _ = order_issue_queryset(queryset, request.GET.get("order_by") or default_order)
+
+    def serialize(rows):
+        rows = list(rows)
+        page = IssuePageSerializer(rows, many=True, fields=view.fields, expand=view.expand)
+        page.child.load_page(rows)
+        return page.data
+
     return view.paginate(
         request=request,
         queryset=queryset,
-        on_results=lambda rows: IssueSerializer(rows, many=True, fields=view.fields, expand=view.expand).data,
+        on_results=serialize,
+        default_per_page=WORK_ITEM_DEFAULT_PER_PAGE,
     )
 
 
@@ -162,6 +172,7 @@ class WorkspaceWorkItemListEndpoint(NexusAPIView):
 
     permission_classes = [WorkspaceEntityPermission]
 
+    @pql_statement_timeout
     def get(self, request, slug):
         queryset, failure = _filtered_work_items(request, slug)
         if failure:
@@ -219,6 +230,7 @@ class WorkspaceWorkItemCountEndpoint(NexusAPIView):
 
     permission_classes = [WorkspaceEntityPermission]
 
+    @pql_statement_timeout
     def get(self, request, slug):
         group_by = request.GET.get("group_by") or None
         sub_group_by = request.GET.get("sub_group_by") or None
@@ -297,6 +309,7 @@ class WorkItemArchiveEndpoint(_IssueScoped, NexusProjectAPIView):
 class ArchivedWorkItemListEndpoint(NexusProjectAPIView):
     """GET .../archived-work-items/: plane-sdk PaginatedWorkItemResponse."""
 
+    @pql_statement_timeout
     def get(self, request, slug, project_id):
         self.get_project()
         queryset = Issue.objects.filter(

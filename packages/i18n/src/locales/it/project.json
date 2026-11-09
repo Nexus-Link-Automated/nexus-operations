@@ -413,6 +413,14 @@
           "message": "Qualcosa è andato storto."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Rimuovi il progetto dalla pubblicazione",
+        "content": "Il link pubblico attuale smetterà di funzionare. Pubblicando di nuovo questo progetto verrà creato un nuovo link e il link attuale non funzionerà più.",
+        "confirm": "Rimuovi dalla pubblicazione",
+        "confirming": "Rimozione dalla pubblicazione in corso"
+      }
     }
   }
 }

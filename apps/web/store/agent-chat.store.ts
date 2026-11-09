@@ -7,15 +7,20 @@
 import { action, computed, makeObservable, observable, runInAction } from "mobx";
 // plane imports
 import {
-  AgentChatSession,
   AgentDisconnectedError,
   AgentRequestError,
+  AUTH_REQUIRED,
   INVALID_PARAMS,
-  agentSocketUrl,
+  effortOption,
   modelOption,
-  openWebSocketTransport,
+} from "@plane/acp-client/core";
+import type {
+  AgentChatSession,
+  AgentChatSnapshot,
+  LoadSessionOptions,
+  SessionConfigOption,
+  SessionInfo,
 } from "@plane/acp-client";
-import type { AgentChatSnapshot, SessionConfigOption, SessionInfo } from "@plane/acp-client";
 import { AGENT_BRIDGE_BASE_PATH, AGENT_BRIDGE_BASE_URL } from "@plane/constants";
 import { WorkspaceAgentService } from "@plane/services";
 import type { TWorkspaceAgent } from "@plane/types";
@@ -29,6 +34,7 @@ export type TAgentChatAction =
   | "prompt"
   | "set_mode"
   | "set_model"
+  | "set_effort"
   | "reconnect";
 
 export type TAgentChatError =
@@ -40,7 +46,51 @@ export type TAgentChatError =
   | { kind: "disconnected"; action: TAgentChatAction }
   | { kind: "unknown"; action: TAgentChatAction; message: string };
 
-export type TAgentChatSessionFactory = (target: { agentId: string; workspaceSlug: string }) => AgentChatSession;
+export type TAgentChatSessionFactory = (target: {
+  agentId: string;
+  workspaceSlug: string;
+}) => AgentChatSession | Promise<AgentChatSession>;
+
+/** The model and effort a member last used with an agent, to start the next chat on them. */
+export type TAgentChatChoices = { model?: string; effort?: string };
+
+export interface IAgentChatChoicesStorage {
+  recall: (workspaceSlug: string, agentId: string) => TAgentChatChoices;
+  remember: (workspaceSlug: string, agentId: string, choices: TAgentChatChoices) => void;
+}
+
+const CHOICES_KEY = "agent_chat_choices";
+
+/** Per browser, like the last agent: a convenience, so a missing or blocked storage just means defaults. */
+export const localChoicesStorage: IAgentChatChoicesStorage = {
+  recall: (workspaceSlug, agentId) => {
+    try {
+      const value: unknown = JSON.parse(localStorage.getItem(`${CHOICES_KEY}:${workspaceSlug}:${agentId}`) ?? "{}");
+      if (!value || typeof value !== "object") return {};
+      const { model, effort } = value as Record<string, unknown>;
+      return {
+        ...(typeof model === "string" ? { model } : {}),
+        ...(typeof effort === "string" ? { effort } : {}),
+      };
+    } catch {
+      return {};
+    }
+  },
+  remember: (workspaceSlug, agentId, choices) => {
+    try {
+      localStorage.setItem(`${CHOICES_KEY}:${workspaceSlug}:${agentId}`, JSON.stringify(choices));
+    } catch {
+      // Storage is unavailable (private mode, blocked site data): the next chat starts on the defaults.
+    }
+  },
+};
+
+function toSessionChoices(choices: TAgentChatChoices): LoadSessionOptions {
+  return {
+    ...(choices.model ? { initialModel: choices.model } : {}),
+    ...(choices.effort ? { initialEffort: choices.effort } : {}),
+  };
+}
 
 export interface IAgentChatStore {
   // observables
@@ -60,6 +110,7 @@ export interface IAgentChatStore {
   supportsLoad: boolean;
   supportsList: boolean;
   modelConfig: SessionConfigOption | undefined;
+  effortConfig: SessionConfigOption | undefined;
   // helpers
   getWorkspaceAgents: (workspaceSlug: string) => TWorkspaceAgent[] | undefined;
   // actions
@@ -73,12 +124,15 @@ export interface IAgentChatStore {
   cancelTurn: () => Promise<void>;
   setPermissionLevel: (modeId: string) => Promise<void>;
   setModel: (value: string) => Promise<void>;
+  setEffort: (value: string) => Promise<void>;
   respondToPermission: (permissionId: string, optionId: string | null) => void;
   reconnect: () => Promise<void>;
   clearError: () => void;
 }
 
-const defaultSessionFactory: TAgentChatSessionFactory = ({ agentId, workspaceSlug }) => {
+const defaultSessionFactory: TAgentChatSessionFactory = async ({ agentId, workspaceSlug }) => {
+  // Loaded when a chat opens, so the ACP SDK and zod stay out of the bundle every route pays for.
+  const { AgentChatSession, agentSocketUrl, openWebSocketTransport } = await import("@plane/acp-client");
   const url = agentSocketUrl({
     agentId,
     workspaceSlug,
@@ -111,16 +165,20 @@ export class AgentChatStore implements IAgentChatStore {
 
   private session: AgentChatSession | undefined;
   private unsubscribe: (() => void) | undefined;
+  /** Identifies the open in progress while its session code loads; a later open or close replaces or clears it. */
+  private opening: symbol | null = null;
   private readonly agentService: Pick<WorkspaceAgentService, "list">;
   private readonly createSession: TAgentChatSessionFactory;
+  private readonly choices: IAgentChatChoicesStorage;
 
   constructor(
     options: {
       agentService?: Pick<WorkspaceAgentService, "list">;
       createSession?: TAgentChatSessionFactory;
+      choices?: IAgentChatChoicesStorage;
     } = {}
   ) {
-    makeObservable<AgentChatStore, "setError">(this, {
+    makeObservable<AgentChatStore, "opening" | "setError">(this, {
       // observables
       agentsByWorkspace: observable,
       agentsLoading: observable.ref,
@@ -132,6 +190,7 @@ export class AgentChatStore implements IAgentChatStore {
       error: observable.ref,
       sessions: observable.ref,
       sessionsLoading: observable.ref,
+      opening: observable.ref,
       // computed
       activeAgent: computed,
       isConnecting: computed,
@@ -139,6 +198,7 @@ export class AgentChatStore implements IAgentChatStore {
       supportsLoad: computed,
       supportsList: computed,
       modelConfig: computed,
+      effortConfig: computed,
       // actions
       fetchAgents: action,
       openChat: action,
@@ -150,6 +210,7 @@ export class AgentChatStore implements IAgentChatStore {
       cancelTurn: action,
       setPermissionLevel: action,
       setModel: action,
+      setEffort: action,
       respondToPermission: action,
       reconnect: action,
       clearError: action,
@@ -157,6 +218,7 @@ export class AgentChatStore implements IAgentChatStore {
     });
     this.agentService = options.agentService ?? new WorkspaceAgentService();
     this.createSession = options.createSession ?? defaultSessionFactory;
+    this.choices = options.choices ?? localChoicesStorage;
   }
 
   get activeAgent(): TWorkspaceAgent | undefined {
@@ -165,6 +227,7 @@ export class AgentChatStore implements IAgentChatStore {
   }
 
   get isConnecting(): boolean {
+    if (this.opening) return true;
     const status = this.snapshot?.status;
     return status === "connecting" || status === "reconnecting";
   }
@@ -183,6 +246,30 @@ export class AgentChatStore implements IAgentChatStore {
 
   get modelConfig(): SessionConfigOption | undefined {
     return this.snapshot ? modelOption(this.snapshot.transcript) : undefined;
+  }
+
+  get effortConfig(): SessionConfigOption | undefined {
+    return this.snapshot ? effortOption(this.snapshot.transcript) : undefined;
+  }
+
+  /**
+   * The model and effort the chat runs on now: the session's last reported ones (they survive a
+   * pending or failed load), else the ones remembered for this agent.
+   */
+  private currentChoices(): LoadSessionOptions {
+    const reported = this.session?.choices ?? {};
+    if (reported.initialModel || !this.workspaceSlug || !this.agentId) return reported;
+    return toSessionChoices(this.choices.recall(this.workspaceSlug, this.agentId));
+  }
+
+  /** Remember the current model and effort for this agent, so its next chat starts on them. */
+  private rememberChoices(): void {
+    if (!this.workspaceSlug || !this.agentId) return;
+    const { initialModel, initialEffort } = this.currentChoices();
+    this.choices.remember(this.workspaceSlug, this.agentId, {
+      ...(initialModel ? { model: initialModel } : {}),
+      ...(initialEffort ? { effort: initialEffort } : {}),
+    });
   }
 
   getWorkspaceAgents = (workspaceSlug: string): TWorkspaceAgent[] | undefined => this.agentsByWorkspace[workspaceSlug];
@@ -210,18 +297,41 @@ export class AgentChatStore implements IAgentChatStore {
     this.closeChat();
     this.workspaceSlug = workspaceSlug;
     this.agentId = agentId;
-    const session = this.createSession({ agentId, workspaceSlug });
-    this.session = session;
-    this.unsubscribe = session.subscribe((snapshot) => {
-      runInAction(() => {
-        if (this.session === session) this.snapshot = snapshot;
+    const opening = Symbol("opening");
+    this.opening = opening;
+    let session: AgentChatSession;
+    try {
+      session = await this.createSession({ agentId, workspaceSlug });
+    } catch (error) {
+      // The session code could not be fetched: a retry from the banner runs openChat again.
+      if (this.opening === opening) {
+        runInAction(() => {
+          this.opening = null;
+        });
+        this.setError(error, "connect");
+      }
+      return;
+    }
+    // Closed or replaced while the code loaded (sign-out, leaving the workspace): never open its socket.
+    if (this.opening !== opening) {
+      session.dispose();
+      return;
+    }
+    runInAction(() => {
+      this.opening = null;
+      this.session = session;
+      this.unsubscribe = session.subscribe((snapshot) => {
+        runInAction(() => {
+          if (this.session === session) this.snapshot = snapshot;
+        });
       });
+      this.snapshot = session.snapshot;
     });
-    this.snapshot = session.snapshot;
     try {
       await session.connect();
-      // No starting mode: the bridge applies the admin's default level.
-      await session.newSession();
+      // No starting mode: the bridge applies the admin's default level. The model and effort are
+      // the ones last used with this agent; the agent ignores any it no longer offers.
+      await session.newSession(toSessionChoices(this.choices.recall(workspaceSlug, agentId)));
       if (this.session === session && session.supportsList) void this.fetchSessions();
     } catch (error) {
       if (this.session === session) this.setError(error, "connect");
@@ -229,6 +339,7 @@ export class AgentChatStore implements IAgentChatStore {
   };
 
   closeChat = (): void => {
+    this.opening = null;
     this.unsubscribe?.();
     this.unsubscribe = undefined;
     this.session?.dispose();
@@ -244,10 +355,10 @@ export class AgentChatStore implements IAgentChatStore {
     const session = this.session;
     if (!session) return;
     this.error = null;
-    // Keep the permission level the user picked for this chat.
+    // Keep the permission level, model and effort the user picked for this chat.
     const modeId = this.snapshot?.transcript.modes?.currentModeId;
     try {
-      await session.newSession(modeId ? { initialModeId: modeId } : {});
+      await session.newSession({ ...this.currentChoices(), ...(modeId ? { initialModeId: modeId } : {}) });
       if (session.supportsList) void this.fetchSessions();
     } catch (error) {
       this.setError(error, "new_session");
@@ -259,7 +370,7 @@ export class AgentChatStore implements IAgentChatStore {
     if (!session) return;
     this.error = null;
     try {
-      await session.loadSession(sessionId);
+      await session.loadSession(sessionId, this.currentChoices());
     } catch (error) {
       this.setError(error, "load_session");
     }
@@ -323,8 +434,23 @@ export class AgentChatStore implements IAgentChatStore {
     this.error = null;
     try {
       await session.setModel(value);
+      // Only for the chat that changed: the member may have switched agents meanwhile.
+      if (this.session === session) this.rememberChoices();
     } catch (error) {
       this.setError(error, "set_model");
+    }
+  };
+
+  setEffort = async (value: string): Promise<void> => {
+    const session = this.session;
+    if (!session) return;
+    this.error = null;
+    try {
+      await session.setEffort(value);
+      // Only for the chat that changed: the member may have switched agents meanwhile.
+      if (this.session === session) this.rememberChoices();
+    } catch (error) {
+      this.setError(error, "set_effort");
     }
   };
 
@@ -348,6 +474,15 @@ export class AgentChatStore implements IAgentChatStore {
     this.error = null;
   };
 
+  /** Refetch the agent list in the background; a failure leaves the current list. */
+  private async refreshAgents(workspaceSlug: string): Promise<void> {
+    try {
+      await this.fetchAgents(workspaceSlug);
+    } catch {
+      // The list stays as it was; the next fetch (menu open, page load) tries again.
+    }
+  }
+
   private setError(error: unknown, failedAction: TAgentChatAction): void {
     if (error instanceof AgentDisconnectedError) {
       // The close banner explains a lost connection; only flag it when there is no close info.
@@ -356,6 +491,8 @@ export class AgentChatStore implements IAgentChatStore {
     }
     if (error instanceof AgentRequestError) {
       this.error = { kind: "request", action: failedAction, code: error.code, message: error.message };
+      // The agent could not sign in: its key or sign-in is gone, so the list may be out of date.
+      if (error.code === AUTH_REQUIRED && this.workspaceSlug) void this.refreshAgents(this.workspaceSlug);
       return;
     }
     this.error = {

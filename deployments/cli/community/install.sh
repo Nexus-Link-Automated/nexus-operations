@@ -12,7 +12,6 @@ export RELEASE_DOWNLOAD_URL="https://github.com/$GH_REPO/releases/download"
 export FALLBACK_DOWNLOAD_URL="https://raw.githubusercontent.com/$GH_REPO/$BRANCH/deployments/cli/community"
 
 CPU_ARCH=$(uname -m)
-OS_NAME=$(uname)
 UPPER_CPU_ARCH=$(tr '[:lower:]' '[:upper:]' <<< "$CPU_ARCH")
 
 mkdir -p $PLANE_INSTALL_DIR/archive
@@ -110,16 +109,28 @@ function getEnvValue() {
     fi
 
     if [ -f "$file" ]; then
-        grep -q "^$key=" "$file"
-        if [ $? -eq 0 ]; then
-            local value
-            value=$(grep "^$key=" "$file" | cut -d'=' -f2)
-            echo "$value"
-        else
-            echo ""
-        fi
+        # Only the first "=" separates key from value. A repeated key resolves
+        # to its last value, as it does for docker compose and `source`.
+        ENV_KEY="$key" LC_ALL=C awk '
+            index($0, ENVIRON["ENV_KEY"] "=") == 1 { value = substr($0, length(ENVIRON["ENV_KEY"]) + 2) }
+            END { print value }
+        ' "$file"
     fi
 }
+
+# Replaces $1 with the output of awk (remaining arguments), keeping its permissions.
+function rewriteEnvFile() {
+    local file=$1
+    shift
+    local tmp_file="$file.tmp"
+
+    if ! cp -p "$file" "$tmp_file" || ! LC_ALL=C awk "$@" > "$tmp_file" || ! mv "$tmp_file" "$file"; then
+        rm -f "$tmp_file"
+        echo "Failed to update $file"
+        exit 1
+    fi
+}
+
 function updateEnvFile() {
     local key=$1
     local value=$2
@@ -131,20 +142,13 @@ function updateEnvFile() {
     fi
 
     if [ -f "$file" ]; then
-        # check if key exists in the file
-        grep -q "^$key=" "$file"
-        if [ $? -ne 0 ]; then
-            echo "$key=$value" >> "$file"
-            return
-        else 
-            if [ "$OS_NAME" == "Darwin" ]; then
-                value=$(echo "$value" | sed 's/|/\\|/g')
-                sed -i '' "s|^$key=.*|$key=$value|g" "$file"
-            else
-                value=$(echo "$value" | sed 's/\//\\\//g')
-                sed -i "s/^$key=.*/$key=$value/g" "$file"
-            fi
-        fi
+        # awk reads the key and value from its environment, so neither is
+        # treated as a pattern or an escape sequence.
+        ENV_KEY="$key" ENV_VALUE="$value" rewriteEnvFile "$file" '
+            index($0, ENVIRON["ENV_KEY"] "=") == 1 { print ENVIRON["ENV_KEY"] "=" ENVIRON["ENV_VALUE"]; found = 1; next }
+            { print }
+            END { if (!found) print ENVIRON["ENV_KEY"] "=" ENVIRON["ENV_VALUE"] }
+        ' "$file"
     else
         echo "File not found: $file"
         exit 1
@@ -165,19 +169,17 @@ function syncEnvFile(){
     if [ -f "$PLANE_INSTALL_DIR/plane.env.bak" ]; then
         updateCustomVariables
         
-        # READ keys of plane.env and update the values from plane.env.bak
-        while IFS= read -r line
-        do
-            # ignore is the line is empty or starts with #
-            if [ -z "$line" ] || [[ $line == \#* ]]; then
-                continue
-            fi
-            key=$(echo "$line" | cut -d'=' -f1)
-            value=$(getEnvValue "$key" "$PLANE_INSTALL_DIR/plane.env.bak")
-            if [ -n "$value" ]; then
-                updateEnvFile "$key" "$value" "$DOCKER_ENV_PATH"
-            fi
-        done < "$DOCKER_ENV_PATH"
+        # Each key in the new template takes the value it had in plane.env.bak,
+        # including an empty one; comments and new keys stay as the template has them.
+        rewriteEnvFile "$DOCKER_ENV_PATH" '
+            !/^#/ && index($0, "=") > 1 {
+                separator = index($0, "=")
+                key = substr($0, 1, separator - 1)
+                if (FILENAME == ARGV[1]) { saved[key] = substr($0, separator + 1); next }
+                if (key in saved) { print key "=" saved[key]; next }
+            }
+            FILENAME != ARGV[1] { print }
+        ' "$PLANE_INSTALL_DIR/plane.env.bak" "$DOCKER_ENV_PATH"
     fi
     echo "Environment variables synced successfully" >&2
 }
@@ -573,11 +575,42 @@ function viewLogs(){
         echo "INVALID SERVICE NAME SUPPLIED"
     fi
 }
+function startContainerAfterCopy() {
+    local CONTAINER_NAME=$1
+    local CONTAINER_ID=$2
+
+    trap - INT TERM HUP
+    if ! docker start "$CONTAINER_ID" > /dev/null; then
+        echo "Error: Failed to start $CONTAINER_NAME again. Run ./setup.sh restart to bring Plane back."
+        return 1
+    fi
+}
+
+# A copy of the Postgres data files is only consistent once the server has shut down.
+function stopContainerForCopy() {
+    local CONTAINER_NAME=$1
+    local CONTAINER_ID=$2
+
+    echo "Stopping $CONTAINER_NAME for a consistent copy. Plane cannot serve requests until the copy finishes."
+    # shellcheck disable=SC2064 # CONTAINER_ID is local, so it has to expand now
+    trap "docker start $CONTAINER_ID > /dev/null; exit 1" INT TERM HUP
+    docker stop -t 300 "$CONTAINER_ID" > /dev/null
+    local stop_status=$?
+
+    # Exit code 0 is a clean shutdown; after a kill the files would still be inconsistent.
+    if [ $stop_status -ne 0 ] || [ "$(docker inspect --format='{{.State.ExitCode}}' "$CONTAINER_ID")" != "0" ]; then
+        echo "Error: $CONTAINER_NAME did not shut down cleanly, so it was not backed up"
+        startContainerAfterCopy "$CONTAINER_NAME" "$CONTAINER_ID"
+        return 1
+    fi
+}
+
 function backup_container_dir() {
     local BACKUP_FOLDER=$1
     local CONTAINER_NAME=$2
     local CONTAINER_DATA_DIR=$3
     local SERVICE_FOLDER=$4
+    local STOP_DURING_COPY=${5:-false}
 
     echo "Backing up $CONTAINER_NAME data..."
     local CONTAINER_ID=$(bash -c "$COMPOSE_CMD -f $DOCKER_FILE_PATH ps -q $CONTAINER_NAME")
@@ -589,10 +622,20 @@ function backup_container_dir() {
     # Create a temporary directory for the backup
     mkdir -p "$BACKUP_FOLDER/$SERVICE_FOLDER"
 
-    # Copy the data directory from the running container
+    if [ "$STOP_DURING_COPY" == "true" ] && ! stopContainerForCopy "$CONTAINER_NAME" "$CONTAINER_ID"; then
+        rm -rf "${BACKUP_FOLDER:?}/${SERVICE_FOLDER:?}"
+        return 1
+    fi
+
+    # Copy the data directory from the container
     echo "Copying $CONTAINER_NAME data directory..."
     docker cp -q "$CONTAINER_ID:$CONTAINER_DATA_DIR/." "$BACKUP_FOLDER/$SERVICE_FOLDER/"
     local cp_status=$?
+
+    if [ "$STOP_DURING_COPY" == "true" ] && ! startContainerAfterCopy "$CONTAINER_NAME" "$CONTAINER_ID"; then
+        rm -rf "${BACKUP_FOLDER:?}/${SERVICE_FOLDER:?}"
+        return 1
+    fi
 
     if [ $cp_status -ne 0 ]; then
         echo "Error: Failed to copy $SERVICE_FOLDER data"
@@ -628,7 +671,7 @@ function backupData() {
         exit 1
     fi
 
-    backup_container_dir "$BACKUP_FOLDER" "plane-db" "/var/lib/postgresql/data" "pgdata" || exit 1
+    backup_container_dir "$BACKUP_FOLDER" "plane-db" "/var/lib/postgresql/data" "pgdata" "true" || exit 1
     backup_container_dir "$BACKUP_FOLDER" "plane-minio" "/export" "uploads" || exit 1
     backup_container_dir "$BACKUP_FOLDER" "plane-mq" "/var/lib/rabbitmq" "rabbitmq_data" || exit 1
     backup_container_dir "$BACKUP_FOLDER" "plane-redis" "/data" "redisdata" || exit 1

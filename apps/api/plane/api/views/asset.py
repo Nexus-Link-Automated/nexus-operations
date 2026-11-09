@@ -20,6 +20,7 @@ from plane.settings.storage import S3Storage
 from plane.utils.path_validator import sanitize_filename
 from plane.db.models import FileAsset, Project, ProjectMember, User, Workspace
 from plane.app.permissions import WorkspaceUserPermission
+from plane.app.views.asset.v2 import can_modify_asset
 from plane.api.views.base import BaseAPIView
 from plane.api.serializers import (
     UserAssetUploadSerializer,
@@ -647,8 +648,9 @@ class GenericAssetEndpoint(BaseAPIView):
         try:
             asset = FileAsset.objects.get(id=asset_id, workspace__slug=slug, is_deleted=False)
 
-            # A project-bound asset requires active membership of its project.
-            if not asset.is_project_accessible_to(request.user):
+            # A project-bound asset requires active membership of its project, and
+            # changing an asset follows the same rule as the app asset endpoints.
+            if not asset.is_project_accessible_to(request.user) or not can_modify_asset(request.user, asset):
                 return Response(
                     {"error": "You don't have access to this asset."},
                     status=status.HTTP_403_FORBIDDEN,

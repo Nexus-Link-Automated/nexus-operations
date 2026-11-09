@@ -413,6 +413,14 @@
           "message": "Terjadi kesalahan."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Hapus proyek dari publikasi",
+        "content": "Tautan publik saat ini akan berhenti berfungsi. Jika Anda memublikasikan proyek ini lagi, tautan baru akan dibuat dan tautan saat ini tidak akan berfungsi lagi.",
+        "confirm": "Hapus dari publikasi",
+        "confirming": "Menghapus dari publikasi"
+      }
     }
   }
 }

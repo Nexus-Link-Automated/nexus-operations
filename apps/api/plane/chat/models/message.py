@@ -30,6 +30,7 @@ class Message(BaseModel):
     # Slug of an instance-level agent (`AgentDefinition.slug` on the agent branches).
     sender_agent = models.SlugField(max_length=100, null=True, blank=True)
     body_html = models.TextField(blank=True, default="<p></p>")
+    # Stored as the client sent it, unlike the sanitized body_html: render from body_html, never from this.
     body_json = models.JSONField(blank=True, default=dict)
     body_stripped = models.TextField(blank=True, default="")
     # Threads are one level deep: a reply's parent is always a top-level message.
@@ -69,7 +70,9 @@ class Message(BaseModel):
             self.body_html = ""
             self.body_json = {}
             self.removed_at = timezone.now()
-            self.save(update_fields=["body_html", "body_json", "body_stripped", "removed_at", "updated_at"])
+            self.save(
+                update_fields=["body_html", "body_json", "body_stripped", "removed_at", "updated_at", "updated_by"]
+            )
             self.references.all().delete()
 
 

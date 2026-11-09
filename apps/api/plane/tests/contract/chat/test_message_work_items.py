@@ -106,13 +106,13 @@ class TestLinking:
         assert link(member, channel, reply, issue.id).status_code == 201
         assert IssueLink.objects.get(issue=issue).url.endswith(f"?message={report.id}")
 
-    def test_the_channel_hears_about_it(self, member, channel, report, link, in_project, issue, published):
+    @pytest.mark.django_db(transaction=True)
+    def test_the_channel_hears_about_it_once(self, member, channel, report, link, in_project, issue, published):
         in_project(member)
-        with published.after_commit():
-            link(member, channel, report, issue.id)
-        types = [event["type"] for event in published.events]
-        assert EventType.MESSAGE_UPDATED in types
-        assert EventType.MESSAGE_CREATED in types
+        assert link(member, channel, report, issue.id).status_code == 201
+        assert [event["type"] for event in published.events] == [EventType.MESSAGE_UPDATED, EventType.MESSAGE_CREATED]
+        assert link(member, channel, report, issue.id).status_code == 200
+        assert len(published.events) == 2
 
     def test_the_link_survives_editing_the_message(self, member2, channel, report, link, url, in_project, issue):
         in_project(member2)

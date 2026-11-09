@@ -49,7 +49,7 @@ export const DraftIssueBlock = observer(function DraftIssueBlock(props: Props) {
   // derived values
   const issue = getIssueById(issueId);
   const projectIdentifier = (issue && issue.project_id && getProjectIdentifierById(issue.project_id)) || undefined;
-  // Room for the property chips while the row is single-line (`md:flex-row` / `lg:flex-row` below).
+  // Room for the property chips while the row is single-line (`md:flex-nowrap` / `lg:flex-nowrap` below).
   const { rowRef, leadingRef, quickActionsRef, budgetPx } = useListRowPropertiesBudget({
     enabled: !!issue && !!projectIdentifier,
     singleLineFrom: isSidebarCollapsed ? "md" : "lg",
@@ -141,14 +141,16 @@ export const DraftIssueBlock = observer(function DraftIssueBlock(props: Props) {
             rowRef(node);
           }}
           className={cn(
-            "group/list-block relative flex min-h-11 flex-col gap-3 bg-layer-transparent py-3 text-body-xs-regular transition-colors hover:bg-layer-transparent-hover",
+            "group/list-block relative flex min-h-11 flex-wrap gap-y-3 bg-layer-transparent py-3 text-body-xs-regular transition-colors hover:bg-layer-transparent-hover",
             {
-              "md:flex-row md:items-center": isSidebarCollapsed,
-              "lg:flex-row lg:items-center": !isSidebarCollapsed,
+              "md:flex-nowrap md:items-center md:gap-x-2": isSidebarCollapsed,
+              "lg:flex-nowrap lg:items-center lg:gap-x-2": !isSidebarCollapsed,
             }
           )}
         >
-          <div className="flex w-full truncate">
+          <div
+            className={cn("flex flex-1 truncate", { "md:mr-1": isSidebarCollapsed, "lg:mr-1": !isSidebarCollapsed })}
+          >
             <div className="flex flex-grow items-center gap-0.5 truncate">
               <div ref={leadingRef} className="flex items-center gap-1">
                 <div className="flex-shrink-0">
@@ -172,41 +174,39 @@ export const DraftIssueBlock = observer(function DraftIssueBlock(props: Props) {
                 <p className="w-full cursor-pointer truncate text-body-xs-regular text-primary">{issue.name}</p>
               </Tooltip>
             </div>
-
-            {/* quick actions */}
-            <div
-              className={cn("block rounded-sm border border-strong", {
-                "md:hidden": isSidebarCollapsed,
-                "lg:hidden": !isSidebarCollapsed,
-              })}
-            >
-              <WorkspaceDraftIssueQuickActions parentRef={issueRef} MENU_ITEMS={MENU_ITEMS} />
-            </div>
           </div>
 
-          <div className="flex flex-shrink-0 items-center gap-2">
+          {/* Sits on its own line below the title and quick actions until the row is single-line. */}
+          <div
+            className={cn("order-last flex w-full flex-shrink-0 items-center gap-2", {
+              "md:order-none md:w-auto": isSidebarCollapsed,
+              "lg:order-none lg:w-auto": !isSidebarCollapsed,
+            })}
+          >
             <DraftIssueProperties
               className={`relative flex min-w-0 flex-wrap ${isSidebarCollapsed ? "md:flex-shrink-0 md:flex-grow md:flex-nowrap md:overflow-hidden" : "lg:flex-shrink-0 lg:flex-grow lg:flex-nowrap lg:overflow-hidden"} items-center gap-2 whitespace-nowrap`}
               issue={issue}
               overflowBudgetPx={budgetPx}
-              updateIssue={async (projectId, issueId, data) => {
-                await updateIssue(workspaceSlug, issueId, data);
+              updateIssue={async (projectId, draftIssueId, data) => {
+                await updateIssue(workspaceSlug, draftIssueId, data);
               }}
             />
-            <div
-              ref={quickActionsRef}
-              className={cn("hidden", {
-                "md:flex": isSidebarCollapsed,
-                "lg:flex": !isSidebarCollapsed,
-              })}
-              role="presentation"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-            >
-              <WorkspaceDraftIssueQuickActions parentRef={issueRef} MENU_ITEMS={MENU_ITEMS} />
-            </div>
+          </div>
+
+          {/* quick actions */}
+          <div
+            ref={quickActionsRef}
+            className={cn("block flex-shrink-0 rounded-sm border border-strong", {
+              "md:flex md:border-0": isSidebarCollapsed,
+              "lg:flex lg:border-0": !isSidebarCollapsed,
+            })}
+            role="presentation"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            <WorkspaceDraftIssueQuickActions parentRef={issueRef} MENU_ITEMS={MENU_ITEMS} />
           </div>
         </Row>
       </div>

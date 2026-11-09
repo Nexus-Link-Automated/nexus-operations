@@ -213,8 +213,10 @@ export const DescriptionVersionsModal = observer(function DescriptionVersionsMod
               size="md"
               stretch="auto"
               label={t("common.actions.restore")}
+              disabled={!activeVersionId || !activeVersionDescription}
               onClick={() => {
-                handleRestore(activeVersionDescription ?? "<p></p>");
+                if (!activeVersionId || !activeVersionDescription) return;
+                handleRestore(activeVersionDescription);
                 handleClose();
               }}
             />

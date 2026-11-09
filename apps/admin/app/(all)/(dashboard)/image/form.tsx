@@ -39,9 +39,9 @@ export function InstanceImageConfigForm(props: IInstanceImageConfigForm) {
     const payload: Partial<ImageConfigFormValues> = { ...formData };
 
     try {
-      await updateInstanceConfigurations(payload);
+      const response = await updateInstanceConfigurations(payload);
       // the saved values become the new baseline, so Save disables again until the next edit
-      reset(formData);
+      reset({ UNSPLASH_ACCESS_KEY: response.find((item) => item.key === "UNSPLASH_ACCESS_KEY")?.value ?? "" });
       setToast({
         type: "success",
         title: "Success",

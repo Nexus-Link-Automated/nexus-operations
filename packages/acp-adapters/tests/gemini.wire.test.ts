@@ -11,7 +11,9 @@ import path from "node:path";
 import type { McpServer } from "@agentclientprotocol/sdk";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { PathPolicy } from "../src/core/paths.ts";
 import { geminiPolicyPath, geminiSystemSettingsPath } from "../src/gemini/files.ts";
+import { describeGeminiToolCall, geminiFileVerdict } from "../src/gemini/index.ts";
 import { spawnClient, tempDir, textOf, updatesOfKind, type SpawnedClient } from "./helpers/client.ts";
 import { fakeGeminiEnv } from "./helpers/gemini.ts";
 import { runWireScenario } from "./helpers/scenario.ts";
@@ -153,6 +155,45 @@ describe("plane-acp-gemini over stdio (fake gemini --acp)", () => {
     expect(updatesOfKind(client.updates, "tool_call_update").at(-1)).toMatchObject({ status: "completed" });
     // Gemini's slash-command list is not part of the contract.
     expect(updatesOfKind(client.updates, "available_commands_update")).toEqual([]);
+  });
+
+  it("asks before web fetches, web searches and reads outside the cwd in ask_writes", async () => {
+    const fake = fakeGeminiEnv({ GEMINI_API_KEY: "AIza-test-key" });
+    client = spawnClient("gemini", fake.env);
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const { sessionId } = await client.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+
+    await prompt(client, sessionId, "read");
+    expect(client.permissionRequests).toHaveLength(0);
+    for (const [index, text] of ["read etc", "fetch", "web search"].entries()) {
+      client.answers.push("reject_once");
+      await prompt(client, sessionId, text);
+      expect(client.permissionRequests, text).toHaveLength(index + 1);
+    }
+    expect(permissionReplies(fake.log())).toEqual([
+      { outcome: "selected", optionId: "proceed_once" },
+      { outcome: "selected", optionId: "cancel" },
+      { outcome: "selected", optionId: "cancel" },
+      { outcome: "selected", optionId: "cancel" },
+    ]);
+  });
+
+  it("refuses credential files in every mode without asking", async () => {
+    const fake = fakeGeminiEnv({ GEMINI_API_KEY: "AIza-test-key" });
+    client = spawnClient("gemini", fake.env);
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const { sessionId } = await client.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+    for (const modeId of ["ask_all", "ask_writes", "yolo"]) {
+      await client.agent.request("session/set_mode", { sessionId, modeId });
+      await prompt(client, sessionId, "read creds");
+    }
+    expect(client.permissionRequests).toHaveLength(0);
+    expect(permissionReplies(fake.log())).toEqual([
+      { outcome: "selected", optionId: "cancel" },
+      { outcome: "selected", optionId: "cancel" },
+      { outcome: "selected", optionId: "cancel" },
+    ]);
+    expect(textOf(client.updates, "agent_message_chunk")).toBe("skippedskippedskipped");
   });
 
   it("sends a prompt that starts with / to the model, not to Gemini's own commands", async () => {
@@ -309,5 +350,71 @@ describe("innermostApiMessage", () => {
     const outer = JSON.stringify({ error: { message: inner } });
     expect(innermostApiMessage(outer)).toBe("API key not valid. Please pass a valid API key.");
     expect(innermostApiMessage("plain failure")).toBe("plain failure");
+  });
+});
+
+describe("Gemini file tools and web tools", () => {
+  const cwd = "/work/session";
+  const paths = new PathPolicy(cwd, { HOME: "/home/agent" });
+  const verdict = (name: string, title: string, kind: string, locations?: unknown) =>
+    geminiFileVerdict({ toolCallId: `${name}__1`, title, kind, locations }, paths).access;
+
+  it("checks the absolute locations read_file, write_file and replace report", () => {
+    expect(verdict("read_file", "a.txt", "read", [{ path: "/work/session/a.txt" }])).toBe("inside");
+    expect(verdict("read_file", "b", "read", [{ path: "/etc/hostname" }])).toBe("outside");
+    expect(verdict("read_file", "b", "read", [{ path: "/proc/self/environ" }])).toBe("refused");
+    expect(verdict("write_file", "b", "edit", [{ path: "/home/agent/.gemini/oauth_creds.json" }])).toBe("refused");
+    expect(verdict("replace", "b", "edit", [{ path: "/home/agent/.gemini-api-key/.gemini/settings.json" }])).toBe(
+      "refused"
+    );
+  });
+
+  it("trusts Gemini's own confinement for the read tools that report no location", () => {
+    for (const name of ["list_directory", "grep_search", "read_many_files"]) {
+      expect(verdict(name, "src", name === "read_many_files" ? "read" : "search", []), name).toBe("inside");
+    }
+  });
+
+  it("reads a glob's pattern from its title, because Gemini does not confine it", () => {
+    expect(verdict("glob", "'**/*.ts'", "search", [])).toBe("inside");
+    expect(verdict("glob", "'*.ts' within src", "search", [])).toBe("inside");
+    expect(verdict("glob", "'/etc/*'", "search", [])).toBe("outside");
+    expect(verdict("glob", "'../*'", "search", [])).toBe("outside");
+    expect(verdict("glob", "'/proc/*/environ'", "search", [])).toBe("refused");
+    expect(verdict("glob", "'~/.gemini/*'", "search", [])).toBe("refused");
+  });
+
+  it("fails closed for a read or search it cannot place", () => {
+    expect(verdict("glob", "no quotes here", "search", [])).toBe("outside");
+    expect(verdict("some_new_reader", "x", "read", [])).toBe("outside");
+    expect(verdict("read_file", "a.txt", "read", [])).toBe("outside");
+  });
+
+  it("does not put a path check on tools that touch no files", () => {
+    expect(verdict("run_shell_command", "ls", "execute", [])).toBe("inside");
+    expect(verdict("mcp_plane_workitem", "workitem(action: list)", "other", [])).toBe("inside");
+    expect(verdict("google_web_search", 'Searching the web for: "x"', "search", [])).toBe("inside");
+  });
+
+  it("counts web search as a fetch even though Gemini declares it a search", () => {
+    const description = describeGeminiToolCall(
+      { toolCallId: "google_web_search__1", title: 'Searching the web for: "x"', kind: "search" },
+      [],
+      "/w"
+    );
+    expect(description).toEqual({ category: "fetch", memoryKey: "gemini:google_web_search" });
+  });
+
+  it("remembers 'always' for one web fetch, not every fetch", () => {
+    const description = describeGeminiToolCall(
+      { toolCallId: "web_fetch__1", title: "Fetch one", kind: "fetch" },
+      [],
+      "/w"
+    );
+    expect(description).toEqual({
+      category: "fetch",
+      memoryKey: "gemini:web_fetch:Fetch one",
+      memoryScope: "request",
+    });
   });
 });

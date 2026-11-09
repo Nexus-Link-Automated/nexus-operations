@@ -9,7 +9,10 @@ suite.
 
 from __future__ import annotations
 
+import io
 import socket
+import threading
+import time
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -17,6 +20,7 @@ import pytest
 import urllib3
 from fastmcp.utilities.types import Image
 
+from plane_mcp import attachments
 from plane_mcp.tools import workitem_attachment as module
 
 PROJECT = "project-1"
@@ -62,6 +66,11 @@ class _Response:
         return False
 
 
+def _streamed(content: bytes):
+    """A urllib3 `read`: up to `amt` bytes at a time, then empty at EOF."""
+    return io.BytesIO(content).read
+
+
 def _fake_urlopen(status: int, headers: dict[str, str], content: bytes):
     """A stand-in for urllib3's ConnectionPool.urlopen -- the connection-layer
     boundary fetch_validated_get's tests mock against, not the function under
@@ -72,7 +81,7 @@ def _fake_urlopen(status: int, headers: dict[str, str], content: bytes):
         return SimpleNamespace(
             status=status,
             headers=dict(headers),
-            read=lambda amt=None: content,
+            read=_streamed(content),
             release_conn=lambda: None,
         )
 
@@ -272,7 +281,7 @@ def test_upload_from_url_sends_the_port_in_the_host_header(attachment_tool, monk
         return SimpleNamespace(
             status=200,
             headers={"Content-Type": "image/png"},
-            read=lambda amt=None: PNG,
+            read=_streamed(PNG),
             release_conn=lambda: None,
         )
 
@@ -392,20 +401,25 @@ def test_upload_rejects_a_response_whose_declared_length_exceeds_the_limit(attac
 
 def test_upload_rejects_a_body_exceeding_the_limit_with_no_declared_length(attachment_tool, monkeypatch):
     """The lying-or-silent-server case: no (or an understated) Content-Length
-    must not let an oversized body through, and the read itself must be
-    bounded (amt=max_bytes + 1), never an unbounded `.read()`.
+    must not let an oversized body through, and the reads themselves must be
+    bounded (never past max_bytes + 1 in total), never an unbounded `.read()`.
     """
     tool, spy, _ = attachment_tool
     monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo_resolves_publicly)
-    oversized = b"\x00" * (module.UPLOAD_SIZE_LIMIT + 1)
-    read_mock = Mock(return_value=oversized)
+    stream = _streamed(b"\x00" * (module.UPLOAD_SIZE_LIMIT * 2))
+    requested: list[int | None] = []
+
+    def read(amt=None):
+        requested.append(amt)
+        return stream(amt)
+
     monkeypatch.setattr(
         urllib3.HTTPSConnectionPool,
         "urlopen",
         lambda self, method, url, *a, **k: SimpleNamespace(
             status=200,
             headers={"Content-Type": "image/png"},
-            read=read_mock,
+            read=read,
             release_conn=lambda: None,
         ),
     )
@@ -418,7 +432,8 @@ def test_upload_rejects_a_body_exceeding_the_limit_with_no_declared_length(attac
             url="https://example.com/huge.png",
         )
 
-    read_mock.assert_called_once_with(module.UPLOAD_SIZE_LIMIT + 1)
+    assert None not in requested
+    assert sum(requested) <= module.UPLOAD_SIZE_LIMIT + 1
     assert not spy.recorder.calls
 
 
@@ -444,7 +459,7 @@ def test_upload_from_url_proxy_set_routes_through_proxy(attachment_tool, monkeyp
     def fake_direct_urlopen(self, method, url, *args, **kwargs):
         direct_calls.append(True)
         return SimpleNamespace(
-            status=200, headers={"Content-Type": "image/png"}, read=lambda amt=None: PNG, release_conn=lambda: None
+            status=200, headers={"Content-Type": "image/png"}, read=_streamed(PNG), release_conn=lambda: None
         )
 
     monkeypatch.setattr(urllib3.HTTPSConnectionPool, "urlopen", fake_direct_urlopen)
@@ -484,7 +499,7 @@ def test_upload_from_url_no_proxy_excludes_host_falls_back_to_direct(attachment_
     def fake_direct_urlopen(self, method, url, *args, **kwargs):
         direct_calls.append(self.host)
         return SimpleNamespace(
-            status=200, headers={"Content-Type": "image/png"}, read=lambda amt=None: PNG, release_conn=lambda: None
+            status=200, headers={"Content-Type": "image/png"}, read=_streamed(PNG), release_conn=lambda: None
         )
 
     monkeypatch.setattr(urllib3.HTTPSConnectionPool, "urlopen", fake_direct_urlopen)
@@ -533,7 +548,7 @@ def test_upload_from_url_reevaluates_proxy_selection_per_hop(attachment_tool, mo
     def fake_proxy_urlopen(self, method, url, *args, **kwargs):
         proxy_urls.append(url)
         return SimpleNamespace(
-            status=200, headers={"Content-Type": "image/png"}, read=lambda amt=None: PNG, release_conn=lambda: None
+            status=200, headers={"Content-Type": "image/png"}, read=_streamed(PNG), release_conn=lambda: None
         )
 
     monkeypatch.setattr(urllib3.ProxyManager, "urlopen", fake_proxy_urlopen)
@@ -591,7 +606,7 @@ def test_upload_from_url_preserves_matrix_params_in_the_request_path(attachment_
     def fake_urlopen(self, method, path, *args, **kwargs):
         captured_paths.append(path)
         return SimpleNamespace(
-            status=200, headers={"Content-Type": "image/png"}, read=lambda amt=None: PNG, release_conn=lambda: None
+            status=200, headers={"Content-Type": "image/png"}, read=_streamed(PNG), release_conn=lambda: None
         )
 
     monkeypatch.setattr(urllib3.HTTPSConnectionPool, "urlopen", fake_urlopen)
@@ -604,3 +619,171 @@ def test_upload_from_url_preserves_matrix_params_in_the_request_path(attachment_
     )
 
     assert captured_paths == ["/file.png;v=2?sig=x"]
+
+
+_PROMPT_DEADLINE = 5  # far under the 60 second read timeout a stalled fetch would otherwise sit in
+
+
+class _SlowServer:
+    """A real loopback server playing `script` into every connection it accepts.
+
+    A step is bytes to send, a number of seconds to wait, or "drip": one byte
+    every 20 ms until the client hangs up. Nothing is mocked below the SSRF guard,
+    so the deadline is exercised against urllib3's actual blocking reads.
+    """
+
+    def __init__(self, script: tuple) -> None:
+        self.script = script
+        self.connections = 0
+        self._listener = socket.create_server(("127.0.0.1", 0))
+        self.port = self._listener.getsockname()[1]
+        threading.Thread(target=self._accept, daemon=True).start()
+
+    def _accept(self) -> None:
+        while True:
+            try:
+                conn, _ = self._listener.accept()
+            except OSError:
+                return
+            self.connections += 1
+            threading.Thread(target=self._play, args=(conn,), daemon=True).start()
+
+    def _play(self, conn: socket.socket) -> None:
+        with conn:
+            try:
+                conn.recv(65536)
+                for step in self.script:
+                    if step == "drip":
+                        for _ in range(1000):
+                            conn.sendall(b"\x00")
+                            time.sleep(0.02)
+                    elif isinstance(step, (int, float)):
+                        time.sleep(step)
+                    else:
+                        conn.sendall(step)
+            except OSError:
+                pass  # the client gave up, which is what these tests want
+
+    def close(self) -> None:
+        try:
+            self._listener.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        self._listener.close()
+
+
+@pytest.fixture
+def slow_server():
+    servers: list[_SlowServer] = []
+
+    def start(*script) -> _SlowServer:
+        servers.append(_SlowServer(script))
+        return servers[-1]
+
+    yield start
+    for server in servers:
+        server.close()
+
+
+@pytest.fixture
+def loopback_allowed(monkeypatch):
+    """Point every hostname at loopback, the one address the SSRF guard must otherwise refuse."""
+    monkeypatch.setattr(attachments, "_resolve_and_validate", lambda host, port: "127.0.0.1")
+
+
+@pytest.mark.parametrize(
+    ("scheme", "script"),
+    [
+        pytest.param("http", (b"HTTP/1.1 200 OK\r\nContent-Length: 4096\r\n\r\n", "drip"), id="body"),
+        pytest.param("http", (b"HTTP/1.1 200 OK\r\nX-Padding: ", "drip"), id="headers"),
+        pytest.param("https", (b"\x16\x03\x03\x40\x00", "drip"), id="tls-handshake"),
+    ],
+)
+def test_a_trickling_server_cannot_outlast_the_deadline(scheme, script, slow_server, loopback_allowed, monkeypatch):
+    """The read timeout restarts on every byte, so a server sending one byte at a
+    time used to hold the worker thread for as long as it liked, in any phase."""
+    server = slow_server(*script)
+    monkeypatch.setattr(attachments, "FETCH_DEADLINE_SECONDS", 0.5)
+
+    started = time.monotonic()
+    with pytest.raises(ValueError, match="did not finish within"):
+        attachments.fetch_validated_get(f"{scheme}://drip.example:{server.port}/file.png")
+
+    assert time.monotonic() - started < _PROMPT_DEADLINE
+
+
+def test_the_deadline_also_covers_a_proxied_fetch(slow_server, monkeypatch):
+    server = slow_server(b"HTTP/1.1 200 OK\r\nContent-Length: 4096\r\n\r\n", "drip")
+    monkeypatch.setenv("HTTP_PROXY", f"http://127.0.0.1:{server.port}")
+    monkeypatch.setattr(attachments, "FETCH_DEADLINE_SECONDS", 0.5)
+
+    started = time.monotonic()
+    with pytest.raises(ValueError, match="did not finish within"):
+        attachments.fetch_validated_get("http://files.example/file.png")
+
+    assert server.connections == 1, "the fetch did not go through the proxy"
+    assert time.monotonic() - started < _PROMPT_DEADLINE
+
+
+def test_redirects_share_one_deadline(slow_server, loopback_allowed, monkeypatch):
+    """A limit that restarted per hop would let the redirect cap multiply it."""
+    server = slow_server(0.2, b"HTTP/1.1 302 Found\r\nLocation: /next\r\nContent-Length: 0\r\n\r\n")
+    monkeypatch.setattr(attachments, "FETCH_DEADLINE_SECONDS", 0.5)
+
+    with pytest.raises(ValueError, match="did not finish within"):
+        attachments.fetch_validated_get(f"http://drip.example:{server.port}/first")
+
+    assert server.connections <= 4
+
+
+def test_a_body_arriving_in_pieces_is_read_whole(slow_server, loopback_allowed):
+    body = bytes(range(256)) * 1024  # several READ_CHUNK_BYTES long
+    head = f"HTTP/1.1 200 OK\r\nContent-Length: {len(body)}\r\n\r\n".encode()
+    server = slow_server(head, body[:1000], 0.05, body[1000:])
+
+    fetched = attachments.fetch_validated_get(f"http://files.example:{server.port}/file.png")
+
+    assert fetched.content == body
+    assert fetched.status_code == 200
+
+
+def test_a_truncated_body_is_not_mistaken_for_a_complete_one(slow_server, loopback_allowed):
+    """No deadline here: the server just hangs up short of its Content-Length."""
+    server = slow_server(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nshort")
+
+    with pytest.raises(ValueError, match="Failed to read"):
+        attachments.fetch_validated_get(f"http://files.example:{server.port}/file.png")
+
+
+def test_fetches_past_the_cap_are_refused_rather_than_queued(slow_server, loopback_allowed, monkeypatch):
+    """Queueing would still hold a worker thread per caller, which the cap exists to prevent."""
+    monkeypatch.setattr(attachments, "_fetch_slots", threading.BoundedSemaphore(1))
+    monkeypatch.setattr(attachments, "FETCH_DEADLINE_SECONDS", 1)
+    drip = slow_server(b"HTTP/1.1 200 OK\r\nContent-Length: 4096\r\n\r\n", "drip")
+    quick = slow_server(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\nx")
+    errors: list[Exception] = []
+
+    def hold_the_only_slot() -> None:
+        try:
+            attachments.fetch_validated_get(f"http://drip.example:{drip.port}/file.png")
+        except ValueError as exc:
+            errors.append(exc)
+
+    holder = threading.Thread(target=hold_the_only_slot, daemon=True)
+    holder.start()
+    give_up = time.monotonic() + _PROMPT_DEADLINE
+    while not drip.connections and time.monotonic() < give_up:
+        time.sleep(0.01)
+    assert drip.connections == 1
+
+    started = time.monotonic()
+    with pytest.raises(ValueError, match="concurrent URL fetches"):
+        attachments.fetch_validated_get(f"http://files.example:{quick.port}/file.png")
+    assert time.monotonic() - started < 0.5, "the refusal must not wait for a slot"
+    assert quick.connections == 0
+
+    holder.join(timeout=_PROMPT_DEADLINE)
+    assert not holder.is_alive()
+    assert len(errors) == 1
+    # The slot came back when that fetch failed, so this one gets it.
+    assert attachments.fetch_validated_get(f"http://files.example:{quick.port}/file.png").content == b"x"

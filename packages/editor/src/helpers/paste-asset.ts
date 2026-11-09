@@ -8,14 +8,15 @@ import { assetDuplicationHandlers } from "@/helpers/asset-duplication";
 
 // Utility function to process HTML content with all registered handlers
 export const processAssetDuplication = (htmlContent: string): { processedHtml: string } => {
-  const tempDiv = document.createElement("div");
-  tempDiv.innerHTML = htmlContent;
+  // Parsed into a separate document so that nothing in the pasted HTML loads or runs.
+  const parser = new DOMParser();
+  let parsedDocument = parser.parseFromString(htmlContent, "text/html");
 
   let processedHtml = htmlContent;
 
   // Process each registered component type
   for (const [componentName, handler] of Object.entries(assetDuplicationHandlers)) {
-    const elements = tempDiv.querySelectorAll(componentName);
+    const elements = parsedDocument.querySelectorAll(componentName);
 
     if (elements.length > 0) {
       elements.forEach((element) => {
@@ -25,8 +26,8 @@ export const processAssetDuplication = (htmlContent: string): { processedHtml: s
         }
       });
 
-      // Update tempDiv with processed HTML for next iteration
-      tempDiv.innerHTML = processedHtml;
+      // Parse the processed HTML again for the next iteration
+      parsedDocument = parser.parseFromString(processedHtml, "text/html");
     }
   }
 

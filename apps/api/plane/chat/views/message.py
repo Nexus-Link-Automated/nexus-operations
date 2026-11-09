@@ -17,7 +17,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 
-from plane.chat.events import EventType
+from plane.chat.events import EventType, message_event, publish_on_commit
 from plane.chat.exceptions import BadRequest, Conflict, Forbidden, NotFound
 from plane.chat.models import ChannelKind, Message, MessageReference
 from plane.chat.notifications import notify_mentions, refresh_mention_previews
@@ -82,14 +82,15 @@ class MessageEndpoint(ChatBaseEndpoint):
         )
         # Before the event: whoever it reaches fetches the message, and should get its references.
         sync_references(message)
-        self.publish(EventType.MESSAGE_CREATED, channel, message=message)
+        publish_on_commit(message_event(EventType.MESSAGE_CREATED, message))
         notify_mentions(message)
         return Response(_payload(message.id, request.user), status=status.HTTP_201_CREATED)
 
 
 class MessageDetailEndpoint(ChatBaseEndpoint):
-    def _message(self, channel, message_id):
-        message = Message.objects.filter(channel=channel, pk=message_id).first()
+    def _message(self, channel, message_id, lock=False):
+        messages = Message.objects.select_for_update() if lock else Message.objects
+        message = messages.filter(channel=channel, pk=message_id).first()
         if message is None:
             raise NotFound("Message not found.")
         return message
@@ -101,44 +102,54 @@ class MessageDetailEndpoint(ChatBaseEndpoint):
     def patch(self, request, slug, channel_id, message_id):
         """Edit your own message in a channel you're in. Removed messages and archived channels can't be edited."""
         channel = self.get_channel(channel_id)
-        message = self._message(channel, message_id)
-        require_channel_member(channel)
-        if message.sender_id != request.user.id:
-            raise Forbidden("Only the sender can edit a message.")
-        if message.removed_at is not None:
-            raise Conflict("The message was removed.")
-        require_not_archived(channel)
-        serializer = MessageEditSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
+        # Locked until the write, so a removal that lands meanwhile can't have its body written back.
+        with transaction.atomic():
+            message = self._message(channel, message_id, lock=True)
+            require_channel_member(channel)
+            if message.sender_id != request.user.id:
+                raise Forbidden("Only the sender can edit a message.")
+            if message.removed_at is not None:
+                raise Conflict("The message was removed.")
+            require_not_archived(channel)
+            serializer = MessageEditSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
 
-        previous_html = message.body_html
-        message.body_html = data["body_html"]
-        message.body_json = data["body_json"]
-        message.edited_at = timezone.now()
-        message.save(update_fields=["body_html", "body_json", "body_stripped", "edited_at", "updated_at", "updated_by"])
-        sync_references(message)
-        self.publish(EventType.MESSAGE_UPDATED, channel, message=message)
-        notify_mentions(message, previous_html)
-        refresh_mention_previews(message)
+            previous_html = message.body_html
+            message.body_html = data["body_html"]
+            message.body_json = data["body_json"]
+            message.edited_at = timezone.now()
+            message.save(
+                update_fields=["body_html", "body_json", "body_stripped", "edited_at", "updated_at", "updated_by"]
+            )
+            sync_references(message)
+            publish_on_commit(message_event(EventType.MESSAGE_UPDATED, message))
+            notify_mentions(message, previous_html)
+            refresh_mention_previews(message)
         return Response(_payload(message.id, request.user))
 
     def delete(self, request, slug, channel_id, message_id):
         """Remove a message: its sender while in the channel, a channel admin, or a workspace admin.
 
-        Removing twice is a no-op.
+        In a DM or group DM, only its sender. Removing twice is a no-op.
         """
         channel = self.get_channel(channel_id)
-        message = self._message(channel, message_id)
-        if not is_channel_admin(channel, self.role):
-            require_channel_member(channel)
-            if message.sender_id != request.user.id:
-                raise Forbidden("Only the sender or an admin can remove a message.")
-        require_not_archived(channel)
-        if message.removed_at is None:
-            message.remove()
-            refresh_mention_previews(message)
-            self.publish(EventType.MESSAGE_REMOVED, channel, message=message)
+        # Locked so that when two removals overlap, the second sees the first and only one is announced.
+        with transaction.atomic():
+            message = self._message(channel, message_id, lock=True)
+            if not is_channel_admin(channel, self.role):
+                require_channel_member(channel)
+                if message.sender_id != request.user.id:
+                    raise Forbidden(
+                        "Only the sender can remove a direct message."
+                        if channel.is_direct
+                        else "Only the sender or an admin can remove a message."
+                    )
+            require_not_archived(channel)
+            if message.removed_at is None:
+                message.remove()
+                refresh_mention_previews(message)
+                publish_on_commit(message_event(EventType.MESSAGE_REMOVED, message))
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -198,10 +209,11 @@ class MessageWorkItemEndpoint(ChatBaseEndpoint):
                     body_html=f'<p>Created {escape(key)} from <a href="{escape(permalink)}">this message</a></p>',
                 )
                 MessageReference.objects.create(message=reply, issue=issue)
+                publish_on_commit(
+                    message_event(EventType.MESSAGE_UPDATED, message),
+                    message_event(EventType.MESSAGE_CREATED, reply),
+                )
 
-        self.publish(EventType.MESSAGE_UPDATED, channel, message=message)
-        if reply:
-            self.publish(EventType.MESSAGE_CREATED, channel, message=reply)
         return Response(
             {
                 "message": _payload(message.id, request.user),

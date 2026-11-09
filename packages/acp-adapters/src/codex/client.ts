@@ -53,6 +53,15 @@ export interface CodexClientOptions {
 /** `codex` must be on PATH; the runner image installs it. Not configurable, by design: the agent env is admin-supplied. */
 export const CODEX_COMMAND = "codex";
 const CODEX_ARGS = ["app-server"] as const;
+
+/** The agent runner sets this when it brokers the key: the base URL Codex should call instead of OpenAI. */
+export const CODEX_BASE_URL_ENV = "PLANE_CODEX_BASE_URL";
+
+/** `codex` CLI arguments. The base URL is a config key (Codex ignores `OPENAI_BASE_URL`), and `-c` is a root option. */
+export function codexAppServerArgs(env: NodeJS.ProcessEnv): readonly string[] {
+  const baseUrl = env[CODEX_BASE_URL_ENV]?.trim();
+  return baseUrl ? ["-c", `openai_base_url=${JSON.stringify(baseUrl)}`, ...CODEX_ARGS] : CODEX_ARGS;
+}
 const STDERR_LINES = 100;
 
 export const defaultSpawnAppServer: SpawnCodexAppServer = (command, args, { cwd, env }) =>
@@ -79,7 +88,7 @@ export class CodexAppServerClient {
 
   constructor(options: CodexClientOptions) {
     this.#options = options;
-    this.#proc = (options.spawnAppServer ?? defaultSpawnAppServer)(CODEX_COMMAND, CODEX_ARGS, {
+    this.#proc = (options.spawnAppServer ?? defaultSpawnAppServer)(CODEX_COMMAND, codexAppServerArgs(options.env), {
       cwd: options.cwd,
       env: options.env,
     });
