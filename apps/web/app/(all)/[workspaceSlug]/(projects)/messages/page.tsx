@@ -5,25 +5,21 @@
  */
 
 import { observer } from "mobx-react";
-import { EmptyStateCompact } from "@plane/blocks/empty-state";
+import { useParams } from "next/navigation";
 import { useTranslation } from "@plane/i18n";
 // components
 import { PageHead } from "@/components/core/page-title";
+import { MessagesRoot } from "@/components/messages/root";
 
 const WorkspaceMessagesPage = observer(function WorkspaceMessagesPage() {
+  const { workspaceSlug } = useParams();
   const { t } = useTranslation();
+  const slug = workspaceSlug?.toString();
 
   return (
     <>
       <PageHead title={t("messages.title")} />
-      <div className="flex h-full w-full items-center justify-center">
-        <EmptyStateCompact
-          assetKey="comment"
-          title={t("messages.empty.title")}
-          description={t("messages.empty.description")}
-          align="center"
-        />
-      </div>
+      <div className="relative h-full w-full overflow-hidden">{slug && <MessagesRoot workspaceSlug={slug} />}</div>
     </>
   );
 });

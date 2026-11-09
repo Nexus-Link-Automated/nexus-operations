@@ -1,9 +1,106 @@
 {
   "messages": {
     "title": "Nachrichten",
+    "list_label": "Nachrichten",
+    "unknown_member": "Unbekanntes Mitglied",
+    "unread_count": "{count, plural, one {# ungelesene Nachricht} other {# ungelesene Nachrichten}}",
     "empty": {
       "title": "Noch keine Unterhaltungen",
       "description": "Hier werden Kanäle und Direktnachrichten mit Ihrem Team angezeigt."
+    },
+    "channels": {
+      "title": "Kanäle",
+      "browse": "Kanäle durchsuchen",
+      "create": "Kanal erstellen",
+      "none": "Sie sind noch keinem Kanal beigetreten."
+    },
+    "dms": {
+      "title": "Direktnachrichten",
+      "new": "Neue Nachricht",
+      "none": "Noch keine Direktnachrichten."
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# Mitglied} other {# Mitglieder}}",
+      "join": "Beitreten",
+      "leave": "Kanal verlassen",
+      "join_prompt": "Sie sehen #{name}. Treten Sie bei, um Nachrichten zu senden.",
+      "archived": "Dieser Kanal ist archiviert. Sie können ihn lesen, aber keine Nachrichten senden.",
+      "intro_title": "Das ist der Anfang von #{name}",
+      "intro_description": "Alles, was in diesem Kanal geschrieben wird, erscheint hier.",
+      "not_found_title": "Unterhaltung nicht gefunden",
+      "not_found_description": "Sie existiert nicht, oder Sie haben keinen Zugriff darauf."
+    },
+    "dm": {
+      "intro_title": "Das ist der Anfang Ihrer Unterhaltung mit {name}",
+      "intro_description": "Nur die Personen in dieser Unterhaltung können sie sehen."
+    },
+    "create_channel": {
+      "title": "Kanal erstellen",
+      "description": "In Kanälen spricht Ihr Team über ein Thema.",
+      "name": "Name",
+      "name_placeholder": "z. B. design-review",
+      "name_required": "Ein Kanal braucht einen Namen.",
+      "description_label": "Beschreibung (optional)",
+      "private": "Privater Kanal",
+      "private_help": "Nur hinzugefügte Personen können ihn und seine Nachrichten sehen.",
+      "submit": "Kanal erstellen"
+    },
+    "browse": {
+      "title": "Kanäle durchsuchen",
+      "description": "Öffentliche Kanäle, denen Sie nicht beigetreten sind.",
+      "search": "Kanäle suchen",
+      "empty": "Keine Kanäle zum Beitreten.",
+      "open": "Öffnen"
+    },
+    "new_dm": {
+      "title": "Neue Nachricht",
+      "description": "{count, plural, one {Wählen Sie eine Person.} other {Wählen Sie eine Person oder bis zu # für eine Gruppe.}}",
+      "search": "Personen suchen",
+      "empty": "Keine Treffer.",
+      "submit": "Unterhaltung starten"
+    },
+    "composer": {
+      "send": "Nachricht senden",
+      "placeholder_channel": "Nachricht an #{name}",
+      "placeholder_dm": "Nachricht an {name}"
+    },
+    "message": {
+      "label": "{name} um {time}",
+      "edit": "Nachricht bearbeiten",
+      "save": "Speichern",
+      "edited": "(bearbeitet)",
+      "remove": "Nachricht löschen",
+      "remove_title": "Diese Nachricht löschen?",
+      "remove_description": "Alle in der Unterhaltung sehen, dass eine Nachricht gelöscht wurde.",
+      "removing": "Wird gelöscht",
+      "removed": "Diese Nachricht wurde gelöscht.",
+      "replies": "{count, plural, one {# Antwort} other {# Antworten}}",
+      "sending": "Wird gesendet…",
+      "failed": "Nicht gesendet.",
+      "retry": "Erneut versuchen",
+      "discard": "Verwerfen"
+    },
+    "day": {
+      "today": "Heute",
+      "yesterday": "Gestern"
+    },
+    "connection": {
+      "reconnecting": "Verbindung wird wiederhergestellt. Neue Nachrichten erscheinen, sobald die Verbindung wieder besteht.",
+      "reconnect": "Jetzt neu verbinden",
+      "signed_out": "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um neue Nachrichten zu erhalten.",
+      "forbidden": "Sie haben keinen Zugriff mehr auf diese Nachrichten.",
+      "failed": "Live-Aktualisierungen sind nicht verfügbar. Laden Sie die Seite neu, um es erneut zu versuchen."
+    },
+    "errors": {
+      "retry": "Erneut versuchen",
+      "load_channels_failed": "Unterhaltungen konnten nicht geladen werden",
+      "load_messages_failed": "Nachrichten konnten nicht geladen werden.",
+      "create_channel_failed": "Kanal konnte nicht erstellt werden",
+      "join_failed": "Beitritt zum Kanal fehlgeschlagen",
+      "leave_failed": "Kanal konnte nicht verlassen werden",
+      "open_dm_failed": "Unterhaltung konnte nicht gestartet werden",
+      "edit_failed": "Änderung konnte nicht gespeichert werden",
+      "remove_failed": "Nachricht konnte nicht gelöscht werden"
     }
   }
 }

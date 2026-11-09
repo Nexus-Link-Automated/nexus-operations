@@ -1,9 +1,106 @@
 {
   "messages": {
     "title": "Messaggi",
+    "list_label": "Messaggi",
+    "unknown_member": "Membro sconosciuto",
+    "unread_count": "{count, plural, one {# messaggio non letto} many {# messaggi non letti} other {# messaggi non letti}}",
     "empty": {
       "title": "Ancora nessuna conversazione",
       "description": "Qui compariranno i canali e i messaggi diretti con il team."
+    },
+    "channels": {
+      "title": "Canali",
+      "browse": "Sfoglia i canali",
+      "create": "Crea un canale",
+      "none": "Non ti sei ancora unito a nessun canale."
+    },
+    "dms": {
+      "title": "Messaggi diretti",
+      "new": "Nuovo messaggio",
+      "none": "Ancora nessun messaggio diretto."
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# membro} many {# membri} other {# membri}}",
+      "join": "Unisciti",
+      "leave": "Esci dal canale",
+      "join_prompt": "Stai visualizzando #{name}. Unisciti per inviare messaggi.",
+      "archived": "Questo canale è archiviato. È possibile leggerlo, ma non inviare messaggi.",
+      "intro_title": "Questo è l'inizio di #{name}",
+      "intro_description": "Tutto ciò che viene scritto in questo canale compare qui.",
+      "not_found_title": "Conversazione non trovata",
+      "not_found_description": "Non esiste oppure non hai accesso."
+    },
+    "dm": {
+      "intro_title": "Questo è l'inizio della conversazione con {name}",
+      "intro_description": "Solo le persone di questa conversazione possono vederla."
+    },
+    "create_channel": {
+      "title": "Crea un canale",
+      "description": "Nei canali il team parla di un argomento.",
+      "name": "Nome",
+      "name_placeholder": "ad es. design-review",
+      "name_required": "Un canale deve avere un nome.",
+      "description_label": "Descrizione (facoltativa)",
+      "private": "Canale privato",
+      "private_help": "Solo le persone aggiunte possono vederlo, insieme ai suoi messaggi.",
+      "submit": "Crea canale"
+    },
+    "browse": {
+      "title": "Sfoglia i canali",
+      "description": "Canali pubblici a cui non ti sei unito.",
+      "search": "Cerca canali",
+      "empty": "Nessun canale a cui unirsi.",
+      "open": "Apri"
+    },
+    "new_dm": {
+      "title": "Nuovo messaggio",
+      "description": "{count, plural, one {Scegli una persona.} many {Scegli una persona, o fino a # per un gruppo.} other {Scegli una persona, o fino a # per un gruppo.}}",
+      "search": "Cerca persone",
+      "empty": "Nessun risultato.",
+      "submit": "Avvia conversazione"
+    },
+    "composer": {
+      "send": "Invia messaggio",
+      "placeholder_channel": "Messaggio in #{name}",
+      "placeholder_dm": "Messaggio a {name}"
+    },
+    "message": {
+      "label": "{name} alle {time}",
+      "edit": "Modifica messaggio",
+      "save": "Salva",
+      "edited": "(modificato)",
+      "remove": "Elimina messaggio",
+      "remove_title": "Eliminare questo messaggio?",
+      "remove_description": "Tutte le persone della conversazione vedranno che un messaggio è stato eliminato.",
+      "removing": "Eliminazione",
+      "removed": "Questo messaggio è stato eliminato.",
+      "replies": "{count, plural, one {# risposta} many {# risposte} other {# risposte}}",
+      "sending": "Invio…",
+      "failed": "Non inviato.",
+      "retry": "Riprova",
+      "discard": "Scarta"
+    },
+    "day": {
+      "today": "Oggi",
+      "yesterday": "Ieri"
+    },
+    "connection": {
+      "reconnecting": "Riconnessione in corso. I nuovi messaggi compariranno quando la connessione tornerà.",
+      "reconnect": "Riconnetti ora",
+      "signed_out": "La sessione è scaduta. Accedi di nuovo per ricevere i nuovi messaggi.",
+      "forbidden": "Non hai più accesso a questi messaggi.",
+      "failed": "Gli aggiornamenti in tempo reale non sono disponibili. Ricarica la pagina per riprovare."
+    },
+    "errors": {
+      "retry": "Riprova",
+      "load_channels_failed": "Impossibile caricare le conversazioni",
+      "load_messages_failed": "Impossibile caricare i messaggi.",
+      "create_channel_failed": "Impossibile creare il canale",
+      "join_failed": "Impossibile unirsi al canale",
+      "leave_failed": "Impossibile uscire dal canale",
+      "open_dm_failed": "Impossibile avviare la conversazione",
+      "edit_failed": "Impossibile salvare la modifica",
+      "remove_failed": "Impossibile eliminare il messaggio"
     }
   }
 }

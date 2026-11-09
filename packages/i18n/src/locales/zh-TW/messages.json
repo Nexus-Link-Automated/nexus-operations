@@ -1,9 +1,106 @@
 {
   "messages": {
     "title": "訊息",
+    "list_label": "訊息",
+    "unknown_member": "不明成員",
+    "unread_count": "{count, plural, one {# 則未讀訊息} other {# 則未讀訊息}}",
     "empty": {
       "title": "尚無對話",
       "description": "您與團隊的頻道和私訊將顯示在這裡。"
+    },
+    "channels": {
+      "title": "頻道",
+      "browse": "瀏覽頻道",
+      "create": "建立頻道",
+      "none": "您尚未加入任何頻道。"
+    },
+    "dms": {
+      "title": "私訊",
+      "new": "新訊息",
+      "none": "尚無私訊。"
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# 位成員} other {# 位成員}}",
+      "join": "加入",
+      "leave": "離開頻道",
+      "join_prompt": "您正在檢視 #{name}。加入後即可傳送訊息。",
+      "archived": "此頻道已封存。您可以閱讀，但無法傳送訊息。",
+      "intro_title": "這是 #{name} 的開頭",
+      "intro_description": "在此頻道中的所有交流都會顯示在這裡。",
+      "not_found_title": "找不到對話",
+      "not_found_description": "此對話不存在，或您沒有存取權。"
+    },
+    "dm": {
+      "intro_title": "這是您與 {name} 對話的開頭",
+      "intro_description": "只有此對話中的成員可以檢視。"
+    },
+    "create_channel": {
+      "title": "建立頻道",
+      "description": "團隊在頻道中針對一個主題進行討論。",
+      "name": "名稱",
+      "name_placeholder": "例如 design-review",
+      "name_required": "頻道需要名稱。",
+      "description_label": "說明（選填）",
+      "private": "私人頻道",
+      "private_help": "只有被加入的成員才能檢視此頻道及其訊息。",
+      "submit": "建立頻道"
+    },
+    "browse": {
+      "title": "瀏覽頻道",
+      "description": "您尚未加入的公開頻道。",
+      "search": "搜尋頻道",
+      "empty": "沒有可加入的頻道。",
+      "open": "開啟"
+    },
+    "new_dm": {
+      "title": "新訊息",
+      "description": "{count, plural, one {請選擇一位成員。} other {請選擇一位成員，或為群組選擇最多 # 位成員。}}",
+      "search": "搜尋成員",
+      "empty": "沒有符合的成員。",
+      "submit": "開始對話"
+    },
+    "composer": {
+      "send": "傳送訊息",
+      "placeholder_channel": "傳送訊息到 #{name}",
+      "placeholder_dm": "傳送訊息給 {name}"
+    },
+    "message": {
+      "label": "{name}，{time}",
+      "edit": "編輯訊息",
+      "save": "儲存",
+      "edited": "（已編輯）",
+      "remove": "刪除訊息",
+      "remove_title": "要刪除此訊息嗎？",
+      "remove_description": "對話中的所有人都會看到有一則訊息已被刪除。",
+      "removing": "正在刪除",
+      "removed": "此訊息已被刪除。",
+      "replies": "{count, plural, one {# 則回覆} other {# 則回覆}}",
+      "sending": "正在傳送…",
+      "failed": "未傳送。",
+      "retry": "重試",
+      "discard": "捨棄"
+    },
+    "day": {
+      "today": "今天",
+      "yesterday": "昨天"
+    },
+    "connection": {
+      "reconnecting": "正在重新連線。連線恢復後將顯示新訊息。",
+      "reconnect": "立即重新連線",
+      "signed_out": "您的工作階段已結束。請重新登入以接收新訊息。",
+      "forbidden": "您已無權存取這些訊息。",
+      "failed": "即時更新無法使用。請重新整理頁面後再試一次。"
+    },
+    "errors": {
+      "retry": "再試一次",
+      "load_channels_failed": "無法載入您的對話",
+      "load_messages_failed": "無法載入訊息。",
+      "create_channel_failed": "無法建立頻道",
+      "join_failed": "無法加入頻道",
+      "leave_failed": "無法離開頻道",
+      "open_dm_failed": "無法開始對話",
+      "edit_failed": "無法儲存編輯",
+      "remove_failed": "無法刪除訊息"
     }
   }
 }

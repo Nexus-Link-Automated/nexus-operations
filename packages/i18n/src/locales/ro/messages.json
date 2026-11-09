@@ -1,9 +1,106 @@
 {
   "messages": {
     "title": "Mesaje",
+    "list_label": "Mesaje",
+    "unknown_member": "Membru necunoscut",
+    "unread_count": "{count, plural, one {# mesaj necitit} few {# mesaje necitite} other {# de mesaje necitite}}",
     "empty": {
       "title": "Încă nu există conversații",
       "description": "Aici vor apărea canalele și mesajele directe cu echipa dumneavoastră."
+    },
+    "channels": {
+      "title": "Canale",
+      "browse": "Răsfoiți canalele",
+      "create": "Creați un canal",
+      "none": "Nu v-ați alăturat încă niciunui canal."
+    },
+    "dms": {
+      "title": "Mesaje directe",
+      "new": "Mesaj nou",
+      "none": "Încă nu există mesaje directe."
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# membru} few {# membri} other {# de membri}}",
+      "join": "Alăturați-vă",
+      "leave": "Părăsiți canalul",
+      "join_prompt": "Vizualizați #{name}. Alăturați-vă pentru a trimite mesaje.",
+      "archived": "Acest canal este arhivat. Îl puteți citi, dar nu puteți trimite mesaje.",
+      "intro_title": "Acesta este începutul #{name}",
+      "intro_description": "Tot ce se spune în acest canal apare aici.",
+      "not_found_title": "Conversația nu a fost găsită",
+      "not_found_description": "Nu există sau nu aveți acces la ea."
+    },
+    "dm": {
+      "intro_title": "Acesta este începutul conversației cu {name}",
+      "intro_description": "Doar persoanele din această conversație o pot vedea."
+    },
+    "create_channel": {
+      "title": "Creați un canal",
+      "description": "În canale, echipa dumneavoastră discută despre un subiect.",
+      "name": "Nume",
+      "name_placeholder": "de ex. design-review",
+      "name_required": "Un canal are nevoie de un nume.",
+      "description_label": "Descriere (opțional)",
+      "private": "Canal privat",
+      "private_help": "Doar persoanele adăugate pot vedea canalul și mesajele lui.",
+      "submit": "Creați canalul"
+    },
+    "browse": {
+      "title": "Răsfoiți canalele",
+      "description": "Canale publice cărora nu v-ați alăturat.",
+      "search": "Căutați canale",
+      "empty": "Nu există canale cărora să vă alăturați.",
+      "open": "Deschideți"
+    },
+    "new_dm": {
+      "title": "Mesaj nou",
+      "description": "{count, plural, one {Alegeți o persoană.} few {Alegeți o persoană sau până la # pentru un grup.} other {Alegeți o persoană sau până la # pentru un grup.}}",
+      "search": "Căutați persoane",
+      "empty": "Niciun rezultat.",
+      "submit": "Începeți conversația"
+    },
+    "composer": {
+      "send": "Trimiteți mesajul",
+      "placeholder_channel": "Mesaj în #{name}",
+      "placeholder_dm": "Mesaj către {name}"
+    },
+    "message": {
+      "label": "{name} la {time}",
+      "edit": "Editați mesajul",
+      "save": "Salvați",
+      "edited": "(editat)",
+      "remove": "Ștergeți mesajul",
+      "remove_title": "Ștergeți acest mesaj?",
+      "remove_description": "Toți cei din conversație vor vedea că un mesaj a fost șters.",
+      "removing": "Se șterge",
+      "removed": "Acest mesaj a fost șters.",
+      "replies": "{count, plural, one {# răspuns} few {# răspunsuri} other {# de răspunsuri}}",
+      "sending": "Se trimite…",
+      "failed": "Netrimis.",
+      "retry": "Reîncercați",
+      "discard": "Renunțați"
+    },
+    "day": {
+      "today": "Astăzi",
+      "yesterday": "Ieri"
+    },
+    "connection": {
+      "reconnecting": "Se reconectează. Mesajele noi vor apărea când conexiunea revine.",
+      "reconnect": "Reconectați acum",
+      "signed_out": "Sesiunea dumneavoastră s-a încheiat. Conectați-vă din nou pentru a primi mesaje noi.",
+      "forbidden": "Nu mai aveți acces la aceste mesaje.",
+      "failed": "Actualizările în timp real nu sunt disponibile. Reîncărcați pagina pentru a reîncerca."
+    },
+    "errors": {
+      "retry": "Reîncercați",
+      "load_channels_failed": "Conversațiile nu au putut fi încărcate",
+      "load_messages_failed": "Mesajele nu au putut fi încărcate.",
+      "create_channel_failed": "Canalul nu a putut fi creat",
+      "join_failed": "Nu v-ați putut alătura canalului",
+      "leave_failed": "Nu ați putut părăsi canalul",
+      "open_dm_failed": "Conversația nu a putut fi începută",
+      "edit_failed": "Modificarea nu a putut fi salvată",
+      "remove_failed": "Mesajul nu a putut fi șters"
     }
   }
 }

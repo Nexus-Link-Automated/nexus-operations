@@ -1,9 +1,106 @@
 {
   "messages": {
     "title": "メッセージ",
+    "list_label": "メッセージ",
+    "unknown_member": "不明なメンバー",
+    "unread_count": "{count, plural, one {未読メッセージ #件} other {未読メッセージ #件}}",
     "empty": {
       "title": "まだ会話はありません",
       "description": "チームとのチャンネルやダイレクトメッセージがここに表示されます。"
+    },
+    "channels": {
+      "title": "チャンネル",
+      "browse": "チャンネルを探す",
+      "create": "チャンネルを作成",
+      "none": "まだどのチャンネルにも参加していません。"
+    },
+    "dms": {
+      "title": "ダイレクトメッセージ",
+      "new": "新しいメッセージ",
+      "none": "まだダイレクトメッセージはありません。"
+    },
+    "channel": {
+      "member_count": "{count, plural, one {メンバー #人} other {メンバー #人}}",
+      "join": "参加",
+      "leave": "チャンネルから退出",
+      "join_prompt": "#{name} を表示しています。メッセージを送信するには参加してください。",
+      "archived": "このチャンネルはアーカイブされています。閲覧はできますが、メッセージは送信できません。",
+      "intro_title": "#{name} の始まりです",
+      "intro_description": "このチャンネルでのやり取りはすべてここに表示されます。",
+      "not_found_title": "会話が見つかりません",
+      "not_found_description": "存在しないか、アクセス権がありません。"
+    },
+    "dm": {
+      "intro_title": "{name} さんとの会話の始まりです",
+      "intro_description": "この会話に参加している人だけが閲覧できます。"
+    },
+    "create_channel": {
+      "title": "チャンネルを作成",
+      "description": "チャンネルでは、チームが一つのトピックについて話し合います。",
+      "name": "名前",
+      "name_placeholder": "例：design-review",
+      "name_required": "チャンネルには名前が必要です。",
+      "description_label": "説明（任意）",
+      "private": "プライベートチャンネル",
+      "private_help": "追加されたメンバーだけがチャンネルとそのメッセージを閲覧できます。",
+      "submit": "チャンネルを作成"
+    },
+    "browse": {
+      "title": "チャンネルを探す",
+      "description": "まだ参加していない公開チャンネルです。",
+      "search": "チャンネルを検索",
+      "empty": "参加できるチャンネルはありません。",
+      "open": "開く"
+    },
+    "new_dm": {
+      "title": "新しいメッセージ",
+      "description": "{count, plural, one {1人を選択してください。} other {1人を選択するか、グループとして最大#人まで選択してください。}}",
+      "search": "メンバーを検索",
+      "empty": "該当するメンバーはいません。",
+      "submit": "会話を開始"
+    },
+    "composer": {
+      "send": "メッセージを送信",
+      "placeholder_channel": "#{name} へのメッセージ",
+      "placeholder_dm": "{name} さんへのメッセージ"
+    },
+    "message": {
+      "label": "{name}（{time}）",
+      "edit": "メッセージを編集",
+      "save": "保存",
+      "edited": "（編集済み）",
+      "remove": "メッセージを削除",
+      "remove_title": "このメッセージを削除しますか？",
+      "remove_description": "会話の参加者全員に、メッセージが削除されたことが表示されます。",
+      "removing": "削除中",
+      "removed": "このメッセージは削除されました。",
+      "replies": "{count, plural, one {返信 #件} other {返信 #件}}",
+      "sending": "送信中……",
+      "failed": "送信されませんでした。",
+      "retry": "再試行",
+      "discard": "破棄"
+    },
+    "day": {
+      "today": "今日",
+      "yesterday": "昨日"
+    },
+    "connection": {
+      "reconnecting": "再接続しています。接続が戻ると新しいメッセージが表示されます。",
+      "reconnect": "今すぐ再接続",
+      "signed_out": "セッションが終了しました。新しいメッセージを受け取るには、もう一度サインインしてください。",
+      "forbidden": "これらのメッセージへのアクセス権がなくなりました。",
+      "failed": "リアルタイム更新を利用できません。ページを再読み込みしてもう一度お試しください。"
+    },
+    "errors": {
+      "retry": "もう一度試す",
+      "load_channels_failed": "会話を読み込めませんでした",
+      "load_messages_failed": "メッセージを読み込めませんでした。",
+      "create_channel_failed": "チャンネルを作成できませんでした",
+      "join_failed": "チャンネルに参加できませんでした",
+      "leave_failed": "チャンネルから退出できませんでした",
+      "open_dm_failed": "会話を開始できませんでした",
+      "edit_failed": "編集内容を保存できませんでした",
+      "remove_failed": "メッセージを削除できませんでした"
     }
   }
 }
