@@ -17,6 +17,7 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": "./dist/index.js",
+    "./constants/extension": "./dist/constants/extension.js",
     "./lib": "./dist/lib.js",
     "./server": "./dist/server.js",
     "./package.json": "./package.json",
