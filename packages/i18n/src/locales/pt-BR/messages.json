@@ -1,0 +1,9 @@
+{
+  "messages": {
+    "title": "Mensagens",
+    "empty": {
+      "title": "Ainda não há conversas",
+      "description": "Os canais e as mensagens diretas com sua equipe aparecerão aqui."
+    }
+  }
+}

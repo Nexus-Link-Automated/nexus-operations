@@ -1,0 +1,9 @@
+{
+  "messages": {
+    "title": "消息",
+    "empty": {
+      "title": "暂无对话",
+      "description": "您与团队的频道和私信将显示在这里。"
+    }
+  }
+}

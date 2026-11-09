@@ -1,0 +1,9 @@
+{
+  "messages": {
+    "title": "Správy",
+    "empty": {
+      "title": "Zatiaľ žiadne konverzácie",
+      "description": "Tu sa zobrazia kanály a priame správy s vaším tímom."
+    }
+  }
+}
