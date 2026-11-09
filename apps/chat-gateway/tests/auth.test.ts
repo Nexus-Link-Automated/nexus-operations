@@ -39,9 +39,9 @@ describe("admission", () => {
     await (await harness.open()).next("ready");
     expect(harness.api.requests.map((r) => `${r.method} ${r.path}`).toSorted()).toEqual([
       `GET /api/users/me/`,
-      `GET /api/workspaces/${WORKSPACE_SLUG}/`,
       `GET /api/workspaces/${WORKSPACE_SLUG}/chat/channels/?archived=false`,
       `GET /api/workspaces/${WORKSPACE_SLUG}/chat/channels/?archived=true`,
+      `GET /api/workspaces/${WORKSPACE_SLUG}/chat/me/`,
     ]);
     expect(harness.api.requests.every((r) => r.cookie === USER_COOKIE)).toBe(true);
   });

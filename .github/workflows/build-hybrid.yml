@@ -83,6 +83,10 @@ jobs:
           - image: plane-agent-runner
             context: .
             dockerfile: ./apps/agent-runner/Dockerfile.agent-runner
+          # Nexus Messages: pushes chat events to browsers over WebSocket.
+          - image: plane-chat-gateway
+            context: .
+            dockerfile: ./apps/chat-gateway/Dockerfile.chat-gateway
           - image: plane-mcp
             context: ./apps/mcp
             dockerfile: ./apps/mcp/Dockerfile

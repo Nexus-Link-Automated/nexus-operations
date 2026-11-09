@@ -18,7 +18,7 @@ browser ──WS /chat/ws?workspace=<slug> (cookie)──▶ chat-gateway ──
   1. Origin check (the socket is authenticated by cookie, so another site must not be able to open it).
   2. The `workspace` parameter and the `Cookie` header must be present, and the gateway must have room, so a
      refused or full connection costs the API nothing.
-  3. In parallel, with that cookie: `GET /api/users/me/` (who is this) and `GET /api/workspaces/<slug>/` (are
+  3. In parallel, with that cookie: `GET /api/users/me/` (who is this) and `GET /api/workspaces/<slug>/chat/me/` (are
      they an active member; it also gives the workspace ID).
   4. Events must be flowing (Redis is up), then the per-user and overall connection caps.
   5. The socket opens. The gateway starts listening to the workspace's events, reads the user's channels

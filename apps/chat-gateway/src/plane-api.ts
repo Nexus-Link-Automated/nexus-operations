@@ -32,8 +32,8 @@ export interface PlaneApi {
   /** The signed-in user behind a browser cookie (`GET /api/users/me/`). */
   currentUser(cookie: string, signal?: AbortSignal): Promise<{ id: string }>;
   /**
-   * The workspace, if the user is an active member of it (`GET /api/workspaces/<slug>/`). Anyone else
-   * gets a 404 (or a 403) from the API, which surfaces as a `PlaneApiError`.
+   * The workspace, if the user is an active member of it (`GET /api/workspaces/<slug>/chat/me/`, read for its
+   * `workspace_id`). Anyone else gets a 403 from the API, which surfaces as a `PlaneApiError`.
    */
   workspace(cookie: string, slug: string, signal?: AbortSignal): Promise<{ id: string }>;
   /**
@@ -52,7 +52,7 @@ export interface ChannelAccess {
 }
 
 const userSchema = z.object({ id: z.string().min(1) });
-const workspaceSchema = z.object({ id: z.string().min(1) });
+const chatMeSchema = z.object({ workspace_id: z.string().min(1) });
 const channelSchema = z.object({ id: z.string().min(1), is_member: z.boolean() });
 
 export interface PlaneApiOptions {
@@ -159,8 +159,10 @@ export function createPlaneApi(options: PlaneApiOptions): PlaneApi {
 
   return {
     currentUser: (cookie, signal) => get("/api/users/me/", cookie, userSchema, signal),
-    workspace: (cookie, slug, signal) =>
-      get(`/api/workspaces/${encodeURIComponent(slug)}/`, cookie, workspaceSchema, signal),
+    workspace: async (cookie, slug, signal) => {
+      const me = await get(`/api/workspaces/${encodeURIComponent(slug)}/chat/me/`, cookie, chatMeSchema, signal);
+      return { id: me.workspace_id };
+    },
     channels: (cookie, slug, archived, signal) =>
       get(
         `/api/workspaces/${encodeURIComponent(slug)}/chat/channels/?archived=${archived}`,
