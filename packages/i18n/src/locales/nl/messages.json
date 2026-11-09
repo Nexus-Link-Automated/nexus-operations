@@ -12,7 +12,7 @@
       "title": "Kanalen",
       "browse": "Kanalen bekijken",
       "create": "Kanaal maken",
-      "none": "U neemt nog aan geen enkel kanaal deel."
+      "none": "Je neemt nog aan geen enkel kanaal deel."
     },
     "dms": {
       "title": "Directe berichten",
@@ -23,20 +23,20 @@
       "member_count": "{count, plural, one {# lid} other {# leden}}",
       "join": "Deelnemen",
       "leave": "Kanaal verlaten",
-      "join_prompt": "U bekijkt #{name}. Neem deel om berichten te sturen.",
-      "archived": "Dit kanaal is gearchiveerd. U kunt het lezen, maar geen berichten sturen.",
+      "join_prompt": "Je bekijkt #{name}. Neem deel om berichten te sturen.",
+      "archived": "Dit kanaal is gearchiveerd. Je kunt het lezen, maar geen berichten sturen.",
       "intro_title": "Dit is het begin van #{name}",
       "intro_description": "Alles wat in dit kanaal wordt gezegd, verschijnt hier.",
       "not_found_title": "Gesprek niet gevonden",
-      "not_found_description": "Het bestaat niet, of u hebt er geen toegang toe."
+      "not_found_description": "Het bestaat niet, of je hebt er geen toegang toe."
     },
     "dm": {
-      "intro_title": "Dit is het begin van uw gesprek met {name}",
+      "intro_title": "Dit is het begin van je gesprek met {name}",
       "intro_description": "Alleen de mensen in dit gesprek kunnen het zien."
     },
     "create_channel": {
       "title": "Kanaal maken",
-      "description": "In kanalen praat uw team over één onderwerp.",
+      "description": "In kanalen praat je team over één onderwerp.",
       "name": "Naam",
       "name_placeholder": "bijv. design-review",
       "name_required": "Een kanaal heeft een naam nodig.",
@@ -47,7 +47,7 @@
     },
     "browse": {
       "title": "Kanalen bekijken",
-      "description": "Openbare kanalen waaraan u niet deelneemt.",
+      "description": "Openbare kanalen waaraan je niet deelneemt.",
       "search": "Kanalen zoeken",
       "empty": "Geen kanalen om aan deel te nemen.",
       "open": "Openen"
@@ -87,13 +87,13 @@
     "connection": {
       "reconnecting": "Opnieuw verbinden. Nieuwe berichten verschijnen zodra de verbinding terug is.",
       "reconnect": "Nu opnieuw verbinden",
-      "signed_out": "Uw sessie is verlopen. Meld u opnieuw aan om nieuwe berichten te ontvangen.",
-      "forbidden": "U hebt geen toegang meer tot deze berichten.",
+      "signed_out": "Je sessie is verlopen. Meld je opnieuw aan om nieuwe berichten te ontvangen.",
+      "forbidden": "Je hebt geen toegang meer tot deze berichten.",
       "failed": "Live-updates zijn niet beschikbaar. Laad de pagina opnieuw om het nog eens te proberen."
     },
     "errors": {
       "retry": "Opnieuw proberen",
-      "load_channels_failed": "Uw gesprekken konden niet worden geladen",
+      "load_channels_failed": "Je gesprekken konden niet worden geladen",
       "load_messages_failed": "De berichten konden niet worden geladen.",
       "create_channel_failed": "Het kanaal kon niet worden gemaakt",
       "join_failed": "Deelnemen aan het kanaal is mislukt",

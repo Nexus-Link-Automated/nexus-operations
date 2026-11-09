@@ -12,7 +12,7 @@
       "title": "Canales",
       "browse": "Explorar canales",
       "create": "Crear un canal",
-      "none": "Aún no se ha unido a ningún canal."
+      "none": "Aún no te has unido a ningún canal."
     },
     "dms": {
       "title": "Mensajes directos",
@@ -23,20 +23,20 @@
       "member_count": "{count, plural, one {# miembro} other {# miembros}}",
       "join": "Unirse",
       "leave": "Salir del canal",
-      "join_prompt": "Está viendo #{name}. Únase para enviar mensajes.",
-      "archived": "Este canal está archivado. Puede leerlo, pero no enviar mensajes.",
+      "join_prompt": "Estás viendo #{name}. Únete para enviar mensajes.",
+      "archived": "Este canal está archivado. Puedes leerlo, pero no enviar mensajes.",
       "intro_title": "Este es el comienzo de #{name}",
       "intro_description": "Todo lo que se escribe en este canal aparece aquí.",
       "not_found_title": "Conversación no encontrada",
-      "not_found_description": "No existe o no tiene acceso a ella."
+      "not_found_description": "No existe o no tienes acceso a ella."
     },
     "dm": {
-      "intro_title": "Este es el comienzo de su conversación con {name}",
+      "intro_title": "Este es el comienzo de tu conversación con {name}",
       "intro_description": "Solo las personas de esta conversación pueden verla."
     },
     "create_channel": {
       "title": "Crear un canal",
-      "description": "En los canales, su equipo conversa sobre un tema.",
+      "description": "En los canales, tu equipo conversa sobre un tema.",
       "name": "Nombre",
       "name_placeholder": "p. ej., design-review",
       "name_required": "Un canal necesita un nombre.",
@@ -47,14 +47,14 @@
     },
     "browse": {
       "title": "Explorar canales",
-      "description": "Canales públicos a los que no se ha unido.",
+      "description": "Canales públicos a los que no te has unido.",
       "search": "Buscar canales",
       "empty": "No hay canales a los que unirse.",
       "open": "Abrir"
     },
     "new_dm": {
       "title": "Nuevo mensaje",
-      "description": "{count, plural, one {Elija a una persona.} other {Elija a una persona, o hasta # para un grupo.}}",
+      "description": "{count, plural, one {Elige a una persona.} other {Elige a una persona, o hasta # para un grupo.}}",
       "search": "Buscar personas",
       "empty": "No hay coincidencias.",
       "submit": "Iniciar conversación"
@@ -87,13 +87,13 @@
     "connection": {
       "reconnecting": "Reconectando. Los mensajes nuevos aparecerán cuando vuelva la conexión.",
       "reconnect": "Reconectar ahora",
-      "signed_out": "Su sesión ha terminado. Vuelva a iniciar sesión para recibir mensajes nuevos.",
-      "forbidden": "Ya no tiene acceso a estos mensajes.",
-      "failed": "Las actualizaciones en vivo no están disponibles. Recargue la página para volver a intentarlo."
+      "signed_out": "Tu sesión ha terminado. Vuelve a iniciar sesión para recibir mensajes nuevos.",
+      "forbidden": "Ya no tienes acceso a estos mensajes.",
+      "failed": "Las actualizaciones en vivo no están disponibles. Recarga la página para volver a intentarlo."
     },
     "errors": {
       "retry": "Volver a intentar",
-      "load_channels_failed": "No se pudieron cargar sus conversaciones",
+      "load_channels_failed": "No se pudieron cargar tus conversaciones",
       "load_messages_failed": "No se pudieron cargar los mensajes.",
       "create_channel_failed": "No se pudo crear el canal",
       "join_failed": "No se pudo unir al canal",

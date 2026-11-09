@@ -51,6 +51,8 @@ export type TChatChannelMessages = {
   loaded: boolean;
   loading: boolean;
   loadingOlder: boolean;
+  /** The last try at an older page failed; the list offers a retry. */
+  olderFailed: boolean;
   error: boolean;
 };
 
@@ -92,6 +94,7 @@ const emptyMessages = (): TChatChannelMessages => ({
   loaded: false,
   loading: false,
   loadingOlder: false,
+  olderFailed: false,
   error: false,
 });
 
@@ -625,6 +628,7 @@ export class ChatStore implements IChatStore {
     const state = this.channelMessages[channelId];
     if (!slug || !state?.loaded || !state.hasMoreOlder || state.loadingOlder || state.ids.length === 0) return;
     state.loadingOlder = true;
+    state.olderFailed = false;
     const commit = this.guard();
     try {
       const page = await this.service.listMessages(slug, channelId, { before: state.ids[0], limit: CHAT_PAGE_SIZE });
@@ -638,7 +642,10 @@ export class ChatStore implements IChatStore {
     } catch {
       commit(() => {
         const current = this.channelMessages[channelId];
-        if (current) current.loadingOlder = false;
+        if (current) {
+          current.loadingOlder = false;
+          current.olderFailed = true;
+        }
       });
     }
   }

@@ -59,14 +59,18 @@ type Props = {
 
 export const ChatMessageItem = observer(function ChatMessageItem({ message, workspaceSlug, continued }: Props) {
   const { t } = useTranslation();
-  const { userId, editMessage, removeMessage } = useChat();
+  const { userId, channelMap, editMessage, removeMessage } = useChat();
   const { getUserDetails } = useMember();
   const { getWorkspaceBySlug } = useWorkspace();
   const [editing, setEditing] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [busy, setBusy] = useState(false);
   const editorRef = useRef<EditorRefApi>(null);
+  const saving = useRef(false);
 
+  const channel = channelMap[message.channel];
+  // The API refuses both once the user has left or the channel is archived.
+  const canChange = !!channel?.is_member && !channel.archived_at;
   const mine = !!message.sender && message.sender === userId;
   const removed = !!message.removed_at;
   const name = (message.sender && getUserDetails(message.sender)?.display_name) || t("messages.unknown_member");
@@ -74,7 +78,8 @@ export const ChatMessageItem = observer(function ChatMessageItem({ message, work
 
   const save = async () => {
     const document = editorRef.current?.getDocument();
-    if (!document || isCommentEmpty(document.html)) return;
+    if (!document || isCommentEmpty(document.html) || saving.current) return;
+    saving.current = true;
     setBusy(true);
     try {
       await editMessage(message.channel, message.id, {
@@ -85,6 +90,7 @@ export const ChatMessageItem = observer(function ChatMessageItem({ message, work
     } catch {
       setToast({ type: "error", title: t("messages.errors.edit_failed") });
     } finally {
+      saving.current = false;
       setBusy(false);
     }
   };
@@ -103,6 +109,7 @@ export const ChatMessageItem = observer(function ChatMessageItem({ message, work
 
   return (
     <article
+      data-message-id={message.id}
       aria-label={t("messages.message.label", { name, time })}
       className={cn(
         "group relative flex gap-3 px-4 hover:bg-layer-transparent-hover",
@@ -196,7 +203,7 @@ export const ChatMessageItem = observer(function ChatMessageItem({ message, work
           </p>
         )}
       </div>
-      {mine && !removed && !editing && (
+      {mine && canChange && !removed && !editing && (
         <div className="absolute top-1 right-4 hidden items-center gap-0.5 rounded-md border border-subtle bg-layer-1 p-0.5 shadow-raised-100 group-focus-within:flex group-hover:flex">
           <IconButton
             variant="ghost"
