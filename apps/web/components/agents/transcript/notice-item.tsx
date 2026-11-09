@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { memo } from "react";
 import { Banner } from "@makeplane/propel/components/banner";
 import type { NoticeItem as TNoticeItem } from "@plane/acp-client";
 import { useTranslation } from "@plane/i18n";
@@ -13,7 +14,7 @@ const VARIANTS = { info: "info", warning: "warning", error: "danger" } as const;
 type Props = { item: TNoticeItem };
 
 /** Live notices from the bridge or agent (e.g. Plane tools unavailable), and the client's own. */
-export function NoticeItem({ item }: Props) {
+export const NoticeItem = memo(function NoticeItem({ item }: Props) {
   const { t } = useTranslation();
   const variant = VARIANTS[item.severity as keyof typeof VARIANTS] ?? "neutral";
   if (item.code === "new_session") {
@@ -28,4 +29,4 @@ export function NoticeItem({ item }: Props) {
       {...(item.description ? { description: item.description } : {})}
     />
   );
-}
+});
