@@ -678,6 +678,73 @@ describe("ChatStore", () => {
     ]);
   });
 
+  describe("revealMessage", () => {
+    /** 120 messages oldest to newest, so the first page (50) doesn't reach the oldest. */
+    function withHistory(server: FakeChatServer) {
+      for (let index = 0; index < 120; index += 1) server.post("c-general", ADA);
+    }
+
+    it("is already there when the message is on the loaded page", async () => {
+      const { store, server } = await setup(withHistory);
+      await store.openChannel("c-general");
+      server.calls = [];
+      await expect(store.revealMessage("c-general", "m0120")).resolves.toBe(true);
+      expect(server.calls.filter((call) => call.startsWith("listMessages"))).toEqual([]);
+    });
+
+    it("loads back until the message is there, and stops", async () => {
+      const { store, server } = await setup(withHistory);
+      await store.openChannel("c-general");
+      server.calls = [];
+      await expect(store.revealMessage("c-general", "m0010")).resolves.toBe(true);
+      expect(server.calls.filter((call) => call.startsWith("listMessages"))).toHaveLength(2);
+      expect(store.getChannelMessages("c-general").map((message) => message.id)).toContain("m0010");
+    });
+
+    it("says so when the message isn't in the channel", async () => {
+      const { store } = await setup(withHistory);
+      await store.openChannel("c-general");
+      await expect(store.revealMessage("c-general", "nope")).resolves.toBe(false);
+    });
+
+    it("stops at a page that fails, instead of asking again", async () => {
+      const { store, server } = await setup(withHistory);
+      await store.openChannel("c-general");
+      server.holds.set("listMessages", Promise.reject(new ChatServiceError(0, undefined)));
+      server.calls = [];
+      await expect(store.revealMessage("c-general", "m0010")).resolves.toBe(false);
+      expect(server.calls.filter((call) => call.startsWith("listMessages"))).toHaveLength(1);
+    });
+
+    it("keeps the page on its way when one from before a restart lands", async () => {
+      const { store, server } = await setup(withHistory);
+      await store.openChannel("c-general");
+      let releaseOld!: () => void;
+      server.holds.set("listMessages", new Promise<void>((resolve) => (releaseOld = resolve)));
+      void store.loadOlderMessages("c-general");
+      const slug = store.workspaceSlug!;
+      store.stop();
+      await store.start(slug, ME);
+      await settle();
+      await store.openChannel("c-general");
+      let releaseNew!: () => void;
+      server.holds.set("listMessages", new Promise<void>((resolve) => (releaseNew = resolve)));
+      const running = store.loadOlderMessages("c-general");
+      releaseOld();
+      await settle();
+      expect(store.loadOlderMessages("c-general")).toBe(running);
+      releaseNew();
+      await running;
+    });
+
+    it("waits for a page already on its way instead of giving up", async () => {
+      const { store } = await setup(withHistory);
+      await store.openChannel("c-general");
+      void store.loadOlderMessages("c-general");
+      await expect(store.revealMessage("c-general", "m0010")).resolves.toBe(true);
+    });
+  });
+
   it("keeps its actions bound, so components can destructure them", async () => {
     const { store } = await setup();
     const { createChannel, openDm, markRead } = store;

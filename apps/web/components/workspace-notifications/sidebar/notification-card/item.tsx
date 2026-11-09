@@ -17,6 +17,7 @@ import { useNotification } from "@/hooks/store/notifications/use-notification";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 // local imports
+import { ChatMentionNotificationItem } from "./chat-mention-item";
 import { NotificationContent } from "./content";
 import { NotificationOption } from "./options";
 
@@ -42,7 +43,7 @@ export const NotificationItem = observer(function NotificationItem(props: TNotif
   const isUnread = notification.read_at === null;
   const workspace = getWorkspaceBySlug(workspaceSlug);
 
-  const notificationField = notification?.data?.issue_activity.field || undefined;
+  const notificationField = notification?.data?.issue_activity?.field || undefined;
   const notificationTriggeredBy = notification.triggered_by_details || undefined;
 
   const handleNotificationIssuePeekOverview = async () => {
@@ -66,6 +67,10 @@ export const NotificationItem = observer(function NotificationItem(props: TNotif
       }
     }
   };
+
+  if (notification?.entity_name === "chat_message") {
+    return <ChatMentionNotificationItem workspaceSlug={workspaceSlug} notificationId={notificationId} />;
+  }
 
   if (!workspaceSlug || !notificationId || !notification?.id || !notificationField || !workspace?.id || !projectId)
     return <></>;

@@ -53,11 +53,18 @@ const MessageBody = observer(function MessageBody({ id, html, workspaceSlug }: B
 type Props = {
   message: TChatMessage;
   workspaceSlug: string;
+  /** Opened from a link to this message. */
+  highlighted?: boolean;
   /** Follows the same sender's previous message: no avatar or name. */
   continued: boolean;
 };
 
-export const ChatMessageItem = observer(function ChatMessageItem({ message, workspaceSlug, continued }: Props) {
+export const ChatMessageItem = observer(function ChatMessageItem({
+  message,
+  workspaceSlug,
+  continued,
+  highlighted,
+}: Props) {
   const { t } = useTranslation();
   const { userId, channelMap, editMessage, removeMessage } = useChat();
   const { getUserDetails } = useMember();
@@ -112,8 +119,9 @@ export const ChatMessageItem = observer(function ChatMessageItem({ message, work
       data-message-id={message.id}
       aria-label={t("messages.message.label", { name, time })}
       className={cn(
-        "group relative flex gap-3 px-4 hover:bg-layer-transparent-hover",
-        continued ? "py-0.5" : "pt-2 pb-0.5"
+        "group relative flex gap-3 px-4 transition-colors hover:bg-layer-transparent-hover",
+        continued ? "py-0.5" : "pt-2 pb-0.5",
+        highlighted && "bg-accent-subtle"
       )}
     >
       <div className="flex w-8 flex-shrink-0 justify-center">

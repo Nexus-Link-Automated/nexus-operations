@@ -4,11 +4,13 @@
  * See the LICENSE file for details.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
+import { useSearchParams } from "next/navigation";
 // plane imports
 import { Button } from "@makeplane/propel/components/button";
 import { Spinner } from "@plane/blocks/spinner";
+import { setToast } from "@plane/blocks/toast";
 import { useTranslation } from "@plane/i18n";
 import { renderFormattedDate } from "@plane/utils";
 // hooks
@@ -19,6 +21,8 @@ import { ChatMessageItem, ChatPendingMessageItem } from "./message-item";
 
 /** Within this many pixels of the bottom, new messages keep the list scrolled to the bottom. */
 const STICK_TO_BOTTOM_PX = 80;
+/** How long a message opened from a link stays highlighted. */
+const HIGHLIGHT_MS = 3_000;
 
 type Props = {
   workspaceSlug: string;
@@ -30,9 +34,17 @@ type Props = {
 /** Where the list stands: the height of its content, and the first row on screen with its distance from the top. */
 type ScrollPosition = { contentHeight: number; row: Element | null; rowTop: number };
 
-function readScrollPosition(root: HTMLElement, content: HTMLElement): ScrollPosition {
+function isAtBottom(el: HTMLElement): boolean {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < STICK_TO_BOTTOM_PX;
+}
+
+/** `anchor`, while there is one, is the row to hold still instead of the first one on screen. */
+function readScrollPosition(root: HTMLElement, content: HTMLElement, anchor?: Element | null): ScrollPosition {
   const viewportTop = root.getBoundingClientRect().top;
   const contentHeight = content.offsetHeight;
+  if (anchor?.isConnected) {
+    return { contentHeight, row: anchor, rowTop: anchor.getBoundingClientRect().top - viewportTop };
+  }
   for (const row of root.querySelectorAll("[data-message-id]")) {
     const { top, bottom } = row.getBoundingClientRect();
     if (bottom > viewportTop) return { contentHeight, row, rowTop: top - viewportTop };
@@ -80,9 +92,17 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
   const contentRef = useRef<HTMLDivElement | null>(null);
   const position = useRef<ScrollPosition>({ contentHeight: 0, row: null, rowTop: 0 });
   const pendingCount = useRef(pending.length);
+  /** The message opened from a link, held in place while the rows around it are still rendering. */
+  const revealRow = useRef<Element | null>(null);
 
   const firstId = messages[0]?.id;
   const lastId = messages[messages.length - 1]?.id;
+  const targetMessageId = useSearchParams().get("message");
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  // Strings for the reveal effect's dependencies: `t` is a new function on every render.
+  const notFoundTitle = t("messages.errors.message_not_found");
+  const loadFailedTitle = t("messages.errors.load_messages_failed");
+  const loaded = !!state?.loaded;
   const hasMoreOlder = !!state?.hasMoreOlder;
   const loadingOlder = !!state?.loadingOlder;
   const olderFailed = !!state?.olderFailed;
@@ -109,14 +129,14 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     const content = contentRef.current;
     if (!root || !content) return;
     const { row, rowTop } = position.current;
-    if (atBottom.current) {
+    if (atBottom.current && !revealRow.current?.isConnected) {
       root.scrollTop = root.scrollHeight;
     } else if (row?.isConnected) {
       // Measured rather than assumed: browsers with scroll anchoring may already have made this correction.
       const moved = row.getBoundingClientRect().top - root.getBoundingClientRect().top - rowTop;
       if (moved) root.scrollTop += moved;
     }
-    position.current = readScrollPosition(root, content);
+    position.current = readScrollPosition(root, content, revealRow.current);
   }, []);
 
   useLayoutEffect(() => {
@@ -137,6 +157,51 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     },
     [holdPosition]
   );
+
+  // Opened from a link to one message (an inbox mention): find it, then bring it into view.
+  useEffect(() => {
+    if (!loaded || !targetMessageId) return;
+    let cancelled = false;
+    atBottom.current = false;
+    const reveal = async () => {
+      const found = await chat.revealMessage(channelId, targetMessageId);
+      if (cancelled) return;
+      if (found) {
+        setHighlightedId(targetMessageId);
+        return;
+      }
+      // Nothing to bring into view, so go back to following the list from wherever it is.
+      if (scrollRef.current) atBottom.current = isAtBottom(scrollRef.current);
+      setToast({
+        type: "error",
+        title: chat.getMessagesState(channelId)?.olderFailed ? loadFailedTitle : notFoundTitle,
+      });
+    };
+    void reveal();
+    return () => {
+      cancelled = true;
+    };
+  }, [chat, channelId, loaded, targetMessageId, notFoundTitle, loadFailedTitle]);
+
+  useEffect(() => {
+    if (!highlightedId) return;
+    const root = scrollRef.current;
+    const content = contentRef.current;
+    // A real ID: only one the store found gets here, so it's safe in a selector.
+    const row = root?.querySelector(`[data-message-id="${highlightedId}"]`) ?? null;
+    row?.scrollIntoView?.({ block: "center" });
+    // Now, not on the scroll event: bodies still rendering would otherwise put the list back where it was.
+    if (root && content) {
+      revealRow.current = row;
+      position.current = readScrollPosition(root, content, row);
+    }
+    const timer = setTimeout(() => {
+      revealRow.current = null;
+      if (scrollRef.current) atBottom.current = isAtBottom(scrollRef.current);
+      setHighlightedId(null);
+    }, HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [highlightedId]);
 
   if (!state || (state.loading && !state.loaded)) {
     return (
@@ -174,8 +239,8 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
         // The content changed height since this scroll was queued. That isn't the user leaving the bottom, and the
         // observer is about to run.
         if (!content || content.offsetHeight !== position.current.contentHeight) return;
-        atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_TO_BOTTOM_PX;
-        position.current = readScrollPosition(el, content);
+        atBottom.current = isAtBottom(el);
+        position.current = readScrollPosition(el, content, revealRow.current);
       }}
     >
       {/* mt-auto: a short channel sits at the bottom, next to the composer. */}
@@ -207,6 +272,7 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
               message={row.message}
               workspaceSlug={workspaceSlug}
               continued={row.continued}
+              highlighted={row.message.id === highlightedId}
             />
           )
         )}

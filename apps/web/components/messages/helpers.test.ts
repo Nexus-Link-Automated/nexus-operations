@@ -7,7 +7,14 @@
 import { describe, expect, it } from "vitest";
 import { ChatServiceError } from "@plane/services";
 import type { TChatMessage } from "@plane/types";
-import { buildMessageRows, channelDisplayName, chatErrorMessage, localDay, unreadLabel } from "./helpers";
+import {
+  buildMessageRows,
+  channelDisplayName,
+  chatErrorMessage,
+  chatMessagePermalink,
+  localDay,
+  unreadLabel,
+} from "./helpers";
 
 const message = (id: string, sender: string | null, at: Date, removed = false): TChatMessage => ({
   id,
@@ -111,5 +118,19 @@ describe("chatErrorMessage", () => {
     );
     expect(chatErrorMessage(new ChatServiceError(0, undefined))).toBeUndefined();
     expect(chatErrorMessage(new Error("x"))).toBeUndefined();
+  });
+});
+
+describe("chatMessagePermalink", () => {
+  it("links to the message in its channel", () => {
+    expect(chatMessagePermalink("acme", { id: "m1", channel_id: "c1", parent_id: null })).toBe(
+      "/acme/messages/c1?message=m1"
+    );
+  });
+
+  it("links a thread reply to its thread's first message, the one the channel shows", () => {
+    expect(chatMessagePermalink("acme", { id: "m2", channel_id: "c1", parent_id: "m1" })).toBe(
+      "/acme/messages/c1?message=m1"
+    );
   });
 });

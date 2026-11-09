@@ -91,6 +91,10 @@
       "forbidden": "You no longer have access to these messages.",
       "failed": "Live updates are unavailable. Reload the page to try again."
     },
+    "notification": {
+      "mentioned_in_channel": "{name} mentioned you in #{channel}",
+      "mentioned_in_dm": "{name} mentioned you in a direct message"
+    },
     "errors": {
       "retry": "Try again",
       "load_channels_failed": "Couldn't load your conversations",
@@ -100,7 +104,8 @@
       "leave_failed": "Couldn't leave the channel",
       "open_dm_failed": "Couldn't start the conversation",
       "edit_failed": "Couldn't save the edit",
-      "remove_failed": "Couldn't delete the message"
+      "remove_failed": "Couldn't delete the message",
+      "message_not_found": "This message is no longer available."
     }
   }
 }

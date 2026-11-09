@@ -91,6 +91,10 @@
       "forbidden": "K týmto správam už nemáte prístup.",
       "failed": "Živé aktualizácie nie sú k dispozícii. Znova načítajte stránku a skúste to znova."
     },
+    "notification": {
+      "mentioned_in_channel": "{name} vás spomína v #{channel}",
+      "mentioned_in_dm": "{name} vás spomína v priamej správe"
+    },
     "errors": {
       "retry": "Skúsiť znova",
       "load_channels_failed": "Konverzácie sa nepodarilo načítať",
@@ -100,7 +104,8 @@
       "leave_failed": "Kanál sa nepodarilo opustiť",
       "open_dm_failed": "Konverzáciu sa nepodarilo začať",
       "edit_failed": "Úpravu sa nepodarilo uložiť",
-      "remove_failed": "Správu sa nepodarilo odstrániť"
+      "remove_failed": "Správu sa nepodarilo odstrániť",
+      "message_not_found": "Táto správa už nie je dostupná."
     }
   }
 }

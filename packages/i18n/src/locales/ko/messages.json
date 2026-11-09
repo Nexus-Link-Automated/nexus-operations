@@ -91,6 +91,10 @@
       "forbidden": "더 이상 이 메시지에 접근할 수 없습니다.",
       "failed": "실시간 업데이트를 사용할 수 없습니다. 페이지를 새로 고친 후 다시 시도하십시오."
     },
+    "notification": {
+      "mentioned_in_channel": "{name}님이 #{channel}에서 회원님을 멘션했습니다",
+      "mentioned_in_dm": "{name}님이 다이렉트 메시지에서 회원님을 멘션했습니다"
+    },
     "errors": {
       "retry": "다시 시도",
       "load_channels_failed": "대화를 불러오지 못했습니다",
@@ -100,7 +104,8 @@
       "leave_failed": "채널에서 나가지 못했습니다",
       "open_dm_failed": "대화를 시작하지 못했습니다",
       "edit_failed": "편집 내용을 저장하지 못했습니다",
-      "remove_failed": "메시지를 삭제하지 못했습니다"
+      "remove_failed": "메시지를 삭제하지 못했습니다",
+      "message_not_found": "이 메시지는 더 이상 사용할 수 없습니다."
     }
   }
 }

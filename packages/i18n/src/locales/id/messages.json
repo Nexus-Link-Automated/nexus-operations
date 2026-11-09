@@ -91,6 +91,10 @@
       "forbidden": "Anda tidak lagi memiliki akses ke pesan ini.",
       "failed": "Pembaruan langsung tidak tersedia. Muat ulang halaman untuk mencoba lagi."
     },
+    "notification": {
+      "mentioned_in_channel": "{name} menyebut Anda di #{channel}",
+      "mentioned_in_dm": "{name} menyebut Anda dalam pesan langsung"
+    },
     "errors": {
       "retry": "Coba lagi",
       "load_channels_failed": "Tidak dapat memuat percakapan Anda",
@@ -100,7 +104,8 @@
       "leave_failed": "Tidak dapat keluar dari kanal",
       "open_dm_failed": "Tidak dapat memulai percakapan",
       "edit_failed": "Tidak dapat menyimpan perubahan",
-      "remove_failed": "Tidak dapat menghapus pesan"
+      "remove_failed": "Tidak dapat menghapus pesan",
+      "message_not_found": "Pesan ini tidak lagi tersedia."
     }
   }
 }

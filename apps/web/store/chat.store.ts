@@ -72,6 +72,8 @@ export type TChatPendingMessage = {
 const CHAT_PAGE_SIZE = 50;
 /** The catch-up after a reconnect stops after this many pages and reloads the channel instead. */
 const MAX_CATCH_UP_PAGES = 20;
+/** Following a link to an old message loads back at most this many pages looking for it. */
+const REVEAL_MAX_PAGES = 20;
 
 const isNotFound = (error: unknown) => error instanceof ChatServiceError && error.isNotFound;
 
@@ -137,6 +139,7 @@ export interface IChatStore {
   closeChannel: () => void;
   setDocumentVisible: (visible: boolean) => void;
   loadOlderMessages: (channelId: string) => Promise<void>;
+  revealMessage: (channelId: string, messageId: string) => Promise<boolean>;
   sendMessage: (channelId: string, body: Pick<TChatMessageWrite, "body_html" | "body_json">) => Promise<void>;
   retryMessage: (channelId: string, localId: string) => Promise<void>;
   discardMessage: (channelId: string, localId: string) => void;
@@ -192,6 +195,7 @@ export class ChatStore implements IChatStore {
   private readonly changedDuringList = new Set<string>();
   /** Where each channel's unbroken history ends, from the moment events may have been missed until it's caught up. */
   private readonly catchUpCursors = new Map<string, string>();
+  private readonly olderPages = new Map<string, Promise<void>>();
   private resyncing: { again: boolean; promise: Promise<void> } | null = null;
 
   constructor(options: { service?: TChatStoreService; createSocket?: TChatSocketFactory } = {}) {
@@ -224,6 +228,7 @@ export class ChatStore implements IChatStore {
       closeChannel: action.bound,
       setDocumentVisible: action.bound,
       loadOlderMessages: action.bound,
+      revealMessage: action.bound,
       sendMessage: action.bound,
       retryMessage: action.bound,
       discardMessage: action.bound,
@@ -356,6 +361,7 @@ export class ChatStore implements IChatStore {
     this.changedDuringList.clear();
     this.catchUpCursors.clear();
     this.resyncing = null;
+    this.olderPages.clear();
   }
 
   /** Try the socket again now, e.g. from a "reconnect" button or when the browser comes back online. */
@@ -635,7 +641,31 @@ export class ChatStore implements IChatStore {
     });
   }
 
-  async loadOlderMessages(channelId: string): Promise<void> {
+  /** The page already on its way if there is one, so someone waiting on it can tell when it has landed. */
+  loadOlderMessages(channelId: string): Promise<void> {
+    const running = this.olderPages.get(channelId);
+    if (running) return running;
+    const page = this.fetchOlderMessages(channelId).finally(() => {
+      if (this.olderPages.get(channelId) === page) this.olderPages.delete(channelId);
+    });
+    this.olderPages.set(channelId, page);
+    return page;
+  }
+
+  /** Load back through the channel until `messageId` is there. False if it isn't within `REVEAL_MAX_PAGES` pages, or a page failed. */
+  async revealMessage(channelId: string, messageId: string): Promise<boolean> {
+    const isLoaded = () => !!this.channelMessages[channelId]?.ids.includes(messageId);
+    for (let page = 0; page < REVEAL_MAX_PAGES && !isLoaded(); page += 1) {
+      if (!this.channelMessages[channelId]?.hasMoreOlder) return false;
+      // oxlint-disable-next-line no-await-in-loop -- each page's cursor comes from the one before it
+      await this.loadOlderMessages(channelId);
+      // The list offers a retry for this, so don't keep asking from here.
+      if (this.channelMessages[channelId]?.olderFailed) return false;
+    }
+    return isLoaded();
+  }
+
+  private async fetchOlderMessages(channelId: string): Promise<void> {
     const slug = this.workspaceSlug;
     const state = this.channelMessages[channelId];
     if (!slug || !state?.loaded || !state.hasMoreOlder || state.loadingOlder || state.ids.length === 0) return;

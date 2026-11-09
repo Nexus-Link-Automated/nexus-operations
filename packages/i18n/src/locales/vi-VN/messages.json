@@ -91,6 +91,10 @@
       "forbidden": "Bạn không còn quyền truy cập các tin nhắn này.",
       "failed": "Không có cập nhật trực tiếp. Hãy tải lại trang để thử lại."
     },
+    "notification": {
+      "mentioned_in_channel": "{name} đã nhắc đến bạn trong #{channel}",
+      "mentioned_in_dm": "{name} đã nhắc đến bạn trong một tin nhắn trực tiếp"
+    },
     "errors": {
       "retry": "Thử lại",
       "load_channels_failed": "Không thể tải các cuộc trò chuyện",
@@ -100,7 +104,8 @@
       "leave_failed": "Không thể rời kênh",
       "open_dm_failed": "Không thể bắt đầu cuộc trò chuyện",
       "edit_failed": "Không thể lưu nội dung sửa",
-      "remove_failed": "Không thể xóa tin nhắn"
+      "remove_failed": "Không thể xóa tin nhắn",
+      "message_not_found": "Tin nhắn này không còn khả dụng."
     }
   }
 }

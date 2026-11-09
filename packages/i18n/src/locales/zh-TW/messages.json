@@ -91,6 +91,10 @@
       "forbidden": "您已無權存取這些訊息。",
       "failed": "即時更新無法使用。請重新整理頁面後再試一次。"
     },
+    "notification": {
+      "mentioned_in_channel": "{name} 在 #{channel} 中提及了您",
+      "mentioned_in_dm": "{name} 在私人訊息中提及了您"
+    },
     "errors": {
       "retry": "再試一次",
       "load_channels_failed": "無法載入您的對話",
@@ -100,7 +104,8 @@
       "leave_failed": "無法離開頻道",
       "open_dm_failed": "無法開始對話",
       "edit_failed": "無法儲存編輯",
-      "remove_failed": "無法刪除訊息"
+      "remove_failed": "無法刪除訊息",
+      "message_not_found": "此訊息已無法使用。"
     }
   }
 }

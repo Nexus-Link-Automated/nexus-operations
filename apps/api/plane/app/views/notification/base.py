@@ -27,6 +27,8 @@ from plane.utils.order_queryset import NOTIFICATION_ORDER_BY_ALLOWLIST, sanitize
 from plane.app.permissions import allow_permission, ROLE
 
 # Module imports
+from plane.chat.notifications import CHAT_MESSAGE_ENTITY, visible_chat_mentions
+from plane.chat.permissions import workspace_role
 from ..base import BaseAPIView, BaseViewSet
 
 
@@ -63,7 +65,7 @@ class NotificationViewSet(BaseViewSet, BasePaginator):
 
         notifications = (
             Notification.objects.filter(workspace__slug=slug, receiver_id=request.user.id)
-            .filter(entity_name="issue")
+            .filter(Q(entity_name="issue") | visible_chat_mentions(request.user.id, workspace_role(request.user, slug)))
             .annotate(is_inbox_issue=Exists(intake_issue))
             .annotate(is_intake_issue=Exists(intake_issue))
             .annotate(
@@ -219,14 +221,19 @@ class UnreadNotificationEndpoint(BaseAPIView):
             .count()
         )
 
-        mention_notifications_count = Notification.objects.filter(
-            workspace__slug=slug,
-            receiver_id=request.user.id,
-            read_at__isnull=True,
-            archived_at__isnull=True,
-            snoozed_till__isnull=True,
-            sender__icontains="mentioned",
-        ).count()
+        chat_mentions = visible_chat_mentions(request.user.id, workspace_role(request.user, slug))
+        mention_notifications_count = (
+            Notification.objects.filter(
+                workspace__slug=slug,
+                receiver_id=request.user.id,
+                read_at__isnull=True,
+                archived_at__isnull=True,
+                snoozed_till__isnull=True,
+                sender__icontains="mentioned",
+            )
+            .filter(~Q(entity_name=CHAT_MESSAGE_ENTITY) | chat_mentions)
+            .count()
+        )
 
         return Response(
             {

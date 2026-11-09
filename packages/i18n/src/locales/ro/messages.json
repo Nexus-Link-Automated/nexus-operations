@@ -91,6 +91,10 @@
       "forbidden": "Nu mai aveți acces la aceste mesaje.",
       "failed": "Actualizările în timp real nu sunt disponibile. Reîncărcați pagina pentru a reîncerca."
     },
+    "notification": {
+      "mentioned_in_channel": "{name} v-a menționat în #{channel}",
+      "mentioned_in_dm": "{name} v-a menționat într-un mesaj direct"
+    },
     "errors": {
       "retry": "Reîncercați",
       "load_channels_failed": "Conversațiile nu au putut fi încărcate",
@@ -100,7 +104,8 @@
       "leave_failed": "Nu ați putut părăsi canalul",
       "open_dm_failed": "Conversația nu a putut fi începută",
       "edit_failed": "Modificarea nu a putut fi salvată",
-      "remove_failed": "Mesajul nu a putut fi șters"
+      "remove_failed": "Mesajul nu a putut fi șters",
+      "message_not_found": "Acest mesaj nu mai este disponibil."
     }
   }
 }
