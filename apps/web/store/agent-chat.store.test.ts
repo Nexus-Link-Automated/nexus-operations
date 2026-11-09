@@ -307,3 +307,81 @@ describe("localChoicesStorage", () => {
     expect(localChoicesStorage.recall("acme", "agent-1")).toEqual({});
   });
 });
+
+describe("AgentChatStore: while the session code loads", () => {
+  function deferred() {
+    const fake = createFakeAgent({ maxMode: "ask_writes" });
+    const pending: { session: AgentChatSession; resolve: () => void }[] = [];
+    const store = new AgentChatStore({
+      agentService: { list: async () => AGENTS },
+      choices: memoryChoices().storage,
+      createSession: () =>
+        new Promise<AgentChatSession>((resolve) => {
+          const session = new AgentChatSession({ transport: () => memoryTransport(fake.app()) });
+          pending.push({ session, resolve: () => resolve(session) });
+        }),
+    });
+    return { store, fake, pending };
+  }
+
+  it("reports connecting, then opens the chat", async () => {
+    const { store, pending } = deferred();
+    const opened = store.openChat("acme", "agent-1");
+    expect(store.isConnecting).toBe(true);
+    expect(store.agentId).toBe("agent-1");
+    expect(store.snapshot).toBeNull();
+    pending[0]!.resolve();
+    await opened;
+    expect(store.isConnecting).toBe(false);
+    expect(store.snapshot?.status).toBe("ready");
+    expect(store.canPrompt).toBe(true);
+    store.closeChat();
+  });
+
+  it("does not connect a chat that was closed in the meantime", async () => {
+    const { store, fake, pending } = deferred();
+    const opened = store.openChat("acme", "agent-1");
+    store.closeChat();
+    expect(store.isConnecting).toBe(false);
+    pending[0]!.resolve();
+    await opened;
+    expect(fake.log.initialize).toHaveLength(0);
+    expect(store.snapshot).toBeNull();
+    expect(pending[0]!.session.snapshot.status).toBe("closed");
+  });
+
+  it("keeps only the latest chat when another opens first", async () => {
+    const { store, fake, pending } = deferred();
+    const first = store.openChat("acme", "agent-1");
+    const second = store.openChat("acme", "agent-2");
+    pending[1]!.resolve();
+    pending[0]!.resolve();
+    await Promise.all([first, second]);
+    expect(store.agentId).toBe("agent-2");
+    expect(store.snapshot?.status).toBe("ready");
+    expect(fake.log.initialize).toHaveLength(1);
+    expect(pending[0]!.session.snapshot.status).toBe("closed");
+    store.closeChat();
+  });
+
+  it("reports a failed load as a connect error, and a retry can open the chat", async () => {
+    const fake = createFakeAgent({ maxMode: "ask_writes" });
+    const createSession = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("could not load"))
+      .mockImplementation(() => new AgentChatSession({ transport: () => memoryTransport(fake.app()) }));
+    const store = new AgentChatStore({
+      agentService: { list: async () => AGENTS },
+      choices: memoryChoices().storage,
+      createSession,
+    });
+    await store.openChat("acme", "agent-1");
+    expect(store.error).toEqual({ kind: "unknown", action: "connect", message: "could not load" });
+    expect(store.isConnecting).toBe(false);
+
+    await store.openChat("acme", "agent-1");
+    expect(store.error).toBeNull();
+    expect(store.snapshot?.status).toBe("ready");
+    store.closeChat();
+  });
+});

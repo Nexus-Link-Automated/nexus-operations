@@ -135,6 +135,11 @@ class APITokenLogMiddleware:
         if not api_key:
             return
 
+        # DRF copies the credential it accepted onto this request, so a rejected key
+        # or a route that never ran authentication does not match here.
+        if getattr(request, "auth", None) != api_key:
+            return
+
         try:
             log_data = {
                 # Tokenize the (high-entropy) API key into a stable, non-reversible

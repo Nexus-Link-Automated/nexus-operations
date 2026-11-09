@@ -104,6 +104,7 @@ export const PeekOverviewIssueDetails = observer(function PeekOverviewIssueDetai
         </div>
       </div>
       <IssueTitleInput
+        key={issue.id}
         workspaceSlug={workspaceSlug}
         projectId={issue.project_id}
         issueId={issue.id}

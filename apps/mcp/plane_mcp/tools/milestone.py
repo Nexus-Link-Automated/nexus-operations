@@ -15,6 +15,7 @@ from plane.models.milestones import (
 
 from plane_mcp.client import get_plane_client_context
 from plane_mcp.toolkit import (
+    DEFAULT_PAGE_SIZE,
     Action,
     build_annotations,
     build_description,
@@ -101,7 +102,7 @@ def register(mcp: FastMCP) -> None:
             response: PaginatedMilestoneResponse = client.milestones.list(
                 workspace_slug=workspace_slug,
                 project_id=project_id,
-                params=page_params(cursor, per_page),
+                params=page_params(cursor, per_page or DEFAULT_PAGE_SIZE),
             )
             return envelope(response)
 
@@ -149,7 +150,7 @@ def register(mcp: FastMCP) -> None:
                 workspace_slug=workspace_slug,
                 project_id=project_id,
                 milestone_id=milestone_id,
-                params=page_params(cursor, per_page),
+                params=page_params(cursor, per_page or DEFAULT_PAGE_SIZE),
             )
             return envelope(items)
 

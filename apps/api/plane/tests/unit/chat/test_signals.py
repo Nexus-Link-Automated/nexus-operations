@@ -6,7 +6,7 @@
 
 import pytest
 
-from plane.chat.models import Channel, ChannelKind, ChannelMember, ChatGuestPermission
+from plane.chat.models import Channel, ChannelKind, ChannelMember, ChannelMemberRole, ChatGuestPermission
 from plane.db.models import WorkspaceMember
 from plane.tests.factories import WorkspaceFactory
 
@@ -127,3 +127,92 @@ class TestLeavingTheWorkspace:
 
         assert self._channels_of(user) == {channel.id for channel in seats}
         assert _granted(membership)
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestPrivateChannelHandover:
+    """When a private channel's only admin leaves the workspace, someone still in it takes over."""
+
+    @pytest.fixture
+    def leaver(self, workspace, make_member):
+        return WorkspaceMember.objects.get(workspace=workspace, member=make_member(role=MEMBER))
+
+    @pytest.fixture
+    def private(self, workspace, leaver):
+        channel = Channel.objects.create(workspace=workspace, kind=ChannelKind.PRIVATE, name="secret")
+        ChannelMember.objects.create(channel=channel, user=leaver.member, role=ChannelMemberRole.ADMIN)
+        return channel
+
+    def _add(self, channel, *users, role=ChannelMemberRole.MEMBER):
+        for user in users:
+            ChannelMember.objects.create(channel=channel, user=user, role=role)
+
+    def _admins(self, channel):
+        return set(
+            ChannelMember.objects.filter(channel=channel, role=ChannelMemberRole.ADMIN).values_list(
+                "user_id", flat=True
+            )
+        )
+
+    def _leave(self, membership):
+        membership.is_active = False
+        membership.save()
+
+    def test_the_longest_standing_member_takes_over(self, make_member, leaver, private):
+        first, second = make_member(role=MEMBER), make_member(role=MEMBER)
+        self._add(private, first, second)
+        self._leave(leaver)
+        assert self._admins(private) == {first.id}
+
+    def test_a_member_is_preferred_to_a_guest_who_has_been_there_longer(self, make_member, leaver, private):
+        guest, colleague = make_member(role=GUEST), make_member(role=MEMBER)
+        self._add(private, guest, colleague)
+        self._leave(leaver)
+        assert self._admins(private) == {colleague.id}
+
+    def test_a_guest_takes_over_when_only_guests_remain(self, make_member, leaver, private):
+        first, second = make_member(role=GUEST), make_member(role=GUEST)
+        self._add(private, first, second)
+        self._leave(leaver)
+        assert self._admins(private) == {first.id}
+
+    def test_nobody_is_promoted_while_another_admin_remains(self, make_member, leaver, private):
+        other_admin, colleague = make_member(role=MEMBER), make_member(role=MEMBER)
+        self._add(private, colleague)
+        self._add(private, other_admin, role=ChannelMemberRole.ADMIN)
+        self._leave(leaver)
+        assert self._admins(private) == {other_admin.id}
+
+    def test_someone_no_longer_in_the_workspace_is_not_chosen(self, workspace, make_member, leaver, private):
+        gone, stays = make_member(role=MEMBER), make_member(role=MEMBER)
+        self._add(private, gone, stays)
+        WorkspaceMember.objects.filter(workspace=workspace, member=gone).update(is_active=False)
+        self._leave(leaver)
+        assert self._admins(private) == {stays.id}
+
+    def test_an_ordinary_member_leaving_changes_no_roles(self, make_member, leaver, private):
+        keeper, colleague = make_member(role=MEMBER), make_member(role=MEMBER)
+        self._add(private, colleague)
+        ChannelMember.objects.filter(channel=private, user=leaver.member).update(role=ChannelMemberRole.MEMBER)
+        self._add(private, keeper, role=ChannelMemberRole.ADMIN)
+        self._leave(leaver)
+        assert self._admins(private) == {keeper.id}
+
+    def test_a_public_channel_is_not_handed_over(self, workspace, make_member, leaver):
+        public = Channel.objects.create(workspace=workspace, kind=ChannelKind.PUBLIC, name="general")
+        self._add(public, leaver.member, role=ChannelMemberRole.ADMIN)
+        self._add(public, make_member(role=MEMBER))
+        self._leave(leaver)
+        assert self._admins(public) == set()
+
+    def test_nobody_left_is_fine(self, leaver, private):
+        self._leave(leaver)
+        assert not ChannelMember.objects.filter(channel=private).exists()
+
+    def test_deactivating_the_account_hands_over_too(self, make_member, leaver, private):
+        successor = make_member(role=MEMBER)
+        self._add(private, successor)
+        leaver.member.is_active = False
+        leaver.member.save()
+        assert self._admins(private) == {successor.id}

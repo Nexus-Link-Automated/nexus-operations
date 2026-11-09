@@ -26,7 +26,11 @@ import {
   usePersonalNavigationPreferences,
   useWorkspaceNavigationPreferences,
 } from "@/hooks/use-navigation-preferences";
+import { MessagesSidebarBadge } from "@/components/messages/unread-badge";
 import { SidebarItemBase } from "./sidebar-item";
+
+/** Unread messages on the Messages item. */
+const renderStaticItemBadge = (key: string) => (key === "messages" ? <MessagesSidebarBadge /> : null);
 
 export const SidebarMenuItems = observer(function SidebarMenuItems() {
   // routers
@@ -98,7 +102,7 @@ export const SidebarMenuItems = observer(function SidebarMenuItems() {
       <div className="flex w-full flex-col gap-px">
         {filteredStaticNavigationItems.map((item, _index) => (
           // oxlint-disable-next-line react/no-array-index-key
-          <SidebarItemBase key={`static_${_index}`} item={item} />
+          <SidebarItemBase key={`static_${_index}`} item={item} additionalRender={renderStaticItemBadge} />
         ))}
       </div>
       <Collapsible

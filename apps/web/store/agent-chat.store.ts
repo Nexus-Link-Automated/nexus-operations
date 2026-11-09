@@ -7,17 +7,20 @@
 import { action, computed, makeObservable, observable, runInAction } from "mobx";
 // plane imports
 import {
-  AgentChatSession,
   AgentDisconnectedError,
   AgentRequestError,
   AUTH_REQUIRED,
   INVALID_PARAMS,
-  agentSocketUrl,
   effortOption,
   modelOption,
-  openWebSocketTransport,
+} from "@plane/acp-client/core";
+import type {
+  AgentChatSession,
+  AgentChatSnapshot,
+  LoadSessionOptions,
+  SessionConfigOption,
+  SessionInfo,
 } from "@plane/acp-client";
-import type { AgentChatSnapshot, LoadSessionOptions, SessionConfigOption, SessionInfo } from "@plane/acp-client";
 import { AGENT_BRIDGE_BASE_PATH, AGENT_BRIDGE_BASE_URL } from "@plane/constants";
 import { WorkspaceAgentService } from "@plane/services";
 import type { TWorkspaceAgent } from "@plane/types";
@@ -43,7 +46,10 @@ export type TAgentChatError =
   | { kind: "disconnected"; action: TAgentChatAction }
   | { kind: "unknown"; action: TAgentChatAction; message: string };
 
-export type TAgentChatSessionFactory = (target: { agentId: string; workspaceSlug: string }) => AgentChatSession;
+export type TAgentChatSessionFactory = (target: {
+  agentId: string;
+  workspaceSlug: string;
+}) => AgentChatSession | Promise<AgentChatSession>;
 
 /** The model and effort a member last used with an agent, to start the next chat on them. */
 export type TAgentChatChoices = { model?: string; effort?: string };
@@ -124,7 +130,9 @@ export interface IAgentChatStore {
   clearError: () => void;
 }
 
-const defaultSessionFactory: TAgentChatSessionFactory = ({ agentId, workspaceSlug }) => {
+const defaultSessionFactory: TAgentChatSessionFactory = async ({ agentId, workspaceSlug }) => {
+  // Loaded when a chat opens, so the ACP SDK and zod stay out of the bundle every route pays for.
+  const { AgentChatSession, agentSocketUrl, openWebSocketTransport } = await import("@plane/acp-client");
   const url = agentSocketUrl({
     agentId,
     workspaceSlug,
@@ -157,6 +165,8 @@ export class AgentChatStore implements IAgentChatStore {
 
   private session: AgentChatSession | undefined;
   private unsubscribe: (() => void) | undefined;
+  /** Identifies the open in progress while its session code loads; a later open or close replaces or clears it. */
+  private opening: symbol | null = null;
   private readonly agentService: Pick<WorkspaceAgentService, "list">;
   private readonly createSession: TAgentChatSessionFactory;
   private readonly choices: IAgentChatChoicesStorage;
@@ -168,7 +178,7 @@ export class AgentChatStore implements IAgentChatStore {
       choices?: IAgentChatChoicesStorage;
     } = {}
   ) {
-    makeObservable<AgentChatStore, "setError">(this, {
+    makeObservable<AgentChatStore, "opening" | "setError">(this, {
       // observables
       agentsByWorkspace: observable,
       agentsLoading: observable.ref,
@@ -180,6 +190,7 @@ export class AgentChatStore implements IAgentChatStore {
       error: observable.ref,
       sessions: observable.ref,
       sessionsLoading: observable.ref,
+      opening: observable.ref,
       // computed
       activeAgent: computed,
       isConnecting: computed,
@@ -216,6 +227,7 @@ export class AgentChatStore implements IAgentChatStore {
   }
 
   get isConnecting(): boolean {
+    if (this.opening) return true;
     const status = this.snapshot?.status;
     return status === "connecting" || status === "reconnecting";
   }
@@ -285,14 +297,36 @@ export class AgentChatStore implements IAgentChatStore {
     this.closeChat();
     this.workspaceSlug = workspaceSlug;
     this.agentId = agentId;
-    const session = this.createSession({ agentId, workspaceSlug });
-    this.session = session;
-    this.unsubscribe = session.subscribe((snapshot) => {
-      runInAction(() => {
-        if (this.session === session) this.snapshot = snapshot;
+    const opening = Symbol("opening");
+    this.opening = opening;
+    let session: AgentChatSession;
+    try {
+      session = await this.createSession({ agentId, workspaceSlug });
+    } catch (error) {
+      // The session code could not be fetched: a retry from the banner runs openChat again.
+      if (this.opening === opening) {
+        runInAction(() => {
+          this.opening = null;
+        });
+        this.setError(error, "connect");
+      }
+      return;
+    }
+    // Closed or replaced while the code loaded (sign-out, leaving the workspace): never open its socket.
+    if (this.opening !== opening) {
+      session.dispose();
+      return;
+    }
+    runInAction(() => {
+      this.opening = null;
+      this.session = session;
+      this.unsubscribe = session.subscribe((snapshot) => {
+        runInAction(() => {
+          if (this.session === session) this.snapshot = snapshot;
+        });
       });
+      this.snapshot = session.snapshot;
     });
-    this.snapshot = session.snapshot;
     try {
       await session.connect();
       // No starting mode: the bridge applies the admin's default level. The model and effort are
@@ -305,6 +339,7 @@ export class AgentChatStore implements IAgentChatStore {
   };
 
   closeChat = (): void => {
+    this.opening = null;
     this.unsubscribe?.();
     this.unsubscribe = undefined;
     this.session?.dispose();

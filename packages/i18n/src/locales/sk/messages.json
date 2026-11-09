@@ -1,0 +1,106 @@
+{
+  "messages": {
+    "title": "Správy",
+    "list_label": "Správy",
+    "unknown_member": "Neznámy člen",
+    "unread_count": "{count, plural, one {# neprečítaná správa} few {# neprečítané správy} many {# neprečítanej správy} other {# neprečítaných správ}}",
+    "empty": {
+      "title": "Zatiaľ žiadne konverzácie",
+      "description": "Tu sa zobrazia kanály a priame správy s vaším tímom."
+    },
+    "channels": {
+      "title": "Kanály",
+      "browse": "Prehľadávať kanály",
+      "create": "Vytvoriť kanál",
+      "none": "Zatiaľ ste sa nepripojili k žiadnemu kanálu."
+    },
+    "dms": {
+      "title": "Priame správy",
+      "new": "Nová správa",
+      "none": "Zatiaľ žiadne priame správy."
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# člen} few {# členovia} many {# člena} other {# členov}}",
+      "join": "Pripojiť sa",
+      "leave": "Opustiť kanál",
+      "join_prompt": "Prezeráte si #{name}. Pripojte sa, aby ste mohli posielať správy.",
+      "archived": "Tento kanál je archivovaný. Môžete ho čítať, ale nemôžete posielať správy.",
+      "intro_title": "Toto je začiatok kanála #{name}",
+      "intro_description": "Všetko, čo sa v tomto kanáli napíše, sa zobrazí tu.",
+      "not_found_title": "Konverzácia sa nenašla",
+      "not_found_description": "Neexistuje alebo k nej nemáte prístup."
+    },
+    "dm": {
+      "intro_title": "Toto je začiatok vašej konverzácie s: {name}",
+      "intro_description": "Vidia ju iba ľudia v tejto konverzácii."
+    },
+    "create_channel": {
+      "title": "Vytvoriť kanál",
+      "description": "V kanáloch sa váš tím rozpráva o jednej téme.",
+      "name": "Názov",
+      "name_placeholder": "napr. design-review",
+      "name_required": "Kanál musí mať názov.",
+      "description_label": "Popis (voliteľné)",
+      "private": "Súkromný kanál",
+      "private_help": "Kanál a jeho správy vidia iba pridaní ľudia.",
+      "submit": "Vytvoriť kanál"
+    },
+    "browse": {
+      "title": "Prehľadávať kanály",
+      "description": "Verejné kanály, ku ktorým ste sa nepripojili.",
+      "search": "Hľadať kanály",
+      "empty": "Žiadne kanály na pripojenie.",
+      "open": "Otvoriť"
+    },
+    "new_dm": {
+      "title": "Nová správa",
+      "description": "{count, plural, one {Vyberte jednu osobu.} few {Vyberte jednu osobu alebo až # pre skupinu.} many {Vyberte jednu osobu alebo až # pre skupinu.} other {Vyberte jednu osobu alebo až # pre skupinu.}}",
+      "search": "Hľadať ľudí",
+      "empty": "Žiadne výsledky.",
+      "submit": "Začať konverzáciu"
+    },
+    "composer": {
+      "send": "Odoslať správu",
+      "placeholder_channel": "Správa do #{name}",
+      "placeholder_dm": "Správa pre: {name}"
+    },
+    "message": {
+      "label": "{name} o {time}",
+      "edit": "Upraviť správu",
+      "save": "Uložiť",
+      "edited": "(upravené)",
+      "remove": "Odstrániť správu",
+      "remove_title": "Odstrániť túto správu?",
+      "remove_description": "Všetci v konverzácii uvidia, že správa bola odstránená.",
+      "removing": "Odstraňovanie",
+      "removed": "Táto správa bola odstránená.",
+      "replies": "{count, plural, one {# odpoveď} few {# odpovede} many {# odpovede} other {# odpovedí}}",
+      "sending": "Odosiela sa…",
+      "failed": "Neodoslané.",
+      "retry": "Skúsiť znova",
+      "discard": "Zahodiť"
+    },
+    "day": {
+      "today": "Dnes",
+      "yesterday": "Včera"
+    },
+    "connection": {
+      "reconnecting": "Obnovuje sa pripojenie. Nové správy sa zobrazia, keď bude pripojenie späť.",
+      "reconnect": "Pripojiť znova",
+      "signed_out": "Vaša relácia skončila. Prihláste sa znova, aby ste dostávali nové správy.",
+      "forbidden": "K týmto správam už nemáte prístup.",
+      "failed": "Živé aktualizácie nie sú k dispozícii. Znova načítajte stránku a skúste to znova."
+    },
+    "errors": {
+      "retry": "Skúsiť znova",
+      "load_channels_failed": "Konverzácie sa nepodarilo načítať",
+      "load_messages_failed": "Správy sa nepodarilo načítať.",
+      "create_channel_failed": "Kanál sa nepodarilo vytvoriť",
+      "join_failed": "Ku kanálu sa nepodarilo pripojiť",
+      "leave_failed": "Kanál sa nepodarilo opustiť",
+      "open_dm_failed": "Konverzáciu sa nepodarilo začať",
+      "edit_failed": "Úpravu sa nepodarilo uložiť",
+      "remove_failed": "Správu sa nepodarilo odstrániť"
+    }
+  }
+}

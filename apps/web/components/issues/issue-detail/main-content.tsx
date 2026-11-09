@@ -127,6 +127,7 @@ export const IssueMainContent = observer(function IssueMainContent(props: Props)
           </div>
 
           <IssueTitleInput
+            key={issue.id}
             workspaceSlug={workspaceSlug}
             projectId={issue.project_id}
             issueId={issue.id}

@@ -15,6 +15,7 @@ import inspect
 
 import pytest
 
+from plane_mcp.toolkit import DEFAULT_PAGE_SIZE
 from plane_mcp.tools.registry import RESOURCES
 from tests.tools.test_dispatch import CONDITIONAL, NEEDS_FIXTURE, _value
 
@@ -102,3 +103,51 @@ def test_an_explicit_page_size_still_wins(registered, spy):
     registered["project"].fn(action="list", per_page=5)
 
     assert spy.recorder.only().kwargs["params"].per_page == 5
+
+
+class _EmptyPage(_Page):
+    results = []
+
+
+# The actions that fetch work items or per-item history, where the API's default of
+# 1000 rows runs to megabytes. Each pair is (tool, arguments reaching the SDK call).
+_BOUNDED_BY_DEFAULT = [
+    ("workitem", {"action": "list"}),
+    ("workitem", {"action": "list", "project_id": "p"}),
+    ("workitem", {"action": "list_archived", "project_id": "p"}),
+    ("cycle", {"action": "list", "project_id": "p"}),
+    ("cycle", {"action": "list", "project_id": "p", "archived": True}),
+    ("cycle", {"action": "list_workitems", "project_id": "p", "cycle_id": "c"}),
+    ("module", {"action": "list", "project_id": "p"}),
+    ("module", {"action": "list", "project_id": "p", "archived": True}),
+    ("module", {"action": "list_workitems", "project_id": "p", "module_id": "m"}),
+    ("milestone", {"action": "list", "project_id": "p"}),
+    ("milestone", {"action": "list_workitems", "project_id": "p", "milestone_id": "m"}),
+    ("release", {"action": "list"}),
+    ("release", {"action": "list_workitems", "release_id": "r"}),
+    ("workitem_activity", {"action": "list", "project_id": "p", "workitem_id": "w"}),
+    ("workitem_comment", {"action": "list", "project_id": "p", "workitem_id": "w"}),
+]
+
+
+def _sent_per_page(spy):
+    params = [call for call in spy.recorder.calls if call.method != "workspaces.get_features"][-1].kwargs["params"]
+    return params["per_page"] if isinstance(params, dict) else params.per_page
+
+
+@pytest.mark.parametrize(("tool", "arguments"), _BOUNDED_BY_DEFAULT)
+def test_a_list_without_per_page_asks_for_a_bounded_page(tool, arguments, registered, spy):
+    spy.__dict__["default"] = _EmptyPage()
+
+    registered[tool].fn(**arguments)
+
+    assert _sent_per_page(spy) == DEFAULT_PAGE_SIZE
+
+
+@pytest.mark.parametrize(("tool", "arguments"), _BOUNDED_BY_DEFAULT)
+def test_a_list_keeps_the_callers_per_page(tool, arguments, registered, spy):
+    spy.__dict__["default"] = _EmptyPage()
+
+    registered[tool].fn(**arguments, per_page=7)
+
+    assert _sent_per_page(spy) == 7

@@ -22,7 +22,7 @@ from plane.db.models import (
     UserNotificationPreference,
     WorkspaceMember,
 )
-from plane.utils.paginator import BasePaginator
+from plane.utils.paginator import BasePaginator, cap_list_results
 from plane.utils.order_queryset import NOTIFICATION_ORDER_BY_ALLOWLIST, sanitize_order_by
 from plane.app.permissions import allow_permission, ROLE
 
@@ -150,7 +150,10 @@ class NotificationViewSet(BaseViewSet, BasePaginator):
                 on_results=lambda notifications: NotificationSerializer(notifications, many=True).data,
             )
 
-        serializer = NotificationSerializer(notifications, many=True)
+        serializer = NotificationSerializer(
+            cap_list_results(notifications, f"notifications workspace={slug} user={request.user.id}"),
+            many=True,
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
@@ -241,10 +244,8 @@ class MarkAllReadNotificationViewSet(BaseViewSet):
         archived = request.data.get("archived", False)
         type = request.data.get("type", "all")
 
-        notifications = (
-            Notification.objects.filter(workspace__slug=slug, receiver_id=request.user.id, read_at__isnull=True)
-            .select_related("workspace", "project", "triggered_by", "receiver")
-            .order_by("snoozed_till", "-created_at")
+        notifications = Notification.objects.filter(
+            workspace__slug=slug, receiver_id=request.user.id, read_at__isnull=True
         )
 
         # Filter for snoozed notifications
@@ -285,11 +286,7 @@ class MarkAllReadNotificationViewSet(BaseViewSet):
                 )
                 notifications = notifications.filter(entity_identifier__in=issue_ids)
 
-        updated_notifications = []
-        for notification in notifications:
-            notification.read_at = timezone.now()
-            updated_notifications.append(notification)
-        Notification.objects.bulk_update(updated_notifications, ["read_at"], batch_size=100)
+        notifications.update(read_at=timezone.now())
         return Response({"message": "Successful"}, status=status.HTTP_200_OK)
 
 

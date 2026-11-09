@@ -5,7 +5,6 @@
 # Python imports
 import os
 import logging
-from urllib.parse import urlparse
 
 # Third party imports
 from celery import shared_task
@@ -122,22 +121,13 @@ def _collect_and_push_metrics() -> None:
         module_issue_count = ModuleIssue.objects.count()
         page_count = Page.objects.exclude(owned_by__is_bot=True, access=1).count()
 
-        # Derive domain from WEB_URL env var (e.g. https://plane.acmecorp.com -> plane.acmecorp.com).
-        # Prepend "//" for scheme-less values (e.g. "plane.acmecorp.com") so urlparse
-        # populates netloc correctly instead of treating the host as a path component.
-        web_url = os.environ.get("WEB_URL", "")
-        if web_url and "://" not in web_url:
-            web_url = "//" + web_url
-        domain = urlparse(web_url).netloc if web_url else ""
-
-        # Common attributes for all instance-level metrics
+        # Common attributes for all instance-level metrics. The admin screen describes
+        # this data as anonymous, so leave out the domain, instance name and workspace slugs.
         instance_attrs = {
             "instance_id": str(instance.instance_id or ""),
-            "instance_name": str(instance.instance_name or ""),
             "current_version": str(instance.current_version or ""),
             "latest_version": str(instance.latest_version or ""),
             "edition": str(instance.edition or ""),
-            "domain": domain,
             "is_verified": str(instance.is_verified).lower(),
             "is_setup_done": str(instance.is_setup_done).lower(),
         }
@@ -269,7 +259,6 @@ def _collect_and_push_metrics() -> None:
             workspace_metrics.append({
                 "instance_id": instance_id_str,
                 "workspace_id": str(ws_id),
-                "workspace_slug": str(workspace.slug),
                 "project_count": project_counts.get(ws_id, 0),
                 "issue_count": issue_counts.get(ws_id, 0),
                 "module_count": module_counts.get(ws_id, 0),
@@ -281,7 +270,6 @@ def _collect_and_push_metrics() -> None:
         def _ws_attrs(ws: dict) -> dict:
             return {
                 "workspace_id": ws["workspace_id"],
-                "workspace_slug": ws["workspace_slug"],
                 "instance_id": ws["instance_id"],
             }
 

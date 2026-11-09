@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { memo } from "react";
 import type { TurnEndItem as TTurnEndItem } from "@plane/acp-client";
 import { useTranslation } from "@plane/i18n";
 import { cn } from "@plane/utils";
@@ -11,7 +12,7 @@ import { cn } from "@plane/utils";
 type Props = { item: TTurnEndItem };
 
 /** How a turn ended when it did not end normally. */
-export function TurnEndItem({ item }: Props) {
+export const TurnEndItem = memo(function TurnEndItem({ item }: Props) {
   const { t } = useTranslation();
   const isProblem = item.stopReason === "failed" || item.stopReason === "disconnected" || item.stopReason === "refusal";
   return (
@@ -19,4 +20,4 @@ export function TurnEndItem({ item }: Props) {
       {t(`agents.transcript.turn_end.${item.stopReason}`)}
     </p>
   );
-}
+});

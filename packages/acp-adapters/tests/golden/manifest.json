@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "corpus_id": "plane-acp-adapters-golden",
-  "corpus_version": 2,
+  "corpus_version": 4,
   "protocol_version": 1,
   "notes": "Ported from employai_v2 tests/fixtures/acp/v1 (corpus employai-acp-golden-v1). Regenerate expected output with UPDATE_GOLDEN=1, review the diff, then bump corpus_version and the corpus hash in acp-version.lock.json.",
   "cases": [
@@ -25,7 +25,7 @@
       "expected": "claude/valid/turn.out.jsonl",
       "exitCode": 0,
       "inputSha256": "dd80dd56474653f44571ee6ef4781a9310295142c47e0485b61595ad807494c1",
-      "expectedSha256": "4d21cef452ce9ab020f133a265953baaa0149d408921a1373f1136e00f8a5d99"
+      "expectedSha256": "b9670ca50d35a648d8f42212371d780d38cac29a26a732ccc4bdf6653b8ee3d5"
     },
     {
       "id": "codex/valid/initialize",
@@ -47,7 +47,7 @@
       "expected": "codex/valid/turn.out.jsonl",
       "exitCode": 0,
       "inputSha256": "47a825f0b3405bbfc28ae4e6611f3de263e6391edfee2d3297332f13541d5e11",
-      "expectedSha256": "ec6c481d44c0b4930ae8e100cf4c716aebe5cede138ca41b2372076309f7fa48"
+      "expectedSha256": "9c1161fbb802087ecda32e2eae6e67baa376c2db017ab113b87dd6fb543bb93c"
     },
     {
       "id": "gemini/valid/initialize",
@@ -69,7 +69,7 @@
       "expected": "gemini/valid/turn.out.jsonl",
       "exitCode": 0,
       "inputSha256": "341c5fac0293dc5a3e3cae94fcbb325f0f4695d62fa578aada0c6ca92f434c84",
-      "expectedSha256": "a3c3dd3dfcc818e4b6cb87dad894101b1d6c4dffc6960a1fd12e7454f219790c"
+      "expectedSha256": "ee8c5634812fa1389c8cacfa9b749b462f7d0d8d5dd298e0db9ffbea92fc26dc"
     },
     {
       "id": "deepseek/valid/initialize",
@@ -91,7 +91,7 @@
       "expected": "deepseek/valid/tool-loop.out.jsonl",
       "exitCode": 0,
       "inputSha256": "278cc83b1be823a3521323a996a68cf063e32caf8dd953480e597656e1884efa",
-      "expectedSha256": "7ed283915e9f44bab45725f5f9cd7c186c893518aea6e17ba240c854e2bac8c0"
+      "expectedSha256": "3d33b12069885b45e79b6ad3d209c241cc1bf4fc7fd6bf5e3fb1cb9bb6b25a23"
     },
     {
       "id": "echo/malformed/batch",
@@ -171,7 +171,7 @@
       "expected": "echo/malformed/notifications.out.jsonl",
       "exitCode": 0,
       "inputSha256": "2082afdd3127b6619f2e19cbb36aa02202b0541f121bcffed167e2590ea16e88",
-      "expectedSha256": "91c36ffed5da1a381adc7f92b29684c87cd56ee665ff184f956680c4dc9da9bd"
+      "expectedSha256": "8a9363898d1fafa90804c57dfc9ec4f29b46549b9c28fb834515ce021e25630c"
     },
     {
       "id": "echo/malformed/request-before-initialize",
@@ -215,7 +215,7 @@
       "expected": "echo/transport/crlf.out.jsonl",
       "exitCode": 0,
       "inputSha256": "eabfa3c62f5b929e40d9617cbab30cd30bc4d164f42cd53cafebffc023960aa5",
-      "expectedSha256": "91c36ffed5da1a381adc7f92b29684c87cd56ee665ff184f956680c4dc9da9bd"
+      "expectedSha256": "8a9363898d1fafa90804c57dfc9ec4f29b46549b9c28fb834515ce021e25630c"
     },
     {
       "id": "echo/transport/eof-drains",
@@ -226,7 +226,7 @@
       "expected": "echo/transport/eof-drains.out.jsonl",
       "exitCode": 0,
       "inputSha256": "6784fb3043e7683955d175bfbbb667aae72d236dd17a88b00d013f1c1fbbf8b9",
-      "expectedSha256": "4086839d4acb490da0fc1819a3bb390f43382709bcd797d88c80562cda88be78"
+      "expectedSha256": "4cbe237b24def99e2214b21de940ac5f62acb995c24c5bb8ba954b54fc0a9978"
     },
     {
       "id": "echo/transport/no-trailing-newline",
@@ -273,7 +273,7 @@
       "expected": "echo/valid/permission-and-cancel.out.jsonl",
       "exitCode": 0,
       "inputSha256": "57fe33f16b61e16f168b62f1133104bd948785c39c6be60bd28e2844187642f1",
-      "expectedSha256": "f1a8ad0e3bcfa96637b57272e751563c5e78a0627c7ccfbf08655c963378e874"
+      "expectedSha256": "4715875ab31d1d20e74ce725838c77e910501da8993c2db03ba601a8d323a925"
     },
     {
       "id": "echo/valid/pipelined-prompt",
@@ -284,7 +284,7 @@
       "expected": "echo/valid/pipelined-prompt.out.jsonl",
       "exitCode": 0,
       "inputSha256": "b40df974f4028a3d842508bd82a4fdfa1def3f73f0735ed92f9a2cab0cece6eb",
-      "expectedSha256": "6e31bb712a8af35db45bca02074dfebd6abe45591642260aad31fba8e7c54cc7"
+      "expectedSha256": "cb85dd09b9dd26801180327e6d9db96d37e1ba8970bf09d8a19e6ff806a506f7"
     },
     {
       "id": "echo/valid/plan-and-usage",
@@ -295,7 +295,7 @@
       "expected": "echo/valid/plan-and-usage.out.jsonl",
       "exitCode": 0,
       "inputSha256": "7dc120063555b2a7497ace44956c3a2656960b562668ea63b2c4f596e213fdea",
-      "expectedSha256": "48a1944d9b4620d681c2232bbc19df066d3efcb63b72d515ca81ff16c2919674"
+      "expectedSha256": "2c57ec5469a7bd224e0a4f0ed17c6af2d9236704730e9f229363614d41024e50"
     },
     {
       "id": "echo/valid/protocol-version-negotiation",
@@ -317,7 +317,7 @@
       "expected": "echo/valid/request-id-variants.out.jsonl",
       "exitCode": 0,
       "inputSha256": "f46da80399712677d2224295b5288ee6e8c7605ea3c284895fd3cb611577c00c",
-      "expectedSha256": "a308ee1df17219854bb71afd4c509d3e4ae499e991398c60438eb8e552cd4dc1"
+      "expectedSha256": "2a0f7c8edf6a8a7e1a9a9845c3673149d237387d83f8be79916f6ed9c4401e16"
     }
   ]
 }

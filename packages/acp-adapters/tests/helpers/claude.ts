@@ -4,7 +4,46 @@
  * See the LICENSE file for details.
  */
 
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+
 import type { HookCallback, Options, Query, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+
+import { PACKAGE_ROOT, tempDir } from "./client.ts";
+
+export const FAKE_CLAUDE = path.join(PACKAGE_ROOT, "tests/helpers/fake-claude.cjs");
+
+export interface FakeClaudeStart {
+  readonly cmdline: string[];
+  readonly mcpConfig?: { path: string; mode: number; content: { mcpServers: Record<string, unknown> } };
+}
+
+/** An executable for `pathToClaudeCodeExecutable`, the env that goes with it, and what it recorded. */
+export function fakeClaudeExecutable(): {
+  executable: string;
+  env: Record<string, string>;
+  home: string;
+  starts: () => FakeClaudeStart[];
+} {
+  const dir = tempDir("fake-claude-");
+  const executable = path.join(dir, "claude");
+  writeFileSync(executable, `#!/bin/sh\nexec "${process.execPath}" "${FAKE_CLAUDE}" "$@"\n`);
+  chmodSync(executable, 0o755);
+  const logFile = path.join(dir, "log.jsonl");
+  const home = tempDir("claude-home-");
+  return {
+    executable,
+    home,
+    env: { HOME: home, ANTHROPIC_API_KEY: "sk-ant-test", FAKE_CLAUDE_LOG: logFile },
+    starts: () =>
+      existsSync(logFile)
+        ? readFileSync(logFile, "utf8")
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => JSON.parse(line) as FakeClaudeStart)
+        : [],
+  };
+}
 
 export interface FakeQueryCall {
   readonly prompt: string;
@@ -72,17 +111,35 @@ function result(stopReason = "end_turn"): SDKMessage {
   } as unknown as SDKMessage;
 }
 
+const CANNED_TOOLS: Record<string, { name: string; input: Record<string, unknown> }> = {
+  run: { name: "Bash", input: { command: "touch a.txt" } },
+  read: { name: "Read", input: { file_path: "a.txt" } },
+  todo: {
+    name: "TodoWrite",
+    input: { todos: [{ content: "Plan it", status: "in_progress", activeForm: "Planning" }] },
+  },
+};
+
+/** A prompt naming one tool call, as `tool:<Name>:<json input>`, or one of the canned prompts. */
+function cannedTool(text: string): { name: string; input: Record<string, unknown> } | undefined {
+  const scripted = /^tool:([A-Za-z]+):(.*)$/s.exec(text);
+  return scripted ? { name: scripted[1]!, input: JSON.parse(scripted[2]!) } : CANNED_TOOLS[text];
+}
+
 /**
  * A stand-in for the Agent SDK's `query()`: yields canned SDK messages and calls the adapter's
  * PreToolUse hook the way Claude Code does before running a tool. Driven by the prompt text:
  * "hello", "run" (Bash), "read" (Read), "todo" (TodoWrite → plan), "wait" (until aborted),
- * "long" (stop_reason max_tokens).
+ * "long" (stop_reason max_tokens), "tool:<Name>:<json input>" (that tool call).
  */
 export function fakeQuery(): {
   query: (params: { prompt: string | AsyncIterable<unknown>; options?: Options }) => Query;
   calls: FakeQueryCall[];
+  /** What the PreToolUse hook answered, one entry per tool call. */
+  hookOutputs: { permissionDecision?: string; permissionDecisionReason?: string }[];
 } {
   const calls: FakeQueryCall[] = [];
+  const hookOutputs: { permissionDecision?: string; permissionDecisionReason?: string }[] = [];
   let messageSeq = 0;
   const query = ({ prompt, options = {} }: { prompt: string | AsyncIterable<unknown>; options?: Options }): Query => {
     const text = typeof prompt === "string" ? prompt : "";
@@ -117,15 +174,10 @@ export function fakeQuery(): {
         yield result(text === "long" ? "max_tokens" : "end_turn");
         return;
       }
-      if (text === "run" || text === "read" || text === "todo") {
+      const tool = cannedTool(text);
+      if (tool) {
         const toolUseId = `toolu_${messageSeq}`;
-        const name = text === "run" ? "Bash" : text === "read" ? "Read" : "TodoWrite";
-        const input =
-          text === "run"
-            ? { command: "touch a.txt" }
-            : text === "read"
-              ? { file_path: "a.txt" }
-              : { todos: [{ content: "Plan it", status: "in_progress", activeForm: "Planning" }] };
+        const { name, input } = tool;
         yield streamEvent({
           type: "content_block_start",
           index: 0,
@@ -145,8 +197,10 @@ export function fakeQuery(): {
           toolUseId,
           { signal }
         );
-        const decision = (output as { hookSpecificOutput?: { permissionDecision?: string } } | undefined)
-          ?.hookSpecificOutput?.permissionDecision;
+        const specific = (output as { hookSpecificOutput?: (typeof hookOutputs)[number] } | undefined)
+          ?.hookSpecificOutput;
+        hookOutputs.push(specific ?? {});
+        const decision = specific?.permissionDecision;
         if (signal.aborted) throw Object.assign(new Error("aborted"), { name: "AbortError" });
         const allowed = decision === "allow";
         yield toolResult(toolUseId, allowed ? "done" : "The user denied this tool call.", !allowed);
@@ -179,5 +233,5 @@ export function fakeQuery(): {
       interrupt: async () => undefined,
     }) as unknown as Query;
   };
-  return { query, calls };
+  return { query, calls, hookOutputs };
 }

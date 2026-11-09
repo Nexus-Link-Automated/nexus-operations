@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Tanya sebelum perubahan",
-          "description": "Operasi baca, pencarian, dan pengambilan web berjalan bebas. Perintah shell, perubahan file, dan perubahan Plane meminta persetujuan terlebih dahulu."
+          "description": "Operasi baca dan pencarian di direktori kerja berjalan bebas. Pembacaan di tempat lain, pengambilan web, perintah shell, perubahan file, dan perubahan Plane meminta persetujuan terlebih dahulu."
         },
         "yolo": {
           "name": "Jangan pernah tanya",
@@ -110,6 +110,9 @@
       "title": "Izinkan tindakan ini?",
       "allow_once": "Izinkan sekali",
       "allow_always": "Selalu izinkan di obrolan ini",
+      "allow_always_command": "Selalu izinkan perintah persis ini di obrolan ini",
+      "allow_always_file": "Selalu izinkan pengeditan file ini di obrolan ini",
+      "allow_always_tool": "Selalu izinkan alat ini di obrolan ini",
       "reject_once": "Tolak",
       "reject_always": "Selalu tolak"
     },

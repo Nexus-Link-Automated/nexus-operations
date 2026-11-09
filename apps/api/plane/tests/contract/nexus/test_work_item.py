@@ -8,7 +8,10 @@ from datetime import date
 from uuid import uuid4
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
+from plane.api.serializers import IssueSerializer
 from plane.db.models import Issue, User, Workspace
 
 from .test_work_item_support import GUEST, MEMBER, make_issue, make_label, make_project, make_state
@@ -129,6 +132,65 @@ class TestWorkspaceList:
 
     def test_outsider_is_refused(self, outsider_client, ws_url):
         assert outsider_client.get(ws_url("work-items/")).status_code == 403
+
+
+@pytest.mark.contract
+class TestWorkspaceListCost:
+    @staticmethod
+    def _queries(client, url, params):
+        with CaptureQueriesContext(connection) as ctx:
+            res = client.get(url, params)
+        assert res.status_code == 200, res.data
+        return len(ctx.captured_queries), res
+
+    @pytest.mark.parametrize("params", [{}, {"expand": "assignees,labels"}], ids=["ids", "expanded"])
+    def test_query_count_does_not_grow_with_the_page(self, client, ws_url, project, create_user, params):
+        """IssueSerializer costs two queries per row, about 2000 for a full page."""
+        label = make_label(project)
+        for index in range(2):
+            make_issue(project, f"first-{index}", assignees=[create_user], labels=[label])
+        client.get(ws_url("work-items/"), params)  # per-token first-request writes are not the query under test
+        small, _ = self._queries(client, ws_url("work-items/"), params)
+        for index in range(8):
+            make_issue(project, f"more-{index}", assignees=[create_user], labels=[label])
+        large, res = self._queries(client, ws_url("work-items/"), params)
+        assert res.data["count"] == 10
+        assert large == small
+
+    @pytest.mark.parametrize(
+        ("params", "expand"),
+        [({}, None), ({"expand": "assignees,labels"}, ["assignees", "labels"])],
+        ids=["ids", "expanded"],
+    )
+    def test_rows_match_the_stock_serializer(self, client, ws_url, project, create_user, make_user, params, expand):
+        second_user = make_user(MEMBER, workspace=project.workspace, project=project)[0]
+        first_label, second_label = make_label(project), make_label(project)
+        make_issue(
+            project,
+            "busy",
+            assignees=[create_user, second_user],
+            labels=[first_label, second_label],
+            priority="urgent",
+        )
+        make_issue(project, "unassigned")
+        res = client.get(ws_url("work-items/"), params)
+        assert res.status_code == 200, res.data
+        assert res.data["count"] == 2
+        by_id = {str(row["id"]): row for row in res.data["results"]}
+        for issue in Issue.objects.filter(project=project):
+            assert by_id[str(issue.id)] == IssueSerializer(issue, expand=expand).data
+
+    def test_fields_still_selects_a_sparse_row(self, client, ws_url, project, create_user):
+        make_issue(project, "named", assignees=[create_user])
+        row = client.get(ws_url("work-items/"), {"fields": "id,name"}).data["results"][0]
+        assert set(row) == {"id", "name"}
+
+    def test_a_page_defaults_to_50_and_per_page_still_wins(self, client, ws_url, project):
+        for index in range(55):
+            make_issue(project, f"item-{index}")
+        res = client.get(ws_url("work-items/"))
+        assert res.data["count"] == 50 and res.data["total_count"] == 55 and res.data["next_page_results"] is True
+        assert client.get(ws_url("work-items/"), {"per_page": 55}).data["count"] == 55
 
 
 @pytest.mark.contract

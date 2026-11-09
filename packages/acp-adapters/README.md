@@ -25,28 +25,57 @@ ChatGPT and Google sign-ins (see [Sign-in helper](#sign-in-helper-plane-agent-lo
 - **Model**: a `configOptions` select with `id: "model"` and `category: "model"`, changed with
   `session/set_config_option`.
 - **Plane MCP** arrives as an ACP `mcpServers` entry `{type: "http", url, headers}`. Every adapter
-  advertises `mcpCapabilities.http = true` (SSE is not offered).
-- **Prompts** offer _Allow once_ (`allow_once`), _Always this session_ (`allow_always`, remembered per
-  tool and command or Plane action) and _Deny_ (`reject_once`).
+  advertises `mcpCapabilities.http = true` (SSE is not offered). The headers carry the user's token and
+  must never reach a command line: Claude gets a `--mcp-config` path to a 0600 file under `HOME`, removed
+  once the CLI has started; Codex and Gemini get them over stdin; DeepSeek connects in process.
+- **Prompts** offer _Allow once_ (`allow_once`), _Always allow_ (`allow_always`) and _Deny_ (`reject_once`).
+  "Always" lasts for the chat and covers one exact shell command (whitespace between arguments
+  normalised), edits to one file, one tool or Plane action, a read outside the working directory per path,
+  or a web fetch per host (per exact request on Gemini, whose prompt names no URL); its label says which. It
+  is not offered for compound or redirecting commands (`;`, `&`, `|`, `<`, `>`, backticks, `$(`, newlines,
+  even inside quotes) or changes spanning several files. `_meta["plane/memoryScope"]` on the option
+  carries the scope (`command`, `file`, `path`, `host`, `request` or `tool`); the web app has translated
+  labels for `command`, `file` and `tool` and shows its generic "always" label for the others.
 - **Cancellation**: `session/cancel` is the business stop, and the prompt answers `stopReason: "cancelled"`.
   `$/cancel_request` on the prompt request is transport-level, and the prompt answers JSON-RPC `-32800`.
 
 The mode gate:
 
-| Category                                                | `ask_all` | `ask_writes` | `yolo` |
-| ------------------------------------------------------- | --------- | ------------ | ------ |
-| read, search, web fetch, plan/think, Plane MCP reads    | ask       | run          | run    |
-| shell, file write/edit/delete/move, Plane MCP mutations | ask       | ask          | run    |
+| Category                                                                  | `ask_all` | `ask_writes` | `yolo`  |
+| ------------------------------------------------------------------------- | --------- | ------------ | ------- |
+| read or search inside the working directory, plan/think, Plane MCP reads  | ask       | run          | run     |
+| read or search outside the working directory, web fetch, web search       | ask       | ask          | run     |
+| shell, file write/edit/delete/move, Plane MCP mutations                   | ask       | ask          | run     |
+| the adapters' own file tools on `/proc` and provider sign-ins (see below) | refused   | refused      | refused |
 
 Plane MCP calls count as reads when the tool is annotated `readOnlyHint`, when its `action` is
 `list*`/`retrieve*`/`search`/`count`/`get*` (and similar), or when it is a `get_*`/`list_*` tool. Anything
 else, including unknown actions, is a mutation.
 
+### File tool paths
+
+The adapters check where their own file tools point before the gate runs (`src/core/paths.ts`), with `..`,
+symlinks and a leading `~` resolved first, including a symlink whose target does not exist yet. Some paths
+are refused in every mode, for reads and writes alike, and no one is asked:
+
+- `/proc`, however it is reached.
+- The provider sign-ins under the agent's `HOME`: all of `~/.codex` and `~/.codex-api-key` (or `CODEX_HOME`),
+  all of `~/.gemini` and `~/.gemini-api-key` except Gemini's `tmp` scratch directory, and Claude's
+  `.credentials.json`, `.claude.json` and `backups` (under `~/.claude` or `CLAUDE_CONFIG_DIR`), plus
+  `~/.claude.json`. Backup copies named after these (`.claude.json.backup`) count too.
+
+Anything else outside the working directory is a normal read or search that needs approval in `ask_writes`.
+That includes the private `TMPDIR` and the rest of `~/.claude` (Claude's transcripts and spilled tool results).
+
+These rules cover the adapters' own file tools only. A shell command the user approves, or any command in
+`yolo`, can still read any file the agent's uid can, so they do not replace scrubbing credentials from the
+environment and keeping provider keys away from tools the user drives.
+
 ## Environment variables
 
 The runner passes the agent's `env`: the admin config, with the provider credential the API resolved for the
 user (personal, then workspace, then the admin's own) and `PLANE_AGENT_AUTH`. Credentials never reach the
-tools the user drives: Claude runs with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, Codex threads get a
+tools the user drives: Claude runs with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` (see [Credential broker](#credential-broker) for the one exception), Codex threads get a
 `shell_environment_policy` that excludes `*KEY*`/`*TOKEN*`/`*SECRET*`/`*PASSWORD*`/`*CREDENTIAL*`, Gemini CLI
 runs with those names removed from its env (the key only travels in ACP `authenticate`), and DeepSeek's
 shell and stdio MCP servers drop the same names.
@@ -61,9 +90,10 @@ shell and stdio MCP servers drop the same names.
 | `CLAUDE_CODE_OAUTH_TOKEN`      | claude        | …a Claude subscription token (if no member or workspace key applies)         |
 | `OPENAI_API_KEY`               | codex         | API key; the app-server logs in with it on every start (separate home)       |
 | `CODEX_HOME`                   | codex         | Overrides the Codex home of the mode (`~/.codex` or `~/.codex-api-key`)      |
+| `PLANE_CODEX_BASE_URL`         | codex         | Set by the runner's credential broker; passed as `-c openai_base_url=…`      |
 | `GEMINI_API_KEY`               | gemini        | API key, handed to Gemini CLI in `authenticate`                              |
 | `GOOGLE_GEMINI_BASE_URL`       | gemini        | Passed through: a Gemini API gateway (tests point it at a local fake)        |
-| `PLANE_CODEX_STALL_TIMEOUT_MS` | codex         | Fail a turn after this long without app-server output (default 300000)       |
+| `PLANE_CODEX_STALL_TIMEOUT_MS` | codex         | Fail a turn after this long silent, not counting approvals (default 300000)  |
 | `PLANE_CODEX_TURN_TIMEOUT_MS`  | codex         | Hard turn limit (default 1800000)                                            |
 | `DEEPSEEK_API_KEY`             | deepseek      | Required                                                                     |
 | `DEEPSEEK_BASE_URL`            | deepseek      | API base (default `https://api.deepseek.com`)                                |
@@ -111,31 +141,79 @@ users add an API key or sign in.
     uses `~/.gemini-api-key/.gemini`), then `authenticate {methodId: "gemini-api-key", _meta: {"api-key"}}`.
   - Any other value, or no key: `authRequired` naming the settings page.
 
+### Credential broker
+
+With `AGENT_RUNNER_CREDENTIAL_BROKER` on, the runner keeps API keys to itself and spawns the adapter with an
+opaque per-agent token in the key's usual variable, plus the base URL of a proxy on the runner's loopback
+(see the runner's README). The adapters are unchanged apart from Codex, and every vendor is pointed at the
+proxy by its own setting:
+
+| Adapter    | Key variable        | Base URL setting                                   | Auth header sent to the proxy |
+| ---------- | ------------------- | -------------------------------------------------- | ----------------------------- |
+| `claude`   | `ANTHROPIC_API_KEY` | `ANTHROPIC_BASE_URL`                               | `x-api-key`                   |
+| `codex`    | `OPENAI_API_KEY`    | `-c openai_base_url=…` from `PLANE_CODEX_BASE_URL` | `Authorization: Bearer`       |
+| `gemini`   | `GEMINI_API_KEY`    | `GOOGLE_GEMINI_BASE_URL`                           | `x-goog-api-key`              |
+| `deepseek` | `DEEPSEEK_API_KEY`  | `DEEPSEEK_BASE_URL`                                | `Authorization: Bearer`       |
+
+Checked against the pinned versions in `acp-version.lock.json`; what a custom base URL changes:
+
+- **Claude** (Agent SDK 0.3.318): any other base URL counts as a third-party gateway, which turns off
+  first-party betas and model options, so the runner also sets `_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL=1`
+  (the SDK's own switch for "this URL is the Anthropic API"). It is undocumented, so check it when bumping the SDK.
+- **Codex** (0.166.0): ignores `OPENAI_BASE_URL`, hence the `-c` override (a root option, before `app-server`).
+  It still tries WebSockets for `/v1/responses` first and falls back to HTTP, so the proxy relays upgrades.
+  `model/list` serves the catalog bundled with the CLI rather than fetching Codex's remote one.
+- **Gemini** (0.65.0): the key still travels in `authenticate`; `GOOGLE_GEMINI_BASE_URL` is its gateway setting.
+- **DeepSeek**: our own client.
+
+Subprocess env scrubbing: with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, Claude Code refuses to start unless bubblewrap
+is installed and can create user namespaces. The adapter sets it to `0` only when the runner marked the key as brokered
+(`PLANE_CLAUDE_BROKERED`), the key has the broker token's form, and no other credential-looking variable is in its env, because
+then the tools can see at most a token that only works through the proxy and dies with the agent. In every other case,
+including the flag being off, it stays `1`, so the Claude adapter needs bubblewrap and working user namespaces to start.
+
+An account sign-in (ChatGPT, Google) and the `CLAUDE_CODE_OAUTH_TOKEN` subscription token are not API keys and
+are not brokered.
+
 ## How each adapter maps the modes
 
 - **Claude**: a `PreToolUse` hook runs every tool call through the gate and answers `allow` or `deny`.
   `canUseTool` uses the same decision as a fallback. `permissionMode` is `bypassPermissions` in `yolo`
   and `default` otherwise, and settings files are not loaded (`settingSources: []`), so nothing on disk
-  can bypass the hook. `TodoWrite` becomes a `plan` update and is never gated.
+  can bypass the hook. The hook also applies the file tool path rules to `Read`, `Write`, `Edit`, `MultiEdit`,
+  `NotebookEdit`, `Glob`, `Grep` and `LS`, and a refused path is denied before the gate. `TodoWrite` becomes a
+  `plan` update and is never gated.
 - **Codex**: threads run with `sandbox: "danger-full-access"` because the runner is the sandbox.
-  `ask_all` and `ask_writes` use `approvalPolicy: "untrusted"`. `ask_writes` auto-accepts commands that
-  Codex parsed as pure reads, lists or searches. `yolo` uses `on-request` and accepts everything. MCP
+  `ask_all` and `ask_writes` use `approvalPolicy: "untrusted"`, and the gate asks the user about every
+  command Codex escalates, while one naming a refused path is declined in every mode. `commandActions` labels
+  are only used to pick the card's icon and to find those refused paths: they come from a display parser, so a
+  command labelled a search can still write. `yolo` uses `on-request` and accepts everything. MCP
   servers are configured with `default_tools_approval_mode = "prompt"`, so each MCP call arrives as an
   `mcpServer/elicitation/request` and the gate decides. That way a mode change applies to MCP calls on an
-  existing thread too.
+  existing thread too. Codex reads through its shell and sends no approval request for commands on its
+  read-only safe list (`cat`, `ls`, `rg`…), so the path rules cannot see those, or anything in `yolo`. Its
+  built-in web search runs with no approval request either, so threads get `web_search = "disabled"` unless
+  they start in `yolo` (the setting is fixed when the thread starts, so lowering the level later keeps it on).
 - **Gemini**: Gemini CLI stays in its own `default` approval mode (`set_mode` is never forwarded) and an
   admin policy makes every tool call reach the adapter as `session/request_permission`. The gate answers it:
   run, ask the browser with our three options, or deny, and the answer is mapped onto Gemini's option by
   `kind` (`allow_once` → `proceed_once`, deny → `cancel`, a cancelled turn → `outcome: cancelled`). Gemini's
-  "always" options are never picked: "Always this session" is remembered by the gate, so a later mode change
-  still applies. Categories come from the `kind` Gemini declares for its built-in tools (`read`, `search`,
-  `fetch`, `think` are reads; `execute`, `edit`, `delete`, `move` and anything else ask). Plane MCP calls are
+  "always" options are never picked: an "always" answer is remembered by the gate, so a later mode change
+  still applies. Categories come from the `kind` Gemini declares for its built-in tools (`read`, `search` and
+  `think` count as reads; `fetch`, `execute`, `edit`, `delete`, `move` and anything else ask), except
+  `google_web_search`, which Gemini declares as `search` and counts here as a web fetch. The path rules use
+  the absolute `locations` Gemini reports for `read_file`, `write_file` and `replace`, and the pattern in the
+  title of `glob`; `list_directory`, `grep_search` and `read_many_files` report no location but Gemini CLI
+  confines them to the workspace itself, and any other read or search with no location counts as outside the
+  working directory. Plane MCP calls are
   found by their tool name (`mcp_<server>_<tool>`, from the `<tool>__<id>` call id) and classified like the
   others; the `action` is read from Gemini's title `tool(action: list, …)` and anything ambiguous counts as a
   mutation. Gemini's `available_commands_update` (its slash commands) is dropped, and a prompt starting with
   `/` or `$` gets a leading zero-width space so it reaches the model as text instead of running a Gemini
   command (`/extensions install`, `/restore`…) that no gate sees.
-- **DeepSeek**: our own loop asks the gate before every tool and MCP call.
+- **DeepSeek**: our own loop asks the gate before every tool and MCP call, after applying the path rules to
+  `read`, `write`, `edit`, `glob` and `grep`. `grep` and `glob` also skip symlinks that leave the searched
+  directory and anything refused, so a link planted inside the working directory cannot widen a search.
 
 ### Gemini CLI process
 
@@ -195,6 +273,10 @@ _(source)_, which was read in the bundle.
   (`reject_once`); the outcome `cancelled` counts as a rejection. Tool call ids are `<tool name>__<id>`;
   MCP tools are `mcp_<server>_<tool>` with `kind: "other"` and title `tool(arg: value, …)`; the permission
   request carries no `_meta` and no raw input.
+- `toolLocations()` is only implemented by `read_file`, `write_file` and `replace` (absolute, symlinks
+  resolved). Those tools, `list_directory`, `grep_search` and `read_many_files` check their path against the
+  workspace and the project temp directory (`validatePathAccess`) before any permission request, so a path
+  outside is a tool error with no prompt. `glob` checks its `dir_path` but not its `pattern` _(source)_.
 - In ACP mode the workspace must be trusted for MCP servers to connect (folder trust is on by default in
   0.65.0); `GEMINI_CLI_TRUST_WORKSPACE=true` trusts it for the process. HTTP MCP servers get the ACP headers.
 - `session/cancel` aborts the turn and the prompt answers `stopReason: "cancelled"`; a permission request

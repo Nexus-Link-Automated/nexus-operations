@@ -522,6 +522,8 @@ def notifications(
             for mention_id in new_mentions:
                 if mention_id != actor_id:
                     preference = UserNotificationPreference.objects.get(user_id=mention_id)
+                    # A mention was parsed from requested_data, so it is valid JSON with a description
+                    mentioned_description = json.loads(requested_data).get("description_html")
                     if (
                         last_activity is not None
                         and last_activity.field == "description"
@@ -556,14 +558,10 @@ def notifications(
                                         "new_value": str(last_activity.new_value),
                                         "old_value": str(last_activity.old_value),
                                         "old_identifier": (
-                                            str(issue_activity.get("old_identifier"))
-                                            if issue_activity.get("old_identifier")
-                                            else None
+                                            str(last_activity.old_identifier) if last_activity.old_identifier else None
                                         ),
                                         "new_identifier": (
-                                            str(issue_activity.get("new_identifier"))
-                                            if issue_activity.get("new_identifier")
-                                            else None
+                                            str(last_activity.new_identifier) if last_activity.new_identifier else None
                                         ),
                                     },
                                 },
@@ -573,7 +571,7 @@ def notifications(
                             bulk_email_logs.append(
                                 EmailNotificationLog(
                                     triggered_by_id=actor_id,
-                                    receiver_id=subscriber,
+                                    receiver_id=mention_id,
                                     entity_identifier=issue_id,
                                     entity_name="issue",
                                     data={
@@ -590,16 +588,17 @@ def notifications(
                                             "verb": str(last_activity.verb),
                                             "field": "mention",
                                             "actor": str(last_activity.actor_id),
-                                            "new_value": str(last_activity.new_value),
+                                            # A reused description activity still holds its earlier text
+                                            "new_value": str(mentioned_description),
                                             "old_value": str(last_activity.old_value),
                                             "old_identifier": (
-                                                str(issue_activity.get("old_identifier"))
-                                                if issue_activity.get("old_identifier")
+                                                str(last_activity.old_identifier)
+                                                if last_activity.old_identifier
                                                 else None
                                             ),
                                             "new_identifier": (
-                                                str(issue_activity.get("new_identifier"))
-                                                if issue_activity.get("new_identifier")
+                                                str(last_activity.new_identifier)
+                                                if last_activity.new_identifier
                                                 else None
                                             ),
                                             "activity_time": str(last_activity.created_at),
@@ -608,7 +607,23 @@ def notifications(
                                 )
                             )
                     else:
-                        for issue_activity in issue_activities_created:
+                        mention_activities = issue_activities_created
+                        # Creating an issue writes its activity row directly, so the list can be empty
+                        if not mention_activities and last_activity is not None:
+                            mention_activities = [
+                                {
+                                    "id": last_activity.id,
+                                    "verb": last_activity.verb,
+                                    "field": last_activity.field,
+                                    "actor_id": last_activity.actor_id,
+                                    "new_value": mentioned_description,
+                                    "old_value": last_activity.old_value,
+                                    "old_identifier": last_activity.old_identifier,
+                                    "new_identifier": last_activity.new_identifier,
+                                    "created_at": str(last_activity.created_at),
+                                }
+                            ]
+                        for issue_activity in mention_activities:
                             notification = create_mention_notification(
                                 project=project,
                                 issue=issue,
@@ -622,7 +637,7 @@ def notifications(
                                 bulk_email_logs.append(
                                     EmailNotificationLog(
                                         triggered_by_id=actor_id,
-                                        receiver_id=subscriber,
+                                        receiver_id=mention_id,
                                         entity_identifier=issue_id,
                                         entity_name="issue",
                                         data={

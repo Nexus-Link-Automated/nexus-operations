@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { memo } from "react";
 import type { ReactNode } from "react";
 import { Badge } from "@makeplane/propel/components/badge";
 import { Collapsible } from "@makeplane/propel/components/collapsible";
@@ -84,7 +85,7 @@ type Props = {
   onRespondToPermission: (permissionId: string, optionId: string | null) => void;
 };
 
-export function ToolCallCard({ item, permission, onRespondToPermission }: Props) {
+export const ToolCallCard = memo(function ToolCallCard({ item, permission, onRespondToPermission }: Props) {
   const { t } = useTranslation();
   const Icon = KIND_ICONS[item.toolKind] ?? ToolOutline;
   const input = formatJson(item.rawInput);
@@ -138,4 +139,4 @@ export function ToolCallCard({ item, permission, onRespondToPermission }: Props)
       {permission && <PermissionPrompt permission={permission} onRespond={onRespondToPermission} />}
     </div>
   );
-}
+});

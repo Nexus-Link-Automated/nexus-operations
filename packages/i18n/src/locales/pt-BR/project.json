@@ -413,6 +413,14 @@
           "message": "Algo deu errado."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Despublicar projeto",
+        "content": "O link público atual deixará de funcionar. Ao publicar este projeto novamente, um novo link será criado e o link atual não voltará a funcionar.",
+        "confirm": "Despublicar",
+        "confirming": "Despublicando"
+      }
     }
   }
 }

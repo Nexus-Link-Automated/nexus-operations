@@ -225,6 +225,7 @@ async def scenario(c: Client) -> None:
     V["w1_ident"] = f"E2E{SUFFIX}-{V.get('w1_seq', 1)}"
     await s("workitem", {"action": "retrieve_by_identifier", "workitem_identifier": "$w1_ident"})
     await s("workitem", {"action": "search", "query": "Alpha"})
+    await s("workitem", {"action": "search", "query": "Alpha", "project_id": P, "limit": 5})
     await s("workitem", {"action": "list", "project_id": P})
     await s("workitem", {"action": "list", "pql": 'priority = "high"'})
     await s("workitem", {"action": "list", "project_id": P, "pql": 'priority IN ("high", "low") AND title ~ "Al"'})

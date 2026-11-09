@@ -177,6 +177,16 @@ if _agent_ttl_raw.isdecimal() and 0 < int(_agent_ttl_raw) <= 7 * 24 * 60:
 elif _agent_ttl_raw:
     _logger.warning("AGENT_SESSION_TOKEN_TTL_MINUTES: ignoring invalid value %r", _agent_ttl_raw)
 
+# Per-statement limit, in milliseconds, for requests that carry a PQL query (PQL can
+# force unindexed scans). 0 turns it off. Scoped to those requests, not the database:
+# stock views and Celery have legitimately long queries.
+_pql_timeout_raw = os.environ.get("PQL_STATEMENT_TIMEOUT_MS", "").strip()
+PQL_STATEMENT_TIMEOUT_MS = 10000
+if _pql_timeout_raw.isdecimal() and int(_pql_timeout_raw) <= 3_600_000:
+    PQL_STATEMENT_TIMEOUT_MS = int(_pql_timeout_raw)
+elif _pql_timeout_raw:
+    _logger.warning("PQL_STATEMENT_TIMEOUT_MS: ignoring invalid value %r", _pql_timeout_raw)
+
 # Django Auth Backend
 AUTHENTICATION_BACKENDS = ("django.contrib.auth.backends.ModelBackend",)  # default
 

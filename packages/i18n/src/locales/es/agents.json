@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Preguntar antes de hacer cambios",
-          "description": "Las lecturas, búsquedas y consultas web se ejecutan libremente. Los comandos de shell, los cambios en archivos y los cambios en Plane piden confirmación primero."
+          "description": "Las lecturas y búsquedas en el directorio de trabajo se ejecutan libremente. Las lecturas en otras ubicaciones, las consultas web, los comandos de shell, los cambios en archivos y los cambios en Plane piden confirmación primero."
         },
         "yolo": {
           "name": "No preguntar nunca",
@@ -110,6 +110,9 @@
       "title": "¿Permitir esta acción?",
       "allow_once": "Permitir una vez",
       "allow_always": "Permitir siempre en esta conversación",
+      "allow_always_command": "Permitir siempre exactamente este comando en esta conversación",
+      "allow_always_file": "Permitir siempre las ediciones de este archivo en esta conversación",
+      "allow_always_tool": "Permitir siempre esta herramienta en esta conversación",
       "reject_once": "Denegar",
       "reject_always": "Denegar siempre"
     },

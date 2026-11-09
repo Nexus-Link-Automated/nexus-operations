@@ -139,7 +139,7 @@ class GlobalSearchEndpoint(BaseAPIView):
         return (
             cycles.order_by("-created_at")
             .distinct()
-            .values("name", "id", "project_id", "project__identifier", "workspace__slug")
+            .values("name", "id", "project_id", "project__identifier", "workspace__slug")[:100]
         )
 
     def filter_modules(self, query, slug, project_id, workspace_search):
@@ -163,7 +163,7 @@ class GlobalSearchEndpoint(BaseAPIView):
         return (
             modules.order_by("-created_at")
             .distinct()
-            .values("name", "id", "project_id", "project__identifier", "workspace__slug")
+            .values("name", "id", "project_id", "project__identifier", "workspace__slug")[:100]
         )
 
     def filter_pages(self, query, slug, project_id, workspace_search):
@@ -216,7 +216,7 @@ class GlobalSearchEndpoint(BaseAPIView):
         return (
             pages.order_by("-created_at")
             .distinct()
-            .values("name", "id", "project_ids", "project_identifiers", "workspace__slug")
+            .values("name", "id", "project_ids", "project_identifiers", "workspace__slug")[:100]
         )
 
     def filter_views(self, query, slug, project_id, workspace_search):
@@ -247,7 +247,7 @@ class GlobalSearchEndpoint(BaseAPIView):
         return (
             issue_views.order_by("-created_at")
             .distinct()
-            .values("name", "id", "project_id", "project__identifier", "workspace__slug")
+            .values("name", "id", "project_id", "project__identifier", "workspace__slug")[:100]
         )
 
     def filter_intakes(self, query, slug, project_id, workspace_search):

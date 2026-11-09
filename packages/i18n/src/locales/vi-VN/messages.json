@@ -1,0 +1,106 @@
+{
+  "messages": {
+    "title": "Tin nhắn",
+    "list_label": "Tin nhắn",
+    "unknown_member": "Thành viên không xác định",
+    "unread_count": "{count, plural, one {# tin nhắn chưa đọc} other {# tin nhắn chưa đọc}}",
+    "empty": {
+      "title": "Chưa có cuộc trò chuyện nào",
+      "description": "Các kênh và tin nhắn trực tiếp với nhóm của bạn sẽ xuất hiện ở đây."
+    },
+    "channels": {
+      "title": "Kênh",
+      "browse": "Duyệt kênh",
+      "create": "Tạo kênh",
+      "none": "Bạn chưa tham gia kênh nào."
+    },
+    "dms": {
+      "title": "Tin nhắn trực tiếp",
+      "new": "Tin nhắn mới",
+      "none": "Chưa có tin nhắn trực tiếp nào."
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# thành viên} other {# thành viên}}",
+      "join": "Tham gia",
+      "leave": "Rời kênh",
+      "join_prompt": "Bạn đang xem #{name}. Hãy tham gia để gửi tin nhắn.",
+      "archived": "Kênh này đã được lưu trữ. Bạn có thể đọc nhưng không thể gửi tin nhắn.",
+      "intro_title": "Đây là phần đầu của #{name}",
+      "intro_description": "Mọi nội dung trao đổi trong kênh này đều hiển thị ở đây.",
+      "not_found_title": "Không tìm thấy cuộc trò chuyện",
+      "not_found_description": "Cuộc trò chuyện không tồn tại hoặc bạn không có quyền truy cập."
+    },
+    "dm": {
+      "intro_title": "Đây là phần đầu cuộc trò chuyện của bạn với {name}",
+      "intro_description": "Chỉ những người trong cuộc trò chuyện này mới xem được."
+    },
+    "create_channel": {
+      "title": "Tạo kênh",
+      "description": "Kênh là nơi nhóm của bạn trao đổi về một chủ đề.",
+      "name": "Tên",
+      "name_placeholder": "ví dụ: design-review",
+      "name_required": "Kênh cần có tên.",
+      "description_label": "Mô tả (không bắt buộc)",
+      "private": "Kênh riêng tư",
+      "private_help": "Chỉ những người được thêm mới xem được kênh và tin nhắn trong kênh.",
+      "submit": "Tạo kênh"
+    },
+    "browse": {
+      "title": "Duyệt kênh",
+      "description": "Các kênh công khai mà bạn chưa tham gia.",
+      "search": "Tìm kênh",
+      "empty": "Không có kênh nào để tham gia.",
+      "open": "Mở"
+    },
+    "new_dm": {
+      "title": "Tin nhắn mới",
+      "description": "{count, plural, one {Chọn một người.} other {Chọn một người, hoặc tối đa # người cho một nhóm.}}",
+      "search": "Tìm người",
+      "empty": "Không có ai phù hợp.",
+      "submit": "Bắt đầu trò chuyện"
+    },
+    "composer": {
+      "send": "Gửi tin nhắn",
+      "placeholder_channel": "Nhắn tin tới #{name}",
+      "placeholder_dm": "Nhắn tin cho {name}"
+    },
+    "message": {
+      "label": "{name} lúc {time}",
+      "edit": "Sửa tin nhắn",
+      "save": "Lưu",
+      "edited": "(đã sửa)",
+      "remove": "Xóa tin nhắn",
+      "remove_title": "Xóa tin nhắn này?",
+      "remove_description": "Mọi người trong cuộc trò chuyện sẽ thấy rằng một tin nhắn đã bị xóa.",
+      "removing": "Đang xóa",
+      "removed": "Tin nhắn này đã bị xóa.",
+      "replies": "{count, plural, one {# phản hồi} other {# phản hồi}}",
+      "sending": "Đang gửi…",
+      "failed": "Chưa gửi được.",
+      "retry": "Thử lại",
+      "discard": "Bỏ"
+    },
+    "day": {
+      "today": "Hôm nay",
+      "yesterday": "Hôm qua"
+    },
+    "connection": {
+      "reconnecting": "Đang kết nối lại. Tin nhắn mới sẽ xuất hiện khi có kết nối trở lại.",
+      "reconnect": "Kết nối lại ngay",
+      "signed_out": "Phiên của bạn đã kết thúc. Hãy đăng nhập lại để nhận tin nhắn mới.",
+      "forbidden": "Bạn không còn quyền truy cập các tin nhắn này.",
+      "failed": "Không có cập nhật trực tiếp. Hãy tải lại trang để thử lại."
+    },
+    "errors": {
+      "retry": "Thử lại",
+      "load_channels_failed": "Không thể tải các cuộc trò chuyện",
+      "load_messages_failed": "Không thể tải tin nhắn.",
+      "create_channel_failed": "Không thể tạo kênh",
+      "join_failed": "Không thể tham gia kênh",
+      "leave_failed": "Không thể rời kênh",
+      "open_dm_failed": "Không thể bắt đầu cuộc trò chuyện",
+      "edit_failed": "Không thể lưu nội dung sửa",
+      "remove_failed": "Không thể xóa tin nhắn"
+    }
+  }
+}

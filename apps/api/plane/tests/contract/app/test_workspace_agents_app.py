@@ -137,11 +137,23 @@ class TestWorkspaceAgents:
         assert _sources(response) == {"claude-broken": None, "codex-bare": None}
 
     @pytest.mark.django_db
-    def test_guest_member_can_list(self, api_client, workspace):
+    def test_guest_cannot_list(self, api_client, workspace):
         guest = User.objects.create(email="guest@plane.so", username="guest-agents")
         WorkspaceMember.objects.create(workspace=workspace, member=guest, role=5)
         _make_agent("claude")
         api_client.force_authenticate(user=guest)
+
+        response = api_client.get(_url(workspace.slug))
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    @pytest.mark.django_db
+    @pytest.mark.parametrize("role", [15, 20])
+    def test_member_and_admin_can_list(self, api_client, workspace, role):
+        user = User.objects.create(email=f"list-role-{role}@plane.so", username=f"list-role-{role}")
+        WorkspaceMember.objects.create(workspace=workspace, member=user, role=role)
+        _make_agent("claude")
+        api_client.force_authenticate(user=user)
 
         response = api_client.get(_url(workspace.slug))
 

@@ -2,15 +2,19 @@
 // Fake `codex app-server` for the Codex adapter tests, ported from employ_ai's FakeCodexProcess
 // (tests/codex-app-server-client.test.ts). It speaks the app-server's newline-delimited JSON-RPC
 // over stdio and is driven by the prompt text:
-//   "hello" streams reasoning + a message; "run" asks to run a command; "ls" asks to run a read-only
-//   command; "plane" asks to call a Plane MCP tool; "wait" streams one delta then waits for
-//   turn/interrupt; anything else answers "ok".
+//   "hello" streams reasoning + a message; "run" asks to run a command; "search" asks to run a
+//   command Codex's display parser labels a search; "ls" asks to run a read-only command; "cmd
+//   <command>" asks to run that command; "cat etc" / "cat creds" ask to read a file outside the cwd /
+//   a sign-in file; "patch <file>..." starts a file change and asks to apply it; "plane" / "plane
+//   list" ask to call a Plane MCP tool; "wait" streams one delta then waits for turn/interrupt;
+//   anything else answers "ok".
 // Every message it receives is appended to $FAKE_CODEX_LOG (JSONL) so tests can assert on
 // thread/start params, approval replies and approval policies; the first line of each run is
-// `{ start: { codexHome, apiKeyInEnv } }`.
+// `{ start: { codexHome, apiKeyInEnv }, argv }`.
 // Accounts: signed in with an API key unless FAKE_CODEX_SIGNED_IN=0; FAKE_CODEX_ACCOUNT=chatgpt
 // signs in with ChatGPT instead. `account/login/start {type: "chatgptDeviceCode"}` completes after
 // a moment (FAKE_CODEX_LOGIN=fail fails it, =hang never completes) and writes $CODEX_HOME/auth.json.
+// FAKE_CODEX_APPROVAL_PAUSE_MS: stay silent this long after an approval answer before going on.
 "use strict";
 
 const fs = require("node:fs");
@@ -25,6 +29,7 @@ let nextServerRequest = 1;
 const pendingReplies = new Map();
 let activeTurn;
 let turnCount = 0;
+let threadCwd = "/work";
 
 function send(payload) {
   process.stdout.write(`${JSON.stringify(payload)}
@@ -89,18 +94,74 @@ async function runTurn(text) {
     complete();
     return;
   }
-  if (text === "run" || text === "ls") {
-    const command = text === "run" ? "touch a.txt" : "ls";
+  if (text.startsWith("patch ")) {
+    const itemId = `patch-${n}`;
+    const changes = text
+      .split(" ")
+      .slice(1)
+      .map((file) => ({ path: file, kind: { type: "update", move_path: null }, diff: "+x\n" }));
+    const item = { type: "fileChange", id: itemId, changes };
+    notify("item/started", { turnId: activeTurn, item: { ...item, status: "inProgress" } });
+    const reply = await ask("item/fileChange/requestApproval", {
+      itemId,
+      startedAtMs: 0,
+      reason: null,
+      grantRoot: null,
+    });
+    const accepted = reply.result && reply.result.decision === "accept";
+    notify("item/completed", {
+      turnId: activeTurn,
+      item: { ...item, status: accepted ? "completed" : "declined" },
+    });
+    message(`m-${n}`, accepted ? "patched" : "skipped");
+    complete();
+    return;
+  }
+  if (
+    text === "run" ||
+    text === "search" ||
+    text === "ls" ||
+    text === "cat etc" ||
+    text === "cat creds" ||
+    text.startsWith("cmd ")
+  ) {
+    const reads = {
+      "cat etc": "/etc/hostname",
+      "cat creds": path.join(process.env.HOME || "/tmp", ".codex", "auth.json"),
+    };
+    const command =
+      text === "run"
+        ? "touch a.txt"
+        : text === "search"
+          ? "find . -name x -delete"
+          : text === "ls"
+            ? "ls"
+            : text in reads
+              ? `cat ${reads[text]}`
+              : text.slice(4);
     const itemId = `cmd-${n}`;
+    const askingTurn = activeTurn;
     const reply = await ask("item/commandExecution/requestApproval", {
       itemId,
       startedAtMs: 0,
       environmentId: null,
       kind: "command",
       command,
-      cwd: "/work",
-      commandActions: text === "run" ? [{ type: "unknown", command }] : [{ type: "listFiles", command, path: null }],
+      // The real server reports the command's own directory; only `run` keeps a fixed one for the goldens.
+      cwd: text === "run" ? "/work" : threadCwd,
+      commandActions:
+        text === "search"
+          ? [{ type: "search", command, query: "x", path: "." }]
+          : text === "ls"
+            ? [{ type: "listFiles", command, path: null }]
+            : text in reads
+              ? [{ type: "read", command, name: path.basename(reads[text]), path: reads[text] }]
+              : [{ type: "unknown", command }],
     });
+    const pauseMs = Number(process.env.FAKE_CODEX_APPROVAL_PAUSE_MS);
+    if (pauseMs) await new Promise((resolve) => setTimeout(resolve, pauseMs));
+    // Interrupted while waiting: nothing of this turn may be reported under a later turn's id.
+    if (activeTurn !== askingTurn) return;
     if (reply.result && reply.result.decision === "accept") {
       notify("item/started", {
         turnId: activeTurn,
@@ -126,7 +187,8 @@ async function runTurn(text) {
     complete();
     return;
   }
-  if (text === "plane") {
+  if (text === "plane" || text === "plane list") {
+    const toolParams = text === "plane" ? { action: "create", name: "T" } : { action: "list" };
     const reply = await ask("mcpServer/elicitation/request", {
       serverName: "plane",
       mode: "form",
@@ -135,7 +197,7 @@ async function runTurn(text) {
       _meta: {
         codex_approval_kind: "mcp_tool_call",
         tool_name: "workitem",
-        tool_params: { action: "create", name: "T" },
+        tool_params: toolParams,
       },
     });
     if (reply.result && reply.result.action === "accept") {
@@ -144,7 +206,7 @@ async function runTurn(text) {
         id: `mcp-${n}`,
         server: "plane",
         tool: "workitem",
-        arguments: { action: "create", name: "T" },
+        arguments: toolParams,
       };
       notify("item/started", {
         turnId: activeTurn,
@@ -248,6 +310,7 @@ function handle(msg) {
       });
       return;
     case "thread/start":
+      threadCwd = msg.params.cwd;
       send({
         id: msg.id,
         result: {
@@ -283,8 +346,9 @@ function handle(msg) {
 if (log) {
   fs.appendFileSync(
     log,
-    `${JSON.stringify({ start: { codexHome: process.env.CODEX_HOME, apiKeyInEnv: "OPENAI_API_KEY" in process.env } })}\n`
+    `${JSON.stringify({ start: { codexHome: process.env.CODEX_HOME, apiKeyInEnv: "OPENAI_API_KEY" in process.env }, argv: process.argv.slice(2) })}\n`
   );
+  fs.appendFileSync(log, `${JSON.stringify({ argv: process.argv.slice(2) })}\n`);
 }
 
 process.stdin.on("data", (chunk) => {

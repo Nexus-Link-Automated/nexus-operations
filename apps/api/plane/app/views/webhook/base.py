@@ -15,6 +15,7 @@ from plane.db.models.webhook import generate_token
 from ..base import BaseAPIView
 from plane.app.permissions import allow_permission, ROLE
 from plane.app.serializers import WebhookSerializer, WebhookLogSerializer
+from plane.utils.paginator import cap_list_results
 
 
 class WebhookEndpoint(BaseAPIView):
@@ -124,6 +125,9 @@ class WebhookSecretRegenerateEndpoint(BaseAPIView):
 class WebhookLogsEndpoint(BaseAPIView):
     @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
     def get(self, request, slug, webhook_id):
-        webhook_logs = WebhookLog.objects.filter(workspace__slug=slug, webhook=webhook_id)
+        webhook_logs = cap_list_results(
+            WebhookLog.objects.filter(workspace__slug=slug, webhook=webhook_id),
+            f"webhook-logs workspace={slug} webhook={webhook_id}",
+        )
         serializer = WebhookLogSerializer(webhook_logs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)

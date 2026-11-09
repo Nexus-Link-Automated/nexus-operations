@@ -13,3 +13,5 @@ export * from "./instance-workspace.service";
 export * from "./agent.service";
 export * from "./agent-provider.service";
 export * from "./agent-connection.service";
+export * from "./chat.service";
+export * from "./chat-socket";

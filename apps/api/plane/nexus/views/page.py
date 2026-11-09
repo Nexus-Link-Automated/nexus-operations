@@ -14,10 +14,11 @@ Plane relies on exactly this when it creates a page (the web app sends no
 binary) and when it duplicates one (PageDuplicateEndpoint sets
 `description_binary = None`).
 
-So an API write of `name` or `description_html` stores the sanitized HTML and
-clears `description_binary` (and `description_json`), and the editor shows the
-new content on its next load. The title lives in the Yjs document too, which is
-why a rename also clears it.
+So an API write of `name` or `description_html` clears `description_binary` (and
+`description_json`), and the editor shows the new content on its next load. The
+title lives in the Yjs document too, which is why a rename also clears it. A
+`description_html` write stores the sanitized HTML; a rename keeps the HTML the
+live server has just stored, so text someone was typing survives the rebuild.
 
 A document that is open in an editor is held in the live server's memory, and
 its next save would overwrite the API write with the old content. Before writing,
@@ -337,7 +338,8 @@ class _PageScope:
 
         old_html = page.description_html
         content_changes = False
-        if "description_html" in data:
+        html_supplied = "description_html" in data
+        if html_supplied:
             html, error = clean_html(data.pop("description_html"))
             if error:
                 return self.error(error)
@@ -347,6 +349,7 @@ class _PageScope:
             content_changes = True
         for field, value in data.items():
             setattr(page, field, value)
+        update_fields = [*data, "updated_at", "updated_by"]
 
         if content_changes:
             if not release_live_document(page.id):
@@ -356,16 +359,23 @@ class _PageScope:
                     code="LIVE_SERVER_BUSY",
                     http_status=status.HTTP_502_BAD_GATEWAY,
                 )
+            if html_supplied:
+                update_fields += ["description_html", "description_stripped"]
+            else:
+                # The release stored whatever was being typed. Left out of the write, so a
+                # store landing after this refresh is kept too.
+                page.refresh_from_db(fields=["description_html"])
             # The live server rebuilds the Yjs document from description_html and name.
             page.description_binary = None
             page.description_json = {}
-        page.save()
+            update_fields += ["description_binary", "description_json"]
+        page.save(update_fields=update_fields)
         if content_changes and not release_live_document(page.id):
             # An editor reconnected between the release above and this write, and the live
             # server would not let go of the copy it loaded. The write itself is stored.
             logger.warning("Live document %s still held after an API write", page.id)
 
-        if content_changes and page.description_html != old_html:
+        if html_supplied and content_changes and page.description_html != old_html:
             page_transaction.delay(
                 new_description_html=page.description_html, old_description_html=old_html, page_id=str(page.id)
             )

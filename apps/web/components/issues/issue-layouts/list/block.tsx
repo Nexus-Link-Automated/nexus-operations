@@ -109,7 +109,7 @@ export const IssueBlock = observer(function IssueBlock(props: IssueBlockProps) {
   const isDraggingAllowed = canDrag && canEditIssueProperties;
 
   const { isMobile } = usePlatformOS();
-  // Room for the property chips while the row is single-line (`md:flex-row` / `lg:flex-row` below).
+  // Room for the property chips while the row is single-line (`md:flex-nowrap` / `lg:flex-nowrap` below).
   const { rowRef, leadingRef, quickActionsRef, budgetPx } = useListRowPropertiesBudget({
     enabled: !!issue && !issue.tempId,
     singleLineFrom: isSidebarCollapsed ? "md" : "lg",
@@ -189,15 +189,15 @@ export const IssueBlock = observer(function IssueBlock(props: IssueBlockProps) {
           rowRef(node);
         }}
         className={cn(
-          "group/list-block relative flex min-h-11 flex-col gap-3 bg-layer-transparent py-3 text-body-xs-regular transition-colors hover:bg-layer-transparent-hover",
+          "group/list-block relative flex min-h-11 flex-wrap gap-x-2 gap-y-3 bg-layer-transparent py-3 text-body-xs-regular transition-colors hover:bg-layer-transparent-hover",
           {
             "border-accent-strong": getIsIssuePeeked(issue.id) && peekIssue?.nestingLevel === nestingLevel,
             "border-strong-1": isIssueActive,
             "last:border-b-transparent": !getIsIssuePeeked(issue.id) && !isIssueActive,
             "bg-accent-primary/5 hover:bg-accent-primary/10": isIssueSelected,
             "bg-layer-1": isCurrentBlockDragging,
-            "md:flex-row md:items-center": isSidebarCollapsed,
-            "lg:flex-row lg:items-center": !isSidebarCollapsed,
+            "md:flex-nowrap md:items-center": isSidebarCollapsed,
+            "lg:flex-nowrap lg:items-center": !isSidebarCollapsed,
           }
         )}
         onDragStart={() => {
@@ -212,7 +212,7 @@ export const IssueBlock = observer(function IssueBlock(props: IssueBlockProps) {
           }
         }}
       >
-        <div className="flex w-full gap-2 truncate">
+        <div className={cn("flex flex-1 truncate", { "md:mr-1": isSidebarCollapsed, "lg:mr-1": !isSidebarCollapsed })}>
           <div className="flex flex-grow items-center gap-0.5 truncate">
             <div ref={leadingRef} className="flex items-center gap-1" style={isSubIssue ? { marginLeft } : {}}>
               {/* select checkbox */}
@@ -278,58 +278,51 @@ export const IssueBlock = observer(function IssueBlock(props: IssueBlockProps) {
               <p className="cursor-pointer truncate text-body-xs-medium text-primary">{issue.name}</p>
             </Tooltip>
           </div>
-          {!issue?.tempId && (
-            <div
-              className={cn("block rounded-sm border border-strong", {
-                "md:hidden": isSidebarCollapsed,
-                "lg:hidden": !isSidebarCollapsed,
-              })}
-            >
-              {quickActions({
-                issue,
-                parentRef: issueRef,
-              })}
-            </div>
-          )}
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
+        {/* Sits on its own line below the title and quick actions until the row is single-line. */}
+        <div
+          className={cn("order-last flex w-full flex-shrink-0 items-center gap-2", {
+            "md:order-none md:w-auto": isSidebarCollapsed,
+            "lg:order-none lg:w-auto": !isSidebarCollapsed,
+          })}
+        >
           {!issue?.tempId ? (
-            <>
-              <IssueProperties
-                className={`relative flex min-w-0 flex-wrap ${isSidebarCollapsed ? "md:-m-0.5 md:flex-shrink-0 md:flex-grow md:flex-nowrap md:overflow-hidden md:p-0.5" : "lg:-m-0.5 lg:flex-shrink-0 lg:flex-grow lg:flex-nowrap lg:overflow-hidden lg:p-0.5"} items-center gap-2 whitespace-nowrap`}
-                issue={issue}
-                isReadOnly={!canEditIssueProperties}
-                updateIssue={updateIssue}
-                displayProperties={displayProperties}
-                activeLayout="List"
-                isEpic={isEpic}
-                overflowBudgetPx={budgetPx}
-                isRowDragging={isCurrentBlockDragging}
-              />
-              {/* oxlint-disable-next-line jsx_a11y/click-events-have-key-events oxlint-disable-next-line jsx_a11y/no-static-element-interactions */}
-              <div
-                ref={quickActionsRef}
-                className={cn("hidden", {
-                  "md:flex": isSidebarCollapsed,
-                  "lg:flex": !isSidebarCollapsed,
-                })}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-              >
-                {quickActions({
-                  issue,
-                  parentRef: issueRef,
-                })}
-              </div>
-            </>
+            <IssueProperties
+              className={`relative flex min-w-0 flex-wrap ${isSidebarCollapsed ? "md:-m-0.5 md:flex-shrink-0 md:flex-grow md:flex-nowrap md:overflow-hidden md:p-0.5" : "lg:-m-0.5 lg:flex-shrink-0 lg:flex-grow lg:flex-nowrap lg:overflow-hidden lg:p-0.5"} items-center gap-2 whitespace-nowrap`}
+              issue={issue}
+              isReadOnly={!canEditIssueProperties}
+              updateIssue={updateIssue}
+              displayProperties={displayProperties}
+              activeLayout="List"
+              isEpic={isEpic}
+              overflowBudgetPx={budgetPx}
+              isRowDragging={isCurrentBlockDragging}
+            />
           ) : (
             <div className="h-4 w-4">
               <Spinner className="h-4 w-4" />
             </div>
           )}
         </div>
+        {!issue?.tempId && (
+          // oxlint-disable-next-line jsx_a11y/click-events-have-key-events, jsx_a11y/no-static-element-interactions
+          <div
+            ref={quickActionsRef}
+            className={cn("block flex-shrink-0 rounded-sm border border-strong", {
+              "md:flex md:border-0": isSidebarCollapsed,
+              "lg:flex lg:border-0": !isSidebarCollapsed,
+            })}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            {quickActions({
+              issue,
+              parentRef: issueRef,
+            })}
+          </div>
+        )}
       </Row>
     </ControlLink>
   );

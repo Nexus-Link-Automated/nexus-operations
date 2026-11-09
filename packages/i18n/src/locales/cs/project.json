@@ -413,6 +413,14 @@
           "message": "Něco se pokazilo."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Stáhnout projekt z publikace",
+        "content": "Aktuální veřejný odkaz přestane fungovat. Opětovným publikováním tohoto projektu vznikne nový odkaz a aktuální odkaz už fungovat nebude.",
+        "confirm": "Stáhnout z publikace",
+        "confirming": "Stahování z publikace"
+      }
     }
   }
 }
