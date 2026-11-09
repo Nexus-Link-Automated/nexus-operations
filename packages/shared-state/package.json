@@ -29,8 +29,7 @@
     "lodash-es": "catalog:",
     "mobx": "catalog:",
     "mobx-utils": "catalog:",
-    "uuid": "catalog:",
-    "zod": "catalog:"
+    "uuid": "catalog:"
   },
   "devDependencies": {
     "@plane/typescript-config": "workspace:*",

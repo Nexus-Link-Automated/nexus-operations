@@ -26,7 +26,6 @@
     "@makeplane/propel": "catalog:",
     "@plane/blocks": "workspace:*",
     "@plane/constants": "workspace:*",
-    "@plane/hooks": "workspace:*",
     "@plane/i18n": "workspace:*",
     "@plane/services": "workspace:*",
     "@plane/types": "workspace:*",
@@ -42,8 +41,7 @@
     "react-hook-form": "catalog:",
     "react-router": "catalog:",
     "serve": "catalog:",
-    "swr": "catalog:",
-    "uuid": "catalog:"
+    "swr": "catalog:"
   },
   "devDependencies": {
     "@plane/tailwind-config": "workspace:*",

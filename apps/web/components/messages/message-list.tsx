@@ -34,9 +34,6 @@ type Props = {
 /** Where the list stands: the height of its content, and the first row on screen with its distance from the top. */
 type ScrollPosition = { contentHeight: number; row: Element | null; rowTop: number };
 
-function readScrollPosition(root: HTMLElement, content: HTMLElement): ScrollPosition {
-  const viewportTop = root.getBoundingClientRect().top;
-  const contentHeight = content.offsetHeight;
 function isAtBottom(el: HTMLElement): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight < STICK_TO_BOTTOM_PX;
 }
@@ -132,7 +129,6 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     const content = contentRef.current;
     if (!root || !content) return;
     const { row, rowTop } = position.current;
-    if (atBottom.current) {
     if (atBottom.current && !revealRow.current?.isConnected) {
       root.scrollTop = root.scrollHeight;
     } else if (row?.isConnected) {
@@ -140,10 +136,6 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
       const moved = row.getBoundingClientRect().top - root.getBoundingClientRect().top - rowTop;
       if (moved) root.scrollTop += moved;
     }
-    position.current = readScrollPosition(root, content);
-  }, []);
-
-  useLayoutEffect(holdPosition, [holdPosition, firstId, lastId, messages.length, pending.length]);
     position.current = readScrollPosition(root, content, revealRow.current);
   }, []);
 
@@ -196,12 +188,6 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     const root = scrollRef.current;
     const content = contentRef.current;
     // A real ID: only one the store found gets here, so it's safe in a selector.
-    scrollRef.current?.querySelector(`[data-message-id="${highlightedId}"]`)?.scrollIntoView?.({ block: "center" });
-    // Now, not on the scroll event: bodies still rendering would otherwise put the list back where it was.
-    if (scrollRef.current && contentRef.current) {
-      position.current = readScrollPosition(scrollRef.current, contentRef.current);
-    }
-    const timer = setTimeout(() => setHighlightedId(null), HIGHLIGHT_MS);
     const row = root?.querySelector(`[data-message-id="${highlightedId}"]`) ?? null;
     row?.scrollIntoView?.({ block: "center" });
     // Now, not on the scroll event: bodies still rendering would otherwise put the list back where it was.
@@ -252,9 +238,6 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
         const content = contentRef.current;
         // The content changed height since this scroll was queued. That isn't the user leaving the bottom, and the
         // observer is about to run.
-        if (content?.offsetHeight !== position.current.contentHeight) return;
-        atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_TO_BOTTOM_PX;
-        position.current = readScrollPosition(el, content);
         if (!content || content.offsetHeight !== position.current.contentHeight) return;
         atBottom.current = isAtBottom(el);
         position.current = readScrollPosition(el, content, revealRow.current);
@@ -264,7 +247,6 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
       <div ref={topRef} className="mt-auto" />
       <div ref={observeContent} className="flex flex-col">
         {hasMoreOlder ? (
-          <div className="flex justify-center py-3">{loadingOlder && <Spinner />}</div>
           <div className="flex justify-center py-3">
             {olderFailed ? (
               <Button
