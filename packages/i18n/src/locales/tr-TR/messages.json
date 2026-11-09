@@ -1,0 +1,106 @@
+{
+  "messages": {
+    "title": "Mesajlar",
+    "list_label": "Mesajlar",
+    "unknown_member": "Bilinmeyen üye",
+    "unread_count": "{count, plural, one {# okunmamış mesaj} other {# okunmamış mesaj}}",
+    "empty": {
+      "title": "Henüz sohbet yok",
+      "description": "Ekibinizle olan kanallar ve doğrudan mesajlar burada görünecek."
+    },
+    "channels": {
+      "title": "Kanallar",
+      "browse": "Kanallara göz atın",
+      "create": "Kanal oluşturun",
+      "none": "Henüz hiçbir kanala katılmadınız."
+    },
+    "dms": {
+      "title": "Doğrudan mesajlar",
+      "new": "Yeni mesaj",
+      "none": "Henüz doğrudan mesaj yok."
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# üye} other {# üye}}",
+      "join": "Katıl",
+      "leave": "Kanaldan ayrıl",
+      "join_prompt": "#{name} kanalını görüntülüyorsunuz. Mesaj göndermek için katılın.",
+      "archived": "Bu kanal arşivlendi. Okuyabilirsiniz ancak mesaj gönderemezsiniz.",
+      "intro_title": "#{name} kanalının başlangıcı",
+      "intro_description": "Bu kanalda yazılan her şey burada görünür.",
+      "not_found_title": "Sohbet bulunamadı",
+      "not_found_description": "Sohbet mevcut değil veya erişiminiz yok."
+    },
+    "dm": {
+      "intro_title": "{name} ile sohbetinizin başlangıcı",
+      "intro_description": "Bu sohbeti yalnızca içindeki kişiler görebilir."
+    },
+    "create_channel": {
+      "title": "Kanal oluşturun",
+      "description": "Kanallar, ekibinizin tek bir konu hakkında konuştuğu yerlerdir.",
+      "name": "Ad",
+      "name_placeholder": "ör. design-review",
+      "name_required": "Kanalın bir adı olmalıdır.",
+      "description_label": "Açıklama (isteğe bağlı)",
+      "private": "Özel kanal",
+      "private_help": "Kanalı ve mesajlarını yalnızca eklenen kişiler görebilir.",
+      "submit": "Kanal oluştur"
+    },
+    "browse": {
+      "title": "Kanallara göz atın",
+      "description": "Katılmadığınız herkese açık kanallar.",
+      "search": "Kanal arayın",
+      "empty": "Katılabileceğiniz kanal yok.",
+      "open": "Aç"
+    },
+    "new_dm": {
+      "title": "Yeni mesaj",
+      "description": "{count, plural, one {Bir kişi seçin.} other {Bir kişi veya bir grup için en fazla # kişi seçin.}}",
+      "search": "Kişi arayın",
+      "empty": "Eşleşen kimse yok.",
+      "submit": "Sohbet başlat"
+    },
+    "composer": {
+      "send": "Mesaj gönder",
+      "placeholder_channel": "#{name} kanalına mesaj",
+      "placeholder_dm": "{name} kişisine mesaj"
+    },
+    "message": {
+      "label": "{name}, {time}",
+      "edit": "Mesajı düzenle",
+      "save": "Kaydet",
+      "edited": "(düzenlendi)",
+      "remove": "Mesajı sil",
+      "remove_title": "Bu mesaj silinsin mi?",
+      "remove_description": "Sohbetteki herkes bir mesajın silindiğini görecek.",
+      "removing": "Siliniyor",
+      "removed": "Bu mesaj silindi.",
+      "replies": "{count, plural, one {# yanıt} other {# yanıt}}",
+      "sending": "Gönderiliyor…",
+      "failed": "Gönderilmedi.",
+      "retry": "Yeniden dene",
+      "discard": "Vazgeç"
+    },
+    "day": {
+      "today": "Bugün",
+      "yesterday": "Dün"
+    },
+    "connection": {
+      "reconnecting": "Yeniden bağlanılıyor. Bağlantı geri geldiğinde yeni mesajlar görünecek.",
+      "reconnect": "Şimdi yeniden bağlan",
+      "signed_out": "Oturumunuz sona erdi. Yeni mesajları almak için tekrar oturum açın.",
+      "forbidden": "Artık bu mesajlara erişiminiz yok.",
+      "failed": "Canlı güncellemeler kullanılamıyor. Tekrar denemek için sayfayı yeniden yükleyin."
+    },
+    "errors": {
+      "retry": "Tekrar deneyin",
+      "load_channels_failed": "Sohbetleriniz yüklenemedi",
+      "load_messages_failed": "Mesajlar yüklenemedi.",
+      "create_channel_failed": "Kanal oluşturulamadı",
+      "join_failed": "Kanala katılınamadı",
+      "leave_failed": "Kanaldan ayrılınamadı",
+      "open_dm_failed": "Sohbet başlatılamadı",
+      "edit_failed": "Düzenleme kaydedilemedi",
+      "remove_failed": "Mesaj silinemedi"
+    }
+  }
+}

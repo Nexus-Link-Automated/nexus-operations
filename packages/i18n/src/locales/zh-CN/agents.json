@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "更改前询问",
-          "description": "读取、搜索和网页抓取可直接运行。Shell 命令、文件更改和 Plane 更改会先询问。"
+          "description": "工作目录内的读取和搜索可直接运行。读取其他位置、网页抓取、Shell 命令、文件更改和 Plane 更改会先询问。"
         },
         "yolo": {
           "name": "从不询问",
@@ -110,6 +110,9 @@
       "title": "是否允许此操作？",
       "allow_once": "允许一次",
       "allow_always": "在此聊天中始终允许",
+      "allow_always_command": "在此聊天中始终允许这条完全相同的命令",
+      "allow_always_file": "在此聊天中始终允许编辑此文件",
+      "allow_always_tool": "在此聊天中始终允许此工具",
       "reject_once": "拒绝",
       "reject_always": "始终拒绝"
     },

@@ -111,6 +111,11 @@ In v1.4.0 to v1.4.2 a container started without `SECRET_KEY` received a generate
 
 - `API_KEY_RATE_LIMIT`: API key rate limit (default: `60/minute`)
 
+#### Client IP and Rate Limiting
+
+- `TRUSTED_PROXIES`: Addresses whose forwarded headers the bundled proxy keeps (default: `private_ranges`). Behind a load balancer or CDN, add its ranges, space-separated: `-e TRUSTED_PROXIES="private_ranges 203.0.113.0/24"`.
+- `NUM_PROXIES`: Reverse proxies in front of the API (default: `1`, the bundled proxy). Add one per extra load balancer or CDN hop, otherwise every client shares the load balancer's rate limit.
+
 ## Port Mapping
 
 The following ports are exposed:

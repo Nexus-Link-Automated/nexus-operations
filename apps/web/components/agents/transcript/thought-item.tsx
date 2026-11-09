@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { memo } from "react";
 import { Collapsible } from "@makeplane/propel/components/collapsible";
 import { ThoughtsOutline } from "@makeplane/propel/icons";
 import type { ThoughtItem as TThoughtItem } from "@plane/acp-client";
@@ -16,7 +17,7 @@ type Props = {
 };
 
 /** The agent's reasoning, collapsed by default. */
-export function ThoughtItem({ item, isStreaming }: Props) {
+export const ThoughtItem = memo(function ThoughtItem({ item, isStreaming }: Props) {
   const { t } = useTranslation();
   return (
     <Collapsible
@@ -32,4 +33,4 @@ export function ThoughtItem({ item, isStreaming }: Props) {
       </p>
     </Collapsible>
   );
-}
+});

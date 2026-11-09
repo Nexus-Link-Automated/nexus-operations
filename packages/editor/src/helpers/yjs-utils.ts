@@ -20,5 +20,4 @@ export const {
   getAllDocumentFormatsFromRichTextEditorBinaryData,
   getAllDocumentFormatsFromDocumentEditorBinaryData,
   convertHTMLDocumentToAllFormats,
-  extractTextFromHTML,
 } = createDocumentCodecs({ generateHTML, generateJSON });

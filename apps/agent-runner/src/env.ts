@@ -11,6 +11,12 @@ import type { WorkspaceLayout } from "./workspace.ts";
 /** Starting-mode fallback the adapters read (`INITIAL_MODE_ENV` in `@plane/acp-adapters`). */
 export const INITIAL_MODE_ENV = "PLANE_AGENT_DEFAULT_MODE";
 
+/** Where the Codex adapter points the app-server; only the credential broker sets it. */
+export const CODEX_BASE_URL_ENV = "PLANE_CODEX_BASE_URL";
+
+/** Tells the Claude adapter its API key is a broker token; only the credential broker sets it. */
+export const CLAUDE_BROKERED_ENV = "PLANE_CLAUDE_BROKERED";
+
 const ENV_KEY = /^[A-Z][A-Z0-9_]{0,63}$/;
 
 /**
@@ -49,6 +55,8 @@ const RESERVED = new Set([
   "GIT_SSH",
   "GIT_SSH_COMMAND",
   INITIAL_MODE_ENV,
+  CODEX_BASE_URL_ENV,
+  CLAUDE_BROKERED_ENV,
 ]);
 const RESERVED_PREFIXES = ["LD_", "DYLD_", "MALLOC_", "AGENT_RUNNER_", "AGENT_BRIDGE_"];
 

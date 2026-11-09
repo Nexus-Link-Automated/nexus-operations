@@ -42,7 +42,7 @@ from plane_mcp.toolkit.mentions import (
     tokenize_mentions,
     unmentionable,
 )
-from plane_mcp.toolkit.paging import dump_results, envelope, pql_failure, workitem_page
+from plane_mcp.toolkit.paging import DEFAULT_PAGE_SIZE, dump_results, envelope, pql_failure, workitem_page
 from plane_mcp.toolkit.runtime import (
     as_params,
     coerce_list,
@@ -65,6 +65,7 @@ from plane_mcp.toolkit.spec import (
 from plane_mcp.toolkit.transforms import StripOutputSchemas
 
 __all__ = [
+    "DEFAULT_PAGE_SIZE",
     "MENTION_TOKEN",
     "WORK_ITEM_TYPES",
     "Action",

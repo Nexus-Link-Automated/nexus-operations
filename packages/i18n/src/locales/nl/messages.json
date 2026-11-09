@@ -1,0 +1,106 @@
+{
+  "messages": {
+    "title": "Berichten",
+    "list_label": "Berichten",
+    "unknown_member": "Onbekend lid",
+    "unread_count": "{count, plural, one {# ongelezen bericht} other {# ongelezen berichten}}",
+    "empty": {
+      "title": "Nog geen gesprekken",
+      "description": "Kanalen en directe berichten met je team verschijnen hier."
+    },
+    "channels": {
+      "title": "Kanalen",
+      "browse": "Kanalen bekijken",
+      "create": "Kanaal maken",
+      "none": "Je neemt nog aan geen enkel kanaal deel."
+    },
+    "dms": {
+      "title": "Directe berichten",
+      "new": "Nieuw bericht",
+      "none": "Nog geen directe berichten."
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# lid} other {# leden}}",
+      "join": "Deelnemen",
+      "leave": "Kanaal verlaten",
+      "join_prompt": "Je bekijkt #{name}. Neem deel om berichten te sturen.",
+      "archived": "Dit kanaal is gearchiveerd. Je kunt het lezen, maar geen berichten sturen.",
+      "intro_title": "Dit is het begin van #{name}",
+      "intro_description": "Alles wat in dit kanaal wordt gezegd, verschijnt hier.",
+      "not_found_title": "Gesprek niet gevonden",
+      "not_found_description": "Het bestaat niet, of je hebt er geen toegang toe."
+    },
+    "dm": {
+      "intro_title": "Dit is het begin van je gesprek met {name}",
+      "intro_description": "Alleen de mensen in dit gesprek kunnen het zien."
+    },
+    "create_channel": {
+      "title": "Kanaal maken",
+      "description": "In kanalen praat je team over één onderwerp.",
+      "name": "Naam",
+      "name_placeholder": "bijv. design-review",
+      "name_required": "Een kanaal heeft een naam nodig.",
+      "description_label": "Beschrijving (optioneel)",
+      "private": "Privékanaal",
+      "private_help": "Alleen toegevoegde mensen kunnen het kanaal en de berichten zien.",
+      "submit": "Kanaal maken"
+    },
+    "browse": {
+      "title": "Kanalen bekijken",
+      "description": "Openbare kanalen waaraan je niet deelneemt.",
+      "search": "Kanalen zoeken",
+      "empty": "Geen kanalen om aan deel te nemen.",
+      "open": "Openen"
+    },
+    "new_dm": {
+      "title": "Nieuw bericht",
+      "description": "{count, plural, one {Kies één persoon.} other {Kies één persoon, of maximaal # voor een groep.}}",
+      "search": "Personen zoeken",
+      "empty": "Geen resultaten.",
+      "submit": "Gesprek starten"
+    },
+    "composer": {
+      "send": "Bericht sturen",
+      "placeholder_channel": "Bericht aan #{name}",
+      "placeholder_dm": "Bericht aan {name}"
+    },
+    "message": {
+      "label": "{name} om {time}",
+      "edit": "Bericht bewerken",
+      "save": "Opslaan",
+      "edited": "(bewerkt)",
+      "remove": "Bericht verwijderen",
+      "remove_title": "Dit bericht verwijderen?",
+      "remove_description": "Iedereen in het gesprek ziet dat er een bericht is verwijderd.",
+      "removing": "Verwijderen",
+      "removed": "Dit bericht is verwijderd.",
+      "replies": "{count, plural, one {# antwoord} other {# antwoorden}}",
+      "sending": "Versturen…",
+      "failed": "Niet verstuurd.",
+      "retry": "Opnieuw proberen",
+      "discard": "Weggooien"
+    },
+    "day": {
+      "today": "Vandaag",
+      "yesterday": "Gisteren"
+    },
+    "connection": {
+      "reconnecting": "Opnieuw verbinden. Nieuwe berichten verschijnen zodra de verbinding terug is.",
+      "reconnect": "Nu opnieuw verbinden",
+      "signed_out": "Je sessie is verlopen. Meld je opnieuw aan om nieuwe berichten te ontvangen.",
+      "forbidden": "Je hebt geen toegang meer tot deze berichten.",
+      "failed": "Live-updates zijn niet beschikbaar. Laad de pagina opnieuw om het nog eens te proberen."
+    },
+    "errors": {
+      "retry": "Opnieuw proberen",
+      "load_channels_failed": "Je gesprekken konden niet worden geladen",
+      "load_messages_failed": "De berichten konden niet worden geladen.",
+      "create_channel_failed": "Het kanaal kon niet worden gemaakt",
+      "join_failed": "Deelnemen aan het kanaal is mislukt",
+      "leave_failed": "Het kanaal kon niet worden verlaten",
+      "open_dm_failed": "Het gesprek kon niet worden gestart",
+      "edit_failed": "De wijziging kon niet worden opgeslagen",
+      "remove_failed": "Het bericht kon niet worden verwijderd"
+    }
+  }
+}

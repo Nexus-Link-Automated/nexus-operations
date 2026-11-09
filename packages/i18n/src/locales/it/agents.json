@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Chiedere prima delle modifiche",
-          "description": "Letture, ricerche e recuperi di contenuti web vengono eseguiti liberamente. I comandi della shell, le modifiche ai file e le modifiche in Plane richiedono prima una conferma."
+          "description": "Letture e ricerche nella directory di lavoro vengono eseguite liberamente. Letture altrove, recuperi di contenuti web, comandi della shell, modifiche ai file e modifiche in Plane richiedono prima una conferma."
         },
         "yolo": {
           "name": "Non chiedere mai",
@@ -110,6 +110,9 @@
       "title": "Consentire questa azione?",
       "allow_once": "Consenti una volta",
       "allow_always": "Consenti sempre in questa chat",
+      "allow_always_command": "Consenti sempre esattamente questo comando in questa chat",
+      "allow_always_file": "Consenti sempre le modifiche a questo file in questa chat",
+      "allow_always_tool": "Consenti sempre questo strumento in questa chat",
       "reject_once": "Nega",
       "reject_always": "Nega sempre"
     },

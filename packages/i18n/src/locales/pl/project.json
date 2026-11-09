@@ -413,6 +413,14 @@
           "message": "Coś poszło nie tak."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Wycofaj projekt z publikacji",
+        "content": "Obecny link publiczny przestanie działać. Ponowna publikacja tego projektu utworzy nowy link, a obecny link już nie będzie działać.",
+        "confirm": "Wycofaj z publikacji",
+        "confirming": "Wycofywanie z publikacji"
+      }
     }
   }
 }

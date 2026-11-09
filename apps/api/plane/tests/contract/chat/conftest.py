@@ -17,6 +17,7 @@ from rest_framework.test import APIClient
 
 from plane.chat.models import Channel, ChannelKind, ChannelMember, ChannelMemberRole, Message
 from plane.db.models import User, Workspace, WorkspaceMember
+from plane.tests.chat_events import Published
 
 ADMIN, MEMBER, GUEST = 20, 15, 5
 
@@ -118,3 +119,11 @@ def send():
 def url(workspace):
     """url("channels/") -> /api/workspaces/<slug>/chat/channels/"""
     return lambda suffix="", slug=None: f"/api/workspaces/{slug or workspace.slug}/chat/{suffix}"
+
+
+@pytest.fixture
+def published():
+    """A live subscriber on real Redis; `published.events` is what has reached it so far."""
+    subscriber = Published()
+    yield subscriber
+    subscriber.close()

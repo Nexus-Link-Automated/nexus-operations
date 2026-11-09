@@ -1,0 +1,106 @@
+{
+  "messages": {
+    "title": "Pesan",
+    "list_label": "Pesan",
+    "unknown_member": "Anggota tidak dikenal",
+    "unread_count": "{count, plural, one {# pesan belum dibaca} other {# pesan belum dibaca}}",
+    "empty": {
+      "title": "Belum ada percakapan",
+      "description": "Kanal dan pesan langsung dengan tim Anda akan muncul di sini."
+    },
+    "channels": {
+      "title": "Kanal",
+      "browse": "Jelajahi kanal",
+      "create": "Buat kanal",
+      "none": "Anda belum bergabung dengan kanal apa pun."
+    },
+    "dms": {
+      "title": "Pesan langsung",
+      "new": "Pesan baru",
+      "none": "Belum ada pesan langsung."
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# anggota} other {# anggota}}",
+      "join": "Bergabung",
+      "leave": "Keluar dari kanal",
+      "join_prompt": "Anda sedang melihat #{name}. Bergabunglah untuk mengirim pesan.",
+      "archived": "Kanal ini telah diarsipkan. Anda dapat membacanya, tetapi tidak dapat mengirim pesan.",
+      "intro_title": "Ini adalah awal dari #{name}",
+      "intro_description": "Semua yang dibicarakan di kanal ini muncul di sini.",
+      "not_found_title": "Percakapan tidak ditemukan",
+      "not_found_description": "Percakapan tidak ada, atau Anda tidak memiliki akses ke sana."
+    },
+    "dm": {
+      "intro_title": "Ini adalah awal percakapan Anda dengan {name}",
+      "intro_description": "Hanya orang dalam percakapan ini yang dapat melihatnya."
+    },
+    "create_channel": {
+      "title": "Buat kanal",
+      "description": "Kanal adalah tempat tim Anda membahas satu topik.",
+      "name": "Nama",
+      "name_placeholder": "mis. design-review",
+      "name_required": "Kanal memerlukan nama.",
+      "description_label": "Deskripsi (opsional)",
+      "private": "Kanal pribadi",
+      "private_help": "Hanya orang yang ditambahkan yang dapat melihat kanal ini beserta pesannya.",
+      "submit": "Buat kanal"
+    },
+    "browse": {
+      "title": "Jelajahi kanal",
+      "description": "Kanal publik yang belum Anda ikuti.",
+      "search": "Cari kanal",
+      "empty": "Tidak ada kanal untuk diikuti.",
+      "open": "Buka"
+    },
+    "new_dm": {
+      "title": "Pesan baru",
+      "description": "{count, plural, one {Pilih satu orang.} other {Pilih satu orang, atau hingga # orang untuk grup.}}",
+      "search": "Cari orang",
+      "empty": "Tidak ada yang cocok.",
+      "submit": "Mulai percakapan"
+    },
+    "composer": {
+      "send": "Kirim pesan",
+      "placeholder_channel": "Kirim pesan ke #{name}",
+      "placeholder_dm": "Kirim pesan ke {name}"
+    },
+    "message": {
+      "label": "{name} pada {time}",
+      "edit": "Edit pesan",
+      "save": "Simpan",
+      "edited": "(diedit)",
+      "remove": "Hapus pesan",
+      "remove_title": "Hapus pesan ini?",
+      "remove_description": "Semua orang dalam percakapan akan melihat bahwa sebuah pesan telah dihapus.",
+      "removing": "Menghapus",
+      "removed": "Pesan ini telah dihapus.",
+      "replies": "{count, plural, one {# balasan} other {# balasan}}",
+      "sending": "Mengirim…",
+      "failed": "Tidak terkirim.",
+      "retry": "Coba lagi",
+      "discard": "Buang"
+    },
+    "day": {
+      "today": "Hari ini",
+      "yesterday": "Kemarin"
+    },
+    "connection": {
+      "reconnecting": "Menghubungkan ulang. Pesan baru akan muncul saat koneksi kembali.",
+      "reconnect": "Hubungkan ulang sekarang",
+      "signed_out": "Sesi Anda telah berakhir. Masuk lagi untuk menerima pesan baru.",
+      "forbidden": "Anda tidak lagi memiliki akses ke pesan ini.",
+      "failed": "Pembaruan langsung tidak tersedia. Muat ulang halaman untuk mencoba lagi."
+    },
+    "errors": {
+      "retry": "Coba lagi",
+      "load_channels_failed": "Tidak dapat memuat percakapan Anda",
+      "load_messages_failed": "Tidak dapat memuat pesan.",
+      "create_channel_failed": "Tidak dapat membuat kanal",
+      "join_failed": "Tidak dapat bergabung dengan kanal",
+      "leave_failed": "Tidak dapat keluar dari kanal",
+      "open_dm_failed": "Tidak dapat memulai percakapan",
+      "edit_failed": "Tidak dapat menyimpan perubahan",
+      "remove_failed": "Tidak dapat menghapus pesan"
+    }
+  }
+}

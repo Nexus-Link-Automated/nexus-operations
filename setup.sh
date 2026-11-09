@@ -44,7 +44,7 @@ export LC_CTYPE=C
 echo -e "${YELLOW}Setting up environment files...${NC}"
 
 # Copy all environment example files
-services=("" "web" "api" "space" "admin" "live")
+services=("" "web" "api" "space" "admin" "live" "chat-gateway")
 success=true
 
 for service in "${services[@]}"; do

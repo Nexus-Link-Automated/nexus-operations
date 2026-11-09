@@ -222,3 +222,29 @@ class TestS3StorageObjectMetadata:
 
         assert S3Storage().get_object_metadata("ws/missing.png") is None
         assert mock_log.called is logged
+
+
+@pytest.mark.unit
+class TestS3StorageUploadFile:
+    """``upload_file`` builds its ExtraArgs per call."""
+
+    @patch("plane.settings.storage.boto3")
+    def test_content_type_does_not_carry_over_to_the_next_call(self, mock_boto3):
+        client = Mock()
+        mock_boto3.client.return_value = client
+        storage = S3Storage()
+
+        assert storage.upload_file(Mock(), "ws/a.png", content_type="image/png") is True
+        assert client.upload_fileobj.call_args.kwargs["ExtraArgs"] == {"ContentType": "image/png"}
+
+        assert storage.upload_file(Mock(), "ws/b.bin") is True
+        assert client.upload_fileobj.call_args.kwargs["ExtraArgs"] == {}
+
+    @patch("plane.settings.storage.boto3")
+    def test_caller_extra_args_are_forwarded_with_content_type(self, mock_boto3):
+        client = Mock()
+        mock_boto3.client.return_value = client
+
+        S3Storage().upload_file(Mock(), "ws/a.png", content_type="image/png", extra_args={"ACL": "private"})
+
+        assert client.upload_fileobj.call_args.kwargs["ExtraArgs"] == {"ACL": "private", "ContentType": "image/png"}

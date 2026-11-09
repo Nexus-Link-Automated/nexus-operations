@@ -27,10 +27,22 @@ import { KhaiaAvatar } from "./avatar";
 import { KhaiaComposer } from "./composer";
 import { KHAIA_NAME, KHAIA_SUGGESTIONS } from "./constants";
 
-function HeaderButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+function HeaderButton({
+  label,
+  onClick,
+  disabled,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
   return (
     <Tooltip>
-      <TooltipTrigger render={<Button variant="ghost" size="icon-sm" aria-label={label} onClick={onClick} />}>
+      <TooltipTrigger
+        render={<Button variant="ghost" size="icon-sm" aria-label={label} disabled={disabled} onClick={onClick} />}
+      >
         {children}
       </TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>
@@ -111,7 +123,7 @@ export const KhaiaPanel = observer(function KhaiaPanel({ workspaceSlug, onMinimi
           )}
         </div>
         <CardAction>
-          <HeaderButton label={t("agents.sessions.new")} onClick={() => void startNewSession()}>
+          <HeaderButton label={t("agents.sessions.new")} disabled={prompting} onClick={() => void startNewSession()}>
             <NewChatOutline />
           </HeaderButton>
           <HeaderButton label={t("agents.khaia.open_page")} onClick={() => router.push(`/${workspaceSlug}/agents/`)}>

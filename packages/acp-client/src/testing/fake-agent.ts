@@ -39,6 +39,8 @@ interface FakeSession {
   effort: string;
   readonly history: SessionUpdate[];
   cancel?: () => void;
+  /** Set during a `/sleep` turn: sends an update from the agent on demand. */
+  push?: (update: SessionUpdate) => Promise<void>;
 }
 
 /** What the fake agent saw, for assertions. */
@@ -172,6 +174,7 @@ export function createFakeAgent(options: FakeAgentOptions = {}) {
         session.history.push({ sessionUpdate: "user_message_chunk", content: { type: "text", text } });
 
         if (text === "/sleep") {
+          session.push = emit;
           await new Promise<void>((resolve) => {
             session.cancel = resolve;
           });

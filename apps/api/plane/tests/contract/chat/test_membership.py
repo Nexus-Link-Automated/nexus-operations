@@ -273,3 +273,53 @@ class TestLeavingTheWorkspace:
         self._remove_from_workspace(workspace, member2.user)
 
         assert member.client.post(url(f"channels/{channel.id}/leave/")).status_code == 409
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+class TestReadCursorOnArrival:
+    """What was said before you arrived isn't unread, however you arrive."""
+
+    def test_joining_starts_at_the_latest_message(self, member, member2, make_channel, send, url):
+        channel = make_channel(members=[member2.user])
+        send(channel, member2.user, "old")
+        latest = send(channel, member2.user, "latest")
+
+        res = member.client.post(url(f"channels/{channel.id}/join/"))
+        assert res.data["unread_count"] == 0 and res.data["last_read_message_id"] == str(latest.id)
+
+        send(channel, member2.user, "after joining")
+        assert member.client.get(url(f"channels/{channel.id}/")).data["unread_count"] == 1
+
+    def test_the_starting_point_is_never_a_thread_reply(self, member, member2, make_channel, send, url):
+        channel = make_channel(members=[member2.user])
+        top = send(channel, member2.user, "top")
+        send(channel, member2.user, "reply", parent=top)
+
+        res = member.client.post(url(f"channels/{channel.id}/join/"))
+        assert res.data["last_read_message_id"] == str(top.id)
+
+    def test_being_added_starts_at_the_latest_message(self, member, make_actor, make_channel, send, url):
+        channel = make_channel(ChannelKind.PRIVATE, members=[member.user])
+        send(channel, member.user, "before they arrived")
+        newcomer = make_actor()
+
+        res = member.client.post(
+            url(f"channels/{channel.id}/members/"), {"member_ids": [str(newcomer.user.id)]}, format="json"
+        )
+        assert res.status_code == 201
+        assert newcomer.client.get(url(f"channels/{channel.id}/")).data["unread_count"] == 0
+
+    def test_coming_back_starts_at_the_latest_message(self, member, member2, make_channel, send, url):
+        channel = make_channel(members=[member.user, member2.user])
+        member.client.post(url(f"channels/{channel.id}/leave/"))
+        send(channel, member2.user, "while they were gone")
+
+        assert member.client.post(url(f"channels/{channel.id}/join/")).data["unread_count"] == 0
+
+    def test_in_an_empty_channel_everything_after_is_unread(self, member, member2, make_channel, send, url):
+        channel = make_channel(members=[member2.user])
+        member.client.post(url(f"channels/{channel.id}/join/"))
+        send(channel, member2.user, "first")
+
+        assert member.client.get(url(f"channels/{channel.id}/")).data["unread_count"] == 1

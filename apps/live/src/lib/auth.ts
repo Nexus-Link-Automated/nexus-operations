@@ -5,9 +5,12 @@
  */
 
 // plane imports
-import type { IncomingHttpHeaders } from "http";
+import type { IncomingHttpHeaders, IncomingMessage } from "http";
+import type { ConnectionConfiguration } from "@hocuspocus/server";
 import type { TUserDetails } from "@plane/editor";
 import { logger } from "@plane/logger";
+import { markDocumentAuthenticated } from "@/lib/collaboration-socket-guard";
+import { resolveDocumentAccess } from "@/lib/document-access";
 import { AppError } from "@/lib/errors";
 // services
 import { UserService } from "@/services/user.service";
@@ -19,6 +22,9 @@ import type { HocusPocusServerContext, TDocumentTypes } from "@/types";
  * @param requestHeaders - The request headers
  * @param context - The context
  * @param token - The token
+ * @param documentName - The document the connection is for
+ * @param connectionConfig - Hocuspocus settings for this connection
+ * @param request - The upgrade request of the socket
  * @returns The authenticated user
  */
 export const onAuthenticate = async ({
@@ -26,11 +32,17 @@ export const onAuthenticate = async ({
   requestParameters,
   context,
   token,
+  documentName,
+  connectionConfig,
+  request,
 }: {
   requestHeaders: IncomingHttpHeaders;
   context: HocusPocusServerContext;
   requestParameters: URLSearchParams;
   token: string;
+  documentName: string;
+  connectionConfig: ConnectionConfiguration;
+  request: IncomingMessage;
 }) => {
   let cookie: string | undefined = undefined;
   let userId: string | undefined = undefined;
@@ -68,10 +80,18 @@ export const onAuthenticate = async ({
   context.userId = userId;
   context.workspaceSlug = requestParameters.get("workspaceSlug");
 
-  return await handleAuthentication({
+  const authenticatedUser = await handleAuthentication({
     cookie: context.cookie,
     userId: context.userId,
   });
+
+  // Hocuspocus does not run any hook for a document that is already loaded, so every connection is checked here.
+  const { readOnly } = await resolveDocumentAccess(documentName, context);
+  connectionConfig.readOnly = readOnly;
+  context.accessCheckedAt = Date.now();
+  markDocumentAuthenticated(request, documentName);
+
+  return authenticatedUser;
 };
 
 export const handleAuthentication = async ({ cookie, userId }: { cookie: string; userId: string }) => {

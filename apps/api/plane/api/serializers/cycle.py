@@ -8,7 +8,7 @@ from rest_framework import serializers
 
 # Module imports
 from .base import BaseSerializer
-from plane.db.models import Cycle, CycleIssue, User, Project
+from plane.db.models import Cycle, CycleIssue, ProjectMember, User, Project
 from plane.utils.timezone_converter import convert_to_utc
 
 
@@ -90,6 +90,13 @@ class CycleCreateSerializer(BaseSerializer):
                 date=str(data.get("end_date", None).date()),
                 project_id=project_id,
             )
+
+        owned_by = data.get("owned_by")
+        if (
+            owned_by
+            and not ProjectMember.objects.filter(project_id=project_id, member=owned_by, is_active=True).exists()
+        ):
+            raise serializers.ValidationError({"owned_by": "The owner must be an active member of this project."})
 
         # Create, or an explicit null on update, assigns the requester; an update that omits it keeps the owner.
         if not data.get("owned_by") and (self.instance is None or "owned_by" in data):

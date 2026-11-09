@@ -9,6 +9,7 @@ from plane.models.work_items import CreateWorkItemComment, UpdateWorkItemComment
 
 from plane_mcp.client import get_plane_client_context
 from plane_mcp.toolkit import (
+    DEFAULT_PAGE_SIZE,
     MENTION_TOKEN,
     Action,
     build_annotations,
@@ -93,7 +94,7 @@ def register(mcp: FastMCP) -> None:
                 workspace_slug=workspace_slug,
                 project_id=project_id,
                 work_item_id=workitem_id,
-                params=page_params(cursor, per_page),
+                params=page_params(cursor, per_page or DEFAULT_PAGE_SIZE),
             )
             for comment in page.results or []:
                 _legible(comment)

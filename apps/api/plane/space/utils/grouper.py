@@ -185,7 +185,7 @@ def issue_group_values(
     field: str,
     slug: str,
     project_id: Optional[str] = None,
-    filters: Dict[str, Any] = {},
+    filters: Optional[Dict[str, Any]] = None,
     queryset: Optional[QuerySet] = None,
 ) -> List[Union[str, Any]]:
     # Project-scoped keys only ever come from the board's project.

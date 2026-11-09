@@ -11,12 +11,7 @@ import type { JSONContent } from "@tiptap/core";
 import { prosemirrorJSONToYDoc } from "@tiptap/y-tiptap";
 import type * as Y from "yjs";
 // editor extensions
-import {
-  TITLE_EDITOR_EXTENSIONS,
-  createRealtimeEvent,
-  extractTextFromHTML,
-  generateTitleProsemirrorJson,
-} from "@plane/editor/server";
+import { TITLE_EDITOR_EXTENSIONS, createRealtimeEvent, generateTitleProsemirrorJson } from "@plane/editor/server";
 import { logger } from "@plane/logger";
 import { AppError } from "@/lib/errors";
 // helpers
@@ -24,6 +19,7 @@ import { getPageService } from "@/services/page/handler";
 import type { HocusPocusServerContext, OnLoadDocumentPayloadWithContext } from "@/types";
 import { broadcastMessageToPage } from "@/utils/broadcast-message";
 import { TitleUpdateManager } from "./title-update/title-update-manager";
+import { getTitleText } from "./title-update/title-utils";
 
 const titleSchema = getSchema(TITLE_EDITOR_EXTENSIONS);
 
@@ -110,7 +106,7 @@ export class TitleSyncExtension implements Extension {
   private handleTitleChange(documentName: string, events: Y.YEvent<any>[]) {
     let title = "";
     events.forEach((event) => {
-      title = extractTextFromHTML(event.currentTarget.toJSON() as string);
+      title = getTitleText(event.currentTarget as Y.XmlFragment);
     });
 
     // Get the manager for this document

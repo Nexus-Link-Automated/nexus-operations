@@ -413,6 +413,14 @@
           "message": "Bir şeyler ters gitti."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Projeyi yayından kaldır",
+        "content": "Mevcut herkese açık bağlantı çalışmayı durduracak. Bu projeyi yeniden yayımladığınızda yeni bir bağlantı oluşturulur ve mevcut bağlantı bir daha çalışmaz.",
+        "confirm": "Yayından kaldır",
+        "confirming": "Yayından kaldırılıyor"
+      }
     }
   }
 }

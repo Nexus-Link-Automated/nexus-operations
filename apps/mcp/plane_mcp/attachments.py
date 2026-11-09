@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+import threading
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin, urlsplit
@@ -23,6 +24,16 @@ UPLOAD_SIZE_LIMIT = 5 * 1024 * 1024  # 5 MB
 
 # Connect timeout / read timeout tuple used for all outbound HTTP calls.
 HTTP_TIMEOUT = (10, 60)
+
+# The whole of one URL fetch, redirects included, must finish within this.
+FETCH_DEADLINE_SECONDS = 60
+READ_CHUNK_BYTES = 64 * 1024
+
+# All tools share one worker-thread limiter, so URL fetches may only ever hold a
+# few of its threads. Further calls are refused rather than queued: waiting for a
+# slot would occupy a worker thread just the same.
+MAX_CONCURRENT_FETCHES = 8
+_fetch_slots = threading.BoundedSemaphore(MAX_CONCURRENT_FETCHES)
 
 # ── Supported MIME types ──────────────────────────────────────────────────────
 READABLE_IMAGE_TYPES: frozenset[str] = frozenset({"image/png", "image/jpeg", "image/gif", "image/webp"})
@@ -133,20 +144,93 @@ class FetchedResponse:
             raise ValueError(f"Request failed with HTTP {self.status_code}")
 
 
-def _read_bounded(response: Any, url: str, max_bytes: int) -> bytes:
+def _shutdown(sock: socket.socket) -> None:
+    try:
+        sock.shutdown(socket.SHUT_RDWR)
+    except OSError:
+        pass  # already disconnected
+
+
+class _FetchDeadline:
+    """Wall-clock limit on one fetch, across its redirects and every phase of each hop.
+
+    A socket timeout restarts on every recv, so a peer that trickles the TLS
+    handshake, the headers or the body never trips it. Instead a timer shuts down
+    the fetch's sockets, which wakes whichever recv it is blocked in. It works on a
+    dup of each socket because wrapping a socket for TLS detaches the original object.
+    """
+
+    def __init__(self, seconds: float) -> None:
+        self.seconds = seconds
+        self.expired = False
+        self._sockets: list[socket.socket] = []
+        self._lock = threading.Lock()
+        self._timer = threading.Timer(seconds, self._expire)
+        self._timer.daemon = True
+
+    def __enter__(self) -> _FetchDeadline:
+        self._timer.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._timer.cancel()
+        with self._lock:
+            for sock in self._sockets:
+                sock.close()
+            self._sockets.clear()
+
+    def _expire(self) -> None:
+        with self._lock:
+            # Set before the shutdown: the EOF it causes must not read as a complete body.
+            self.expired = True
+            for sock in self._sockets:
+                _shutdown(sock)
+
+    def watch(self, sock: socket.socket) -> None:
+        with self._lock:
+            watched = sock.dup()
+            self._sockets.append(watched)
+            if self.expired:
+                _shutdown(watched)
+
+    def check(self, url: str) -> None:
+        if self.expired:
+            raise ValueError(f"Fetching {url!r} did not finish within {self.seconds} seconds")
+
+
+def _watched(connection_cls: Any, deadline: _FetchDeadline) -> Any:
+    """`connection_cls`, reporting each socket it opens to `deadline`."""
+
+    class WatchedConnection(connection_cls):
+        def _new_conn(self) -> socket.socket:
+            sock = super()._new_conn()
+            deadline.watch(sock)
+            return sock
+
+    return WatchedConnection
+
+
+def _read_bounded(response: Any, url: str, max_bytes: int, deadline: _FetchDeadline) -> bytes:
     """Rejects via ValueError on a declared Content-Length over `max_bytes`
-    without reading the body, else reads at most `max_bytes + 1` bytes and
-    rejects if that still exceeds the limit -- never buffers more.
+    without reading the body, else reads in chunks, never buffering more than
+    `max_bytes + 1` bytes, and rejects a body over the limit or past the deadline.
     """
     declared = response.headers.get("Content-Length")
     if declared and declared.isdigit() and int(declared) > max_bytes:
         response.release_conn()
         raise ValueError(f"Response from {url!r} exceeds the {max_bytes} byte limit")
 
-    content = response.read(max_bytes + 1)
-    if len(content) > max_bytes:
-        raise ValueError(f"Response from {url!r} exceeds the {max_bytes} byte limit")
-    return content
+    chunks: list[bytes] = []
+    received = 0
+    while True:
+        chunk = response.read(min(READ_CHUNK_BYTES, max_bytes + 1 - received))
+        deadline.check(url)
+        if not chunk:
+            return b"".join(chunks)
+        received += len(chunk)
+        if received > max_bytes:
+            raise ValueError(f"Response from {url!r} exceeds the {max_bytes} byte limit")
+        chunks.append(chunk)
 
 
 def _select_proxy_url(url: str) -> str | None:
@@ -157,7 +241,9 @@ def _select_proxy_url(url: str) -> str | None:
     return requests.utils.select_proxy(url, requests.utils.get_environ_proxies(url))
 
 
-def _fetch_one_hop_via_proxy(url: str, proxy_url: str, max_bytes: int) -> tuple[str | None, FetchedResponse | None]:
+def _fetch_one_hop_via_proxy(
+    url: str, proxy_url: str, max_bytes: int, deadline: _FetchDeadline
+) -> tuple[str | None, FetchedResponse | None]:
     """Same contract as the direct path below, but through `proxy_url`, by
     the original hostname -- never a pinned IP. See the SECURITY comment at
     the call site: no DNS/private-IP preflight runs for this path.
@@ -175,6 +261,10 @@ def _fetch_one_hop_via_proxy(url: str, proxy_url: str, max_bytes: int) -> tuple[
         cert_reqs="CERT_REQUIRED",
         ca_certs=requests.utils.DEFAULT_CA_BUNDLE_PATH,
     )
+    proxy_manager.pool_classes_by_scheme = {
+        scheme: type(pool_cls.__name__, (pool_cls,), {"ConnectionCls": _watched(pool_cls.ConnectionCls, deadline)})
+        for scheme, pool_cls in proxy_manager.pool_classes_by_scheme.items()
+    }
     try:
         try:
             response = proxy_manager.urlopen(
@@ -195,7 +285,7 @@ def _fetch_one_hop_via_proxy(url: str, proxy_url: str, max_bytes: int) -> tuple[
             return urljoin(url, location), None
 
         try:
-            content = _read_bounded(response, url, max_bytes)
+            content = _read_bounded(response, url, max_bytes, deadline)
         except urllib3.exceptions.HTTPError as exc:
             raise ValueError(f"Failed to read response from {url!r} via proxy: {exc}") from exc
 
@@ -208,7 +298,7 @@ def _fetch_one_hop_via_proxy(url: str, proxy_url: str, max_bytes: int) -> tuple[
         proxy_manager.clear()
 
 
-def _fetch_one_hop(url: str, max_bytes: int) -> tuple[str | None, FetchedResponse | None]:
+def _fetch_one_hop(url: str, max_bytes: int, deadline: _FetchDeadline) -> tuple[str | None, FetchedResponse | None]:
     """One HTTP GET for a single hop (DNS-pinned directly; see the SECURITY
     comment below for the proxied case). Returns (redirect_url, None) for a
     3xx with a Location header (its body is never read), else (None, FetchedResponse).
@@ -241,7 +331,7 @@ def _fetch_one_hop(url: str, max_bytes: int) -> tuple[str | None, FetchedRespons
             raise ValueError(
                 f"URL {url!r} targets a private/reserved address and cannot be fetched for security reasons."
             )
-        return _fetch_one_hop_via_proxy(url, proxy_url, max_bytes)
+        return _fetch_one_hop_via_proxy(url, proxy_url, max_bytes, deadline)
 
     pinned_ip = _resolve_and_validate(hostname, port)
 
@@ -271,6 +361,7 @@ def _fetch_one_hop(url: str, max_bytes: int) -> tuple[str | None, FetchedRespons
     # host is the validated IP literal, never the hostname -- this is what
     # keeps the connect path free of a second DNS lookup.
     pool = pool_cls(pinned_ip, **pool_kwargs)
+    pool.ConnectionCls = _watched(pool.ConnectionCls, deadline)
     try:
         try:
             response = pool.urlopen(
@@ -292,7 +383,7 @@ def _fetch_one_hop(url: str, max_bytes: int) -> tuple[str | None, FetchedRespons
             return urljoin(url, location), None
 
         try:
-            content = _read_bounded(response, url, max_bytes)
+            content = _read_bounded(response, url, max_bytes, deadline)
         except urllib3.exceptions.HTTPError as exc:
             raise ValueError(f"Failed to read response from {url!r}: {exc}") from exc
 
@@ -308,14 +399,27 @@ def _fetch_one_hop(url: str, max_bytes: int) -> tuple[str | None, FetchedRespons
 def fetch_validated_get(url: str, *, max_redirects: int = 5, max_bytes: int = UPLOAD_SIZE_LIMIT) -> FetchedResponse:
     """Atomic, DNS-pinned GET. Follows up to `max_redirects` 3xx hops, each
     re-validated from scratch; raises ValueError for any unsafe target,
-    scheme, redirect cap, timeout/TLS failure, or body over `max_bytes`.
+    scheme, redirect cap, timeout/TLS failure, body over `max_bytes`, a fetch
+    still running after FETCH_DEADLINE_SECONDS, or too many fetches at once.
     """
-    current_url = url
-    for _hop in range(max_redirects + 1):
-        redirect_url, response = _fetch_one_hop(current_url, max_bytes)
-        if response is not None:
-            return response
-        current_url = redirect_url
+    if not _fetch_slots.acquire(blocking=False):
+        raise ValueError(f"The limit of {MAX_CONCURRENT_FETCHES} concurrent URL fetches is in use; try again shortly")
+    try:
+        with _FetchDeadline(FETCH_DEADLINE_SECONDS) as deadline:
+            current_url = url
+            for _hop in range(max_redirects + 1):
+                deadline.check(url)
+                try:
+                    redirect_url, response = _fetch_one_hop(current_url, max_bytes, deadline)
+                except ValueError:
+                    # The shutdown surfaces as a connection error; report the actual cause.
+                    deadline.check(url)
+                    raise
+                if response is not None:
+                    return response
+                current_url = redirect_url
+    finally:
+        _fetch_slots.release()
 
     raise ValueError(f"Exceeded the maximum of {max_redirects} redirects fetching {url!r}")
 

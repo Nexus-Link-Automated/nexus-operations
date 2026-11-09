@@ -61,8 +61,8 @@ class Command(BaseCommand):
             return
 
         # Reactivate the membership. update_fields keeps the write to the columns that change, and
-        # disable_auto_set_user stops BaseModel.save from nulling created_by/updated_by when there
-        # is no request user, as is the case in a management command.
+        # disable_auto_set_user leaves created_by/updated_by alone, as a management command has no
+        # request user to attribute the change to.
         workspace_member.is_active = True
         workspace_member.save(update_fields=["is_active", "updated_at"], disable_auto_set_user=True)
 

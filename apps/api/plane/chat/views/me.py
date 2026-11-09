@@ -2,7 +2,11 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-"""What the caller may do in this workspace's chat, so the web app can show or hide its controls."""
+"""What the caller may do in this workspace's chat, so the web app can show or hide its controls.
+
+It also carries the workspace ID: the chat gateway reads it here to admit a socket, and to know which Redis
+channel to follow, in one call that only an active member of the workspace gets an answer from.
+"""
 
 from rest_framework.response import Response
 
@@ -15,6 +19,7 @@ class ChatMeEndpoint(ChatBaseEndpoint):
         """The caller's workspace role and chat abilities. The other endpoints enforce the same rules."""
         return Response(
             {
+                "workspace_id": str(self.workspace.id),
                 "workspace_role": self.role,
                 "is_workspace_admin": is_workspace_admin(self.role),
                 "can_create_channels": can_create_channels(self.role),

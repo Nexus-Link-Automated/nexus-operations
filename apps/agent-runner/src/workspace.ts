@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { execFile } from "node:child_process";
 import { chmod, chown as fsChown, lstat, mkdir } from "node:fs/promises";
 import path from "node:path";
 
@@ -11,6 +12,33 @@ import type { IsolationMode } from "./config.ts";
 import { UidAllocator } from "./uids.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+const DISK_SCAN_TIMEOUT_MS = 30_000;
+
+/** The bytes of disk some directories use. Injected in tests. */
+export type DiskScanner = (dirs: readonly string[]) => Promise<number>;
+
+/**
+ * Counts allocated blocks with `du`: a child process, so walking a large tree never blocks the
+ * event loop, and blocks rather than file sizes, so a sparse file counts for what it occupies. A
+ * walk still going after the timeout means a tree too big to account for, which counts as over any
+ * limit (`Infinity`). A non-zero exit alone is not a failure, because files can vanish during the
+ * walk while the total stays good.
+ */
+export const duDiskScanner: DiskScanner = (dirs) =>
+  new Promise((resolve, reject) => {
+    execFile(
+      "du",
+      ["-sxc", "--block-size=1", "--", ...dirs],
+      { timeout: DISK_SCAN_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 64 * 1024 },
+      (error, stdout) => {
+        if (error?.killed) return resolve(Number.POSITIVE_INFINITY);
+        const total = Number.parseInt(stdout.trim().split("\n").at(-1) ?? "", 10);
+        if (Number.isNaN(total)) return reject(error ?? new Error("du printed no total"));
+        resolve(total);
+      }
+    );
+  });
 
 /** Where one agent process lives, and as whom it runs. */
 export interface WorkspaceLayout {
@@ -33,6 +61,7 @@ export interface WorkspaceManagerOptions {
   readonly uidRange: { readonly min: number; readonly max: number };
   /** Injected in tests; the real one needs root. */
   readonly chown?: Chown;
+  readonly diskScanner?: DiskScanner;
 }
 
 /**
@@ -55,6 +84,7 @@ export class WorkspaceManager {
   readonly #isolation: IsolationMode;
   readonly #allocator: UidAllocator;
   readonly #chown: Chown;
+  readonly #diskScanner: DiskScanner;
   #rootReady: Promise<void> | undefined;
 
   constructor(options: WorkspaceManagerOptions) {
@@ -66,10 +96,16 @@ export class WorkspaceManager {
       max: options.uidRange.max,
     });
     this.#chown = options.chown ?? fsChown;
+    this.#diskScanner = options.diskScanner ?? duDiskScanner;
   }
 
   get root(): string {
     return this.#root;
+  }
+
+  /** Bytes of disk one workspace dir uses, counting its cwd, HOME and TMPDIR. */
+  diskUsage(layout: WorkspaceLayout): Promise<number> {
+    return this.#diskScanner([layout.cwd, layout.home, layout.tmp]);
   }
 
   /** The cwd the bridge puts in `session/new`; both sides derive it the same way. */

@@ -9,6 +9,9 @@ export enum EInstanceStatus {
   NOT_YET_READY = "NOT_YET_READY",
 }
 
+/** The placeholder the admin API returns for an encrypted setting that is set. Sending it back keeps the value. */
+export const INSTANCE_CONFIGURATION_MASK = "********";
+
 export type TInstanceStatus = {
   status: EInstanceStatus | undefined;
   data?: object;

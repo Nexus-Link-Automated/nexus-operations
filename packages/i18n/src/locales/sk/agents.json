@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Pýtať sa pred zmenami",
-          "description": "Čítanie, vyhľadávanie a načítanie webu prebieha bez pýtania. Príkazy shellu, zmeny súborov a zmeny v Plane vyžadujú predchádzajúce potvrdenie."
+          "description": "Čítanie a vyhľadávanie v pracovnom adresári prebieha bez pýtania. Čítanie inde, načítanie webu, príkazy shellu, zmeny súborov a zmeny v Plane vyžadujú predchádzajúce potvrdenie."
         },
         "yolo": {
           "name": "Nikdy sa nepýtať",
@@ -110,6 +110,9 @@
       "title": "Povoliť túto akciu?",
       "allow_once": "Povoliť raz",
       "allow_always": "V tomto chate vždy povoliť",
+      "allow_always_command": "V tomto chate vždy povoliť presne tento príkaz",
+      "allow_always_file": "V tomto chate vždy povoliť úpravy tohto súboru",
+      "allow_always_tool": "V tomto chate vždy povoliť tento nástroj",
       "reject_once": "Zamietnuť",
       "reject_always": "Vždy zamietnuť"
     },

@@ -78,6 +78,7 @@ services:
       - plane-minio
       - mcp
       - agent-bridge
+      - chat-gateway
 
   api:
     image: ${IMAGE_REGISTRY:?set IMAGE_REGISTRY}/plane-backend:${APP_RELEASE:?set APP_RELEASE}
@@ -197,6 +198,27 @@ services:
       - api
       - agent-runner
 
+  # Nexus Messages live updates (apps/chat-gateway). The browser opens
+  # wss://$APP_DOMAIN/chat/ws with its session cookie; the gateway asks the API who that
+  # is and which channels they may see, then forwards the chat events Django publishes
+  # to Valkey. It never writes data and holds no secrets, so it needs only the API (app)
+  # and Valkey (data).
+  chat-gateway:
+    image: ${IMAGE_REGISTRY}/plane-chat-gateway:${APP_RELEASE}
+    restart: always
+    stop_grace_period: 30s
+    environment:
+      APP_VERSION: ${APP_RELEASE}
+      API_BASE_URL: http://api:8000
+      # The same Valkey the API publishes chat events to.
+      REDIS_URL: redis://plane-redis:6379/
+      # The socket is authenticated by cookie, so only the app's own origin may open it.
+      CORS_ALLOWED_ORIGINS: https://${APP_DOMAIN:?set APP_DOMAIN}
+    networks: [app, data]
+    depends_on:
+      - api
+      - plane-redis
+
   # Runs the agents (apps/agent-runner): plane-acp-claude, -codex, -gemini and -deepseek, each as
   # its workspace dir's own unprivileged uid, so this container is the sandbox. It needs
   # root to switch uids; it gets only the capabilities that takes, and agents get none.
@@ -210,8 +232,16 @@ services:
       AGENT_WORKSPACES_ROOT: /workspaces
       AGENT_RUNNER_ISOLATION: uid
       AGENT_RUNNER_ENABLE_ECHO: "false"
+      # Per-uid limits on agents; apps/agent-runner/README.md explains them.
+      AGENT_RUNNER_NPROC_LIMIT: ${AGENT_RUNNER_NPROC_LIMIT:-256}
+      AGENT_RUNNER_FILE_SIZE_LIMIT_BYTES: ${AGENT_RUNNER_FILE_SIZE_LIMIT_BYTES:-4294967296}
+      AGENT_RUNNER_USER_DISK_LIMIT_BYTES: ${AGENT_RUNNER_USER_DISK_LIMIT_BYTES:-10737418240}
     volumes:
       - agent_workspaces:/workspaces
+    # Agents' own TMPDIR is under /workspaces, but /tmp would otherwise be unmetered space
+    # on the container's disk. It counts against the memory limit, so keep it small.
+    tmpfs:
+      - /tmp:size=${AGENT_RUNNER_TMP_SIZE:-512m},mode=1777,exec
     user: "0:0"
     cap_drop: [ALL]
     # CHOWN/FOWNER/DAC_OVERRIDE: create and hand over per-user dirs; SETUID/SETGID:

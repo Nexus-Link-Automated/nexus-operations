@@ -15,24 +15,27 @@ from .conftest import ADMIN, GUEST, MEMBER
 @pytest.mark.contract
 @pytest.mark.django_db
 class TestMe:
-    def test_admin_and_member(self, admin, member, url):
+    def test_admin_and_member(self, admin, member, url, workspace):
         assert admin.client.get(url("me/")).data == {
+            "workspace_id": str(workspace.id),
             "workspace_role": ADMIN,
             "is_workspace_admin": True,
             "can_create_channels": True,
             "can_open_dms": True,
         }
         assert member.client.get(url("me/")).data == {
+            "workspace_id": str(workspace.id),
             "workspace_role": MEMBER,
             "is_workspace_admin": False,
             "can_create_channels": True,
             "can_open_dms": True,
         }
 
-    def test_guest_follows_their_grant(self, admin, guest, url):
+    def test_guest_follows_their_grant(self, admin, guest, url, workspace):
         res = guest.client.get(url("me/"))
         assert res.status_code == 200
         assert res.data == {
+            "workspace_id": str(workspace.id),
             "workspace_role": GUEST,
             "is_workspace_admin": False,
             "can_create_channels": False,
@@ -49,4 +52,6 @@ class TestMe:
         assert outsider.client.get(url("me/")).status_code == 403
         assert APIClient().get(url("me/")).status_code in (401, 403)
         # In their own workspace they get their own answer.
-        assert outsider.client.get(url("me/", slug=other_workspace.slug)).data["workspace_role"] == ADMIN
+        theirs = outsider.client.get(url("me/", slug=other_workspace.slug)).data
+        assert theirs["workspace_role"] == ADMIN
+        assert theirs["workspace_id"] == str(other_workspace.id)

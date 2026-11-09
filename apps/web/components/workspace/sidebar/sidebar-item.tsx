@@ -50,6 +50,7 @@ export const SidebarItemBase = observer(function SidebarItemBase({
 
   const staticItems = [
     "home",
+    "messages",
     "agents",
     "projects",
     "your_work",

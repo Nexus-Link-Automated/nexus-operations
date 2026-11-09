@@ -17,6 +17,10 @@ how the local test stack reaches the router.
 
 --echo-agent-id, with --write, also chats with that agent through the agent bridge
 and runner. It must be the echo test agent, which only a test stack enables.
+
+--write also sends a Nexus Messages message over the REST API and waits for its event
+on a chat gateway WebSocket opened with the session cookie, which is the path a
+browser on the public domain takes.
 """
 
 import argparse
@@ -140,6 +144,7 @@ def read_only_checks(client):
 
     websocket_check(client)
     agent_read_only_checks(client)
+    chat_read_only_checks(client)
 
 
 class WebSocket:
@@ -355,6 +360,7 @@ def write_checks(client, echo_agent_id=None):
 
     upload_round_trip(client, slug, workspace["id"], public_origin)
     agent_write_checks(client, slug, echo_agent_id)
+    chat_write_checks(client, slug, workspace["id"], me["id"])
 
     response, _ = client.request("GET", "/api/users/me/", headers={"X-Real-IP": "203.0.113.11"})
     check("auth: session survives another client address", response.status == 200, str(response.status))
@@ -452,6 +458,98 @@ def agent_write_checks(client, slug, echo_agent_id):
         )
     except (OSError, ConnectionError, RuntimeError, TimeoutError, KeyError, StopIteration, ValueError) as error:
         check("agents: ACP conversation with the echo agent", False, repr(error))
+    finally:
+        ws.close()
+
+
+def chat_read_only_checks(client):
+    response, data = client.json("GET", "/chat/health")
+    check(
+        "chat: /chat/health reaches the gateway, which hears Valkey",
+        response.status == 200 and isinstance(data, dict) and data.get("live") is True,
+        f"{response.status} {data}",
+    )
+
+    status_line, ws = WebSocket.open(client, "/chat/ws?workspace=smoke", cookies=False)
+    if not check("chat: WebSocket upgrade passes the whole chain", ws is not None, status_line):
+        return
+    try:
+        ws.sock.settimeout(30)
+        kind, value = ws.receive()
+    except (OSError, ConnectionError) as error:
+        kind, value = "error", (0, str(error))
+    ws.sock.close()
+    check("chat: a socket without a session cookie closes with 4401", kind == "close" and value[0] == 4401, f"{kind} {value}")
+
+
+def next_chat_frame(ws, wanted, timeout=30):
+    """The next gateway frame for which `wanted(frame)` is true, skipping others (pongs, other events)."""
+    ws.sock.settimeout(timeout)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        kind, value = ws.receive()
+        if kind == "close":
+            raise ConnectionError(f"closed with {value[0]} {value[1]}")
+        frame = json.loads(value)
+        if wanted(frame):
+            return frame
+    raise TimeoutError(f"no matching frame in {timeout}s")
+
+
+def chat_write_checks(client, slug, workspace_id, user_id):
+    path = f"/chat/ws?workspace={slug}"
+
+    # Cross-site WebSocket hijacking: a page on another site would send the user's cookie too.
+    status_line, ws = WebSocket.open(client, path, origin="https://evil.example.com")
+    if ws:
+        ws.sock.close()
+    check("chat: a signed-in socket from another origin is refused (403)", " 403 " in status_line, status_line)
+
+    status_line, ws = WebSocket.open(client, path)
+    if not check("chat: signed-in socket opens", ws is not None, status_line):
+        return
+    try:
+        ready = next_chat_frame(ws, lambda f: True)
+        check(
+            "chat: the session cookie reaches the gateway, which admits the user",
+            ready.get("type") == "ready" and ready.get("user_id") == user_id and ready.get("workspace_id") == workspace_id,
+            str(ready)[:300],
+        )
+
+        # Creating a channel makes the user a member: the gateway hears their member.added first.
+        response, channel = client.json("POST", f"/api/workspaces/{slug}/chat/channels/", {"name": f"smoke-{uuid.uuid4().hex[:8]}", "kind": "public"})
+        if not check("chat: channel created over REST", response.status == 201, f"{response.status} {channel}"):
+            return
+        added = next_chat_frame(
+            ws, lambda f: f.get("type") == "event" and f["event"].get("type") == "member.added"
+        )["event"]
+        check(
+            "chat: the new channel's member.added reaches the socket",
+            added.get("channel_id") == channel["id"] and added.get("user_id") == user_id,
+            str(added)[:300],
+        )
+
+        response, message = client.json(
+            "POST",
+            f"/api/workspaces/{slug}/chat/channels/{channel['id']}/messages/",
+            {"body_html": "<p>hello from the smoke test</p>"},
+        )
+        if not check("chat: message sent over REST", response.status == 201, f"{response.status} {message}"):
+            return
+        created = next_chat_frame(
+            ws, lambda f: f.get("type") == "event" and f["event"].get("type") == "message.created"
+        )["event"]
+        check(
+            "chat: message.created reaches the socket through router, tunnel and gateway",
+            created.get("channel_id") == channel["id"] and created.get("message_id") == message["id"],
+            str(created)[:300],
+        )
+
+        ws.send_json({"type": "ping"})
+        pong = next_chat_frame(ws, lambda f: f.get("type") == "pong")
+        check("chat: ping is answered", pong == {"type": "pong"}, str(pong))
+    except (OSError, ConnectionError, TimeoutError, KeyError, ValueError) as error:
+        check("chat: live messaging through the gateway", False, repr(error))
     finally:
         ws.close()
 

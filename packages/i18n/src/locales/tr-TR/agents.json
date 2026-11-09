@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Değişikliklerden önce sor",
-          "description": "Okuma, arama ve web getirme işlemleri onay beklemeden çalışır. Kabuk komutları, dosya değişiklikleri ve Plane değişiklikleri için önce onay istenir."
+          "description": "Çalışma dizinindeki okuma ve arama işlemleri onay beklemeden çalışır. Başka konumlardan okuma, web getirme, kabuk komutları, dosya değişiklikleri ve Plane değişiklikleri için önce onay istenir."
         },
         "yolo": {
           "name": "Asla sorma",
@@ -110,6 +110,9 @@
       "title": "Bu işleme izin verilsin mi?",
       "allow_once": "Bir kez izin ver",
       "allow_always": "Bu sohbette her zaman izin ver",
+      "allow_always_command": "Bu sohbette tam olarak bu komuta her zaman izin ver",
+      "allow_always_file": "Bu sohbette bu dosyadaki düzenlemelere her zaman izin ver",
+      "allow_always_tool": "Bu sohbette bu araca her zaman izin ver",
       "reject_once": "Reddet",
       "reject_always": "Her zaman reddet"
     },
