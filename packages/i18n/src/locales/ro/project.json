@@ -413,6 +413,14 @@
           "message": "Ceva nu a funcționat."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Retrage proiectul din publicare",
+        "content": "Link-ul public actual va înceta să funcționeze. Dacă publicați din nou acest proiect, va fi creat un link nou, iar link-ul actual nu va mai funcționa.",
+        "confirm": "Retrage din publicare",
+        "confirming": "Se retrage din publicare"
+      }
     }
   }
 }

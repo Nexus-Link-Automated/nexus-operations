@@ -413,6 +413,14 @@
           "message": "Đã xảy ra lỗi."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Gỡ xuất bản dự án",
+        "content": "Liên kết công khai hiện tại sẽ ngừng hoạt động. Khi xuất bản lại dự án này, một liên kết mới sẽ được tạo và liên kết hiện tại sẽ không hoạt động trở lại.",
+        "confirm": "Gỡ xuất bản",
+        "confirming": "Đang gỡ xuất bản"
+      }
     }
   }
 }

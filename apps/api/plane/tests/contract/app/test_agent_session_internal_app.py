@@ -188,6 +188,28 @@ class TestAgentSessionMint:
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     @pytest.mark.django_db
+    def test_guest_cannot_mint(self, bridge_client, workspace, agent):
+        guest = User.objects.create(email="session-guest@plane.so", username="session-guest")
+        WorkspaceMember.objects.create(workspace=workspace, member=guest, role=5)
+        _api_key(workspace, None, "anthropic", "sk-ant-workspace")
+
+        response = bridge_client.post(SESSIONS_URL, _body(guest, workspace, agent), format="json")
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert b"sk-ant" not in response.content
+        assert not APIToken.objects.filter(label=AGENT_SESSION_TOKEN_LABEL).exists()
+
+    @pytest.mark.django_db
+    @pytest.mark.parametrize("role", [15, 20])
+    def test_member_and_admin_can_mint(self, bridge_client, workspace, agent, role):
+        user = User.objects.create(email=f"session-role-{role}@plane.so", username=f"session-role-{role}")
+        WorkspaceMember.objects.create(workspace=workspace, member=user, role=role)
+
+        body = _mint(bridge_client, user, workspace, agent)
+
+        assert body["user"] == {"id": str(user.id)}
+
+    @pytest.mark.django_db
     def test_inactive_user_is_rejected(self, bridge_client, create_user, workspace, agent):
         create_user.is_active = False
         create_user.save()

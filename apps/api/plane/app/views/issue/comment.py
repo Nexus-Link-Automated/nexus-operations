@@ -7,7 +7,7 @@ import json
 
 # Django imports
 from django.utils import timezone
-from django.db.models import Exists
+from django.db.models import Exists, Prefetch
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import IntegrityError
 
@@ -49,9 +49,11 @@ class IssueCommentViewSet(BaseViewSet):
                 project__project_projectmember__is_active=True,
                 project__archived_at__isnull=True,
             )
-            .select_related("project")
-            .select_related("workspace")
+            .select_related("project__cover_image_asset")
+            .select_related("workspace__logo_asset")
             .select_related("issue")
+            .select_related("actor__avatar_asset")
+            .prefetch_related(Prefetch("comment_reactions", queryset=CommentReaction.objects.select_related("actor")))
             .annotate(
                 is_member=Exists(
                     ProjectMember.objects.filter(

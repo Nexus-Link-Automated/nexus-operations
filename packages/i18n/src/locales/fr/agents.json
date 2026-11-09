@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Demander avant les modifications",
-          "description": "Les lectures, recherches et récupérations web s’exécutent librement. Les commandes shell, les modifications de fichiers et les modifications dans Plane demandent d’abord une confirmation."
+          "description": "Les lectures et recherches dans le répertoire de travail s’exécutent librement. Les lectures ailleurs, les récupérations web, les commandes shell, les modifications de fichiers et les modifications dans Plane demandent d’abord une confirmation."
         },
         "yolo": {
           "name": "Ne jamais demander",
@@ -110,6 +110,9 @@
       "title": "Autoriser cette action ?",
       "allow_once": "Autoriser une fois",
       "allow_always": "Toujours autoriser dans cette conversation",
+      "allow_always_command": "Toujours autoriser exactement cette commande dans cette conversation",
+      "allow_always_file": "Toujours autoriser les modifications de ce fichier dans cette conversation",
+      "allow_always_tool": "Toujours autoriser cet outil dans cette conversation",
       "reject_once": "Refuser",
       "reject_always": "Toujours refuser"
     },

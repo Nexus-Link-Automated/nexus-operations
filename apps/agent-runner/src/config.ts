@@ -10,6 +10,7 @@ import { MIN_SECRET_LENGTH } from "@plane/agent-runner-protocol";
 import { z } from "zod";
 
 const MiB = 1024 * 1024;
+const GiB = 1024 * MiB;
 const positiveInt = (fallback: number) => z.coerce.number().int().positive().default(fallback);
 const flag = z
   .string()
@@ -38,8 +39,17 @@ const schema = z
     AGENT_RUNNER_AGENT_SHELL: z.string().default("/bin/bash"),
     AGENT_RUNNER_KILL_GRACE_MS: positiveInt(3_000),
     AGENT_RUNNER_MAX_MESSAGE_BYTES: positiveInt(8 * MiB),
+    AGENT_RUNNER_CREDENTIAL_BROKER: flag,
     AGENT_RUNNER_MAX_CONNECTIONS: positiveInt(64),
     AGENT_RUNNER_MAX_HEADER_BYTES: positiveInt(256 * 1024),
+    AGENT_RUNNER_NPROC_LIMIT: positiveInt(256),
+    AGENT_RUNNER_FILE_SIZE_LIMIT_BYTES: positiveInt(4 * GiB),
+    AGENT_RUNNER_USER_DISK_LIMIT_BYTES: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(10 * GiB),
+    AGENT_RUNNER_DISK_CHECK_INTERVAL_MS: positiveInt(60_000),
   })
   .refine((e) => e.AGENT_RUNNER_UID_MIN >= 1_000 && e.AGENT_RUNNER_UID_MIN <= e.AGENT_RUNNER_UID_MAX, {
     message: "AGENT_RUNNER_UID_MIN..AGENT_RUNNER_UID_MAX must be a non-empty range starting at 1000 or above",
@@ -66,9 +76,19 @@ export interface RunnerConfig {
   readonly killGraceMs: number;
   /** Largest frame accepted from the bridge. */
   readonly maxMessageBytes: number;
+  /** Keep provider API keys in the runner: agents get a token for a loopback proxy instead. */
+  readonly credentialBroker: boolean;
   readonly maxConnections: number;
   /** Spawn tickets carry the agent env, so the upgrade's headers can be large. */
   readonly maxHeaderBytes: number;
+  /** RLIMIT_NPROC for agents: the tasks one uid may own, across all its agents. `uid` isolation only. */
+  readonly processLimit: number;
+  /** RLIMIT_FSIZE for agents: the largest file one may create or grow. `uid` isolation only. */
+  readonly fileSizeLimitBytes: number;
+  /** Disk a workspace dir (cwd, HOME and TMPDIR) may use before its agents are refused and stopped. 0 is off. */
+  readonly userDiskLimitBytes: number;
+  /** How often running agents' workspace dirs are checked against the disk limit. */
+  readonly diskCheckIntervalMs: number;
 }
 
 export function defaultAgentPath(): string {
@@ -97,7 +117,12 @@ export function loadRunnerConfig(env: NodeJS.ProcessEnv = process.env): RunnerCo
     agentShell: e.AGENT_RUNNER_AGENT_SHELL,
     killGraceMs: e.AGENT_RUNNER_KILL_GRACE_MS,
     maxMessageBytes: e.AGENT_RUNNER_MAX_MESSAGE_BYTES,
+    credentialBroker: e.AGENT_RUNNER_CREDENTIAL_BROKER,
     maxConnections: e.AGENT_RUNNER_MAX_CONNECTIONS,
     maxHeaderBytes: e.AGENT_RUNNER_MAX_HEADER_BYTES,
+    processLimit: e.AGENT_RUNNER_NPROC_LIMIT,
+    fileSizeLimitBytes: e.AGENT_RUNNER_FILE_SIZE_LIMIT_BYTES,
+    userDiskLimitBytes: e.AGENT_RUNNER_USER_DISK_LIMIT_BYTES,
+    diskCheckIntervalMs: e.AGENT_RUNNER_DISK_CHECK_INTERVAL_MS,
   };
 }

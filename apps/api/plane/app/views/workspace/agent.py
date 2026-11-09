@@ -7,7 +7,7 @@ from rest_framework import status
 from rest_framework.response import Response
 
 # Module imports
-from plane.app.permissions import WorkspaceViewerPermission
+from plane.app.permissions import WorkSpaceAdminPermission
 from plane.app.views.base import BaseAPIView
 from plane.db.models import Workspace
 from plane.license.models import AgentDefinition
@@ -26,9 +26,10 @@ WORKSPACE_AGENT_FIELDS = (
 
 
 class WorkspaceAgentsEndpoint(BaseAPIView):
-    """Enabled agents a workspace member can start a chat with."""
+    """Enabled agents a workspace member can start a chat with. Guests cannot run agents."""
 
-    permission_classes = [WorkspaceViewerPermission]
+    # Despite its name this class lets workspace admins and members through.
+    permission_classes = [WorkSpaceAdminPermission]
 
     def get(self, request, slug):
         workspace = Workspace.objects.get(slug=slug)

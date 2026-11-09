@@ -4,19 +4,16 @@
  * See the LICENSE file for details.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AgentCloseCode } from "../src/close-codes.ts";
-import {
-  AgentChatSession,
-  AgentDisconnectedError,
-  AgentRequestError,
-  INVALID_PARAMS,
-  type AgentChatSnapshot,
-} from "../src/session.ts";
+import { AgentDisconnectedError, AgentRequestError, INVALID_PARAMS } from "../src/errors.ts";
+import { AgentChatSession, type AgentChatSnapshot } from "../src/session.ts";
 import { effortOption, modelOption, type TranscriptItem } from "../src/transcript.ts";
 import { createFakeAgent, type FakeAgentOptions } from "../src/testing/fake-agent.ts";
 import { memoryTransport, type MemoryTransport } from "../src/testing/memory-transport.ts";
+import type { SessionConfigOption } from "@agentclientprotocol/sdk";
+import { afterEach, vitest } from "vitest";
 
 function setup(options: FakeAgentOptions = {}) {
   const fake = createFakeAgent(options);
@@ -71,6 +68,16 @@ async function ready(options: FakeAgentOptions = {}) {
   await context.session.connect();
   await context.session.newSession();
   return context;
+}
+
+const realSetTimeout = setTimeout;
+
+/** Let in-flight messages reach the client, even while the test has faked the timers. */
+async function settle() {
+  for (let turn = 0; turn < 20; turn += 1) {
+    // oxlint-disable-next-line no-await-in-loop -- each pass must yield to the event loop in turn
+    await new Promise((resolve) => realSetTimeout(resolve, 0));
+  }
 }
 
 describe("AgentChatSession: connect and sessions", () => {
@@ -174,6 +181,49 @@ describe("AgentChatSession: prompts", () => {
     await waitFor(session, (snapshot) => snapshot.prompting);
     await session.cancel();
     expect(await turn).toBe("cancelled");
+    expect(session.snapshot.prompting).toBe(false);
+  });
+
+  it("stops the running turn and frees the composer when a new session starts", async () => {
+    const { session, fake } = await ready();
+    const oldSessionId = session.snapshot.sessionId!;
+    const turn = session.prompt("/sleep");
+    await waitFor(session, (snapshot) => snapshot.prompting);
+
+    const newSessionId = await session.newSession();
+
+    expect(fake.log.cancelled).toEqual([oldSessionId]);
+    expect(session.snapshot.sessionId).toBe(newSessionId);
+    expect(session.snapshot.prompting).toBe(false);
+    expect(await turn).toBe("cancelled");
+    expect(session.snapshot.prompting).toBe(false);
+    expect(session.snapshot.transcript.items).toEqual([]);
+
+    expect(await session.prompt("hello")).toBe("end_turn");
+    expect(session.snapshot.prompting).toBe(false);
+  });
+
+  it("frees the composer even when the old turn is still winding down, and ignores it when it ends", async () => {
+    const { session, fake } = await ready();
+    const oldSessionId = session.snapshot.sessionId!;
+    const turn = session.prompt("/sleep");
+    const old = fake.sessions.get(oldSessionId)!;
+    await vi.waitFor(() => expect(old.cancel).toBeDefined());
+    const finishOldTurn = old.cancel!;
+    old.cancel = () => undefined;
+
+    await session.newSession();
+    expect(fake.log.cancelled).toEqual([oldSessionId]);
+    expect(session.snapshot.prompting).toBe(false);
+
+    const next = session.prompt("/sleep");
+    expect(session.snapshot.prompting).toBe(true);
+    finishOldTurn();
+    await turn;
+    expect(session.snapshot.prompting).toBe(true);
+
+    await session.cancel();
+    await next;
     expect(session.snapshot.prompting).toBe(false);
   });
 
@@ -359,5 +409,108 @@ describe("AgentChatSession: close codes and reconnects", () => {
     current().closeWith(AgentCloseCode.sessionExpired);
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(session.snapshot.status).toBe("closed");
+  });
+});
+
+const chunk = (text: string) =>
+  ({ sessionUpdate: "agent_message_chunk", messageId: "m1", content: { type: "text", text } }) as const;
+
+/** A running turn the test feeds updates into, with the coalescing timer under test control. */
+async function streaming() {
+  const context = await ready();
+  vitest.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const turn = context.session.prompt("/sleep");
+  await settle();
+  const snapshots: AgentChatSnapshot[] = [];
+  context.session.subscribe((snapshot) => snapshots.push(snapshot));
+  const push = context.fake.sessions.get(context.session.snapshot.sessionId!)!.push!;
+  return { ...context, turn, snapshots, push };
+}
+
+describe("AgentChatSession: coalesced snapshots", () => {
+  afterEach(() => {
+    vitest.useRealTimers();
+  });
+
+  it("delivers a burst of updates as one snapshot, and a direct read is not behind", async () => {
+    const { session, turn, snapshots, push } = await streaming();
+    await Promise.all(["a", "b", "c"].map((text) => push(chunk(text))));
+    await settle();
+    expect(snapshots).toHaveLength(0);
+    expect(summary(session.snapshot.transcript.items)).toEqual(["user:/sleep", "agent:abc"]);
+
+    vitest.advanceTimersByTime(16);
+    expect(snapshots).toHaveLength(1);
+    expect(summary(snapshots[0]!.transcript.items)).toEqual(["user:/sleep", "agent:abc"]);
+
+    await session.cancel();
+    await turn;
+  });
+
+  it("publishes the end of a turn at once, with the updates still waiting", async () => {
+    const { session, turn, snapshots, push } = await streaming();
+    await push(chunk("last words"));
+    await settle();
+    await session.cancel();
+    await turn;
+
+    // The timer never advanced: the turn's end carried the waiting chunk with it.
+    const last = snapshots.at(-1)!;
+    expect(last.prompting).toBe(false);
+    expect(summary(last.transcript.items)).toEqual(["user:/sleep", "agent:last words", "end:cancelled"]);
+    expect(vitest.getTimerCount()).toBe(0);
+  });
+
+  it("replays a loaded session's history in one snapshot", async () => {
+    const { session } = await ready();
+    await session.prompt("one");
+    await session.prompt("two");
+    const sessionId = session.snapshot.sessionId!;
+    const before = summary(session.snapshot.transcript.items);
+    vitest.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const snapshots: AgentChatSnapshot[] = [];
+    session.subscribe((snapshot) => snapshots.push(snapshot));
+
+    await session.loadSession(sessionId);
+
+    // The reset, then the finished replay.
+    expect(snapshots).toHaveLength(2);
+    expect(snapshots[0]!.transcript.items).toEqual([]);
+    expect(summary(snapshots[1]!.transcript.items)).toEqual(before);
+  });
+
+  it("records a model reported by a streamed update before the update is published", async () => {
+    const { session, turn, snapshots, push } = await streaming();
+    const configOptions = session.snapshot.transcript.configOptions.map((option) =>
+      option.id === "model" ? ({ ...option, currentValue: "smart" } as SessionConfigOption) : option
+    );
+    await push({ sessionUpdate: "config_option_update", configOptions: [...configOptions] });
+    await settle();
+    expect(snapshots).toHaveLength(0);
+    expect(session.choices.initialModel).toBe("smart");
+
+    await session.cancel();
+    await turn;
+  });
+
+  it("drops a waiting emit on dispose", async () => {
+    const { session, turn, push } = await streaming();
+    await push(chunk("a"));
+    await settle();
+    expect(vitest.getTimerCount()).toBe(1);
+    session.dispose();
+    expect(vitest.getTimerCount()).toBe(0);
+    await turn.catch(() => {});
+  });
+
+  it("keeps a pending permission the same object across snapshots", async () => {
+    const { session } = await ready();
+    const turn = session.prompt("/tool");
+    const { permissions } = await waitFor(session, (snapshot) => snapshot.permissions.length === 1);
+    await session.setMode("ask_all");
+    expect(session.snapshot.permissions[0]).toBe(permissions[0]);
+
+    session.respondToPermission(permissions[0]!.id, "reject_once");
+    await turn;
   });
 });

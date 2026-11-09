@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Vragen vóór wijzigingen",
-          "description": "Lezen, zoeken en webpagina's ophalen gebeurt zonder te vragen. Voor shellopdrachten, bestandswijzigingen en wijzigingen in Plane wordt eerst toestemming gevraagd."
+          "description": "Lezen en zoeken in de werkmap gebeurt zonder te vragen. Voor lezen op andere plekken, webpagina's ophalen, shellopdrachten, bestandswijzigingen en wijzigingen in Plane wordt eerst toestemming gevraagd."
         },
         "yolo": {
           "name": "Nooit vragen",
@@ -110,6 +110,9 @@
       "title": "Deze actie toestaan?",
       "allow_once": "Eenmalig toestaan",
       "allow_always": "Altijd toestaan in deze chat",
+      "allow_always_command": "Precies deze opdracht altijd toestaan in deze chat",
+      "allow_always_file": "Wijzigingen in dit bestand altijd toestaan in deze chat",
+      "allow_always_tool": "Deze tool altijd toestaan in deze chat",
       "reject_once": "Weigeren",
       "reject_always": "Altijd weigeren"
     },

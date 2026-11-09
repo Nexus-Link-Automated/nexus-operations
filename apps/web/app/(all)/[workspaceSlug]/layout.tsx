@@ -10,6 +10,7 @@ import { WorkspaceContentWrapper } from "@/components/workspace/content-wrapper"
 import { AppRailVisibilityProvider } from "@/lib/app-rail";
 import { GlobalModals } from "@/components/common/modal/global";
 import { KhaiaWidget } from "@/components/agents/khaia/root";
+import { ChatConnection } from "@/components/messages/connection";
 import { WorkspaceAuthWrapper } from "@/layouts/auth-layout/workspace-wrapper";
 import type { Route } from "./+types/layout";
 
@@ -22,6 +23,8 @@ export default function WorkspaceLayout(props: Route.ComponentProps) {
         <AppRailVisibilityProvider>
           <WorkspaceContentWrapper>
             <GlobalModals workspaceSlug={workspaceSlug} />
+            {/* Before the Outlet, so the chat store has started when a Messages page's effects run. */}
+            <ChatConnection workspaceSlug={workspaceSlug} />
             <Outlet />
             <KhaiaWidget workspaceSlug={workspaceSlug} />
           </WorkspaceContentWrapper>

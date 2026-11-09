@@ -8,10 +8,12 @@ from django.db import IntegrityError, transaction
 from rest_framework import status
 from rest_framework.response import Response
 
+from plane.chat.events import EventType, member_event, publish_on_commit, read_event
 from plane.chat.exceptions import BadRequest, Conflict, NotFound
 from plane.chat.models import ChannelMember, ChannelMemberRole, Message
 from plane.chat.permissions import (
-    require_another_admin,
+    lock_member,
+    lock_member_keeping_an_admin,
     require_channel_admin,
     require_channel_member,
     require_named_channel,
@@ -30,13 +32,33 @@ from plane.db.models import WorkspaceMember
 DM_MEMBERS_FIXED = "A direct message's members are fixed."
 
 
+def _latest_message_id(channel):
+    """Where a new member's read cursor starts, so what was said before they arrived isn't unread.
+
+    A top-level message, like every read cursor (see `ChannelReadEndpoint`); None if the channel is empty.
+    """
+    return (
+        Message.objects.filter(channel=channel, parent__isnull=True)
+        .order_by("-created_at", "-id")
+        .values_list("pk", flat=True)
+        .first()
+    )
+
+
+def _remove_member(channel, member):
+    """End `member`'s time in the channel, and announce it, unless someone else has just done so."""
+    with transaction.atomic():
+        current = lock_member_keeping_an_admin(channel, member)
+        if current is not None:
+            current.delete()
+            publish_on_commit(member_event(EventType.MEMBER_REMOVED, current))
+
+
 def _leave(channel):
     """Leaving is idempotent; a DM can't be left (it can be hidden in a later step)."""
     require_named_channel(channel, "You can't leave a direct message.")
     if channel.membership is not None:
-        with transaction.atomic():
-            require_another_admin(channel, channel.membership)
-            channel.membership.delete()
+        _remove_member(channel, channel.membership)
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -49,7 +71,10 @@ class ChannelJoinEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
         require_not_archived(channel)
         try:
             with transaction.atomic():
-                ChannelMember.objects.create(channel=channel, user=request.user)
+                joined = ChannelMember.objects.create(
+                    channel=channel, user=request.user, last_read_message_id=_latest_message_id(channel)
+                )
+                publish_on_commit(member_event(EventType.MEMBER_ADDED, joined))
         except IntegrityError:
             # A concurrent join from another tab already added us.
             return Response(self.channel_payload(channel.id))
@@ -87,12 +112,14 @@ class ChannelMemberEndpoint(ChatBaseEndpoint):
             raise BadRequest("Only active members of the workspace can be added.")
 
         existing = set(ChannelMember.objects.filter(channel=channel).values_list("user_id", flat=True))
+        latest = _latest_message_id(channel)
         try:
             with transaction.atomic():
                 added = [
-                    ChannelMember.objects.create(channel=channel, user_id=user_id)
+                    ChannelMember.objects.create(channel=channel, user_id=user_id, last_read_message_id=latest)
                     for user_id in sorted(user_ids - existing, key=str)
                 ]
+                publish_on_commit(*[member_event(EventType.MEMBER_ADDED, member) for member in added])
         except IntegrityError:
             raise Conflict("The channel's members changed while adding; try again.")
         return Response(
@@ -117,12 +144,20 @@ class ChannelMemberDetailEndpoint(ChatBaseEndpoint):
         member = self._target(channel, user_id)
         serializer = ChannelMemberRoleSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        role = serializer.validated_data["role"]
         with transaction.atomic():
-            if serializer.validated_data["role"] != ChannelMemberRole.ADMIN:
-                require_another_admin(channel, member)
-            member.role = serializer.validated_data["role"]
-            member.save(update_fields=["role", "updated_at", "updated_by"])
-        return Response(ChannelMemberSerializer(member).data)
+            current = (
+                lock_member(member)
+                if role == ChannelMemberRole.ADMIN
+                else lock_member_keeping_an_admin(channel, member)
+            )
+            if current is None:
+                raise NotFound("Not a member of this channel.")
+            if current.role != role:
+                current.role = role
+                current.save(update_fields=["role", "updated_at", "updated_by"])
+                publish_on_commit(member_event(EventType.MEMBER_UPDATED, current))
+        return Response(ChannelMemberSerializer(current).data)
 
     def delete(self, request, slug, channel_id, user_id):
         """Remove someone: yourself (the same as leaving), or anyone if you're a channel or workspace admin."""
@@ -132,10 +167,7 @@ class ChannelMemberDetailEndpoint(ChatBaseEndpoint):
         require_named_channel(channel, DM_MEMBERS_FIXED)
         require_channel_admin(channel, self.role)
         require_not_archived(channel)
-        member = self._target(channel, user_id)
-        with transaction.atomic():
-            require_another_admin(channel, member)
-            member.delete()
+        _remove_member(channel, self._target(channel, user_id))
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -162,4 +194,5 @@ class ChannelReadEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
             if current is None or (message.created_at, message.id) > (current.created_at, current.id):
                 membership.last_read_message = message
                 membership.save(update_fields=["last_read_message", "updated_at", "updated_by"])
+                publish_on_commit(read_event(membership))
         return Response(self.channel_payload(channel.id))

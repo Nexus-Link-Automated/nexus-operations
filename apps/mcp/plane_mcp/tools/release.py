@@ -20,6 +20,7 @@ from plane.models.releases import (
 
 from plane_mcp.client import get_plane_client_context
 from plane_mcp.toolkit import (
+    DEFAULT_PAGE_SIZE,
     Action,
     build_annotations,
     build_description,
@@ -172,7 +173,9 @@ def register(mcp: FastMCP) -> None:
         releases = client.releases
 
         if action == "list":
-            return releases.list(workspace_slug=workspace_slug, params=page_params(cursor, per_page))
+            return releases.list(
+                workspace_slug=workspace_slug, params=page_params(cursor, per_page or DEFAULT_PAGE_SIZE)
+            )
 
         if action == "create":
             if not name:
@@ -241,7 +244,9 @@ def register(mcp: FastMCP) -> None:
 
         if action == "list_workitems":
             return work_items.list(
-                workspace_slug=workspace_slug, release_id=release_id, params=page_params(cursor, per_page)
+                workspace_slug=workspace_slug,
+                release_id=release_id,
+                params=page_params(cursor, per_page or DEFAULT_PAGE_SIZE),
             )
 
         add = coerce_list(add_ids)

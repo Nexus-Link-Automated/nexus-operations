@@ -17,13 +17,16 @@ export const useWorkspacePaths = () => {
   const isSettingsPath = pathname.includes(`/${workspaceSlug}/settings`);
   const isWikiPath = pathname.includes(`/${workspaceSlug}/wiki`);
   const isAiPath = pathname.includes(`/${workspaceSlug}/agents`);
-  const isProjectsPath = pathname.includes(`/${workspaceSlug}/`) && !isWikiPath && !isAiPath && !isSettingsPath;
+  const isMessagesPath = pathname.includes(`/${workspaceSlug}/messages`);
+  const isProjectsPath =
+    pathname.includes(`/${workspaceSlug}/`) && !isWikiPath && !isAiPath && !isMessagesPath && !isSettingsPath;
   const isNotificationsPath = pathname.includes(`/${workspaceSlug}/notifications`);
 
   return {
     isSettingsPath,
     isWikiPath,
     isAiPath,
+    isMessagesPath,
     isProjectsPath,
     isNotificationsPath,
   };

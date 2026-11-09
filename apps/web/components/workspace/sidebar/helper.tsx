@@ -8,6 +8,7 @@ import {
   AiStarFourOutline,
   AnalyticsOutline,
   ArchiveOutline,
+  ChatOutline,
   CyclesOutline,
   DraftsOutline,
   HomeOutline,
@@ -23,6 +24,8 @@ export const getSidebarNavigationItemIcon = (key: string, className: string = ""
   switch (key) {
     case "home":
       return <HomeOutline className={cn("size-4 flex-shrink-0", className)} />;
+    case "messages":
+      return <ChatOutline className={cn("size-4 flex-shrink-0", className)} />;
     case "agents":
       return <AiStarFourOutline className={cn("size-4 flex-shrink-0", className)} />;
     case "inbox":

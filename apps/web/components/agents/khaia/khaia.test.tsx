@@ -54,23 +54,24 @@ const UNREAD = /^Open (Khaia|\{name\}) \(new activity\)$/;
 
 let store: AgentChatStore;
 vi.mock("@/hooks/store/use-agent-chat", () => ({ useAgentChat: () => store }));
-// Admins and members may open AI providers; flip to false to act as a guest.
-let canManageProviders = true;
+// Admins and members may use agents; flip to false to act as a guest.
+let canUseAgents = true;
 vi.mock("@/hooks/store/user", () => ({
-  useUserPermissions: () => ({ allowPermissions: () => canManageProviders }),
+  useUserPermissions: () => ({ allowPermissions: () => canUseAgents }),
 }));
 
 function setup(agents: TWorkspaceAgent[] = AGENTS) {
   const fake = createFakeAgent({ maxMode: "ask_writes" });
   const targets: { agentId: string; workspaceSlug: string }[] = [];
+  const list = vi.fn(async () => agents);
   store = new AgentChatStore({
-    agentService: { list: async () => agents },
+    agentService: { list },
     createSession: (target) => {
       targets.push(target);
       return new AgentChatSession({ transport: () => memoryTransport(fake.app()) });
     },
   });
-  return { targets };
+  return { targets, list };
 }
 
 function renderWidget(path = "/acme/projects/") {
@@ -85,7 +86,7 @@ function renderWidget(path = "/acme/projects/") {
 
 beforeEach(() => {
   localStorage.clear();
-  canManageProviders = true;
+  canUseAgents = true;
 });
 afterEach(() => store?.closeChat());
 
@@ -187,18 +188,26 @@ describe("KhaiaWidget", () => {
     });
   });
 
-  it("hides the AI providers link from guests and locks switching while the agent answers", async () => {
-    canManageProviders = false;
+  it("is hidden from guests, without asking the API for agents", async () => {
+    canUseAgents = false;
+    const { list } = setup();
+    renderWidget();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(list).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: OPEN })).toBeNull();
+  });
+
+  it("locks switching while the agent answers", async () => {
     setup();
     renderWidget();
     await userEvent.click(await screen.findByRole("button", { name: OPEN }));
     await waitFor(() => expect(store.canPrompt).toBe(true));
     const turn = store.sendPrompt("/sleep");
     await waitFor(() => expect(store.snapshot?.prompting).toBe(true));
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "New chat" }).disabled).toBe(true);
     await userEvent.click(screen.getByRole("button", { name: /^Agent and model/ }));
     expect((await screen.findByRole("menuitemradio", { name: /Codex/ })).getAttribute("aria-disabled")).toBe("true");
     expect(screen.getByRole("menuitemradio", { name: "Smart" }).getAttribute("aria-disabled")).toBe("true");
-    expect(screen.queryByRole("menuitem", { name: "Manage AI providers" })).toBeNull();
     await userEvent.keyboard("{Escape}");
     await act(() => store.cancelTurn());
     await turn;

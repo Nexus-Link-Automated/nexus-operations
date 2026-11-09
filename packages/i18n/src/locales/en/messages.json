@@ -1,0 +1,106 @@
+{
+  "messages": {
+    "title": "Messages",
+    "list_label": "Messages",
+    "unknown_member": "Unknown member",
+    "unread_count": "{count, plural, one {# unread message} other {# unread messages}}",
+    "empty": {
+      "title": "No conversations yet",
+      "description": "Channels and direct messages with your team will appear here."
+    },
+    "channels": {
+      "title": "Channels",
+      "browse": "Browse channels",
+      "create": "Create a channel",
+      "none": "You haven't joined any channels yet."
+    },
+    "dms": {
+      "title": "Direct messages",
+      "new": "New message",
+      "none": "No direct messages yet."
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# member} other {# members}}",
+      "join": "Join",
+      "leave": "Leave channel",
+      "join_prompt": "You're viewing #{name}. Join it to send messages.",
+      "archived": "This channel is archived. You can read it, but not send messages.",
+      "intro_title": "This is the start of #{name}",
+      "intro_description": "Everything said in this channel shows up here.",
+      "not_found_title": "Conversation not found",
+      "not_found_description": "It doesn't exist, or you don't have access to it."
+    },
+    "dm": {
+      "intro_title": "This is the start of your conversation with {name}",
+      "intro_description": "Only the people in this conversation can see it."
+    },
+    "create_channel": {
+      "title": "Create a channel",
+      "description": "Channels are where your team talks about one topic.",
+      "name": "Name",
+      "name_placeholder": "e.g. design-review",
+      "name_required": "A channel needs a name.",
+      "description_label": "Description (optional)",
+      "private": "Private channel",
+      "private_help": "Only people who are added can see it and its messages.",
+      "submit": "Create channel"
+    },
+    "browse": {
+      "title": "Browse channels",
+      "description": "Public channels you haven't joined.",
+      "search": "Search channels",
+      "empty": "No channels to join.",
+      "open": "Open"
+    },
+    "new_dm": {
+      "title": "New message",
+      "description": "{count, plural, one {Choose one person.} other {Choose one person, or up to # for a group.}}",
+      "search": "Search people",
+      "empty": "No one matches.",
+      "submit": "Start conversation"
+    },
+    "composer": {
+      "send": "Send message",
+      "placeholder_channel": "Message #{name}",
+      "placeholder_dm": "Message {name}"
+    },
+    "message": {
+      "label": "{name} at {time}",
+      "edit": "Edit message",
+      "save": "Save",
+      "edited": "(edited)",
+      "remove": "Delete message",
+      "remove_title": "Delete this message?",
+      "remove_description": "Everyone in the conversation will see that a message was deleted.",
+      "removing": "Deleting",
+      "removed": "This message was deleted.",
+      "replies": "{count, plural, one {# reply} other {# replies}}",
+      "sending": "Sending…",
+      "failed": "Not sent.",
+      "retry": "Retry",
+      "discard": "Discard"
+    },
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
+    "connection": {
+      "reconnecting": "Reconnecting. New messages will appear when the connection is back.",
+      "reconnect": "Reconnect now",
+      "signed_out": "Your session has ended. Sign in again to get new messages.",
+      "forbidden": "You no longer have access to these messages.",
+      "failed": "Live updates are unavailable. Reload the page to try again."
+    },
+    "errors": {
+      "retry": "Try again",
+      "load_channels_failed": "Couldn't load your conversations",
+      "load_messages_failed": "Couldn't load messages.",
+      "create_channel_failed": "Couldn't create the channel",
+      "join_failed": "Couldn't join the channel",
+      "leave_failed": "Couldn't leave the channel",
+      "open_dm_failed": "Couldn't start the conversation",
+      "edit_failed": "Couldn't save the edit",
+      "remove_failed": "Couldn't delete the message"
+    }
+  }
+}

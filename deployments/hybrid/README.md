@@ -7,7 +7,7 @@ browser ── https ──▶ Railway edge ──▶ router ──▶ web (priv
                                         │
                                         │ Tailscale (encrypted, outbound from both sides)
                                         ▼
-                                  VPS: tailscale serve ──▶ gateway ──▶ api, live, admin, space, mcp, MinIO, agent-bridge
+                                  VPS: tailscale serve ──▶ gateway ──▶ api, live, admin, space, mcp, MinIO, agent-bridge, chat-gateway
                                                                             │                              │
                                                                    Postgres, Valkey, RabbitMQ        agent-runner ──▶ internet, mcp
 ```
@@ -19,11 +19,12 @@ browser ── https ──▶ Railway edge ──▶ router ──▶ web (priv
 | `/live/*`                                             | VPS     | Live             |
 | `/mcp`, `/mcp/*`                                      | VPS     | Plane MCP server |
 | `/agents`, `/agents/*` (WebSocket included)           | VPS     | Agent bridge     |
+| `/chat`, `/chat/*` (WebSocket included)               | VPS     | Chat gateway     |
 | `/god-mode`, `/god-mode/*`                            | VPS     | Admin            |
 | `/spaces`, `/spaces/*`                                | VPS     | Space            |
 | `/uploads`, `/uploads/*`                              | VPS     | MinIO            |
 
-The path list exists in `railway/router/Caddyfile` and `vps/Caddyfile`. Compare both with `apps/proxy/Caddyfile.ce` on every upgrade. Only the root `/agents` path goes to the bridge: the chat page itself, `/<workspace-slug>/agents`, is a client-side route of web. The API reserves these root paths as workspace slugs so that no workspace can collide with them. The gateway answers `/api/internal/*` with a 404, because only the bridge calls those endpoints, and it reaches the API directly.
+The path list exists in `railway/router/Caddyfile` and `vps/Caddyfile`. Compare both with `apps/proxy/Caddyfile.ce` on every upgrade. Only the root `/agents` path goes to the bridge: the chat page itself, `/<workspace-slug>/agents`, is a client-side route of web. Likewise only the root `/chat` path goes to the chat gateway, and the Messages page, `/<workspace-slug>/messages`, is web's. The API reserves these root paths as workspace slugs so that no workspace can collide with them. The gateway answers `/api/internal/*` with a 404, because only the bridge calls those endpoints, and it reaches the API directly.
 
 ## Production today
 
@@ -86,7 +87,9 @@ cd /opt/nexus-operations/deployments/hybrid/vps
 ./generate-env.sh --domain $APP_DOMAIN --release $RELEASE
 ```
 
-`bootstrap.sh` installs Docker, allows only SSH inbound, enables automatic security updates, adds swap, schedules the daily backup and installs the agent network firewall (`agents-firewall.sh`, re-applied whenever Docker starts).
+`bootstrap.sh` installs Docker, allows only SSH inbound, enables automatic security updates, adds swap, schedules the daily backup and installs the agent network firewall (`agents-firewall.sh`, re-applied whenever Docker starts and re-checked every minute).
+
+It also turns off SSH password login and limits root to keys, with `harden-ssh.sh`. It only does this when root has an authorized key that can open a shell, and it checks the new config with `sshd -t` before reloading sshd. If there is no such key it leaves SSH alone and prints a warning: add a key, confirm that logging in with it works, then run `./harden-ssh.sh`.
 
 Set up the backup remote. It must be an rclone **crypt** remote, because backups contain `.env`; `backup.sh` refuses anything else.
 
@@ -124,7 +127,7 @@ docker compose up -d
 docker compose ps
 ```
 
-`migrator` exits with status 0 when it finishes, and the API waits for it. `agent-bridge` and `agent-runner` start with the rest; no agent is available until you register one (see [Agent chat](#agent-chat)). The gateway listens on loopback only. Expose it to the tailnet:
+`migrator` exits with status 0 when it finishes, and the API waits for it. `chat-gateway`, `agent-bridge` and `agent-runner` start with the rest; no agent is available until you register one (see [Agent chat](#agent-chat)). The gateway listens on loopback only. Expose it to the tailnet:
 
 ```bash
 tailscale serve --bg --tcp=8080 tcp://localhost:8080
@@ -147,6 +150,8 @@ railway add --service router \
 ```
 
 `$IMAGE_REGISTRY` must match the VPS, and `web` must run the same `$RELEASE` as the backend.
+
+The router rejects request bodies larger than `ROUTER_MAX_BODY_SIZE` (default `6MiB`). Keep it above the VPS's `FILE_SIZE_LIMIT`: a browser upload is the file plus its multipart form fields. If you raise `FILE_SIZE_LIMIT`, add `--variables "ROUTER_MAX_BODY_SIZE=<bigger>"`, for example `12MiB`.
 
 Set the Tailscale secret without putting it in your shell history. The `?preauthorized=true` suffix skips device approval:
 
@@ -192,6 +197,7 @@ Then check the things a script cannot:
 - Send a request with a forged `X-Real-IP` header and confirm that the log shows your real address, which shows Railway's edge overwrites it.
 - Run `sudo reboot` on the VPS, then repeat the smoke test, and confirm that `iptables -S DOCKER-USER` still jumps to `NEXUS-AGENTS-FWD`.
 - Check the agent sandbox from inside the runner (see [Agent chat](#agent-chat)).
+- Open `/<workspace-slug>/messages` in two browsers signed in as different members, and confirm that a message sent in one appears in the other at once. Leave both open and idle for 20 minutes, then send again: the socket either survived or reconnected and caught up (see [Nexus Messages](#nexus-messages)).
 - Register an agent in God mode, open `/<workspace-slug>/agents`, and chat with it: ask it to list work items, which goes through Plane MCP, and approve and deny a permission prompt.
 - Run a backup and verify it, as described below.
 
@@ -209,7 +215,7 @@ Between steps 4 and 5 the frontend is one version behind the backend, so do them
 
 ## Backups
 
-`backup.sh` runs daily at about 02:30 UTC. Each backup holds the Postgres dump, the uploads bucket, the agents' working dirs (`agent_workspaces.tar.gz`) and `.env`. Check on it with `systemctl status nexus-ops-backup.timer` and `journalctl -u nexus-ops-backup`.
+`backup.sh` runs daily at about 02:30 UTC, from the `nexus-ops-backup.timer` that `bootstrap.sh` installs. Each backup holds the Postgres dump, the uploads bucket, the agents' working dirs (`agent_workspaces.tar.gz`), `.env`, and any extra paths you add. Check on it with `systemctl status nexus-ops-backup.timer` and `journalctl -u nexus-ops-backup`. A run that fails leaves `nexus-ops-backup.service` in the failed state, and `systemctl --failed` shows it.
 
 ```bash
 ./backup.sh                     # run one now
@@ -218,13 +224,39 @@ Between steps 4 and 5 the frontend is one version behind the backend, so do them
 ./restore.sh restore <backup>   # replaces live data; asks you to type the backup name
 ```
 
+Both scripts read these settings, from the environment or from `.env`:
+
+| Setting                 | Default                  | Meaning                                                                                                                        |
+| ----------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `BACKUP_REMOTE`         | (required)               | rclone crypt remote, such as `nexus-backup-crypt:`.                                                                            |
+| `BACKUP_RETENTION_DAYS` | `30`                     | Backups older than this are deleted, after a successful run only.                                                              |
+| `BACKUP_STAGING_DIR`    | `/var/backups/nexus-ops` | Where a backup is put together, or a restore downloaded. It needs room for a full backup, so do not point it at a small tmpfs. |
+| `BACKUP_EXTRA_PATHS`    | (none)                   | Extra host paths to include, space-separated, such as deployment config. Must exist, or the backup fails.                      |
+| `ENV_FILE`              | `./.env`                 | Env file to read. It has to come from the environment.                                                                         |
+| `COMPOSE_FILES`         | `-f docker-compose.yml`  | Compose arguments.                                                                                                             |
+| `RCLONE_CONFIG_DIR`     | `./rclone`               | Directory holding `rclone.conf`.                                                                                               |
+
+To get extra paths back, download the archive and unpack it where you want to review it:
+
+```bash
+docker run --rm -v "$PWD/rclone:/config/rclone:ro" -v "$PWD:/out" rclone/rclone:1.75.2 \
+  copy "$BACKUP_REMOTE<backup>/extra.tar.gz" /out
+tar xzf extra.tar.gz -C /path/to/review
+```
+
+A backup only counts as finished once its `SHA256SUMS` has been uploaded, which happens last. If the run fails at any point, retention does not run, and `backup.sh` exits with an error that says the backup is not complete. `restore.sh list` offers only finished backups, and `restore` refuses one whose upload did not finish.
+
 The database runs Postgres 18, the same major version as production, because `pg_restore` cannot read a dump made by a newer major version. `verify` uses whatever image `plane-db` has in `docker-compose.yml`, so change it there only.
 
 `restore` stops every application service, including `agent-bridge` and `agent-runner`, then replaces the database, the uploads and the `agent_workspaces` volume. The workspaces are unpacked with their numeric owners and modes, because each one belongs to its own uid; the uid map in `.runner/uids.json` comes back with them. A backup made before the agent chat has no workspaces archive, and a restore of one leaves the volume as it is.
 
+It also stops Valkey and RabbitMQ, and once the data is back it empties both before starting anything that consumes them. Tasks queued before the restore refer to data that may no longer exist, so they must not run against it.
+
 A restore does not apply the backed-up `.env`. If you are rebuilding on a new server, copy that `env` file into place as `.env` before starting the stack, or Plane cannot read its encrypted settings.
 
-Nothing alerts you if a backup fails. Add monitoring, or run `verify` on a schedule you will notice.
+The agent workspaces archive stores sparse files as holes, and is capped at `BACKUP_WORKSPACES_MAX_BYTES` (default 20 GiB, set it in `.env`). A larger archive is left out of the backup and `backup.sh` exits with an error, so the database and uploads are still backed up while the failure shows up in `systemctl status`. Retention is skipped for that run. Such a backup still counts as finished and can be restored, and a `WORKSPACES_OMITTED` file inside it records why the archive is missing. `restore.sh` says so before asking for confirmation, and leaves the `agent_workspaces` volume as it is.
+
+Nothing but systemd alerts you if a backup fails. Add monitoring, or run `verify` on a schedule you will notice.
 
 ## Testing locally
 
@@ -237,14 +269,25 @@ APP_RELEASE=<tag> deployments/hybrid/test/run.sh   # test images build-hybrid.ym
 
 The first build takes a while and needs several GB of free memory. Later runs reuse Docker's build cache.
 
+`test/backup-restore-test.sh` checks `backup.sh` and `restore.sh` with a stubbed `docker` on `PATH`, using a local directory as the remote. It starts no containers, needs no root, and covers the staging directory, extra paths, partial and failed backups, and the order of the restore steps.
+
 Besides the smoke checks, the test:
 
 - Registers the echo test agent. The test override enables it with `AGENT_RUNNER_ENABLE_ECHO=true`; production never does.
 - Chats with that agent through the router, gateway, bridge and runner, including a permission prompt.
 - Checks that, from inside `agent-runner`, `api`, `gateway`, Postgres, Valkey, RabbitMQ, MinIO and live are unreachable, both by name and by IP address, while `mcp` and the internet are reachable.
 - Checks that the chat's working dir belongs to its own uid with mode 700, and that no agent process outlives the chat.
+- Opens a Nexus Messages socket with the session cookie, creates a channel and sends a message over REST, and waits for both events on the socket.
 
 A plain SOCKS5 proxy stands in for the tailnet. The test cannot exercise Railway's edge or a real Tailscale connection, so those are covered in step 7. It also does not install `agents-firewall.sh`, which changes the host's iptables, so check that on the VPS.
+
+The host scripts have their own tests, which use stubs on `PATH` and change nothing on the machine, and need no root:
+
+```bash
+deployments/hybrid/test/agents-firewall-test.sh    # atomic updates, --verify, and the rule order
+deployments/hybrid/test/harden-ssh-test.sh         # the SSH lockout guards
+deployments/hybrid/test/backup-workspaces-test.sh  # sparse files and the workspace archive cap
+```
 
 ## Agent chat
 
@@ -280,6 +323,10 @@ All of these are in `.env`. `generate-env.sh` writes them, and `generate-env.sh 
 | `AGENT_RUNNER_SECRET`                   | agent-bridge, agent-runner | Signs the bridge's single-use spawn tickets. 32 or more characters.                                                                          |
 | `AGENT_SESSION_TOKEN_TTL_MINUTES`       | api                        | Lifetime of each chat's token (default 120). When it expires, the chat closes with 4410, and the browser reconnects and reloads the session. |
 | `AGENT_RUNNER_CPUS`, `_MEMORY`, `_PIDS` | agent-runner               | Container limits shared by all running agents (defaults 2, `3g`, 1024).                                                                      |
+| `AGENT_RUNNER_NPROC_LIMIT`              | agent-runner               | Processes and threads each uid may own (default 256).                                                                                        |
+| `AGENT_RUNNER_FILE_SIZE_LIMIT_BYTES`    | agent-runner               | Largest file an agent can create (default 4 GiB).                                                                                            |
+| `AGENT_RUNNER_USER_DISK_LIMIT_BYTES`    | agent-runner               | Disk each workspace dir may use before its agents are refused and stopped (default 10 GiB, `0` is off).                                      |
+| `AGENT_RUNNER_TMP_SIZE`                 | agent-runner               | Size of the runner's `/tmp` tmpfs, which counts against its memory limit (default `512m`).                                                   |
 
 The compose file sets the rest:
 
@@ -298,7 +345,8 @@ To rotate a secret, change it in `.env` and run `docker compose up -d`, which re
 Agents get a full toolbox: shell, file edits, git, compilers, web access and Plane MCP. They run inside `agent-runner`, which needs to run as root to switch uids. It is limited in several ways:
 
 - It holds only the capabilities that switching uids takes (`CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETUID`, `SETGID`), and it runs with `no-new-privileges`.
-- It has CPU, memory and pids limits.
+- It has CPU, memory and pids limits, and `/tmp` is a size-limited tmpfs.
+- Each uid has its own process and file size limits, and each workspace dir has a disk cap (see `apps/agent-runner/README.md`). Over the cap, new agents are refused and running ones are stopped until someone clears files in the volume or raises the limit.
 - Each workspace and user pair gets its own uid, in the range 20000–59999. Its working dir, `HOME` and `TMPDIR` are mode 0700, and its environment is built from scratch, with only the agent's own settings and its session token.
 - When a chat ends, its processes are killed and its token is revoked.
 
@@ -313,7 +361,11 @@ docker compose exec agent-runner curl -sI https://example.com | head -1  # HTTP/
 docker compose exec agent-runner curl -m 5 http://169.254.169.254/       # refused (metadata)
 docker compose exec agent-runner curl -m 5 http://<another tailnet device>:<port>/  # refused
 sudo iptables -S NEXUS-AGENTS-FWD                                        # the rules
+sudo iptables -S FORWARD | sed -n 2p                                     # the jump to them, first in FORWARD
+sudo ./agents-firewall.sh --verify                                       # silent when nothing has drifted
 ```
+
+`nexus-ops-agents-firewall-check.timer` runs `agents-firewall.sh --verify` every minute. It only re-applies the rules when they differ, and updates are atomic: new rules are built in new chains before the jumps move, so traffic is never left unfiltered. Check its work with `journalctl -u nexus-ops-agents-firewall-check`.
 
 ### Registering an agent
 
@@ -338,6 +390,26 @@ docker compose run --rm -T --no-deps --entrypoint sh agent-runner -c \
   'find /workspaces -mindepth 1 -delete && tar --numeric-owner -xpzf - -C /workspaces' <agent_workspaces.tar.gz
 docker compose up -d agent-bridge agent-runner
 ```
+
+## Nexus Messages
+
+Team chat lives at `/<workspace-slug>/messages`. Everything it stores goes through the Django API at `/api/workspaces/<slug>/chat/`. Live updates come from `chat-gateway` over a WebSocket to `wss://$APP_DOMAIN/chat/ws`. `apps/chat-gateway/README.md` describes the protocol.
+
+As with the agent chat, the production VPS runs its own stack (see [Production today](#production-today)), so the service and the `/chat` route below have to be added there too.
+
+```
+browser ──▶ router ──▶ gateway ──▶ chat-gateway ──▶ api (cookie check, which channels the user may see)
+   │                                    ▲
+   └── REST writes ──▶ api ──▶ Valkey ──┘ (chat events, after each write commits)
+```
+
+| Service        | Networks      | What it does                                                                                                                                                                                    |
+| -------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chat-gateway` | `app`, `data` | Checks the session cookie and the `Origin` header, asks the API which channels the user may see, and forwards the events Django publishes to Valkey. It never writes data and holds no secrets. |
+
+The compose file sets `API_BASE_URL=http://api:8000`, `REDIS_URL=redis://plane-redis:6379/` (the API's Valkey; it must be the same one), and `CORS_ALLOWED_ORIGINS=https://$APP_DOMAIN`. The web image is built with `VITE_CHAT_GATEWAY_BASE_URL` empty, meaning the page's own origin, and `VITE_CHAT_GATEWAY_BASE_PATH=/chat`. Keep it that way: the session cookie is host-only, so the gateway must be a path on `$APP_DOMAIN`, not a subdomain.
+
+The gateway keeps nothing between connections. Restarting it drops every socket, and browsers reconnect and fetch what they missed over REST. It pings each socket every 30 seconds, which also keeps idle sockets alive through Railway's edge and the tunnel. If a proxy still cuts a socket, the browser reconnects the same way. `GET /chat/health` reports the open connection count and whether the gateway hears Valkey (`live`).
 
 ## If Railway blocks the tailnet
 

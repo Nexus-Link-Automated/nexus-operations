@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { memo } from "react";
 import type { MessageItem as TMessageItem, TranscriptAttachment } from "@plane/acp-client";
 import { useTranslation } from "@plane/i18n";
 // components
@@ -44,7 +45,7 @@ function AttachmentChip({ attachment }: { attachment: TranscriptAttachment }) {
 
 type Props = { item: TMessageItem };
 
-export function MessageItem({ item }: Props) {
+export const MessageItem = memo(function MessageItem({ item }: Props) {
   const { t } = useTranslation();
 
   if (item.role === "user") {
@@ -72,4 +73,4 @@ export function MessageItem({ item }: Props) {
       )}
     </div>
   );
-}
+});

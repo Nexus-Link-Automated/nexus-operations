@@ -7,6 +7,7 @@ from unittest import mock
 import pytest
 
 from plane.db.models import Issue, Project
+from plane.tests.chat_events import Published
 from plane.tests.factories import WorkspaceFactory, WorkspaceMemberFactory
 
 
@@ -40,3 +41,11 @@ def make_issue(workspace):
         return Issue.objects.create(name="Bug", workspace=ws, project=project)
 
     return _make
+
+
+@pytest.fixture
+def published():
+    """A live subscriber on real Redis; `published.events` is what has reached it so far."""
+    subscriber = Published()
+    yield subscriber
+    subscriber.close()

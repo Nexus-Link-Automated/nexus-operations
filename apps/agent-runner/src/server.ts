@@ -36,10 +36,11 @@ import {
   type ResolveAgentCommand,
 } from "./bins.ts";
 import type { RunnerConfig } from "./config.ts";
+import { CredentialBroker } from "./credential-broker.ts";
 import { buildAgentEnv } from "./env.ts";
 import { LoginManager, type LoginFailure, type LoginTimeouts } from "./login.ts";
 import { createLogger, withMeta, type Logger } from "./logger.ts";
-import { WorkspaceManager, type Chown } from "./workspace.ts";
+import { WorkspaceManager, type Chown, type DiskScanner, type WorkspaceLayout } from "./workspace.ts";
 
 export const ACP_PATH = "/acp";
 const SHUTDOWN_DEADLINE_MS = 10_000;
@@ -55,15 +56,19 @@ export interface AgentRunnerOptions {
   readonly chown?: Chown;
   readonly killer?: Killer;
   readonly listProcesses?: ProcessLister;
+  readonly diskScanner?: DiskScanner;
   /** How to start the sign-in helper; defaults to `node <@plane/acp-adapters>/dist/bin/login.mjs`. */
   readonly loginHelper?: HelperCommand;
   readonly loginTimeouts?: Partial<LoginTimeouts>;
+  /** Adapter id → upstream origin for the credential broker. Tests only. */
+  readonly brokerUpstreams?: Readonly<Record<string, string>>;
 }
 
 interface RunningAgent {
   readonly process: AgentProcess;
   readonly ticket: SpawnTicket;
   readonly uid: number | undefined;
+  readonly layout: WorkspaceLayout;
 }
 
 /**
@@ -88,8 +93,10 @@ export class AgentRunner {
   readonly #agents = new Set<RunningAgent>();
   readonly #uidLeases = new Map<number, number>();
   readonly #logins: LoginManager;
+  readonly #broker: CredentialBroker | undefined;
   #pending = 0;
   #shuttingDown = false;
+  #diskCheckTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: AgentRunnerOptions) {
     const { config } = options;
@@ -107,6 +114,12 @@ export class AgentRunner {
       this.#resolve = resolver.resolve;
     }
     this.#spawner = options.spawner;
+    this.#broker = config.credentialBroker
+      ? new CredentialBroker({
+          log: this.#log,
+          ...(options.brokerUpstreams ? { upstreams: options.brokerUpstreams } : {}),
+        })
+      : undefined;
     this.#kill = options.killer ?? defaultKiller;
     this.#listProcesses = options.listProcesses ?? procProcessLister;
     this.workspaces = new WorkspaceManager({
@@ -114,6 +127,7 @@ export class AgentRunner {
       isolation: config.isolation,
       uidRange: config.uidRange,
       ...(options.chown ? { chown: options.chown } : {}),
+      ...(options.diskScanner ? { diskScanner: options.diskScanner } : {}),
     });
     this.#acp = new AcpServer({
       createAgent: () => {
@@ -182,6 +196,7 @@ export class AgentRunner {
   }
 
   async listen(port = this.#config.port, host = this.#config.host): Promise<AddressInfo> {
+    await this.#broker?.listen();
     await new Promise<void>((resolve, reject) => {
       this.server.once("error", reject);
       this.server.listen(port, host, () => {
@@ -191,6 +206,7 @@ export class AgentRunner {
     });
     const address = this.server.address() as AddressInfo;
     this.#log.info("agent-runner: listening", { port: address.port, isolation: this.#config.isolation });
+    this.#scheduleDiskCheck();
     return address;
   }
 
@@ -198,6 +214,7 @@ export class AgentRunner {
   async close(): Promise<void> {
     if (this.#shuttingDown) return;
     this.#shuttingDown = true;
+    clearTimeout(this.#diskCheckTimer);
     const httpClosed = new Promise<void>((resolve) => this.server.close(() => resolve()));
     const agents = [...this.#agents];
     for (const agent of agents) agent.process.terminate("runner shutting down");
@@ -213,6 +230,7 @@ export class AgentRunner {
     for (const client of this.#wss.clients) client.terminate();
     this.server.closeAllConnections();
     await httpClosed;
+    await this.#broker?.close();
     this.#log.info("agent-runner: stopped");
   }
 
@@ -243,8 +261,10 @@ export class AgentRunner {
 
     this.#pending += 1;
     let layout;
+    let overDiskLimit;
     try {
       layout = await this.workspaces.prepare(ticket.workspaceId, ticket.userId);
+      overDiskLimit = await this.#isOverDiskLimit(layout, log);
     } finally {
       this.#pending -= 1;
     }
@@ -252,6 +272,7 @@ export class AgentRunner {
       socket.destroy();
       return;
     }
+    if (overDiskLimit) return rejectHttp(socket, 507, "Insufficient Storage");
     const { env, dropped } = buildAgentEnv({
       agentEnv: ticket.env,
       layout,
@@ -260,26 +281,34 @@ export class AgentRunner {
       shell: this.#config.agentShell,
     });
     if (dropped.length > 0) log.warn("agent-runner: dropped reserved agent env names", { names: dropped });
+    const brokered = this.#broker?.broker(ticket.adapter, env);
+    if (brokered?.leftDirectBecause) {
+      log.warn("agent-runner: provider key stays in the agent's env", { blockedBy: brokered.leftDirectBecause });
+    }
 
     const uid = layout.uid;
     let releaseUid: (() => void) | undefined;
     const agentProcess = new AgentProcess({
       command,
       layout,
-      env,
+      env: brokered?.env ?? env,
       killGraceMs: this.#config.killGraceMs,
       maxMessageBytes: this.#config.maxMessageBytes,
       log,
+      limits: { maxProcesses: this.#config.processLimit, maxFileBytes: this.#config.fileSizeLimitBytes },
       ...(this.#spawner ? { spawner: this.#spawner } : {}),
       killer: this.#kill,
       onExit: () => {
         this.#agents.delete(running);
         releaseUid?.();
+        brokered?.revoke();
       },
     });
-    const running: RunningAgent = { process: agentProcess, ticket, uid };
+    const running: RunningAgent = { process: agentProcess, ticket, uid, layout };
 
+    let accepted = false;
     this.#wss.handleUpgrade(req, socket, head, (ws) => {
+      accepted = true;
       this.#agents.add(running);
       if (uid !== undefined) releaseUid = this.#leaseUid(uid, log);
       ws.once("close", () => agentProcess.terminate("connection closed"));
@@ -287,10 +316,47 @@ export class AgentRunner {
       // connects it to the agent process, which spawns here.
       this.#acp.prepareWebSocketUpgrade({ agent: agentProcess }).accept(ws);
     });
+    // A refused handshake never reaches `accept`, so no agent will ever exit to revoke this.
+    if (!accepted) brokered?.revoke();
   }
 
   #atCapacity(): boolean {
     return this.#agents.size + this.#pending + this.#logins.running >= this.#config.maxConnections;
+  }
+
+  /** A scan that fails is logged and does not count: the cap must not take agents down when `du` breaks. */
+  async #isOverDiskLimit(layout: WorkspaceLayout, log: Logger): Promise<boolean> {
+    const limitBytes = this.#config.userDiskLimitBytes;
+    if (limitBytes === 0) return false;
+    try {
+      const usedBytes = await this.workspaces.diskUsage(layout);
+      if (usedBytes <= limitBytes) return false;
+      log.warn("agent-runner: workspace dir is over its disk limit", { uid: layout.uid, usedBytes, limitBytes });
+      return true;
+    } catch (error) {
+      log.error("agent-runner: disk usage scan failed", { uid: layout.uid, error: (error as Error).message });
+      return false;
+    }
+  }
+
+  #scheduleDiskCheck(): void {
+    if (this.#config.userDiskLimitBytes === 0 || this.#shuttingDown) return;
+    this.#diskCheckTimer = setTimeout(() => {
+      void this.#stopAgentsOverDiskLimit().finally(() => this.#scheduleDiskCheck());
+    }, this.#config.diskCheckIntervalMs);
+    this.#diskCheckTimer.unref();
+  }
+
+  /** One scan per workspace dir, one at a time, so checks stay cheap however many agents are running. */
+  async #stopAgentsOverDiskLimit(): Promise<void> {
+    const byDir = new Map<string, RunningAgent[]>();
+    for (const agent of this.#agents) byDir.set(agent.layout.cwd, [...(byDir.get(agent.layout.cwd) ?? []), agent]);
+    for (const agents of byDir.values()) {
+      // oxlint-disable-next-line no-await-in-loop -- one scan at a time
+      if (await this.#isOverDiskLimit(agents[0]!.layout, this.#log)) {
+        for (const agent of agents) agent.process.terminate("disk limit exceeded");
+      }
+    }
   }
 
   /**

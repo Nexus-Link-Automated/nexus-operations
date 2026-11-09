@@ -100,6 +100,10 @@ API_KEY_RATE_LIMIT=60/minute
 # rclone remote for off-server backups. It must be a crypt remote: see README.md.
 BACKUP_REMOTE=nexus-backup-crypt:
 BACKUP_RETENTION_DAYS=30
+# Where backups are put together; must have room for a full backup.
+#BACKUP_STAGING_DIR=/var/backups/nexus-ops
+# More host paths to include, space-separated, such as deployment config.
+#BACKUP_EXTRA_PATHS=
 EOF
 
 echo "Wrote $env_file (mode 600)."

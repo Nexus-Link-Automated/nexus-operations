@@ -6,6 +6,7 @@
 
 export * from "./activity";
 export * from "./agent";
+export * from "./chat";
 export * from "./ai";
 export * from "./analytics";
 export * from "./api_token";

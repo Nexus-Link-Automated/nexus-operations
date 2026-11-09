@@ -16,7 +16,6 @@ import {
   DocumentEditorExtensionsWithoutProps,
 } from "@/extensions/core-without-props";
 import { TitleExtensions } from "@/extensions/title-extension";
-import { sanitizeHTML } from "@plane/utils";
 
 export type HTMLCodec = {
   generateHTML: (doc: JSONContent, extensions: Extensions) => string;
@@ -185,8 +184,8 @@ export const createDocumentCodecs = ({ generateHTML, generateJSON }: HTMLCodec) 
 
     if (updateTitle) {
       const title = yDoc.getXmlFragment("title");
-      const titleJSON = yXmlFragmentToProseMirrorRootNode(title, documentEditorSchema).toJSON();
-      const titleHTML = extractTextFromHTML(generateHTML(titleJSON, DOCUMENT_EDITOR_EXTENSIONS));
+      // titles are plain text, so read the text itself instead of going through HTML, which would encode it
+      const titleHTML = yXmlFragmentToProseMirrorRootNode(title, documentEditorSchema).textContent.trim();
 
       return {
         contentBinaryEncoded: base64Data,
@@ -252,14 +251,6 @@ export const createDocumentCodecs = ({ generateHTML, generateJSON }: HTMLCodec) 
     return allFormats;
   };
 
-  const extractTextFromHTML = (html: string): string => {
-    // Use DOMPurify to safely extract text and remove all HTML tags
-    // This is more secure than regex as it handles edge cases and prevents injection
-    // Note: sanitizeHTML trims whitespace, which is acceptable for title extraction
-    const sanitizedText = sanitizeHTML(html); // sanitize the string to remove all HTML tags
-    return sanitizedText.trim() || ""; // trim the string to remove leading and trailing whitespaces
-  };
-
   return {
     TITLE_EDITOR_EXTENSIONS,
     applyUpdates,
@@ -271,6 +262,5 @@ export const createDocumentCodecs = ({ generateHTML, generateJSON }: HTMLCodec) 
     getAllDocumentFormatsFromRichTextEditorBinaryData,
     getAllDocumentFormatsFromDocumentEditorBinaryData,
     convertHTMLDocumentToAllFormats,
-    extractTextFromHTML,
   };
 };

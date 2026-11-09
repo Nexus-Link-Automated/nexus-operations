@@ -34,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Ptát se před změnami",
-          "description": "Čtení, vyhledávání a načítání webu probíhá bez dotazu. Příkazy shellu, změny souborů a změny v Plane vyžadují předchozí potvrzení."
+          "description": "Čtení a vyhledávání v pracovním adresáři probíhá bez dotazu. Čtení jinde, načítání webu, příkazy shellu, změny souborů a změny v Plane vyžadují předchozí potvrzení."
         },
         "yolo": {
           "name": "Nikdy se neptat",
@@ -110,6 +110,9 @@
       "title": "Povolit tuto akci?",
       "allow_once": "Povolit jednou",
       "allow_always": "V tomto chatu vždy povolit",
+      "allow_always_command": "V tomto chatu vždy povolit přesně tento příkaz",
+      "allow_always_file": "V tomto chatu vždy povolit úpravy tohoto souboru",
+      "allow_always_tool": "V tomto chatu vždy povolit tento nástroj",
       "reject_once": "Zamítnout",
       "reject_always": "Vždy zamítnout"
     },

@@ -1,0 +1,35 @@
+/**
+ * Copyright (c) 2023-present Plane Software, Inc. and contributors
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * See the LICENSE file for details.
+ */
+
+import type { IncomingMessage } from "node:http";
+
+/** `value` without trailing slashes (a loop, not a regex, so long inputs stay linear). */
+export function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) end--;
+  return value.slice(0, end);
+}
+
+/**
+ * Cross-site request guard for the chat socket (WebSocket hijacking). The socket is authenticated by
+ * the session cookie, so a browser page on another origin must not be able to open it with a victim's
+ * cookies. An upgrade without an `Origin` header is not from a browser and cannot carry a victim's
+ * cookies. Otherwise the origin must be one of `allowed`, or, when none are configured, the gateway's
+ * own host.
+ */
+export function originAllowed(req: IncomingMessage, allowed: readonly string[]): boolean {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  const normalized = trimTrailingSlashes(origin);
+  if (allowed.length > 0) return allowed.includes(normalized);
+  const forwarded = req.headers["x-forwarded-host"];
+  const host = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim() || req.headers.host;
+  try {
+    return Boolean(host) && new URL(normalized).host === host;
+  } catch {
+    return false;
+  }
+}

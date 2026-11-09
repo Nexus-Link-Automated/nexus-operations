@@ -202,6 +202,8 @@ update_env_file(){
     update_env_value "LIVE_SERVER_SECRET_KEY" "$LIVE_SERVER_SECRET_KEY"
 
     update_env_value "API_KEY_RATE_LIMIT" "${API_KEY_RATE_LIMIT:-60/minute}"
+    update_env_value "TRUSTED_PROXIES" "${TRUSTED_PROXIES:-private_ranges}"
+    update_env_value "NUM_PROXIES" "${NUM_PROXIES:-1}"
 
     echo "✅ Environment file updated"
     echo ""

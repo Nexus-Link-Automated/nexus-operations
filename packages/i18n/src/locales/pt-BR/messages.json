@@ -1,0 +1,106 @@
+{
+  "messages": {
+    "title": "Mensagens",
+    "list_label": "Mensagens",
+    "unknown_member": "Membro desconhecido",
+    "unread_count": "{count, plural, one {# mensagem não lida} many {# mensagens não lidas} other {# mensagens não lidas}}",
+    "empty": {
+      "title": "Ainda não há conversas",
+      "description": "Os canais e as mensagens diretas com sua equipe aparecerão aqui."
+    },
+    "channels": {
+      "title": "Canais",
+      "browse": "Explorar canais",
+      "create": "Criar um canal",
+      "none": "Você ainda não entrou em nenhum canal."
+    },
+    "dms": {
+      "title": "Mensagens diretas",
+      "new": "Nova mensagem",
+      "none": "Ainda não há mensagens diretas."
+    },
+    "channel": {
+      "member_count": "{count, plural, one {# membro} many {# membros} other {# membros}}",
+      "join": "Entrar",
+      "leave": "Sair do canal",
+      "join_prompt": "Você está vendo #{name}. Entre para enviar mensagens.",
+      "archived": "Este canal está arquivado. Você pode lê-lo, mas não enviar mensagens.",
+      "intro_title": "Este é o início de #{name}",
+      "intro_description": "Tudo o que é dito neste canal aparece aqui.",
+      "not_found_title": "Conversa não encontrada",
+      "not_found_description": "Ela não existe ou você não tem acesso a ela."
+    },
+    "dm": {
+      "intro_title": "Este é o início da sua conversa com {name}",
+      "intro_description": "Somente as pessoas desta conversa podem vê-la."
+    },
+    "create_channel": {
+      "title": "Criar um canal",
+      "description": "Nos canais, sua equipe conversa sobre um assunto.",
+      "name": "Nome",
+      "name_placeholder": "ex.: design-review",
+      "name_required": "Um canal precisa de um nome.",
+      "description_label": "Descrição (opcional)",
+      "private": "Canal privado",
+      "private_help": "Somente as pessoas adicionadas podem vê-lo e ver as mensagens dele.",
+      "submit": "Criar canal"
+    },
+    "browse": {
+      "title": "Explorar canais",
+      "description": "Canais públicos em que você não entrou.",
+      "search": "Pesquisar canais",
+      "empty": "Nenhum canal para entrar.",
+      "open": "Abrir"
+    },
+    "new_dm": {
+      "title": "Nova mensagem",
+      "description": "{count, plural, one {Escolha uma pessoa.} many {Escolha uma pessoa, ou até # para um grupo.} other {Escolha uma pessoa, ou até # para um grupo.}}",
+      "search": "Pesquisar pessoas",
+      "empty": "Nenhum resultado.",
+      "submit": "Iniciar conversa"
+    },
+    "composer": {
+      "send": "Enviar mensagem",
+      "placeholder_channel": "Mensagem para #{name}",
+      "placeholder_dm": "Mensagem para {name}"
+    },
+    "message": {
+      "label": "{name} às {time}",
+      "edit": "Editar mensagem",
+      "save": "Salvar",
+      "edited": "(editada)",
+      "remove": "Excluir mensagem",
+      "remove_title": "Excluir esta mensagem?",
+      "remove_description": "Todos na conversa verão que uma mensagem foi excluída.",
+      "removing": "Excluindo",
+      "removed": "Esta mensagem foi excluída.",
+      "replies": "{count, plural, one {# resposta} many {# respostas} other {# respostas}}",
+      "sending": "Enviando…",
+      "failed": "Não enviada.",
+      "retry": "Tentar de novo",
+      "discard": "Descartar"
+    },
+    "day": {
+      "today": "Hoje",
+      "yesterday": "Ontem"
+    },
+    "connection": {
+      "reconnecting": "Reconectando. As novas mensagens aparecerão quando a conexão voltar.",
+      "reconnect": "Reconectar agora",
+      "signed_out": "Sua sessão terminou. Entre novamente para receber novas mensagens.",
+      "forbidden": "Você não tem mais acesso a estas mensagens.",
+      "failed": "As atualizações em tempo real não estão disponíveis. Recarregue a página para tentar de novo."
+    },
+    "errors": {
+      "retry": "Tentar de novo",
+      "load_channels_failed": "Não foi possível carregar suas conversas",
+      "load_messages_failed": "Não foi possível carregar as mensagens.",
+      "create_channel_failed": "Não foi possível criar o canal",
+      "join_failed": "Não foi possível entrar no canal",
+      "leave_failed": "Não foi possível sair do canal",
+      "open_dm_failed": "Não foi possível iniciar a conversa",
+      "edit_failed": "Não foi possível salvar a edição",
+      "remove_failed": "Não foi possível excluir a mensagem"
+    }
+  }
+}

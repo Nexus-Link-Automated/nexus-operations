@@ -347,6 +347,21 @@ class TestRemove:
         channel.save()
         assert member.client.delete(url(f"channels/{channel.id}/messages/{five[0].id}/")).status_code == 409
 
+    def test_nobody_moderates_a_direct_message(self, admin, member, member2, workspace, send, url):
+        dm, _ = Channel.objects.get_or_create_dm(workspace, admin.user, member.user)
+        group, _ = Channel.objects.get_or_create_group_dm(workspace, [admin.user, member.user, member2.user])
+        for conversation in (dm, group):
+            theirs = send(conversation, member.user, "theirs")
+            mine = send(conversation, admin.user, "mine")
+
+            res = admin.client.delete(url(f"channels/{conversation.id}/messages/{theirs.id}/"))
+            assert res.status_code == 403
+            theirs.refresh_from_db()
+            assert theirs.removed_at is None and theirs.body_stripped == "theirs"
+
+            assert admin.client.delete(url(f"channels/{conversation.id}/messages/{mine.id}/")).status_code == 204
+            assert member.client.delete(url(f"channels/{conversation.id}/messages/{theirs.id}/")).status_code == 204
+
     def test_sender_who_left_a_public_channel_cannot_remove(self, member, channel, five, url):
         channel.members.filter(user=member.user).delete()
         assert member.client.delete(url(f"channels/{channel.id}/messages/{five[0].id}/")).status_code == 403
