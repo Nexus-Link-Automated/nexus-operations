@@ -1,4 +1,41 @@
+# Keep this snippet identical in Caddyfile.ce and Caddyfile.aio.ce.
+(plane_response_headers) {
+	# Report-only: the browser logs anything outside this policy to its console and
+	# still loads it, so the policy cannot block a page.
+	#
+	#   script-src   'unsafe-inline' for the theme and router bootstrap in the app shell,
+	#                'wasm-unsafe-eval' for the layout engine used by PDF export
+	#   style-src    'unsafe-inline' for styles injected at runtime
+	#   img-src      https: for object storage, avatars and emoji images on other hosts
+	#   connect-src  'self' includes same-origin websockets (/live, /chat), https: is for
+	#                direct uploads to object storage on another host, data: is how the
+	#                PDF layout engine loads its wasm
+	#   worker-src   blob: for the compression worker started from an in-memory script
+	#   frame-src    https: for the page set in INSTANCE_CHANGELOG_URL
+	#
+	# There is no frame-ancestors, because public spaces can be embedded on other sites.
+	header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https: data:; worker-src 'self' blob:; frame-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'"
+
+	# `protocol https` matches only when this Caddy terminates TLS, so plain HTTP installs
+	# and installs behind another TLS terminator do not get this header. The max-age is
+	# short so a hostname can go back to HTTP within a day.
+	@served_over_tls protocol https
+	header @served_over_tls Strict-Transport-Security "max-age=86400"
+}
+
+# The standard deployment gets these from the web and admin images. The all-in-one
+# image serves those files from this proxy, so it has to set them here.
+(plane_static_app_headers) {
+	header {
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		X-XSS-Protection "1; mode=block"
+	}
+}
+
 (plane_proxy) {
+	import plane_response_headers
+
 	request_body {
 		max_size {$FILE_SIZE_LIMIT}
 	}
@@ -19,11 +56,13 @@
     }
 
 	handle_path /god-mode* {
+        import plane_static_app_headers
         root * /app/admin
         try_files {path} {path}/ /index.html
         file_server
     }
     handle_path /* {
+        import plane_static_app_headers
         root * /app/web
         try_files {path} {path}/ /index.html
         file_server
