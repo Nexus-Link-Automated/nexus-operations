@@ -76,6 +76,7 @@ class FakeChatServer {
       parent,
       reply_count: 0,
       last_reply_at: null,
+      references: [],
       edited_at: null,
       removed_at: null,
       created_at: at,

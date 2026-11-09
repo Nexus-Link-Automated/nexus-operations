@@ -26,6 +26,7 @@ import { useWorkspace } from "@/hooks/store/use-workspace";
 import type { TChatPendingMessage } from "@/store/chat.store";
 // local imports
 import { MemberAvatar } from "./member-avatar";
+import { ChatWorkItemCard } from "./work-item-card";
 
 const noUploads = async (): Promise<string> => {
   throw new Error("Attachments are not supported in messages yet");
@@ -201,6 +202,13 @@ export const ChatMessageItem = observer(function ChatMessageItem({
             html={message.body_html}
             workspaceSlug={workspaceSlug}
           />
+        )}
+        {!removed && message.references.length > 0 && (
+          <div className="mt-1 flex flex-col gap-1">
+            {message.references.map((reference) => (
+              <ChatWorkItemCard key={reference.id} reference={reference} workspaceSlug={workspaceSlug} />
+            ))}
+          </div>
         )}
         {!removed && !editing && message.edited_at && (
           <span className="text-caption-sm-regular text-tertiary">{t("messages.message.edited")}</span>

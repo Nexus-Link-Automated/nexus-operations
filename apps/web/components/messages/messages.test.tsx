@@ -104,6 +104,7 @@ const message = (id: string, sender: string, text: string, minute: number, extra
     parent: null,
     reply_count: 0,
     last_reply_at: null,
+    references: [],
     edited_at: null,
     removed_at: null,
     created_at: at,
@@ -285,6 +286,45 @@ const isList = (el: Element) => el.getAttribute("role") === "log";
 const page = (ids: string[]) => ids.map((id, index) => message(id, ADA, id, index));
 
 describe("ChatMessageList", () => {
+  describe("work item references", () => {
+    const reference = {
+      id: "i1",
+      project: "p1",
+      key: "EMP-142",
+      name: "Fix the gateway",
+      priority: "high" as const,
+      state: { name: "In Review", group: "started" as const, color: "#f59e0b" },
+    };
+
+    const renderMessage = async (extra: Partial<TChatMessage>) => {
+      const { store } = makeStore({
+        listMessages: async () => ({ results: [message("m1", ADA, "see EMP-142", 0, extra)], has_more: false }),
+        markRead: async () => channel({}),
+      });
+      mocks.chat = store;
+      await started(store, [channel({})]);
+      await store.openChannel("c-general");
+      inRouter(<ChatMessageList workspaceSlug="acme" channelId="c-general" intro={null} />);
+    };
+
+    it("shows a card for each reference the server sent", async () => {
+      await renderMessage({ references: [reference] });
+      expect(screen.getByText("Fix the gateway")).toBeTruthy();
+      expect(screen.getByRole("link", { name: /EMP-142/ }).getAttribute("href")).toBe("/acme/browse/EMP-142/");
+    });
+
+    it("shows no card, only the text, when the server sent none", async () => {
+      await renderMessage({ references: [] });
+      expect(screen.queryByText("Fix the gateway")).toBeNull();
+      expect(screen.queryByRole("link", { name: /EMP-142/ })).toBeNull();
+    });
+
+    it("shows no card on a removed message", async () => {
+      await renderMessage({ references: [reference], removed_at: "2026-01-05T09:03:00Z", body_html: "" });
+      expect(screen.queryByText("Fix the gateway")).toBeNull();
+    });
+  });
+
   describe("while message bodies render after their rows", () => {
     const VIEWPORT = 300;
     /** A row before its editor has rendered, and after. */
