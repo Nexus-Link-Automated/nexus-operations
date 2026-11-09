@@ -70,7 +70,7 @@ environment and keeping provider keys away from tools the user drives.
 
 The runner passes the agent's `env`: the admin config, with the provider credential the API resolved for the
 user (personal, then workspace, then the admin's own) and `PLANE_AGENT_AUTH`. Credentials never reach the
-tools the user drives: Claude runs with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, Codex threads get a
+tools the user drives: Claude runs with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` (see [Credential broker](#credential-broker) for the one exception), Codex threads get a
 `shell_environment_policy` that excludes `*KEY*`/`*TOKEN*`/`*SECRET*`/`*PASSWORD*`/`*CREDENTIAL*`, Gemini CLI
 runs with those names removed from its env (the key only travels in ACP `authenticate`), and DeepSeek's
 shell and stdio MCP servers drop the same names.
@@ -85,6 +85,7 @@ shell and stdio MCP servers drop the same names.
 | `CLAUDE_CODE_OAUTH_TOKEN`      | claude        | …a Claude subscription token (if no member or workspace key applies)         |
 | `OPENAI_API_KEY`               | codex         | API key; the app-server logs in with it on every start (separate home)       |
 | `CODEX_HOME`                   | codex         | Overrides the Codex home of the mode (`~/.codex` or `~/.codex-api-key`)      |
+| `PLANE_CODEX_BASE_URL`         | codex         | Set by the runner's credential broker; passed as `-c openai_base_url=…`      |
 | `GEMINI_API_KEY`               | gemini        | API key, handed to Gemini CLI in `authenticate`                              |
 | `GOOGLE_GEMINI_BASE_URL`       | gemini        | Passed through: a Gemini API gateway (tests point it at a local fake)        |
 | `PLANE_CODEX_STALL_TIMEOUT_MS` | codex         | Fail a turn after this long without app-server output (default 300000)       |
@@ -134,6 +135,40 @@ users add an API key or sign in.
   - `api_key`, or unset with `GEMINI_API_KEY`: `GEMINI_CLI_HOME=~/.gemini-api-key` (created 0700, Gemini
     uses `~/.gemini-api-key/.gemini`), then `authenticate {methodId: "gemini-api-key", _meta: {"api-key"}}`.
   - Any other value, or no key: `authRequired` naming the settings page.
+
+### Credential broker
+
+With `AGENT_RUNNER_CREDENTIAL_BROKER` on, the runner keeps API keys to itself and spawns the adapter with an
+opaque per-agent token in the key's usual variable, plus the base URL of a proxy on the runner's loopback
+(see the runner's README). The adapters are unchanged apart from Codex, and every vendor is pointed at the
+proxy by its own setting:
+
+| Adapter    | Key variable        | Base URL setting                                   | Auth header sent to the proxy |
+| ---------- | ------------------- | -------------------------------------------------- | ----------------------------- |
+| `claude`   | `ANTHROPIC_API_KEY` | `ANTHROPIC_BASE_URL`                               | `x-api-key`                   |
+| `codex`    | `OPENAI_API_KEY`    | `-c openai_base_url=…` from `PLANE_CODEX_BASE_URL` | `Authorization: Bearer`       |
+| `gemini`   | `GEMINI_API_KEY`    | `GOOGLE_GEMINI_BASE_URL`                           | `x-goog-api-key`              |
+| `deepseek` | `DEEPSEEK_API_KEY`  | `DEEPSEEK_BASE_URL`                                | `Authorization: Bearer`       |
+
+Checked against the pinned versions in `acp-version.lock.json`; what a custom base URL changes:
+
+- **Claude** (Agent SDK 0.3.318): any other base URL counts as a third-party gateway, which turns off
+  first-party betas and model options, so the runner also sets `_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL=1`
+  (the SDK's own switch for "this URL is the Anthropic API"). It is undocumented, so check it when bumping the SDK.
+- **Codex** (0.166.0): ignores `OPENAI_BASE_URL`, hence the `-c` override (a root option, before `app-server`).
+  It still tries WebSockets for `/v1/responses` first and falls back to HTTP, so the proxy relays upgrades.
+  `model/list` serves the catalog bundled with the CLI rather than fetching Codex's remote one.
+- **Gemini** (0.65.0): the key still travels in `authenticate`; `GOOGLE_GEMINI_BASE_URL` is its gateway setting.
+- **DeepSeek**: our own client.
+
+Subprocess env scrubbing: with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, Claude Code refuses to start unless bubblewrap
+is installed and can create user namespaces. The adapter sets it to `0` only when the runner marked the key as brokered
+(`PLANE_CLAUDE_BROKERED`), the key has the broker token's form, and no other credential-looking variable is in its env, because
+then the tools can see at most a token that only works through the proxy and dies with the agent. In every other case,
+including the flag being off, it stays `1`, so the Claude adapter needs bubblewrap and working user namespaces to start.
+
+An account sign-in (ChatGPT, Google) and the `CLAUDE_CODE_OAUTH_TOKEN` subscription token are not API keys and
+are not brokered.
 
 ## How each adapter maps the modes
 

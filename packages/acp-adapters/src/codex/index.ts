@@ -30,6 +30,7 @@ import { gateFileRead, type FileTarget } from "../core/paths.ts";
 import type { PermissionDecision } from "../core/permission.ts";
 import { promptToText } from "../core/turn.ts";
 import {
+  CODEX_BASE_URL_ENV,
   CODEX_SIGNED_OUT,
   CodexAppServerClient,
   classifyCodexFailure,
@@ -40,6 +41,7 @@ import {
 
 export const CODEX_ENV = {
   apiKey: "OPENAI_API_KEY",
+  baseUrl: CODEX_BASE_URL_ENV,
   home: "CODEX_HOME",
   stallTimeoutMs: "PLANE_CODEX_STALL_TIMEOUT_MS",
   turnTimeoutMs: "PLANE_CODEX_TURN_TIMEOUT_MS",

@@ -118,6 +118,39 @@ or raise the limit.
 `AGENT_RUNNER_ISOLATION=none` runs agents as the runner's own user, for local development only. With
 `uid` (the default) the runner refuses to start unless it is root.
 
+### Credential broker
+
+The scrubbing above covers the tools an agent runs, not the adapter or vendor CLI itself, which starts with the
+key in its environment under the same uid as its tools (and Codex writes it to `auth.json` in that uid's home).
+`AGENT_RUNNER_CREDENTIAL_BROKER=true` keeps the key out of agent uids altogether:
+
+- The runner listens on `127.0.0.1` on an ephemeral port. For each agent it takes the API key out of the env it
+  spawns, keeps it in memory only, and gives the agent an opaque token plus the proxy's URL as the vendor's
+  base URL (see the adapter README for each vendor's settings).
+- The proxy finds the agent by token, replaces it with the real key, and forwards to that vendor's fixed host.
+  Agents share the runner's loopback, so the token alone tells them apart. Nothing in a request can choose the
+  upstream. An unknown or revoked token gets 401.
+- Responses stream through unbuffered, WebSocket upgrades are relayed, and redirects are returned to the client
+  rather than followed. Neither requests nor their auth headers are logged. Tokens die when the agent exits,
+  and any stream still open is cut.
+- `AGENT_RUNNER_CREDENTIAL_BROKER` is off by default and needs a smoke test with a real key for every provider
+  before it is enabled.
+- With the broker off, the Claude adapter needs bubblewrap and working user namespaces to start, because it runs
+  Claude Code with subprocess env scrubbing on. When the key is brokered and no other credential is in the
+  agent's env, there is nothing left to scrub, so the adapter turns it off and Claude starts without them.
+
+Not brokered, so these agents keep their credential in the environment (a warning is logged when an API key is
+left behind):
+
+- An admin env that points the vendor elsewhere: `ANTHROPIC_BASE_URL`, `ANTHROPIC_UNIX_SOCKET`,
+  `GOOGLE_GEMINI_BASE_URL`, `DEEPSEEK_BASE_URL`, or a proxy (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`), since the
+  broker only talks directly to the vendor's own host.
+- An agent whose env has `ANTHROPIC_AUTH_TOKEN` or `CLAUDE_CODE_OAUTH_TOKEN` (not API keys).
+- ChatGPT and Google account sign-ins, which live in the agent's home.
+
+A key from before the flag was turned on may still sit in `~/.codex-api-key/auth.json`; Codex overwrites it with
+the token at the next Codex session, so remove those files once when enabling the flag.
+
 ## Environment
 
 | Variable                                        | Default                  | Meaning                                                      |
@@ -132,6 +165,7 @@ or raise the limit.
 | `AGENT_RUNNER_AGENT_SHELL`                      | `/bin/bash`              | `SHELL` agents see                                           |
 | `AGENT_RUNNER_KILL_GRACE_MS`                    | `3000`                   | SIGTERM → SIGKILL                                            |
 | `AGENT_RUNNER_MAX_MESSAGE_BYTES`                | 8 MiB                    | Largest frame from the bridge                                |
+| `AGENT_RUNNER_CREDENTIAL_BROKER`                | `false`                  | Keep API keys in the runner; see Credential broker           |
 | `AGENT_RUNNER_MAX_CONNECTIONS`                  | `64`                     |                                                              |
 | `AGENT_RUNNER_MAX_HEADER_BYTES`                 | 256 KiB                  | Tickets carry the agent env, so upgrade headers can be large |
 | `AGENT_RUNNER_NPROC_LIMIT`                      | `256`                    | `RLIMIT_NPROC` for each uid (see [Limits](#limits))          |
