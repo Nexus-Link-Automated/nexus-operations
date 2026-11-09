@@ -57,6 +57,7 @@ from plane.utils.order_queryset import order_issue_queryset
 from plane.utils.permissions import ProjectAdminPermission, WorkspaceEntityPermission, WorkspaceUserPermission
 
 from .base import NexusAPIView, NexusProjectAPIView
+from plane.nexus.pql import pql_statement_timeout
 
 # --------------------------------------------------------------------------- shared
 
@@ -162,6 +163,7 @@ class WorkspaceWorkItemListEndpoint(NexusAPIView):
 
     permission_classes = [WorkspaceEntityPermission]
 
+    @pql_statement_timeout
     def get(self, request, slug):
         queryset, failure = _filtered_work_items(request, slug)
         if failure:
@@ -219,6 +221,7 @@ class WorkspaceWorkItemCountEndpoint(NexusAPIView):
 
     permission_classes = [WorkspaceEntityPermission]
 
+    @pql_statement_timeout
     def get(self, request, slug):
         group_by = request.GET.get("group_by") or None
         sub_group_by = request.GET.get("sub_group_by") or None
@@ -297,6 +300,7 @@ class WorkItemArchiveEndpoint(_IssueScoped, NexusProjectAPIView):
 class ArchivedWorkItemListEndpoint(NexusProjectAPIView):
     """GET .../archived-work-items/: plane-sdk PaginatedWorkItemResponse."""
 
+    @pql_statement_timeout
     def get(self, request, slug, project_id):
         self.get_project()
         queryset = Issue.objects.filter(

@@ -24,7 +24,7 @@ from rest_framework.response import Response
 from drf_spectacular.utils import OpenApiRequest, OpenApiResponse
 
 # Module imports
-from plane.nexus.pql import PQLError, apply_pql
+from plane.nexus.pql import PQLError, apply_pql, pql_statement_timeout
 from plane.api.serializers import (
     CycleIssueSerializer,
     CycleSerializer,
@@ -890,6 +890,7 @@ class CycleIssueListCreateAPIEndpoint(BaseAPIView):
             ),
         },
     )
+    @pql_statement_timeout
     def get(self, request, slug, project_id, cycle_id):
         """List or retrieve cycle work items
 
