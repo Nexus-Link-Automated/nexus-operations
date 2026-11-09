@@ -23,22 +23,20 @@ from rest_framework.response import Response
 from .base import BaseAPIView
 from plane.license.api.permissions import InstanceAdminPermission
 from plane.license.models import InstanceConfiguration
-from plane.license.api.serializers import InstanceConfigurationSerializer
+from plane.license.api.serializers import InstanceConfigurationSerializer, INSTANCE_CONFIGURATION_MASK
 from plane.license.utils.encryption import encrypt_data
-from plane.utils.cache import cache_response, invalidate_cache
+from plane.utils.cache import invalidate_cache
 from plane.license.utils.instance_value import get_email_configuration
 
 
 class InstanceConfigurationEndpoint(BaseAPIView):
     permission_classes = [InstanceAdminPermission]
 
-    @cache_response(60 * 60 * 2, user=False)
     def get(self, request):
         instance_configurations = InstanceConfiguration.objects.all()
         serializer = InstanceConfigurationSerializer(instance_configurations, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @invalidate_cache(path="/api/instances/configurations/", user=False)
     @invalidate_cache(path="/api/instances/", user=False)
     def patch(self, request):
         configurations = InstanceConfiguration.objects.filter(key__in=request.data.keys())
@@ -48,6 +46,9 @@ class InstanceConfigurationEndpoint(BaseAPIView):
             raw_value = request.data.get(configuration.key, configuration.value)
             value = "" if raw_value is None else str(raw_value).strip()
             if configuration.is_encrypted:
+                # The admin app sends the mask back for a value that was not edited
+                if value == INSTANCE_CONFIGURATION_MASK:
+                    continue
                 configuration.value = encrypt_data(value)
             else:
                 configuration.value = value
