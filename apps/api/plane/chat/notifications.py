@@ -12,6 +12,7 @@ The entry is a snapshot, so what the inbox lists is checked when it is read: an 
 disappears once its message is removed or its receiver can no longer see the channel.
 """
 
+import html
 import uuid
 
 from django.db import transaction
@@ -39,8 +40,8 @@ def _user_ids(raw_ids):
     return ids
 
 
-def _recipients(message, candidates):
-    """Those of `candidates` who can see `message` and haven't muted its channel."""
+def _who_can_see(message, candidates):
+    """Those of `candidates` who can open `message`, each with their level in its channel (None if not in it)."""
     roles = dict(
         WorkspaceMember.objects.filter(
             workspace_id=message.workspace_id, member_id__in=candidates, is_active=True, member__is_active=True
@@ -52,12 +53,19 @@ def _recipients(message, candidates):
         )
     )
     is_public = message.channel.kind == ChannelKind.PUBLIC
+    return {
+        user_id: levels.get(user_id)
+        for user_id, role in roles.items()
+        if user_id in levels or (is_public and can_browse_public_channels(role))
+    }
+
+
+def _recipients(message, candidates):
+    """Those of `candidates` who can see `message` and haven't muted its channel."""
     return [
         user_id
-        for user_id, role in roles.items()
-        if user_id != message.sender_id
-        and levels.get(user_id) != ChannelNotificationLevel.NONE
-        and (user_id in levels or (is_public and can_browse_public_channels(role)))
+        for user_id, level in _who_can_see(message, candidates).items()
+        if user_id != message.sender_id and level != ChannelNotificationLevel.NONE
     ]
 
 
@@ -74,7 +82,8 @@ def _data(message):
             "channel_name": channel.name,
             "channel_kind": channel.kind,
             "parent_id": str(message.parent_id) if message.parent_id else None,
-            "preview": message.body_stripped.strip()[:PREVIEW_LENGTH],
+            # `body_stripped` keeps HTML entities, and the inbox shows this as plain text.
+            "preview": html.unescape(message.body_stripped).strip()[:PREVIEW_LENGTH],
         }
     }
 
@@ -116,10 +125,17 @@ def notify_mentions(message, previous_html=None):
 
 
 def refresh_mention_previews(message):
-    """Keep inbox entries in step with an edit or a removal, so text its author took back doesn't linger there."""
+    """Keep inbox entries in step with an edit or a removal, so text its author took back doesn't linger there.
+
+    New text only reaches people who can still open the message; a removal blanks every entry.
+    """
     try:
         with transaction.atomic():
-            _entries(message).update(data=_data(message))
+            entries = _entries(message)
+            if message.removed_at is None:
+                receivers = list(entries.values_list("receiver_id", flat=True))
+                entries = entries.filter(receiver_id__in=list(_who_can_see(message, receivers)))
+            entries.update(data=_data(message))
     except Exception as error:
         log_exception(error)
 

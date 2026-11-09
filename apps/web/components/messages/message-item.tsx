@@ -118,7 +118,6 @@ export const ChatMessageItem = observer(function ChatMessageItem({
     <article
       data-message-id={message.id}
       aria-label={t("messages.message.label", { name, time })}
-      data-message-id={message.id}
       className={cn(
         "group relative flex gap-3 px-4 transition-colors hover:bg-layer-transparent-hover",
         continued ? "py-0.5" : "pt-2 pb-0.5",

@@ -645,18 +645,22 @@ export class ChatStore implements IChatStore {
   loadOlderMessages(channelId: string): Promise<void> {
     const running = this.olderPages.get(channelId);
     if (running) return running;
-    const page = this.fetchOlderMessages(channelId).finally(() => this.olderPages.delete(channelId));
+    const page = this.fetchOlderMessages(channelId).finally(() => {
+      if (this.olderPages.get(channelId) === page) this.olderPages.delete(channelId);
+    });
     this.olderPages.set(channelId, page);
     return page;
   }
 
-  /** Load back through the channel until `messageId` is there. False if it isn't within `REVEAL_MAX_PAGES` pages. */
+  /** Load back through the channel until `messageId` is there. False if it isn't within `REVEAL_MAX_PAGES` pages, or a page failed. */
   async revealMessage(channelId: string, messageId: string): Promise<boolean> {
     const isLoaded = () => !!this.channelMessages[channelId]?.ids.includes(messageId);
     for (let page = 0; page < REVEAL_MAX_PAGES && !isLoaded(); page += 1) {
       if (!this.channelMessages[channelId]?.hasMoreOlder) return false;
       // oxlint-disable-next-line no-await-in-loop -- each page's cursor comes from the one before it
       await this.loadOlderMessages(channelId);
+      // The list offers a retry for this, so don't keep asking from here.
+      if (this.channelMessages[channelId]?.olderFailed) return false;
     }
     return isLoaded();
   }

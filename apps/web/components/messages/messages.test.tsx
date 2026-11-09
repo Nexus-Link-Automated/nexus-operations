@@ -485,6 +485,39 @@ describe("ChatMessageList", () => {
       expect(topOf("m5")).toBe(-40);
     });
 
+    it("keeps a linked message in place while the rows above it render", async () => {
+      const ids = Array.from({ length: 30 }, (_, index) => `m${index}`);
+      const real = Element.prototype.scrollIntoView;
+      // oxlint-disable-next-line no-extend-native -- jsdom doesn't implement scrollIntoView
+      Element.prototype.scrollIntoView = function (this: Element) {
+        scrollTop += topOf(idOf(this)) - 150;
+      };
+      restore.push(() => {
+        // oxlint-disable-next-line no-extend-native -- put back what the line above replaced
+        Element.prototype.scrollIntoView = real;
+      });
+      mocks.search = "message=m20";
+      await open({ listMessages: async () => ({ results: page(ids), has_more: false }) });
+      await vi.waitFor(() => expect(topOf("m20")).toBe(150));
+
+      // In two passes, as the editors finish at different times.
+      renderBodies(ids.slice(0, 10));
+      resized();
+      expect(topOf("m20")).toBe(150);
+      renderBodies(ids.slice(10, 20));
+      resized();
+      expect(topOf("m20")).toBe(150);
+    });
+
+    it("goes back to following the bottom when a linked message can't be found", async () => {
+      mocks.search = "message=gone";
+      await open({ listMessages: newestOnly });
+      await vi.waitFor(() => expect(mocks.toast).toHaveBeenCalled());
+      renderBodies(NEWEST);
+      resized();
+      expect(scrollTop).toBe(200);
+    });
+
     it("doesn't undo bringing a linked message into view", async () => {
       const real = Element.prototype.scrollIntoView;
       // oxlint-disable-next-line no-extend-native -- jsdom doesn't implement scrollIntoView
@@ -591,6 +624,54 @@ describe("ChatMessageList", () => {
       expect(container.querySelector('[data-message-id="m1"]')?.className).not.toContain("bg-accent-subtle");
       expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
       expect(mocks.toast).not.toHaveBeenCalled();
+    });
+
+    it("brings it into view once, and lets the highlight go", async () => {
+      const scrollIntoView = vi.fn();
+      // oxlint-disable-next-line no-extend-native -- jsdom doesn't implement scrollIntoView
+      Element.prototype.scrollIntoView = scrollIntoView;
+      mocks.search = "message=m2";
+      const { container } = await list([message("m1", ADA, "first", 0), message("m2", ADA, "second", 1)]);
+      const row = () => container.querySelector('[data-message-id="m2"]')!;
+      await vi.waitFor(() => expect(row().className).toContain("bg-accent-subtle"));
+      await act(() => new Promise((resolve) => setTimeout(resolve, 3_200)));
+      expect(row().className).not.toContain("bg-accent-subtle");
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    }, 6_000);
+
+    it("says so once, however often the list renders afterwards", async () => {
+      mocks.search = "message=gone";
+      const { store } = makeStore({
+        listMessages: async () => ({ results: [message("m1", ADA, "first", 0)], has_more: false }),
+        markRead: async () => channel({}),
+        sendMessage: () => new Promise(() => undefined),
+      });
+      mocks.chat = store;
+      await started(store, [channel({})]);
+      await store.openChannel("c-general");
+      render(<ChatMessageList workspaceSlug="acme" channelId="c-general" intro={null} />);
+      await vi.waitFor(() => expect(mocks.toast).toHaveBeenCalledTimes(1));
+      await act(async () => void store.sendMessage("c-general", { body_html: "<p>new</p>" }));
+      await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+      expect(mocks.toast).toHaveBeenCalledTimes(1);
+    });
+
+    it("says the history couldn't load, rather than that the message is gone", async () => {
+      mocks.search = "message=m0";
+      const { store } = makeStore({
+        listMessages: async (_slug, _channel, params) => {
+          if (params?.before) throw new Error("offline");
+          return { results: [message("m1", ADA, "first", 0)], has_more: true };
+        },
+        markRead: async () => channel({}),
+      });
+      mocks.chat = store;
+      await started(store, [channel({})]);
+      await store.openChannel("c-general");
+      render(<ChatMessageList workspaceSlug="acme" channelId="c-general" intro={null} />);
+      await vi.waitFor(() =>
+        expect(mocks.toast).toHaveBeenCalledWith({ type: "error", title: "Couldn't load messages." })
+      );
     });
 
     it("says so when the message can't be found", async () => {
