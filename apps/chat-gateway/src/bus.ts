@@ -9,6 +9,9 @@ import { Redis } from "ioredis";
 import type { Logger } from "./logger.ts";
 
 const CHANNEL_PREFIX = "chat:workspace:";
+/** A subscriber only ever reads, so without these it can't tell that a connection has silently died. */
+const HEARTBEAT_MS = 30_000;
+const HEARTBEAT_TIMEOUT_MS = 10_000;
 
 /** The Redis pub/sub channel Django publishes a workspace's chat events on. */
 export function workspaceChannel(workspaceId: string): string {
@@ -37,6 +40,9 @@ export interface RedisEventBusOptions {
   readonly log: Logger;
   /** Shown in Redis's `CLIENT LIST`, so the gateway's subscriber connection can be told apart. */
   readonly connectionName?: string;
+  /** How often to ask whether the connection is still alive, and how long to wait for the answer. */
+  readonly heartbeatMs?: number;
+  readonly heartbeatTimeoutMs?: number;
 }
 
 /** An `EventBus` over a Redis subscriber connection (Redis and Valkey both work). */
@@ -46,6 +52,7 @@ export class RedisEventBus implements EventBus {
   readonly #subscribed = new Set<string>();
   readonly #messageHandlers: ((workspaceId: string, raw: string) => void)[] = [];
   readonly #gapHandlers: (() => void)[] = [];
+  readonly #heartbeat: NodeJS.Timeout;
   #everReady = false;
   #closed = false;
 
@@ -56,7 +63,13 @@ export class RedisEventBus implements EventBus {
       autoResubscribe: false,
       maxRetriesPerRequest: null,
       connectionName: options.connectionName ?? "chat-gateway",
+      // Cuts a connection that leaves a command unanswered this long; recovery is then the same as for any other drop.
+      socketTimeout: options.heartbeatTimeoutMs ?? HEARTBEAT_TIMEOUT_MS,
     });
+    this.#heartbeat = setInterval(() => {
+      if (this.connected) this.#redis.ping().catch(() => undefined);
+    }, options.heartbeatMs ?? HEARTBEAT_MS);
+    this.#heartbeat.unref();
     this.#redis.on("error", (error: Error) => {
       this.#log.error("chat-gateway: redis error", { error: error.message });
     });
@@ -103,11 +116,9 @@ export class RedisEventBus implements EventBus {
   async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
-    try {
-      await this.#redis.quit();
-    } catch {
-      this.#redis.disconnect();
-    }
+    clearInterval(this.#heartbeat);
+    // Not `quit`: with commands queued for a Redis that is down it would wait for good, and a subscriber has nothing to flush.
+    this.#redis.disconnect();
   }
 
   /** The connection came back: listen again, and only then tell everyone they may have missed events. */

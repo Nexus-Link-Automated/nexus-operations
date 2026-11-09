@@ -10,6 +10,7 @@ import type WebSocket from "ws";
 // plane imports
 import { Controller, WebSocket as WSDecorator } from "@plane/decorators";
 import { logger } from "@plane/logger";
+import { guardCollaborationSocket } from "@/lib/collaboration-socket-guard";
 
 @Controller("/collaboration")
 export class CollaborationController {
@@ -23,6 +24,9 @@ export class CollaborationController {
   @WSDecorator("/")
   handleConnection(ws: WebSocket, req: Request) {
     try {
+      // Registered first so a message over the limits is seen before Hocuspocus queues it
+      guardCollaborationSocket(ws, req);
+
       // Initialize the connection with Hocuspocus
       this.hocusPocusServer.handleConnection(ws, req);
 

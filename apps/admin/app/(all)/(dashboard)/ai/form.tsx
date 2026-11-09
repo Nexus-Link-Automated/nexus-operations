@@ -29,6 +29,7 @@ export function InstanceAIForm(props: IInstanceAIForm) {
   const {
     handleSubmit,
     control,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<AIFormValues>({
     defaultValues: {
@@ -88,13 +89,15 @@ export function InstanceAIForm(props: IInstanceAIForm) {
     const payload: Partial<AIFormValues> = { ...formData };
 
     await updateInstanceConfigurations(payload)
-      .then(() =>
-        setToast({
+      .then((response) => {
+        // show the saved key as set again, rather than keeping what was typed
+        reset({ ...formData, LLM_API_KEY: response.find((item) => item.key === "LLM_API_KEY")?.value ?? "" });
+        return setToast({
           type: "success",
           title: "Success",
           message: "AI Settings updated successfully",
-        })
-      )
+        });
+      })
       .catch((err) => console.error(err));
   };
 

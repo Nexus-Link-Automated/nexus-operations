@@ -232,8 +232,16 @@ services:
       AGENT_WORKSPACES_ROOT: /workspaces
       AGENT_RUNNER_ISOLATION: uid
       AGENT_RUNNER_ENABLE_ECHO: "false"
+      # Per-uid limits on agents; apps/agent-runner/README.md explains them.
+      AGENT_RUNNER_NPROC_LIMIT: ${AGENT_RUNNER_NPROC_LIMIT:-256}
+      AGENT_RUNNER_FILE_SIZE_LIMIT_BYTES: ${AGENT_RUNNER_FILE_SIZE_LIMIT_BYTES:-4294967296}
+      AGENT_RUNNER_USER_DISK_LIMIT_BYTES: ${AGENT_RUNNER_USER_DISK_LIMIT_BYTES:-10737418240}
     volumes:
       - agent_workspaces:/workspaces
+    # Agents' own TMPDIR is under /workspaces, but /tmp would otherwise be unmetered space
+    # on the container's disk. It counts against the memory limit, so keep it small.
+    tmpfs:
+      - /tmp:size=${AGENT_RUNNER_TMP_SIZE:-512m},mode=1777,exec
     user: "0:0"
     cap_drop: [ALL]
     # CHOWN/FOWNER/DAC_OVERRIDE: create and hand over per-user dirs; SETUID/SETGID:

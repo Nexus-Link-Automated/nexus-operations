@@ -46,8 +46,10 @@ export function testConfig(overrides: Partial<GatewayConfig> = {}): GatewayConfi
     maxConnectionsPerUser: 4,
     maxConnections: 100,
     pingIntervalMs: 30_000,
-    maxSubscriptions: 100,
     maxBufferedBytes: 1024 * 1024,
+    closeTimeoutMs: 5_000,
+    maxApiConcurrency: 64,
+    maxSubscriptions: 100,
     rateFrames: 100,
     rateWindowMs: 10_000,
     // Long enough that nothing re-checks by itself unless a test asks for it.
@@ -124,7 +126,12 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
   publisher?.on("error", () => undefined);
   if (kind === "redis") await waitUntil(() => bus.connected);
 
-  const gateway = new ChatGateway({ config, api: createPlaneApi({ baseUrl: api.url }), bus, log });
+  const gateway = new ChatGateway({
+    config,
+    api: createPlaneApi({ baseUrl: api.url, maxConcurrent: config.maxApiConcurrency }),
+    bus,
+    log,
+  });
   const address = await gateway.listen(0, "127.0.0.1");
   const baseUrl = `ws://127.0.0.1:${address.port}`;
   const clients: ChatClient[] = [];

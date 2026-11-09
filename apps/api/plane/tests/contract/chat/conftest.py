@@ -8,7 +8,6 @@ Each person is an `Actor` (a user and a session-authenticated client). `admin` i
 root conftest's `create_user`, who owns `workspace`, and drives `session_client`.
 """
 
-from contextlib import contextmanager
 from dataclasses import dataclass
 from unittest import mock
 from uuid import uuid4
@@ -18,7 +17,7 @@ from rest_framework.test import APIClient
 
 from plane.chat.models import Channel, ChannelKind, ChannelMember, ChannelMemberRole, Message
 from plane.db.models import User, Workspace, WorkspaceMember
-from plane.tests.chat_redis import FakeRedis
+from plane.tests.chat_events import Published
 
 ADMIN, MEMBER, GUEST = 20, 15, 5
 
@@ -123,41 +122,8 @@ def url(workspace):
 
 
 @pytest.fixture
-def redis():
-    """Chat events go to a recording fake, not to Redis."""
-    fake = FakeRedis()
-    with mock.patch("plane.chat.events.redis_instance", return_value=fake):
-        yield fake
-
-
-class Published:
-    """The chat events published by the requests made inside `after_commit()`.
-
-    Tests run inside a transaction that is never committed, so `transaction.on_commit` callbacks would never
-    fire. `after_commit()` runs the ones its block queued when it exits, as a real commit would.
-    """
-
-    def __init__(self, redis, capture):
-        self._redis = redis
-        self._capture = capture
-
-    @contextmanager
-    def after_commit(self):
-        with self._capture(execute=True):
-            yield
-
-    @property
-    def events(self):
-        return self._redis.events
-
-    def clear(self):
-        self._redis.published.clear()
-
-    @property
-    def pubsub_channels(self):
-        return [channel for channel, _ in self._redis.published]
-
-
-@pytest.fixture
-def published(redis, django_capture_on_commit_callbacks):
-    return Published(redis, django_capture_on_commit_callbacks)
+def published():
+    """A live subscriber on real Redis; `published.events` is what has reached it so far."""
+    subscriber = Published()
+    yield subscriber
+    subscriber.close()

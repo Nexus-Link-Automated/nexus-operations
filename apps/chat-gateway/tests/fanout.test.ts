@@ -24,7 +24,7 @@ for (const kind of ["memory", "redis"] as const) {
       await h.stop();
     });
 
-    it("tells a client which channels it is in, and follows only those", async () => {
+    it("tells a client which channels it is in", async () => {
       const general = h.api.addChannel({ members: [ADA.id, BEN.id] });
       const standup = h.api.addChannel({ kind: "private", members: [ADA.id] });
       const archived = h.api.addChannel({ members: [ADA.id], archived: true });
@@ -215,6 +215,16 @@ for (const kind of ["memory", "redis"] as const) {
       expect(sent.message_id).toBe(messageId);
       expect(JSON.stringify(sent)).not.toContain("should never be here");
       expect(Object.keys(sent).toSorted()).toEqual(["at", "channel_id", "message_id", "type", "workspace_id"]);
+    });
+
+    it("ignores an event far too large to be one", async () => {
+      const general = h.api.addChannel({ members: [ADA.id] });
+      const ada = await h.open(ADA.cookie);
+      await h.publish(chatEvent("message.created", { channel_id: general, message_id: "x".repeat(64 * 1024) }));
+      const real = chatEvent("message.created", { channel_id: general, message_id: randomUUID() });
+      await h.publish(real);
+      await ada.waitFor((f) => f.type === "event");
+      expect(eventsOf(ada)).toEqual([real]);
     });
 
     it("ignores events it can't use, and carries on", async () => {

@@ -9,7 +9,9 @@
 // ids `<tool>__<id>`, a `tool_call` (pending) before every `session/request_permission`, options
 // `proceed_once` / `proceed_always*` / `cancel`, history streamed around the `session/load`
 // response. Driven by the prompt text:
-//   "hello" thought + message; "run" shell command; "read" read_file; "plane" / "plane list" Plane
+//   "hello" thought + message; "run" shell command; "read" read_file inside the cwd; "read creds" /
+//   "read etc" read_file of a credential file / outside the cwd; "fetch" web_fetch; "web search"
+//   google_web_search; "plane" / "plane list" Plane
 //   MCP create / list; "wait" streams then waits for session/cancel; "fail" answers a 401; a prompt
 //   starting with "/" runs a "command" (the adapter must prevent that); anything else answers "ok".
 // Every message it receives is appended to $FAKE_GEMINI_LOG (JSONL), after a first line with its
@@ -109,9 +111,9 @@ const modes = {
 const message = (sessionId, text) =>
   update(sessionId, { sessionUpdate: "agent_message_chunk", content: { type: "text", text } });
 
-async function tool(sessionId, name, title, kind, options) {
+async function tool(sessionId, name, title, kind, options, locations = []) {
   const toolCallId = `${name}__${name}_${++callCounter}_0`;
-  const call = { toolCallId, status: "pending", title, content: [], locations: [], kind };
+  const call = { toolCallId, status: "pending", title, content: [], locations, kind };
   update(sessionId, { sessionUpdate: "tool_call", ...call });
   const reply = await ask("session/request_permission", { sessionId, options, toolCall: call });
   const outcome = reply.result && reply.result.outcome;
@@ -183,7 +185,47 @@ async function runPrompt(msg) {
       );
       return done("end_turn");
     case "read":
-      message(sessionId, (await tool(sessionId, "read_file", "a.txt", "read", EXEC)) ? "read it" : "skipped");
+      // Like the real CLI, read_file reports its absolute path in `locations` (the adapter's cwd is ours).
+      message(
+        sessionId,
+        (await tool(sessionId, "read_file", "a.txt", "read", EXEC, [{ path: path.join(process.cwd(), "a.txt") }]))
+          ? "read it"
+          : "skipped"
+      );
+      return done("end_turn");
+    case "read creds":
+      message(
+        sessionId,
+        (await tool(sessionId, "read_file", ".gemini/oauth_creds.json", "read", EXEC, [
+          { path: path.join(process.env.HOME || "/tmp", ".gemini", "oauth_creds.json") },
+        ]))
+          ? "read it"
+          : "skipped"
+      );
+      return done("end_turn");
+    case "read etc":
+      message(
+        sessionId,
+        (await tool(sessionId, "read_file", "/etc/hostname", "read", EXEC, [{ path: "/etc/hostname" }]))
+          ? "read it"
+          : "skipped"
+      );
+      return done("end_turn");
+    case "fetch":
+      message(
+        sessionId,
+        (await tool(sessionId, "web_fetch", 'Processing URLs and instructions from prompt: "x"', "fetch", EXEC))
+          ? "fetched"
+          : "skipped"
+      );
+      return done("end_turn");
+    case "web search":
+      message(
+        sessionId,
+        (await tool(sessionId, "google_web_search", 'Searching the web for: "x"', "search", EXEC))
+          ? "searched"
+          : "skipped"
+      );
       return done("end_turn");
     case "plane":
       message(

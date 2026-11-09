@@ -30,6 +30,8 @@ import { chatErrorMessage } from "./helpers";
 
 /** The API's limit on channel names (`Channel.name`). */
 const MAX_NAME_LENGTH = 80;
+/** The API's limit on channel descriptions. */
+const MAX_DESCRIPTION_LENGTH = 2000;
 
 type Props = {
   workspaceSlug: string;
@@ -117,6 +119,7 @@ export function CreateChannelDialog({ workspaceSlug, onClose }: Props) {
                 orientation="vertical"
                 label={t("messages.create_channel.description_label")}
                 autoComplete="off"
+                maxLength={MAX_DESCRIPTION_LENGTH}
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
               />

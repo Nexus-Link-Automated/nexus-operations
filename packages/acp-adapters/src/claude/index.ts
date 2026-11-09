@@ -6,6 +6,7 @@
 
 /* oxlint-disable no-await-in-loop -- session updates and tool calls must reach the client in order */
 import { randomUUID } from "node:crypto";
+import { rmSync } from "node:fs";
 import path from "node:path";
 
 import { RequestError, type PlanEntry, type StopReason, type ToolCallContent } from "@agentclientprotocol/sdk";
@@ -14,6 +15,7 @@ import {
   listSessions as sdkListSessions,
   query as sdkQuery,
   type CanUseTool,
+  type EffortLevel,
   type HookCallback,
   type HookJSONOutput,
   type Options,
@@ -22,24 +24,73 @@ import {
   type SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 
-import type { AdapterSession, AgentAdapter, SessionHost, SessionInit, TurnContext } from "../core/agent.ts";
-import { AI_PROVIDERS_SETTINGS } from "../core/auth.ts";
+import type {
+  AdapterSession,
+  AgentAdapter,
+  ModelChoice,
+  SessionHost,
+  SessionInit,
+  TurnContext,
+} from "../core/agent.ts";
+import { AGENT_AUTH_ENV, AI_PROVIDERS_SETTINGS, agentHome } from "../core/auth.ts";
+import { SECRET_ENV_NAME } from "../core/env.ts";
 import { agentInfo, PACKAGE_VERSION } from "../core/info.ts";
-import { arrayValue, numberValue, objectValue, stringValue, type JsonObject } from "../core/json.ts";
-import { toClaudeMcpServers } from "../core/mcp.ts";
-import { modelCatalog } from "../core/models.ts";
+import { arrayValue, errorMessage, numberValue, objectValue, stringValue, type JsonObject } from "../core/json.ts";
+import { toClaudeMcpServers, writeClaudeMcpConfig } from "../core/mcp.ts";
+import { effortChoices, modelCatalog } from "../core/models.ts";
 import { classifyMcpCall, toolKindForCategory, type PermissionModeId, type ToolCategory } from "../core/modes.ts";
-import type { PermissionDecision } from "../core/permission.ts";
+import { PATH_REFUSED_MESSAGE, gateFileRead, urlHost, type FileTarget } from "../core/paths.ts";
+import { fileMemory, shellCommandMemory, type MemoryScope, type PermissionDecision } from "../core/permission.ts";
 import { promptToText } from "../core/turn.ts";
 
-export const CLAUDE_ENV = { apiKey: "ANTHROPIC_API_KEY", oauthToken: "CLAUDE_CODE_OAUTH_TOKEN" } as const;
+export const CLAUDE_ENV = {
+  apiKey: "ANTHROPIC_API_KEY",
+  oauthToken: "CLAUDE_CODE_OAUTH_TOKEN",
+  /** Set only by the agent runner's credential broker: the API key in this env is its token. */
+  brokered: "PLANE_CLAUDE_BROKERED",
+} as const;
 
-export const CLAUDE_MODELS = [
-  { value: "claude-opus-5-5", name: "Claude Opus 5.5" },
-  { value: "claude-sonnet-5-5", name: "Claude Sonnet 5.5" },
-  { value: "claude-haiku-5-5", name: "Claude Haiku 5.5" },
-  { value: "claude-fable-5-1", name: "Claude Fable 5.1" },
-] as const;
+const BROKER_TOKEN = /^pab_[0-9a-f]{64}$/;
+/** Names Claude Code's own scrubbing treats as credentials that `SECRET_ENV_NAME` does not cover. */
+const CLI_CREDENTIAL_NAME =
+  /(^|_)(AUTH|COOKIE|PAT|DSN|WEBHOOK|CREDS|PASSPHRASE|SSHPASS)($|_|\d)|_(PWD|PASS|JWT)($|_|\d)|^ANTHROPIC_CUSTOM_HEADERS$/i;
+
+function looksLikeCredential(name: string, value: string): boolean {
+  if (name === AGENT_AUTH_ENV) return false;
+  // Limits such as MAX_THINKING_TOKENS.
+  if (/_TOKENS$/i.test(name) && /^\d+$/.test(value.trim())) return false;
+  return SECRET_ENV_NAME.test(name) || CLI_CREDENTIAL_NAME.test(name);
+}
+
+/**
+ * `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` for this env. Scrubbing makes Claude Code refuse to start
+ * without bubblewrap and user namespaces. It can only be dropped when there is nothing to protect:
+ * the runner brokered the key, so the tools can see at most a token that works through the broker
+ * and dies with the agent. Any other credential in the env keeps it on.
+ */
+export function subprocessEnvScrub(env: NodeJS.ProcessEnv): "0" | "1" {
+  if (env[CLAUDE_ENV.brokered]?.trim() !== "1") return "1";
+  if (!BROKER_TOKEN.test(env[CLAUDE_ENV.apiKey]?.trim() ?? "")) return "1";
+  const credentialLeft = Object.entries(env).some(
+    ([name, value]) => name !== CLAUDE_ENV.apiKey && Boolean(value?.trim()) && looksLikeCredential(name, value ?? "")
+  );
+  return credentialLeft ? "1" : "0";
+}
+
+/** Effort levels every current Claude model takes, lowest first. */
+export const CLAUDE_EFFORTS: readonly EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
+const CLAUDE_EFFORT_CHOICES = effortChoices(CLAUDE_EFFORTS);
+
+/** The defaults are the API's own: `medium` on Opus 5.5 and Haiku 5.5, `high` on the others. */
+export const CLAUDE_MODELS: readonly ModelChoice[] = [
+  { value: "claude-opus-5-5", name: "Claude Opus 5.5", efforts: CLAUDE_EFFORT_CHOICES, defaultEffort: "medium" },
+  { value: "claude-sonnet-5-5", name: "Claude Sonnet 5.5", efforts: CLAUDE_EFFORT_CHOICES, defaultEffort: "high" },
+  { value: "claude-haiku-5-5", name: "Claude Haiku 5.5", efforts: CLAUDE_EFFORT_CHOICES, defaultEffort: "medium" },
+  { value: "claude-fable-5-1", name: "Claude Fable 5.1", efforts: CLAUDE_EFFORT_CHOICES, defaultEffort: "high" },
+];
+
+const isClaudeEffort = (value: string | undefined): value is EffortLevel =>
+  (CLAUDE_EFFORTS as readonly (string | undefined)[]).includes(value);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -75,7 +126,7 @@ export function createClaudeAdapter(options: ClaudeAdapterOptions = {}): AgentAd
   return {
     info: agentInfo("plane-acp-claude", "Claude"),
     promptCapabilities: { image: false, audio: false, embeddedContext: true },
-    models: (env) => modelCatalog(CLAUDE_MODELS, env),
+    models: (env) => modelCatalog(CLAUDE_MODELS, env, { efforts: CLAUDE_EFFORT_CHOICES, defaultEffort: "high" }),
     async startSession(init) {
       requireAuth(init.host.env);
       return new ClaudeSession(init, deps, false);
@@ -109,7 +160,8 @@ interface ToolDescription {
   readonly title: string;
   readonly category: ToolCategory;
   readonly locations?: { path: string }[];
-  readonly memoryKey: string;
+  readonly memoryKey: string | null;
+  readonly memoryScope?: MemoryScope;
 }
 
 /** Title, gate category and "always allow" scope for a Claude Code tool call. */
@@ -138,14 +190,14 @@ export function describeClaudeTool(name: string, input: JsonObject, cwd: string)
       return withLocations({
         title: `${name === "Write" ? "Write" : "Edit"} ${file}`,
         category: "edit",
-        memoryKey: name,
+        ...fileMemory(cwd, [file]),
       });
     case "Bash": {
       const command = stringValue(input.command);
       return {
         title: `Run: ${command.slice(0, 120)}`,
         category: "execute",
-        memoryKey: `Bash:${command.trim().split(/\s+/)[0] ?? ""}`,
+        ...shellCommandMemory("Bash", command),
       };
     }
     case "BashOutput":
@@ -160,7 +212,13 @@ export function describeClaudeTool(name: string, input: JsonObject, cwd: string)
     case "LS":
       return { title: `List ${stringValue(input.path)}`, category: "search", memoryKey: name };
     case "WebFetch":
-      return { title: `Fetch ${stringValue(input.url)}`, category: "fetch", memoryKey: name };
+      // "Always allow" for a web fetch covers one host.
+      return {
+        title: `Fetch ${stringValue(input.url)}`,
+        category: "fetch",
+        memoryKey: `${name}:${urlHost(stringValue(input.url))}`,
+        memoryScope: "host",
+      };
     case "WebSearch":
       return { title: `Search the web: ${stringValue(input.query)}`, category: "fetch", memoryKey: name };
     case "Task":
@@ -175,6 +233,30 @@ export function describeClaudeTool(name: string, input: JsonObject, cwd: string)
   }
 }
 
+/** What Claude Code's own file tools touch, for the session's path rules. */
+export function claudeFileTargets(name: string, input: JsonObject): FileTarget[] {
+  switch (name) {
+    case "Read":
+    case "Write":
+    case "Edit":
+    case "MultiEdit":
+      return [{ path: stringValue(input.file_path) }];
+    case "NotebookEdit":
+      return [{ path: stringValue(input.notebook_path) }];
+    case "Glob":
+      return [{ path: stringValue(input.path), glob: stringValue(input.pattern) }];
+    case "Grep":
+      return [{ path: stringValue(input.path), glob: stringValue(input.glob) }];
+    case "LS":
+      return [{ path: stringValue(input.path) }];
+    default:
+      return [];
+  }
+}
+
+/** `refused`: the path rules said no, in any mode; no one was asked. */
+type ClaudeDecision = PermissionDecision | "refused";
+
 /** TodoWrite only updates the task list, so it is shown as a `plan` and never gated. */
 const PLAN_TOOL = "TodoWrite";
 
@@ -185,6 +267,8 @@ class ClaudeSession implements AdapterSession {
   #claudeSessionId: string;
   #started: boolean;
   #active: Query | undefined;
+  /** This turn's MCP config, while the CLI has yet to load it. */
+  #mcpConfigFile: string | undefined;
 
   constructor(init: SessionInit, deps: ClaudeDeps, resumed: boolean) {
     this.#host = init.host;
@@ -207,11 +291,11 @@ class ClaudeSession implements AdapterSession {
     const abortController = new AbortController();
     const onAbort = () => abortController.abort();
     turn.signal.addEventListener("abort", onAbort, { once: true });
-    const decisions = new Map<string, Promise<PermissionDecision>>();
+    const decisions = new Map<string, Promise<ClaudeDecision>>();
     const planToolIds = new Set<string>();
 
     /** One gate decision per tool use, shared by the hook and `canUseTool`. */
-    const decide = (toolUseId: string, name: string, input: JsonObject): Promise<PermissionDecision> => {
+    const decide = (toolUseId: string, name: string, input: JsonObject): Promise<ClaudeDecision> => {
       if (name === PLAN_TOOL) return Promise.resolve("allowed");
       let decision = decisions.get(toolUseId);
       if (!decision) {
@@ -224,15 +308,10 @@ class ClaudeSession implements AdapterSession {
             rawInput: input,
             ...(tool.locations ? { locations: tool.locations } : {}),
           });
+          const verdict = host.paths.check(claudeFileTargets(name, input));
+          if (verdict.access === "refused") return "refused";
           return host.gate.check(
-            {
-              toolCallId,
-              title: tool.title,
-              kind,
-              category: tool.category,
-              rawInput: input,
-              memoryKey: tool.memoryKey,
-            },
+            { toolCallId, title: tool.title, kind, rawInput: input, ...gateFileRead(tool, verdict) },
             turn.signal
           );
         })();
@@ -253,12 +332,14 @@ class ClaudeSession implements AdapterSession {
         : { behavior: "deny", message: denyMessage(decision), interrupt: decision === "cancelled" };
     };
 
+    const effort = host.effort();
     const options: Options = {
       cwd: host.cwd,
       model: host.model(),
+      // Each turn is its own query, so a changed effort applies from the next turn on.
+      ...(isClaudeEffort(effort) ? { effort } : {}),
       abortController,
       includePartialMessages: true,
-      mcpServers: this.#mcpServers,
       permissionMode: claudePermissionMode(host.mode()),
       allowDangerouslySkipPermissions: true,
       canUseTool,
@@ -270,7 +351,7 @@ class ClaudeSession implements AdapterSession {
       env: {
         ...host.env,
         // Claude Code strips Anthropic and cloud credentials from Bash, hooks and stdio MCP servers.
-        CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
+        CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: subprocessEnvScrub(host.env),
         CLAUDE_AGENT_SDK_CLIENT_APP: `plane-acp-claude/${PACKAGE_VERSION}`,
       },
       ...(this.#started ? { resume: this.#claudeSessionId } : { sessionId: this.#claudeSessionId }),
@@ -278,9 +359,12 @@ class ClaudeSession implements AdapterSession {
 
     const streamed = new Set<string>();
     let stopReason: StopReason = "end_turn";
-    const activeQuery = this.#deps.query({ prompt: promptToText(turn.prompt), options });
-    this.#active = activeQuery;
     try {
+      const activeQuery = this.#deps.query({
+        prompt: promptToText(turn.prompt),
+        options: this.#withMcpConfig(options),
+      });
+      this.#active = activeQuery;
       for await (const message of activeQuery) {
         const result = await this.#handle(message, turn, streamed, planToolIds);
         if (result) stopReason = result;
@@ -293,12 +377,35 @@ class ClaudeSession implements AdapterSession {
     } finally {
       this.#started = true;
       this.#active = undefined;
+      this.#removeMcpConfig();
       turn.signal.removeEventListener("abort", onAbort);
     }
   }
 
   async close(): Promise<void> {
     this.#active?.close();
+    this.#removeMcpConfig();
+  }
+
+  /**
+   * Hand the MCP servers to the CLI as a path, never through `options.mcpServers`: the SDK would
+   * put their headers (the user's Plane token) on the command line. Each turn is its own CLI start.
+   */
+  #withMcpConfig(options: Options): Options {
+    if (Object.keys(this.#mcpServers).length === 0) return options;
+    this.#mcpConfigFile = writeClaudeMcpConfig(this.#mcpServers, agentHome(this.#host.env));
+    return { ...options, extraArgs: { "mcp-config": this.#mcpConfigFile } };
+  }
+
+  #removeMcpConfig(): void {
+    const file = this.#mcpConfigFile;
+    this.#mcpConfigFile = undefined;
+    if (!file) return;
+    try {
+      rmSync(file, { force: true });
+    } catch (error) {
+      console.error(`could not remove the MCP config file: ${errorMessage(error)}`);
+    }
   }
 
   async #handle(
@@ -311,7 +418,11 @@ class ClaudeSession implements AdapterSession {
     const { messages } = turn;
     switch (message.type) {
       case "system":
-        if (message.subtype === "init" && message.session_id) this.#claudeSessionId = message.session_id;
+        if (message.subtype === "init") {
+          // The CLI reads --mcp-config once at startup, so the token leaves the disk before any tool can run.
+          this.#removeMcpConfig();
+          if (message.session_id) this.#claudeSessionId = message.session_id;
+        }
         return undefined;
       case "stream_event": {
         if (message.parent_tool_use_id !== null) return undefined;
@@ -406,7 +517,7 @@ class ClaudeSession implements AdapterSession {
   }
 }
 
-function hookOutput(decision: PermissionDecision): HookJSONOutput {
+function hookOutput(decision: ClaudeDecision): HookJSONOutput {
   if (decision === "allowed")
     return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow" } };
   return {
@@ -419,7 +530,8 @@ function hookOutput(decision: PermissionDecision): HookJSONOutput {
   };
 }
 
-function denyMessage(decision: PermissionDecision): string {
+function denyMessage(decision: ClaudeDecision): string {
+  if (decision === "refused") return PATH_REFUSED_MESSAGE;
   return decision === "cancelled" ? "The user cancelled the turn." : "The user denied this tool call. Do not retry it.";
 }
 

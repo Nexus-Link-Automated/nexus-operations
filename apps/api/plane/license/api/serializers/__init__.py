@@ -4,7 +4,7 @@
 
 from .instance import InstanceSerializer
 
-from .configuration import InstanceConfigurationSerializer
+from .configuration import InstanceConfigurationSerializer, INSTANCE_CONFIGURATION_MASK
 from .admin import InstanceAdminSerializer, InstanceAdminMeSerializer
 from .workspace import WorkspaceSerializer
 from .agent import AGENT_ENV_MASK, AgentDefinitionSerializer

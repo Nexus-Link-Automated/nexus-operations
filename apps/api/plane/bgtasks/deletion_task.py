@@ -6,12 +6,16 @@
 from django.utils import timezone
 from django.apps import apps
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
+from django.db.models import Exists, OuterRef
 from django.db.models.fields.related import OneToOneRel
 
 
 # Third party imports
 from celery import shared_task
+
+# Module imports
+from plane.utils.exception_logger import log_exception
 
 
 @shared_task
@@ -110,6 +114,39 @@ def restore_related_objects(app_label, model_name, instance_pk, using=None):
     pass
 
 
+def purge_expired_rows(model, cutoff):
+    """
+    Hard delete one model's rows that were soft deleted before the cutoff.
+
+    Each model gets its own transaction, and a failure is logged so that it cannot
+    stop the models after it.
+    """
+    from plane.db.models import Issue, IssueActivity, IssueComment
+
+    try:
+        with transaction.atomic():
+            if model is Issue:
+                # A bulk delete soft deletes a parent but not its sub-issues, and Issue.parent
+                # cascades. A sub-issue that is not past retention has to outlive its parent.
+                Issue.all_objects.filter(parent__deleted_at__lt=cutoff).exclude(deleted_at__lt=cutoff).update(
+                    parent=None
+                )
+
+            deleted, _ = model.all_objects.filter(deleted_at__lt=cutoff).delete()
+
+            if deleted:
+                # IssueActivity history outlives what it describes through DO_NOTHING foreign keys,
+                # whichever cascade removed the row. Those constraints are checked at commit, so any
+                # reference without a target here points at a row deleted in this transaction.
+                for field, target in (("issue", Issue), ("issue_comment", IssueComment)):
+                    IssueActivity.all_objects.filter(
+                        ~Exists(target.all_objects.filter(pk=OuterRef(f"{field}_id"))),
+                        **{f"{field}__isnull": False},
+                    ).update(**{field: None})
+    except Exception as e:
+        log_exception(e)
+
+
 @shared_task
 def hard_delete():
     from plane.db.models import (
@@ -134,50 +171,51 @@ def hard_delete():
     )
 
     days = settings.HARD_DELETE_AFTER_DAYS
+    cutoff = timezone.now() - timezone.timedelta(days=days)
     # check delete workspace
-    _ = Workspace.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(Workspace, cutoff)
 
     # check delete project
-    _ = Project.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(Project, cutoff)
 
     # check delete cycle
-    _ = Cycle.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(Cycle, cutoff)
 
     # check delete module
-    _ = Module.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(Module, cutoff)
 
     # check delete issue
-    _ = Issue.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(Issue, cutoff)
 
     # check delete page
-    _ = Page.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(Page, cutoff)
 
     # check delete view
-    _ = IssueView.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(IssueView, cutoff)
 
     # check delete label
-    _ = Label.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(Label, cutoff)
 
     # check delete state
-    _ = State.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(State, cutoff)
 
-    _ = IssueActivity.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(IssueActivity, cutoff)
 
-    _ = IssueComment.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(IssueComment, cutoff)
 
-    _ = IssueLink.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(IssueLink, cutoff)
 
-    _ = IssueReaction.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(IssueReaction, cutoff)
 
-    _ = UserFavorite.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(UserFavorite, cutoff)
 
-    _ = ModuleIssue.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(ModuleIssue, cutoff)
 
-    _ = CycleIssue.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(CycleIssue, cutoff)
 
-    _ = Estimate.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(Estimate, cutoff)
 
-    _ = EstimatePoint.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+    purge_expired_rows(EstimatePoint, cutoff)
 
     # at last, check for every thing which ever is left and delete it
     # Get all Django models
@@ -188,6 +226,6 @@ def hard_delete():
         # Check if the model has a 'deleted_at' field
         if hasattr(model, "deleted_at"):
             # Get all instances where 'deleted_at' is greater than 30 days ago
-            _ = model.all_objects.filter(deleted_at__lt=timezone.now() - timezone.timedelta(days=days)).delete()
+            purge_expired_rows(model, cutoff)
 
     return

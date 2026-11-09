@@ -67,7 +67,7 @@ Workspace settings → AI providers uses these to connect a member's own ChatGPT
    `OPTIONS` preflights are answered (`GET, POST`, header `Content-Type`).
 2. `POST` requires `Content-Type: application/json`.
 3. Cookie → `/api/users/me/`.
-4. `POST /api/internal/agent-connections/authorize/` `{user_id, workspace_slug}`: an active member.
+4. `POST /api/internal/agent-connections/authorize/` `{user_id, workspace_slug}`: an active admin or member (guests cannot use agents).
 5. A single-use `purpose: "login"` spawn ticket (`env: {}`, `initialMode: "ask_all"`) for the runner's
    `/auth/*` (see the runner README).
 
@@ -94,7 +94,7 @@ Workspace settings → AI providers uses these to connect a member's own ChatGPT
 | ------ | ------------------------------------------------------------------------------------------------------------ |
 | 400    | Unknown provider, missing/invalid `workspace`/`loginId`/`code`, not JSON, a code for a sign-in without one   |
 | 401    | Not signed in                                                                                                |
-| 403    | Not an active member of the workspace, or a disallowed origin                                                |
+| 403    | Not an active admin or member of the workspace (guests included), or a disallowed origin                     |
 | 404    | Unknown sign-in (expired, or not this user's/workspace's/provider's), or an unknown route                    |
 | 429    | Too many `start`s for this user (`Retry-After` is set)                                                       |
 | 502    | The runner or the API is unavailable or misconfigured; or the sign-in helper failed (its message is `error`) |
@@ -108,7 +108,7 @@ Workspace settings → AI providers uses these to connect a member's own ChatGPT
 | ---- | ------------------------------------------------------------- |
 | 4400 | Missing or malformed `agent`/`workspace` parameters           |
 | 4401 | Not signed in                                                 |
-| 4403 | Not an active member of the workspace                         |
+| 4403 | Not an active admin or member of the workspace                |
 | 4404 | Agent not found or disabled                                   |
 | 4408 | Idle timeout, or no `initialize` in time                      |
 | 4410 | The agent-session token expired; reconnect and `session/load` |

@@ -158,6 +158,11 @@ class ProjectIssuesPublicEndpoint(BaseAPIView):
 
         issue_queryset = issue_queryset.filter(**filters)
 
+        # Without the annotations, for reading the date and creator group values
+        filtered_issue_queryset = Issue.issue_objects.filter(workspace__slug=slug, project_id=project_id).filter(
+            **filters
+        )
+
         # Issue queryset
         issue_queryset, order_by_param = order_issue_queryset(
             issue_queryset=issue_queryset, order_by_param=order_by_param
@@ -191,12 +196,14 @@ class ProjectIssuesPublicEndpoint(BaseAPIView):
                             slug=slug,
                             project_id=project_id,
                             filters=filters,
+                            queryset=filtered_issue_queryset,
                         ),
                         sub_group_by_fields=issue_group_values(
                             field=sub_group_by,
                             slug=slug,
                             project_id=project_id,
                             filters=filters,
+                            queryset=filtered_issue_queryset,
                         ),
                         group_by_field_name=group_by,
                         sub_group_by_field_name=sub_group_by,
@@ -224,6 +231,7 @@ class ProjectIssuesPublicEndpoint(BaseAPIView):
                         slug=slug,
                         project_id=project_id,
                         filters=filters,
+                        queryset=filtered_issue_queryset,
                     ),
                     group_by_field_name=group_by,
                     count_filter=Q(
