@@ -5,13 +5,16 @@
 import uuid
 
 import pytest
+import requests
 from plane.db.models import Project, ProjectMember, Issue, FileAsset
 from unittest.mock import patch, MagicMock
 from plane.bgtasks.copy_s3_object import (
     extract_asset_ids,
     copy_s3_objects_of_description_and_assets,
     copy_assets,
+    sync_with_external_service,
 )
+from plane.utils.constants import LIVE_SERVER_HTTP_TIMEOUT
 import base64
 
 
@@ -190,3 +193,27 @@ def test_extract_asset_ids_skips_external_urls():
     )
 
     assert extract_asset_ids(html, "image-component") == [asset_id]
+
+
+@pytest.mark.unit
+class TestSyncWithExternalService:
+    """The call to the live server is bounded, and a stalled server leaves the task with no data."""
+
+    def test_returns_live_server_data_on_a_bounded_wait(self, settings):
+        settings.LIVE_URL = "http://live.test/live"
+        payload = {"description_json": {"type": "doc"}}
+        response = MagicMock(status_code=200)
+        response.json.return_value = payload
+
+        with patch("requests.post", return_value=response) as post:
+            assert sync_with_external_service("ISSUE", "<p>text</p>") == payload
+
+        assert post.call_args.kwargs["timeout"] == LIVE_SERVER_HTTP_TIMEOUT
+
+    def test_timeout_returns_no_data(self, settings):
+        settings.LIVE_URL = "http://live.test/live"
+
+        with patch("requests.post", side_effect=requests.Timeout) as post:
+            assert sync_with_external_service("ISSUE", "<p>text</p>") == {}
+
+        assert post.call_args.kwargs["timeout"] == LIVE_SERVER_HTTP_TIMEOUT

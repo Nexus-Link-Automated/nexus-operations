@@ -16,6 +16,7 @@ from plane.authentication.adapter.error import (
 
 # Module imports
 from plane.db.models import Account
+from plane.utils.constants import OAUTH_HTTP_TIMEOUT
 from plane.utils.exception_logger import log_exception
 
 from .base import Adapter
@@ -75,7 +76,7 @@ class OauthAdapter(Adapter):
     def get_user_token(self, data, headers=None):
         try:
             headers = headers or {}
-            response = requests.post(self.get_token_url(), data=data, headers=headers)
+            response = requests.post(self.get_token_url(), data=data, headers=headers, timeout=OAUTH_HTTP_TIMEOUT)
             response.raise_for_status()
             return response.json()
         except requests.RequestException:
@@ -86,7 +87,7 @@ class OauthAdapter(Adapter):
     def get_user_response(self):
         try:
             headers = {"Authorization": f"Bearer {self.token_data.get('access_token')}"}
-            response = requests.get(self.get_user_info_url(), headers=headers)
+            response = requests.get(self.get_user_info_url(), headers=headers, timeout=OAUTH_HTTP_TIMEOUT)
             response.raise_for_status()
             return response.json()
         except requests.RequestException:
