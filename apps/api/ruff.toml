@@ -67,11 +67,6 @@ classmethod-decorators = ["classmethod", "validator", "root_validator"]
 # Ignore imported but unused in __init__.py files
 "__init__.py" = ["F401"]
 # Existing `requests` calls without a timeout. Remove each entry once its calls set one.
-"plane/app/views/external/base.py" = ["S113"]
-"plane/authentication/adapter/oauth.py" = ["S113"]
-"plane/authentication/provider/oauth/gitea.py" = ["S113"]
-"plane/authentication/provider/oauth/github.py" = ["S113"]
-"plane/bgtasks/copy_s3_object.py" = ["S113"]
 "plane/tests/smoke/test_auth_smoke.py" = ["S113"]
 
 [lint.mccabe]
