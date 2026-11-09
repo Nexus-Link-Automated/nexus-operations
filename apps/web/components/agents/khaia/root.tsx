@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { usePathname } from "next/navigation";
 import useSWR from "swr";
@@ -20,7 +20,8 @@ import { useUserPermissions } from "@/hooks/store/user";
 // local imports
 import { pickInitialAgent, recallAgent } from "../helpers";
 import { KHAIA_NAME } from "./constants";
-import { KhaiaPanel } from "./panel";
+
+const KhaiaPanel = lazy(() => import("./panel").then((module) => ({ default: module.KhaiaPanel })));
 
 /** True on the full agent chat page, which shows the same chat, so the widget stays out of the way. */
 export function isAgentsPage(pathname: string, workspaceSlug: string): boolean {
@@ -97,39 +98,46 @@ export const KhaiaWidget = observer(function KhaiaWidget({ workspaceSlug }: Prop
     ? t("agents.khaia.unread", { name: KHAIA_NAME })
     : t("agents.khaia.open", { name: KHAIA_NAME });
 
+  const launcher = (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            ref={launcherRef}
+            size="icon-lg"
+            aria-label={launcherLabel}
+            onClick={() => setOpen(true)}
+            className="relative rounded-full shadow-raised-300"
+          />
+        }
+      >
+        <AiStarFourFilled />
+        {unread && (
+          <span
+            aria-hidden
+            className="absolute top-0.5 right-0.5 size-3 rounded-full border-2 border-(--background-color-surface-1) bg-danger-primary"
+          />
+        )}
+      </TooltipTrigger>
+      <TooltipContent side="left">{launcherLabel}</TooltipContent>
+    </Tooltip>
+  );
+
   // Open, the window takes the bottom-right corner in place of the bubble; minimized, the bubble is back.
+  // The bubble also stays while the window's code loads the first time.
   return (
     <TooltipProvider>
       <div className="fixed right-4 bottom-4 z-30 max-sm:right-2 max-sm:bottom-2 max-sm:left-2 max-sm:flex max-sm:justify-end">
         {open ? (
-          <KhaiaPanel
-            workspaceSlug={workspaceSlug}
-            onMinimize={minimize}
-            className="h-[min(640px,calc(100dvh-2rem))] w-full sm:w-[400px]"
-          />
+          <Suspense fallback={launcher}>
+            <KhaiaPanel
+              workspaceSlug={workspaceSlug}
+              onMinimize={minimize}
+              className="h-[min(640px,calc(100dvh-2rem))] w-full sm:w-[400px]"
+            />
+          </Suspense>
         ) : (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  ref={launcherRef}
-                  size="icon-lg"
-                  aria-label={launcherLabel}
-                  onClick={() => setOpen(true)}
-                  className="relative rounded-full shadow-raised-300"
-                />
-              }
-            >
-              <AiStarFourFilled />
-              {unread && (
-                <span
-                  aria-hidden
-                  className="absolute top-0.5 right-0.5 size-3 rounded-full border-2 border-(--background-color-surface-1) bg-danger-primary"
-                />
-              )}
-            </TooltipTrigger>
-            <TooltipContent side="left">{launcherLabel}</TooltipContent>
-          </Tooltip>
+          launcher
         )}
       </div>
     </TooltipProvider>

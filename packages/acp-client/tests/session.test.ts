@@ -7,13 +7,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { AgentCloseCode } from "../src/close-codes.ts";
-import {
-  AgentChatSession,
-  AgentDisconnectedError,
-  AgentRequestError,
-  INVALID_PARAMS,
-  type AgentChatSnapshot,
-} from "../src/session.ts";
+import { AgentDisconnectedError, AgentRequestError, INVALID_PARAMS } from "../src/errors.ts";
+import { AgentChatSession, type AgentChatSnapshot } from "../src/session.ts";
 import { effortOption, modelOption, type TranscriptItem } from "../src/transcript.ts";
 import { createFakeAgent, type FakeAgentOptions } from "../src/testing/fake-agent.ts";
 import { memoryTransport, type MemoryTransport } from "../src/testing/memory-transport.ts";

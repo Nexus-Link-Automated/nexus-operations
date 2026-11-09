@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { describeClose } from "@plane/acp-client";
+import { describeClose } from "@plane/acp-client/core";
 import type { AgentCloseReason, CloseInfo, PermissionOption, SessionMode } from "@plane/acp-client";
 import { AGENT_PERMISSION_LEVELS } from "@plane/constants";
 import type { TAgentPermissionLevel, TWorkspaceAgent } from "@plane/types";

@@ -22,6 +22,7 @@ import {
 } from "@agentclientprotocol/sdk";
 
 import { describeClose, type CloseInfo } from "./close-codes.ts";
+import { AgentDisconnectedError, AgentRequestError, INVALID_PARAMS } from "./errors.ts";
 import {
   appendNotice,
   appendTurnEnd,
@@ -42,12 +43,6 @@ export const INITIAL_MODE_META_KEY = "plane/initialModeId";
 export const INITIAL_MODEL_META_KEY = "plane/initialModel";
 export const INITIAL_EFFORT_META_KEY = "plane/initialEffort";
 
-/** JSON-RPC "invalid params": what the bridge answers to a `session/set_mode` above the admin max. */
-export const INVALID_PARAMS = -32602;
-
-/** ACP "authentication required": the agent has no usable credential (no key, a lost sign-in). */
-export const AUTH_REQUIRED = -32000;
-
 export type AgentChatStatus = "idle" | "connecting" | "ready" | "reconnecting" | "closed";
 
 export interface PendingPermission {
@@ -67,30 +62,6 @@ export interface AgentChatSnapshot {
   readonly prompting: boolean;
   /** How the last connection ended, until the next one is ready. */
   readonly close: CloseInfo | null;
-}
-
-/** A JSON-RPC error answer from the agent or the bridge. */
-export class AgentRequestError extends Error {
-  readonly code: number;
-  readonly data: unknown;
-
-  constructor(code: number, message: string, data?: unknown) {
-    super(message);
-    this.name = "AgentRequestError";
-    this.code = code;
-    this.data = data;
-  }
-}
-
-/** The request could not complete because the connection is gone (or was never opened). */
-export class AgentDisconnectedError extends Error {
-  readonly close: CloseInfo | null;
-
-  constructor(close: CloseInfo | null) {
-    super(close ? `Agent connection closed (${close.code})` : "Not connected to the agent");
-    this.name = "AgentDisconnectedError";
-    this.close = close;
-  }
 }
 
 export interface AgentChatSessionOptions {
