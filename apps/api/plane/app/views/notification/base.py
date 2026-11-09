@@ -22,7 +22,7 @@ from plane.db.models import (
     UserNotificationPreference,
     WorkspaceMember,
 )
-from plane.utils.paginator import BasePaginator
+from plane.utils.paginator import BasePaginator, cap_list_results
 from plane.utils.order_queryset import NOTIFICATION_ORDER_BY_ALLOWLIST, sanitize_order_by
 from plane.app.permissions import allow_permission, ROLE
 
@@ -150,7 +150,10 @@ class NotificationViewSet(BaseViewSet, BasePaginator):
                 on_results=lambda notifications: NotificationSerializer(notifications, many=True).data,
             )
 
-        serializer = NotificationSerializer(notifications, many=True)
+        serializer = NotificationSerializer(
+            cap_list_results(notifications, f"notifications workspace={slug} user={request.user.id}"),
+            many=True,
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
