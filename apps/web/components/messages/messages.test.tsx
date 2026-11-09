@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { runInAction } from "mobx";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
+import type { TChatChannel, TChatMessage } from "@plane/types";
 import type { TChatChannel, TChatEvent, TChatMessage } from "@plane/types";
 import { ChatStore } from "@/store/chat.store";
 import type { TChatStoreService, TChatStoreSocket } from "@/store/chat.store";
@@ -729,6 +730,192 @@ describe("ChatMessageList", () => {
       await settle();
       expect(container.querySelector(".bg-accent-subtle")).toBeNull();
       expect(mocks.toast).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("while message bodies render after their rows", () => {
+    const VIEWPORT = 300;
+    /** A row before its editor has rendered, and after. */
+    const SHELL = 20;
+    const RENDERED = 100;
+
+    let heights: Map<string, number>;
+    let scrollTop: number;
+    let onResize: Set<ResizeObserverCallback>;
+    let restore: (() => void)[];
+
+    const heightOf = (row: Element) => heights.get(idOf(row)) ?? SHELL;
+    const contentHeight = () => rowEls().reduce((sum, row) => sum + heightOf(row), 0);
+    const maxScroll = () => Math.max(0, contentHeight() - VIEWPORT);
+    /** Where a row is on screen. */
+    const topOf = (id: string) => {
+      const rows = rowEls();
+      const above = rows.slice(
+        0,
+        rows.findIndex((row) => idOf(row) === id)
+      );
+      return above.reduce((sum, row) => sum + heightOf(row), 0) - scrollTop;
+    };
+    const renderBodies = (ids: string[]) => {
+      for (const id of ids) heights.set(id, RENDERED);
+    };
+    /** What the browser does once layout has seen the new height. */
+    const resized = () => {
+      for (const callback of onResize) callback([], {} as ResizeObserver);
+    };
+    const scrollTo = (top: number) => {
+      scrollTop = top;
+      fireEvent.scroll(screen.getByRole("log"));
+    };
+
+    const stub = (target: object, property: string, kind: "get" | "set", implementation: unknown) => {
+      const spy = vi.spyOn(target as Record<string, number>, property as never, kind as "get");
+      spy.mockImplementation(implementation as () => never);
+      restore.push(() => spy.mockRestore());
+    };
+
+    // jsdom has no layout, so the list's geometry comes from `heights`. Rows start as shells, as they do in a browser.
+    beforeEach(() => {
+      heights = new Map();
+      scrollTop = 0;
+      onResize = new Set();
+      restore = [];
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          constructor(private readonly callback: ResizeObserverCallback) {
+            onResize.add(callback);
+          }
+          observe() {}
+          unobserve() {}
+          disconnect() {
+            onResize.delete(this.callback);
+          }
+        }
+      );
+      stub(Element.prototype, "clientHeight", "get", () => VIEWPORT);
+      stub(Element.prototype, "scrollHeight", "get", () => Math.max(contentHeight(), VIEWPORT));
+      stub(Element.prototype, "scrollTop", "get", () => scrollTop);
+      stub(Element.prototype, "scrollTop", "set", (value: number) => {
+        scrollTop = Math.min(Math.max(0, value), maxScroll());
+      });
+      stub(HTMLElement.prototype, "offsetHeight", "get", () => contentHeight());
+      const realRect = Element.prototype.getBoundingClientRect;
+      const rect = vi.spyOn(Element.prototype, "getBoundingClientRect");
+      rect.mockImplementation(function (this: Element) {
+        if (isList(this)) return { top: 0, bottom: VIEWPORT } as DOMRect;
+        if (!this.hasAttribute("data-message-id")) return realRect.call(this);
+        const top = topOf(idOf(this));
+        return { top, bottom: top + heightOf(this) } as DOMRect;
+      });
+      restore.push(() => rect.mockRestore());
+    });
+
+    afterEach(() => {
+      for (const undo of restore) undo();
+      vi.unstubAllGlobals();
+    });
+
+    const open = async (service: Partial<TChatStoreService>) => {
+      const { store } = makeStore({ markRead: async () => channel({}), ...service });
+      mocks.chat = store;
+      await started(store, [channel({})]);
+      await store.openChannel("c-general");
+      render(<ChatMessageList workspaceSlug="acme" channelId="c-general" intro={null} />);
+      return store;
+    };
+
+    const NEWEST = ["m5", "m6", "m7", "m8", "m9"];
+    const OLDER = ["m0", "m1", "m2", "m3", "m4"];
+
+    it("ends up at the newest message when a channel opens", async () => {
+      await open({ listMessages: async () => ({ results: page(NEWEST), has_more: false }) });
+      expect(scrollTop).toBe(0);
+
+      renderBodies(NEWEST);
+      resized();
+      expect(scrollTop).toBe(200);
+    });
+
+    it("doesn't take the scroll event of the first pin for the user leaving the bottom", async () => {
+      await open({ listMessages: async () => ({ results: page(NEWEST), has_more: false }) });
+      renderBodies(NEWEST);
+      fireEvent.scroll(screen.getByRole("log"));
+      resized();
+      expect(scrollTop).toBe(200);
+    });
+
+    it("follows a new message down when at the bottom", async () => {
+      const store = await open({
+        listMessages: async () => ({ results: page(NEWEST), has_more: false }),
+        sendMessage: async () => message("m10", ME, "new", 30),
+      });
+      renderBodies(NEWEST);
+      resized();
+
+      await act(() => store.sendMessage("c-general", { body_html: "<p>new</p>" }));
+      renderBodies(["m10"]);
+      resized();
+      expect(scrollTop).toBe(300);
+    });
+
+    it("stays put for a new message when scrolled up", async () => {
+      const store = await open({
+        listMessages: async () => ({ results: page(NEWEST), has_more: false }),
+        sendMessage: async () => message("m10", ME, "new", 30),
+      });
+      renderBodies(NEWEST);
+      resized();
+      scrollTo(50);
+
+      await act(() => store.sendMessage("c-general", { body_html: "<p>new</p>" }));
+      renderBodies(["m10"]);
+      resized();
+      expect(scrollTop).toBe(50);
+    });
+
+    const scrolledUpWithOlderLoaded = async () => {
+      const store = await open({
+        listMessages: async (_slug, _channel, params) =>
+          params?.before ? { results: page(OLDER), has_more: false } : { results: page(NEWEST), has_more: true },
+      });
+      renderBodies(NEWEST);
+      resized();
+      scrollTo(40);
+      expect(topOf("m5")).toBe(-40);
+      await act(() => store.loadOlderMessages("c-general"));
+      expect(topOf("m5")).toBe(-40);
+    };
+
+    it("keeps the same messages on screen as older ones load above and then render", async () => {
+      await scrolledUpWithOlderLoaded();
+      renderBodies(OLDER);
+      resized();
+      expect(topOf("m5")).toBe(-40);
+    });
+
+    it("doesn't repeat a correction the browser's own scroll anchoring already made", async () => {
+      await scrolledUpWithOlderLoaded();
+      const before = topOf("m5");
+      renderBodies(OLDER);
+      scrollTop += topOf("m5") - before;
+      resized();
+      expect(topOf("m5")).toBe(-40);
+    });
+
+    it("doesn't undo bringing a linked message into view", async () => {
+      const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {
+        scrollTop = 150;
+      });
+      restore.push(() => scrollIntoView.mockRestore());
+      mocks.search = "message=m7";
+      renderBodies(NEWEST);
+      await open({ listMessages: async () => ({ results: page(NEWEST), has_more: false }) });
+      expect(scrollTop).toBe(200);
+      await vi.waitFor(() => expect(scrollTop).toBe(150));
+
+      resized();
+      expect(scrollTop).toBe(150);
     });
   });
 
