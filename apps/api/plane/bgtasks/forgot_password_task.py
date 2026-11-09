@@ -7,6 +7,7 @@ import logging
 
 # Third party imports
 from celery import shared_task
+from celery.exceptions import Retry
 
 # Django imports
 # Third party imports
@@ -15,12 +16,12 @@ from django.template.loader import render_to_string
 
 # Module imports
 from plane.license.utils.instance_value import get_email_configuration
-from plane.utils.email import generate_plain_text_from_html
+from plane.utils.email import EMAIL_TASK_MAX_RETRIES, generate_plain_text_from_html, send_email_with_retry
 from plane.utils.exception_logger import log_exception
 
 
-@shared_task
-def forgot_password(first_name, email, uidb64, token, current_site):
+@shared_task(bind=True, max_retries=EMAIL_TASK_MAX_RETRIES)
+def forgot_password(self, first_name, email, uidb64, token, current_site):
     try:
         relative_link = f"/accounts/reset-password/?uidb64={uidb64}&token={token}&email={email}"
         abs_url = str(current_site) + relative_link
@@ -64,9 +65,11 @@ def forgot_password(first_name, email, uidb64, token, current_site):
             connection=connection,
         )
         msg.attach_alternative(html_content, "text/html")
-        msg.send()
+        send_email_with_retry(self, msg, EMAIL_HOST)
         logging.getLogger("plane.worker").info("Email sent successfully")
         return
+    except Retry:
+        raise
     except Exception as e:
         log_exception(e)
         return

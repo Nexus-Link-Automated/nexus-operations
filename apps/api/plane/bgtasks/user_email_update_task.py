@@ -7,6 +7,7 @@ import logging
 
 # Third party imports
 from celery import shared_task
+from celery.exceptions import Retry
 
 # Django imports
 from django.core.mail import EmailMultiAlternatives, get_connection
@@ -14,12 +15,12 @@ from django.template.loader import render_to_string
 
 # Module imports
 from plane.license.utils.instance_value import get_email_configuration
-from plane.utils.email import generate_plain_text_from_html
+from plane.utils.email import EMAIL_TASK_MAX_RETRIES, generate_plain_text_from_html, send_email_with_retry
 from plane.utils.exception_logger import log_exception
 
 
-@shared_task
-def send_email_update_magic_code(email, token):
+@shared_task(bind=True, max_retries=EMAIL_TASK_MAX_RETRIES)
+def send_email_update_magic_code(self, email, token):
     try:
         (
             EMAIL_HOST,
@@ -55,9 +56,11 @@ def send_email_update_magic_code(email, token):
             connection=connection,
         )
         msg.attach_alternative(html_content, "text/html")
-        msg.send()
+        send_email_with_retry(self, msg, EMAIL_HOST)
         logging.getLogger("plane.worker").info("Email sent successfully.")
         return
+    except Retry:
+        raise
     except Exception as e:
         log_exception(e)
         return
