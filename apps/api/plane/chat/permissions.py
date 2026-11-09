@@ -20,7 +20,9 @@ channel membership, which is a 403 for a public channel you can see but have not
 joined. Moderation (renaming, archiving, removing other people's messages or
 members) needs a channel admin or a workspace admin, who need not be in a public
 channel to moderate it. A private channel's last admin can't step down while others
-remain in it.
+remain in it; if they leave the workspace, someone still in it takes over (see
+`plane.chat.signals`). DMs and group DMs have no moderators: only a message's sender
+can remove it.
 
 Opening a DM or group DM needs a workspace member or admin, or a guest a workspace
 admin has granted it to (`ChatGuestPermission`).
@@ -84,7 +86,9 @@ def require_channel_member(channel):
 
 
 def is_channel_admin(channel, role):
-    """A channel admin, or a workspace admin who can see the channel."""
+    """A channel admin, or a workspace admin who can see the channel. Nobody is one in a DM or group DM."""
+    if channel.is_direct:
+        return False
     membership = channel.membership
     return is_workspace_admin(role) or (membership is not None and membership.role == ChannelMemberRole.ADMIN)
 
@@ -100,24 +104,42 @@ def require_not_archived(channel):
         raise Conflict("The channel is archived.")
 
 
-def require_another_admin(channel, member):
-    """A private channel keeps a channel admin while anyone else is in it.
-
-    Workspace admins can't see a private channel they aren't in, so without one nobody could
-    rename or archive it. Refuses (409) taking away `member`'s admin role, by leaving, removal or
-    demotion, when they are the last admin and someone else remains. Call it inside the
-    transaction that makes the change: it locks the channel's admin rows.
-    """
-    if channel.kind != ChannelKind.PRIVATE or member.role != ChannelMemberRole.ADMIN:
-        return
-    admins = list(
+def lock_channel_admins(channel_id):
+    """The channel's admin rows' IDs, locked until the transaction ends, so admins leaving at once are taken in turn."""
+    return list(
         ChannelMember.objects.select_for_update()
-        .filter(channel=channel, role=ChannelMemberRole.ADMIN)
+        .filter(channel_id=channel_id, role=ChannelMemberRole.ADMIN)
         .values_list("pk", flat=True)
     )
-    others = ChannelMember.objects.filter(channel=channel).exclude(pk=member.pk)
-    if admins == [member.pk] and others.exists():
-        raise Conflict("Make someone else a channel admin first; a private channel needs one.")
+
+
+def lock_member(member):
+    """`member`'s row, locked until the transaction ends, or None if they have left since it was read."""
+    return ChannelMember.objects.select_for_update().filter(pk=member.pk).first()
+
+
+def lock_member_keeping_an_admin(channel, member):
+    """`member`'s row, locked, for taking away any admin role they hold; None if they have left.
+
+    A private channel keeps a channel admin while anyone else is in it: workspace admins can't see
+    one they aren't in, so without one nobody could rename or archive it. Refuses (409) leaving,
+    removal or demotion when they are the last admin and someone else remains. Call it inside the
+    transaction that makes the change.
+
+    The admin rows are locked first, the order every path uses, so admins leaving at once wait for
+    each other instead of deadlocking. The decision is a fresh query made once the locks are held:
+    `member` may be out of date, and so may the locking query, which can't see anyone promoted while
+    it was waiting.
+    """
+    if channel.kind != ChannelKind.PRIVATE:
+        return lock_member(member)
+    lock_channel_admins(channel.id)
+    current = lock_member(member)
+    if current is not None and current.role == ChannelMemberRole.ADMIN:
+        others = ChannelMember.objects.filter(channel=channel).exclude(pk=current.pk)
+        if others.exists() and not others.filter(role=ChannelMemberRole.ADMIN).exists():
+            raise Conflict("Make someone else a channel admin first; a private channel needs one.")
+    return current
 
 
 def can_open_dms(user, workspace_id, role):

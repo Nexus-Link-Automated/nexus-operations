@@ -3,10 +3,27 @@
     "title": "Agents",
     "picker": {
       "label": "Agent",
-      "placeholder": "Choisir un agent"
+      "trigger_label": "Agent et modèle : {selection}",
+      "switch_hint": "Changer d’agent démarre une nouvelle conversation.",
+      "unavailable": "Aucune clé API pour l’instant",
+      "manage_providers": "Gérer les fournisseurs d’IA"
     },
     "model": {
       "label": "Modèle"
+    },
+    "effort": {
+      "label": "Niveau de raisonnement",
+      "trigger_label": "Niveau de raisonnement : {level}",
+      "hint": "S’applique à partir de votre prochain message.",
+      "levels": {
+        "none": "Aucun",
+        "minimal": "Minimal",
+        "low": "Faible",
+        "medium": "Moyen",
+        "high": "Élevé",
+        "xhigh": "Très élevé",
+        "max": "Maximal"
+      }
     },
     "permission": {
       "label": "Niveau d’autorisation",
@@ -131,6 +148,7 @@
         "prompt": "L’agent n’a pas pu répondre à ce message.",
         "set_mode": "Impossible de modifier le niveau d’autorisation.",
         "set_model": "Impossible de changer de modèle.",
+        "set_effort": "Impossible de modifier le niveau de raisonnement.",
         "reconnect": "Impossible de se reconnecter."
       },
       "retry": "Réessayer"
@@ -165,12 +183,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "Identifiants et paramètres",
+        "model_help": "Les membres peuvent changer de modèle dans la conversation.",
+        "model_default": "Modèle par défaut du fournisseur",
+        "model_custom": "Identifiant de modèle personnalisé",
+        "model_custom_id": "Identifiant du modèle",
+        "model_custom_id_help": "L’identifiant du modèle exactement tel que le fournisseur le nomme.",
+        "fallback_credentials": "Identifiants de secours",
+        "fallback_credentials_summary": "Utilisés uniquement lorsque ni le membre ni l’espace de travail n’ont ajouté de clé dans les paramètres des fournisseurs d’IA.",
+        "fallback_saved": "{count, plural, one{# enregistré} many{# enregistrés} other{# enregistrés}}",
         "credentials_help": "Les valeurs sont en écriture seule. Les valeurs enregistrées restent masquées ; remplacez-en une pour la modifier.",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "Clé API Anthropic",
-            "help": "Ou utilisez plutôt un jeton OAuth Claude Code."
+            "help": "Utilisée lorsque ni le membre ni l’espace de travail n’ont de clé Anthropic. Ou utilisez plutôt un jeton OAuth Claude Code."
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "Jeton OAuth Claude Code",
@@ -189,8 +214,11 @@
             "help": "Facultatif. Valeur par défaut : https://api.deepseek.com."
           },
           "PLANE_AGENT_MODEL": {
-            "label": "Modèle par défaut",
-            "help": "Identifiant de modèle facultatif, par exemple claude-opus-5-5. Les membres peuvent changer de modèle dans la conversation."
+            "label": "Modèle par défaut"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "Niveau de raisonnement par défaut",
+            "help": "Facultatif, par exemple high. Utilisé lorsque le modèle prend en charge ce niveau. Les membres peuvent le changer dans la conversation."
           },
           "GEMINI_API_KEY": {
             "label": "Clé API Gemini",
@@ -221,7 +249,6 @@
           "required": "Ce champ est obligatoire.",
           "slug": "Utilisez des lettres minuscules, des chiffres et des traits d’union.",
           "default_above_max": "Le niveau par défaut ne peut pas dépasser le niveau maximal.",
-          "claude_auth": "Saisissez une clé API Anthropic ou un jeton OAuth Claude Code.",
           "deepseek_auth": "Saisissez une clé API DeepSeek."
         },
         "cancel": "Annuler",
@@ -249,7 +276,6 @@
       "unread": "Ouvrir {name} (nouvelle activité)",
       "minimize": "Réduire",
       "open_page": "Ouvrir en pleine page",
-      "agent_menu_label": "Changer d’agent, actuellement {agent}",
       "greeting": "Bonjour, je suis {name}",
       "suggestions": {
         "assigned_to_me": "Qu’est-ce qui m’est assigné ?",
@@ -364,7 +390,8 @@
         "connected": "Connecté en tant que {email}.",
         "connected_unknown": "Connecté.",
         "disconnected": "Compte déconnecté.",
-        "disconnect_failed": "Impossible de déconnecter le compte."
+        "disconnect_failed": "Impossible de déconnecter le compte.",
+        "sign_in_lost": "Votre connexion à {vendor} n’est plus valide. Reconnectez-vous."
       }
     }
   }

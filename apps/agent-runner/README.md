@@ -85,6 +85,29 @@ Every dir the runner chowns sits in a root-owned parent, so an agent cannot swap
 
 The sign-in helper follows the same rules.
 
+### Limits
+
+Each agent runs under `prlimit` (which sets the limits and execs the agent, so the pid and process
+group are the agent's own), with soft and hard limits both set so it cannot raise them:
+
+- `RLIMIT_NPROC` (`AGENT_RUNNER_NPROC_LIMIT`, default 256). It counts every task the uid owns, threads
+  included, across all of that workspace dir's agents, so `uid` isolation makes it per tenant.
+- `RLIMIT_FSIZE` (`AGENT_RUNNER_FILE_SIZE_LIMIT_BYTES`, default 4 GiB): the largest file an agent can
+  create or grow. It also caps sparse files, because growing a file past it fails with `EFBIG`.
+
+`RLIMIT_AS` is deliberately not set: Node reserves large virtual address ranges up front and would
+abort. The limits apply only in `uid` isolation; with `none` the uid is the developer's own.
+
+The disk cap (`AGENT_RUNNER_USER_DISK_LIMIT_BYTES`, default 10 GiB, `0` is off) covers one workspace
+dir: its working dir, `HOME` and `TMPDIR`, counted in allocated blocks. A connection for a dir over the
+cap is refused with 507 and no agent starts. While agents run, each dir is scanned every
+`AGENT_RUNNER_DISK_CHECK_INTERVAL_MS` (default 60 s), and every agent of a dir over the cap is stopped.
+The scan is a `du` child process, one at a time, so it never blocks the event loop. A scan that fails
+is logged and ignored; one still running after 30 s counts as over the cap.
+
+Nothing is deleted for the user. To get a dir back under the cap, remove files from the volume by hand
+or raise the limit.
+
 ### Stopping
 
 - When the socket closes, the whole process group gets SIGTERM, then SIGKILL after
@@ -111,6 +134,10 @@ The sign-in helper follows the same rules.
 | `AGENT_RUNNER_MAX_MESSAGE_BYTES`                | 8 MiB                    | Largest frame from the bridge                                |
 | `AGENT_RUNNER_MAX_CONNECTIONS`                  | `64`                     |                                                              |
 | `AGENT_RUNNER_MAX_HEADER_BYTES`                 | 256 KiB                  | Tickets carry the agent env, so upgrade headers can be large |
+| `AGENT_RUNNER_NPROC_LIMIT`                      | `256`                    | `RLIMIT_NPROC` for each uid (see [Limits](#limits))          |
+| `AGENT_RUNNER_FILE_SIZE_LIMIT_BYTES`            | 4 GiB                    | `RLIMIT_FSIZE` for each agent                                |
+| `AGENT_RUNNER_USER_DISK_LIMIT_BYTES`            | 10 GiB                   | Disk cap per workspace dir; `0` is off                       |
+| `AGENT_RUNNER_DISK_CHECK_INTERVAL_MS`           | `60000`                  | How often running agents' dirs are checked                   |
 | `LOG_LEVEL`, `APP_VERSION`                      |                          | Agent stderr is logged at `debug`                            |
 
 Give the container cpu, memory and pids limits.

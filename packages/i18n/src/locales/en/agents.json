@@ -3,10 +3,27 @@
     "title": "Agents",
     "picker": {
       "label": "Agent",
-      "placeholder": "Choose an agent"
+      "trigger_label": "Agent and model: {selection}",
+      "switch_hint": "Switching agents starts a new chat.",
+      "unavailable": "No API key yet",
+      "manage_providers": "Manage AI providers"
     },
     "model": {
       "label": "Model"
+    },
+    "effort": {
+      "label": "Reasoning effort",
+      "trigger_label": "Reasoning effort: {level}",
+      "hint": "Applies from your next message.",
+      "levels": {
+        "none": "None",
+        "minimal": "Minimal",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "xhigh": "Extra high",
+        "max": "Max"
+      }
     },
     "permission": {
       "label": "Permission level",
@@ -131,6 +148,7 @@
         "prompt": "The agent could not answer that message.",
         "set_mode": "Could not change the permission level.",
         "set_model": "Could not change the model.",
+        "set_effort": "Could not change the reasoning effort.",
         "reconnect": "Could not reconnect."
       },
       "retry": "Try again"
@@ -165,12 +183,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "Credentials and settings",
+        "model_help": "Members can switch models in the chat.",
+        "model_default": "Provider default",
+        "model_custom": "Custom model ID",
+        "model_custom_id": "Model ID",
+        "model_custom_id_help": "The model ID exactly as the provider names it.",
+        "fallback_credentials": "Fallback credentials",
+        "fallback_credentials_summary": "Only used when neither the member nor the workspace has added a key in AI providers settings.",
+        "fallback_saved": "{count, plural, one{# saved} other{# saved}}",
         "credentials_help": "Values are write-only. Saved values stay hidden; replace one to change it.",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "Anthropic API key",
-            "help": "Or use a Claude Code OAuth token instead."
+            "help": "Used when neither the member nor the workspace has an Anthropic key. Or use a Claude Code OAuth token instead."
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "Claude Code OAuth token",
@@ -189,8 +214,11 @@
             "help": "Optional. Defaults to https://api.deepseek.com."
           },
           "PLANE_AGENT_MODEL": {
-            "label": "Default model",
-            "help": "Optional model id, e.g. claude-opus-5-5. Members can switch models in the chat."
+            "label": "Default model"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "Default reasoning effort",
+            "help": "Optional, e.g. high. Used when the model takes that level. Members can switch it in the chat."
           },
           "GEMINI_API_KEY": {
             "label": "Gemini API key",
@@ -221,7 +249,6 @@
           "required": "This field is required.",
           "slug": "Use lowercase letters, numbers and hyphens.",
           "default_above_max": "The default level cannot be above the maximum.",
-          "claude_auth": "Enter an Anthropic API key or a Claude Code OAuth token.",
           "deepseek_auth": "Enter a DeepSeek API key."
         },
         "cancel": "Cancel",
@@ -249,7 +276,6 @@
       "unread": "Open {name} (new activity)",
       "minimize": "Minimize",
       "open_page": "Open full page",
-      "agent_menu_label": "Switch agent, now {agent}",
       "greeting": "Hi, I'm {name}",
       "suggestions": {
         "assigned_to_me": "What's assigned to me?",
@@ -364,7 +390,8 @@
         "connected": "Signed in as {email}.",
         "connected_unknown": "Signed in.",
         "disconnected": "Account disconnected.",
-        "disconnect_failed": "The account could not be disconnected."
+        "disconnect_failed": "The account could not be disconnected.",
+        "sign_in_lost": "Your {vendor} sign-in is no longer valid. Sign in again."
       }
     }
   }

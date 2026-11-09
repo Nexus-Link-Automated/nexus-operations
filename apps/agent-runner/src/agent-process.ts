@@ -71,6 +71,16 @@ export async function reapUid(
   return victims.length;
 }
 
+/** Resource limits for an agent. RLIMIT_AS is left out on purpose: Node reserves large virtual ranges. */
+export interface AgentLimits {
+  /** RLIMIT_NPROC: counts every task the uid owns, so it is a per-tenant limit in `uid` isolation. */
+  readonly maxProcesses: number;
+  /** RLIMIT_FSIZE, which also caps sparse files: truncating past it fails too. */
+  readonly maxFileBytes: number;
+}
+
+const PRLIMIT = "/usr/bin/prlimit";
+
 export interface AgentProcessOptions {
   readonly command: AgentCommand;
   readonly layout: WorkspaceLayout;
@@ -78,6 +88,8 @@ export interface AgentProcessOptions {
   readonly killGraceMs: number;
   readonly maxMessageBytes: number;
   readonly log: Logger;
+  /** Applied in `uid` isolation only: with `none`, RLIMIT_NPROC would count all the developer's processes. */
+  readonly limits?: AgentLimits;
   readonly spawner?: Spawner;
   readonly killer?: Killer;
   /** Called once, after the process (group) is gone. */
@@ -133,9 +145,26 @@ export class AgentProcess implements AgentConnector {
       ...(layout.uid === undefined ? {} : { uid: layout.uid, gid: layout.gid ?? layout.uid }),
     };
 
+    // prlimit sets the limits on itself and then execs the agent, so the pid, process group and
+    // stdio are the agent's own, and it can never raise them again.
+    const { limits } = this.#options;
+    const [file, args] =
+      limits && layout.uid !== undefined
+        ? [
+            PRLIMIT,
+            [
+              `--nproc=${limits.maxProcesses}`,
+              `--fsize=${limits.maxFileBytes}`,
+              "--",
+              command.command,
+              ...command.args,
+            ],
+          ]
+        : [command.command, command.args];
+
     let child: ChildProcess;
     try {
-      child = spawner(command.command, command.args, options);
+      child = spawner(file, args, options);
     } catch (error) {
       log.error("agent-runner: spawn failed", { error: (error as Error).message });
       this.#markExited(null, null);

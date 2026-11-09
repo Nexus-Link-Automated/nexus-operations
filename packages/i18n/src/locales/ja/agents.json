@@ -3,10 +3,27 @@
     "title": "エージェント",
     "picker": {
       "label": "エージェント",
-      "placeholder": "エージェントを選択"
+      "trigger_label": "エージェントとモデル：{selection}",
+      "switch_hint": "エージェントを切り替えると、新しいチャットが始まります。",
+      "unavailable": "APIキーがまだありません",
+      "manage_providers": "AIプロバイダーを管理"
     },
     "model": {
       "label": "モデル"
+    },
+    "effort": {
+      "label": "推論レベル",
+      "trigger_label": "推論レベル：{level}",
+      "hint": "次のメッセージから適用されます。",
+      "levels": {
+        "none": "なし",
+        "minimal": "最小",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "xhigh": "超高",
+        "max": "最大"
+      }
     },
     "permission": {
       "label": "権限レベル",
@@ -131,6 +148,7 @@
         "prompt": "エージェントはそのメッセージに回答できませんでした。",
         "set_mode": "権限レベルを変更できませんでした。",
         "set_model": "モデルを変更できませんでした。",
+        "set_effort": "推論レベルを変更できませんでした。",
         "reconnect": "再接続できませんでした。"
       },
       "retry": "もう一度試す"
@@ -165,12 +183,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "認証情報と設定",
+        "model_help": "メンバーはチャット内でモデルを切り替えられます。",
+        "model_default": "プロバイダーのデフォルト",
+        "model_custom": "カスタムモデルID",
+        "model_custom_id": "モデルID",
+        "model_custom_id_help": "プロバイダーが定めるとおりのモデルIDです。",
+        "fallback_credentials": "フォールバック用の認証情報",
+        "fallback_credentials_summary": "メンバーもワークスペースもAIプロバイダー設定でキーを追加していない場合にのみ使用されます。",
+        "fallback_saved": "{count, plural, one{#件保存済み} other{#件保存済み}}",
         "credentials_help": "値は書き込み専用です。保存済みの値は表示されません。変更するには値を置き換えてください。",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "Anthropic APIキー",
-            "help": "代わりにClaude CodeのOAuthトークンを使用することもできます。"
+            "help": "メンバーにもワークスペースにもAnthropicのキーがない場合に使用されます。代わりにClaude CodeのOAuthトークンを使用することもできます。"
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "Claude Code OAuthトークン",
@@ -189,8 +214,11 @@
             "help": "任意です。デフォルトはhttps://api.deepseek.comです。"
           },
           "PLANE_AGENT_MODEL": {
-            "label": "デフォルトのモデル",
-            "help": "任意です。モデルID（例：claude-opus-5-5）を指定します。メンバーはチャット内でモデルを切り替えられます。"
+            "label": "デフォルトのモデル"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "デフォルトの推論レベル",
+            "help": "任意です。推論レベル（例：high）を指定します。モデルがそのレベルに対応している場合に使用されます。メンバーはチャット内で切り替えられます。"
           },
           "GEMINI_API_KEY": {
             "label": "Gemini APIキー",
@@ -221,7 +249,6 @@
           "required": "この項目は必須です。",
           "slug": "英小文字、数字、ハイフンを使用してください。",
           "default_above_max": "デフォルトのレベルを最大レベルより上にすることはできません。",
-          "claude_auth": "Anthropic APIキーまたはClaude Code OAuthトークンを入力してください。",
           "deepseek_auth": "DeepSeek APIキーを入力してください。"
         },
         "cancel": "キャンセル",
@@ -249,7 +276,6 @@
       "unread": "{name}を開く（新しいアクティビティ）",
       "minimize": "最小化",
       "open_page": "全画面ページで開く",
-      "agent_menu_label": "エージェントを切り替え（現在: {agent}）",
       "greeting": "こんにちは、{name}です",
       "suggestions": {
         "assigned_to_me": "自分に割り当てられているものは何ですか？",
@@ -364,7 +390,8 @@
         "connected": "{email}としてサインインしました。",
         "connected_unknown": "サインインしました。",
         "disconnected": "アカウントの接続を解除しました。",
-        "disconnect_failed": "アカウントの接続を解除できませんでした。"
+        "disconnect_failed": "アカウントの接続を解除できませんでした。",
+        "sign_in_lost": "{vendor}のサインインが無効になりました。もう一度サインインしてください。"
       }
     }
   }
