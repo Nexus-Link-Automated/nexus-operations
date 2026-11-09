@@ -78,4 +78,36 @@ describe("plane-acp-deepseek over stdio (local SSE + MCP servers)", () => {
       ])
     );
   });
+
+  it("remembers 'always' per exact command and per file", async () => {
+    const cwd = tempDir();
+    client = spawnClient("deepseek", { DEEPSEEK_API_KEY: "sk-deepseek", DEEPSEEK_BASE_URL: api.url });
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const { sessionId } = await client.agent.request("session/new", { cwd, mcpServers: [] });
+    const prompt = (text: string) =>
+      client!.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] });
+    const asked = () => client!.permissionRequests.length;
+
+    client.answers.push("allow_always");
+    await prompt("bash echo one");
+    expect(asked()).toBe(1);
+    await prompt("bash echo   one");
+    expect(asked()).toBe(1);
+    await prompt("bash echo two");
+    expect(asked()).toBe(2);
+    await prompt("bash echo one; echo two");
+    expect(asked()).toBe(3);
+    expect(client.permissionRequests.at(-1)!.options.map((option) => option.optionId)).toEqual([
+      "allow_once",
+      "reject_once",
+    ]);
+
+    client.answers.push("allow_always");
+    await prompt("write a.txt");
+    expect(asked()).toBe(4);
+    await prompt("write a.txt");
+    expect(asked()).toBe(4);
+    await prompt("write b.txt");
+    expect(asked()).toBe(5);
+  });
 });

@@ -413,6 +413,14 @@
           "message": "Niečo sa pokazilo."
         }
       }
+    },
+    "publish": {
+      "unpublish_dialog": {
+        "title": "Stiahnuť projekt z publikácie",
+        "content": "Aktuálny verejný odkaz prestane fungovať. Opätovným publikovaním tohto projektu vznikne nový odkaz a aktuálny odkaz už fungovať nebude.",
+        "confirm": "Stiahnuť z publikácie",
+        "confirming": "Sťahovanie z publikácie"
+      }
     }
   }
 }

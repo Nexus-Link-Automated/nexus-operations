@@ -7,6 +7,7 @@
 import pytest
 
 from plane.chat.models import Channel, ChannelKind, ChannelMember
+from plane.db.models import WorkspaceMember
 
 
 def _member_ids(response):
@@ -246,3 +247,79 @@ class TestLastPrivateChannelAdmin:
     def test_public_channels_are_not_affected(self, member, member2, make_channel, url):
         channel = make_channel(admins=[member.user], members=[member2.user])
         assert member.client.post(url(f"channels/{channel.id}/leave/")).status_code == 204
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+class TestLeavingTheWorkspace:
+    def _remove_from_workspace(self, workspace, user):
+        membership = WorkspaceMember.objects.get(workspace=workspace, member=user)
+        membership.is_active = False
+        membership.save()
+
+    def test_invited_back_they_do_not_regain_a_private_channel(self, member, member2, workspace, make_channel, url):
+        channel = make_channel(ChannelKind.PRIVATE, admins=[member2.user], members=[member.user])
+        self._remove_from_workspace(workspace, member.user)
+        # Accepting a new invite reactivates the row with `.update()`, as plane.app does.
+        WorkspaceMember.objects.filter(workspace=workspace, member=member.user).update(is_active=True)
+
+        assert member.client.get(url(f"channels/{channel.id}/")).status_code == 404
+
+    def test_someone_gone_from_the_workspace_does_not_count_as_another_admin(
+        self, member, member2, make_actor, workspace, make_channel, url
+    ):
+        stays = make_actor()
+        channel = make_channel(ChannelKind.PRIVATE, admins=[member.user, member2.user], members=[stays.user])
+        self._remove_from_workspace(workspace, member2.user)
+
+        assert member.client.post(url(f"channels/{channel.id}/leave/")).status_code == 409
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+class TestReadCursorOnArrival:
+    """What was said before you arrived isn't unread, however you arrive."""
+
+    def test_joining_starts_at_the_latest_message(self, member, member2, make_channel, send, url):
+        channel = make_channel(members=[member2.user])
+        send(channel, member2.user, "old")
+        latest = send(channel, member2.user, "latest")
+
+        res = member.client.post(url(f"channels/{channel.id}/join/"))
+        assert res.data["unread_count"] == 0 and res.data["last_read_message_id"] == str(latest.id)
+
+        send(channel, member2.user, "after joining")
+        assert member.client.get(url(f"channels/{channel.id}/")).data["unread_count"] == 1
+
+    def test_the_starting_point_is_never_a_thread_reply(self, member, member2, make_channel, send, url):
+        channel = make_channel(members=[member2.user])
+        top = send(channel, member2.user, "top")
+        send(channel, member2.user, "reply", parent=top)
+
+        res = member.client.post(url(f"channels/{channel.id}/join/"))
+        assert res.data["last_read_message_id"] == str(top.id)
+
+    def test_being_added_starts_at_the_latest_message(self, member, make_actor, make_channel, send, url):
+        channel = make_channel(ChannelKind.PRIVATE, members=[member.user])
+        send(channel, member.user, "before they arrived")
+        newcomer = make_actor()
+
+        res = member.client.post(
+            url(f"channels/{channel.id}/members/"), {"member_ids": [str(newcomer.user.id)]}, format="json"
+        )
+        assert res.status_code == 201
+        assert newcomer.client.get(url(f"channels/{channel.id}/")).data["unread_count"] == 0
+
+    def test_coming_back_starts_at_the_latest_message(self, member, member2, make_channel, send, url):
+        channel = make_channel(members=[member.user, member2.user])
+        member.client.post(url(f"channels/{channel.id}/leave/"))
+        send(channel, member2.user, "while they were gone")
+
+        assert member.client.post(url(f"channels/{channel.id}/join/")).data["unread_count"] == 0
+
+    def test_in_an_empty_channel_everything_after_is_unread(self, member, member2, make_channel, send, url):
+        channel = make_channel(members=[member2.user])
+        member.client.post(url(f"channels/{channel.id}/join/"))
+        send(channel, member2.user, "first")
+
+        assert member.client.get(url(f"channels/{channel.id}/")).data["unread_count"] == 1

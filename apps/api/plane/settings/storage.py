@@ -187,9 +187,12 @@ class S3Storage(S3Boto3Storage):
         file_obj,
         object_name: str,
         content_type: str = None,
-        extra_args: dict = {},
+        extra_args: dict | None = None,
     ) -> bool:
         """Upload a file directly to S3"""
+        if extra_args is None:
+            extra_args = {}
+
         try:
             if content_type:
                 extra_args["ContentType"] = content_type

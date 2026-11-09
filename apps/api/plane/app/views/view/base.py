@@ -224,6 +224,7 @@ class WorkspaceViewIssuesViewSet(BaseViewSet):
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
             )
+            .select_related("state")
             .prefetch_related(
                 Prefetch(
                     "issue_assignee",

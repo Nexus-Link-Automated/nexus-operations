@@ -10,6 +10,7 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": "./dist/index.js",
+    "./core": "./dist/core.js",
     "./testing": "./dist/testing.js",
     "./package.json": "./package.json"
   },

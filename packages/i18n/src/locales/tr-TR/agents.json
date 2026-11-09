@@ -3,10 +3,27 @@
     "title": "Ajanlar",
     "picker": {
       "label": "Ajan",
-      "placeholder": "Bir ajan seçin"
+      "trigger_label": "Ajan ve model: {selection}",
+      "switch_hint": "Ajan değiştirmek yeni bir sohbet başlatır.",
+      "unavailable": "Henüz API anahtarı yok",
+      "manage_providers": "Yapay zeka sağlayıcılarını yönet"
     },
     "model": {
       "label": "Dil modeli"
+    },
+    "effort": {
+      "label": "Akıl yürütme düzeyi",
+      "trigger_label": "Akıl yürütme düzeyi: {level}",
+      "hint": "Bir sonraki mesajınızdan itibaren geçerli olur.",
+      "levels": {
+        "none": "Yok",
+        "minimal": "Minimum",
+        "low": "Düşük",
+        "medium": "Orta",
+        "high": "Yüksek",
+        "xhigh": "Çok yüksek",
+        "max": "Maksimum"
+      }
     },
     "permission": {
       "label": "İzin düzeyi",
@@ -17,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Değişikliklerden önce sor",
-          "description": "Okuma, arama ve web getirme işlemleri onay beklemeden çalışır. Kabuk komutları, dosya değişiklikleri ve Plane değişiklikleri için önce onay istenir."
+          "description": "Çalışma dizinindeki okuma ve arama işlemleri onay beklemeden çalışır. Başka konumlardan okuma, web getirme, kabuk komutları, dosya değişiklikleri ve Plane değişiklikleri için önce onay istenir."
         },
         "yolo": {
           "name": "Asla sorma",
@@ -93,6 +110,9 @@
       "title": "Bu işleme izin verilsin mi?",
       "allow_once": "Bir kez izin ver",
       "allow_always": "Bu sohbette her zaman izin ver",
+      "allow_always_command": "Bu sohbette tam olarak bu komuta her zaman izin ver",
+      "allow_always_file": "Bu sohbette bu dosyadaki düzenlemelere her zaman izin ver",
+      "allow_always_tool": "Bu sohbette bu araca her zaman izin ver",
       "reject_once": "Reddet",
       "reject_always": "Her zaman reddet"
     },
@@ -131,6 +151,7 @@
         "prompt": "Ajan bu mesajı yanıtlayamadı.",
         "set_mode": "İzin düzeyi değiştirilemedi.",
         "set_model": "Model değiştirilemedi.",
+        "set_effort": "Akıl yürütme düzeyi değiştirilemedi.",
         "reconnect": "Yeniden bağlanılamadı."
       },
       "retry": "Tekrar dene"
@@ -165,12 +186,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "Kimlik bilgileri ve ayarlar",
+        "model_help": "Üyeler sohbette model değiştirebilir.",
+        "model_default": "Sağlayıcı varsayılanı",
+        "model_custom": "Özel model kimliği",
+        "model_custom_id": "Model kimliği",
+        "model_custom_id_help": "Sağlayıcının verdiği şekliyle model kimliği.",
+        "fallback_credentials": "Yedek kimlik bilgileri",
+        "fallback_credentials_summary": "Yalnızca ne üye ne de çalışma alanı yapay zeka sağlayıcıları ayarlarında bir anahtar eklemediğinde kullanılır.",
+        "fallback_saved": "{count, plural, one{# kayıtlı} other{# kayıtlı}}",
         "credentials_help": "Değerler yalnızca yazılabilir. Kaydedilen değerler gizli kalır; bir değeri değiştirmek için yenisini girin.",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "Anthropic API anahtarı",
-            "help": "Veya bunun yerine bir Claude Code OAuth token'ı kullanın."
+            "help": "Ne üyenin ne de çalışma alanının bir Anthropic anahtarı olmadığında kullanılır. Veya bunun yerine bir Claude Code OAuth token'ı kullanın."
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "Claude Code OAuth token'ı",
@@ -189,8 +217,11 @@
             "help": "İsteğe bağlı. Varsayılan: https://api.deepseek.com."
           },
           "PLANE_AGENT_MODEL": {
-            "label": "Varsayılan model",
-            "help": "İsteğe bağlı model kimliği, örn. claude-opus-5-5. Üyeler sohbette model değiştirebilir."
+            "label": "Varsayılan model"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "Varsayılan akıl yürütme düzeyi",
+            "help": "İsteğe bağlı, örn. high. Model bu düzeyi destekliyorsa kullanılır. Üyeler bunu sohbette değiştirebilir."
           },
           "GEMINI_API_KEY": {
             "label": "Gemini API anahtarı",
@@ -221,7 +252,6 @@
           "required": "Bu alan zorunludur.",
           "slug": "Küçük harf, rakam ve kısa çizgi kullanın.",
           "default_above_max": "Varsayılan düzey maksimum düzeyden yüksek olamaz.",
-          "claude_auth": "Bir Anthropic API anahtarı veya Claude Code OAuth token'ı girin.",
           "deepseek_auth": "Bir DeepSeek API anahtarı girin."
         },
         "cancel": "İptal",
@@ -249,7 +279,6 @@
       "unread": "{name} sohbetini aç (yeni etkinlik)",
       "minimize": "Küçült",
       "open_page": "Tam sayfada aç",
-      "agent_menu_label": "Ajanı değiştir, şu anki: {agent}",
       "greeting": "Merhaba, ben {name}",
       "suggestions": {
         "assigned_to_me": "Bana neler atandı?",
@@ -364,7 +393,8 @@
         "connected": "{email} olarak oturum açıldı.",
         "connected_unknown": "Oturum açıldı.",
         "disconnected": "Hesabın bağlantısı kesildi.",
-        "disconnect_failed": "Hesabın bağlantısı kesilemedi."
+        "disconnect_failed": "Hesabın bağlantısı kesilemedi.",
+        "sign_in_lost": "{vendor} oturumunuz artık geçerli değil. Yeniden oturum açın."
       }
     }
   }

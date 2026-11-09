@@ -164,12 +164,14 @@ class CycleIssueViewSet(BaseViewSet):
                             slug=slug,
                             project_id=project_id,
                             filters=filters,
+                            queryset=total_issue_queryset,
                         ),
                         sub_group_by_fields=issue_group_values(
                             field=sub_group_by,
                             slug=slug,
                             project_id=project_id,
                             filters=filters,
+                            queryset=total_issue_queryset,
                         ),
                         group_by_field_name=group_by,
                         sub_group_by_field_name=sub_group_by,
@@ -199,6 +201,7 @@ class CycleIssueViewSet(BaseViewSet):
                         slug=slug,
                         project_id=project_id,
                         filters=filters,
+                        queryset=total_issue_queryset,
                     ),
                     group_by_field_name=group_by,
                     count_filter=Q(

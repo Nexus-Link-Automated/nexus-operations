@@ -10,6 +10,20 @@ import { fileTypeFromBuffer } from "file-type";
 import type { TFileMetaDataLite, TFileSignedURLResponse } from "@plane/types";
 import { DANGEROUS_EXTENSIONS } from "@plane/constants";
 
+// Formats with no binary signature, for browsers that report no type for them.
+const MIME_TYPES_BY_EXTENSION = new Map([
+  ["txt", "text/plain"],
+  ["csv", "text/csv"],
+  ["md", "text/markdown"],
+  ["markdown", "text/markdown"],
+  ["json", "application/json"],
+  ["svg", "image/svg+xml"],
+]);
+
+// The only types the image upload endpoints accept. Each has a signature, so a file that claims one
+// without having it was renamed or is corrupt.
+const SIGNATURE_REQUIRED_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]);
+
 /**
  * @description Filename validation - checks for double extensions and dangerous patterns
  * @param {string} filename
@@ -103,8 +117,10 @@ const validateAndDetectFileType = async (file: File): Promise<string> => {
     console.warn("Error detecting file type from signature:", _error);
   }
 
-  // fallback for unknown files
-  return "";
+  // No signature found: use the type the browser reports, then the extension. The API decides whether it is allowed.
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const declaredType = file.type || MIME_TYPES_BY_EXTENSION.get(extension) || "";
+  return SIGNATURE_REQUIRED_MIME_TYPES.has(declaredType) ? "" : declaredType;
 };
 
 /**

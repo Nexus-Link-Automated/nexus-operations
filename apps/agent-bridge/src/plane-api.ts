@@ -63,7 +63,7 @@ export interface AgentSessionGrant {
   readonly mcp: { readonly url: string; readonly workspaceSlug: string };
 }
 
-/** What `POST /api/internal/agent-connections/authorize/` confirms: an active member, and ids. */
+/** What `POST /api/internal/agent-connections/authorize/` confirms: an active admin or member, and ids. */
 export interface ConnectionGrant {
   readonly user: { readonly id: string };
   readonly workspace: { readonly id: string; readonly slug: string };
@@ -80,7 +80,7 @@ export interface PlaneApi {
     signal?: AbortSignal
   ): Promise<AgentSessionGrant>;
   revokeAgentSession(tokenId: string): Promise<void>;
-  /** The user may connect a provider account in the workspace (active member, not a bot). */
+  /** The user may connect a provider account in the workspace (active admin or member, not a guest or bot). */
   authorizeAgentConnection(
     input: { userId: string; workspaceSlug: string },
     signal?: AbortSignal

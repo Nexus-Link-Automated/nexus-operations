@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { memo } from "react";
 import { Collapsible } from "@makeplane/propel/components/collapsible";
 import { HistoryOutline } from "@makeplane/propel/icons";
 import type { CompactionItem as TCompactionItem } from "@plane/acp-client";
@@ -18,7 +19,7 @@ const STATUS_KEYS: Record<string, string> = {
 };
 
 /** The agent summarized earlier messages to free context. */
-export function CompactionItem({ item }: Props) {
+export const CompactionItem = memo(function CompactionItem({ item }: Props) {
   const { t } = useTranslation();
   const label = t(STATUS_KEYS[item.status] ?? STATUS_KEYS.completed);
   if (!item.summary && !item.error) {
@@ -34,4 +35,4 @@ export function CompactionItem({ item }: Props) {
       </p>
     </Collapsible>
   );
-}
+});

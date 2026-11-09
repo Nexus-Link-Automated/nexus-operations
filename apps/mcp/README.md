@@ -141,7 +141,7 @@ parameters, so the catalogue is self-documenting at call time.
 
 ### Querying work items
 
-List, count and search accept **PQL**, Plane's query language:
+List and count accept **PQL**, Plane's query language:
 
 ```python
 workitem(action="list", project_id=..., pql='state__group = "started" AND priority = "urgent"')
@@ -149,6 +149,10 @@ workitem(action="count", pql='assignees__id = "<member id>"', group_by="state_id
 ```
 
 Call `get_pql_reference` for the full syntax, operators and worked examples.
+
+`workitem(action="search", query=...)` is a quick lookup by title and identifier
+only, up to `limit` results (default 10, max 100). It sets `may_be_truncated`
+when the limit was reached; use PQL for anything else.
 
 ### Upgrading from the per-operation tools
 

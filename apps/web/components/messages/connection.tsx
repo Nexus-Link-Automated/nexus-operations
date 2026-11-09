@@ -16,7 +16,9 @@ const ACTIVITY_LISTENER: AddEventListenerOptions = { capture: true, passive: tru
 
 /**
  * Keeps the workspace's chat connection open while the user is anywhere in the workspace, so unread counts stay
- * live in the sidebar, closing it while the user is idle and reopening it when they come back. Renders nothing. Switching workspace restarts it; signing out stops it (root store reset).
+ * live in the sidebar. A hidden tab closes it after a long idle spell and reopens it when they come back. Renders
+ * nothing.
+ * Switching workspace restarts it; signing out stops it (root store reset).
  */
 export const ChatConnection = observer(function ChatConnection({ workspaceSlug }: { workspaceSlug: string }) {
   const chat = useChat();

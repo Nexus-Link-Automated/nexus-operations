@@ -10,7 +10,7 @@ import { Controller, Post } from "@plane/decorators";
 import { logger } from "@plane/logger";
 import { AppError } from "@/lib/errors";
 import { PdfExportRequestBody, PdfValidationError, PdfAuthenticationError } from "@/schema/pdf-export";
-import { PdfExportService, exportToPdf } from "@/services/pdf-export";
+import { PDF_EXPORT_RETRY_AFTER_SECONDS, PdfExportService, exportToPdf } from "@/services/pdf-export";
 import type { PdfExportInput } from "@/services/pdf-export";
 
 @Controller("/pdf-export")
@@ -79,6 +79,8 @@ export class PdfExportController {
           };
         case "PdfTimeoutError":
           return { status: 504, error: message };
+        case "PdfExportBusyError":
+          return { status: 503, error: message };
         case "PdfGenerationError":
           return { status: 500, error: message };
         case "PdfMetadataFetchError":
@@ -120,6 +122,9 @@ export class PdfExportController {
 
     // Check if result is an error response
     if ("error" in result && "status" in result) {
+      if (result.status === 503) {
+        res.setHeader("Retry-After", PDF_EXPORT_RETRY_AFTER_SECONDS);
+      }
       return res.status(result.status).json({ message: result.error });
     }
 

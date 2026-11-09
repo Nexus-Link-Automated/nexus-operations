@@ -54,6 +54,12 @@ export type PDFExportOptions = {
   noAssets?: boolean;
 };
 
+/** Everything the render worker needs. It must stay structured-cloneable. */
+export type PdfRenderWorkerData = {
+  doc: TipTapDocument;
+  options: PDFExportOptions;
+};
+
 /**
  * Metadata for resolving entity references in PDF export
  */

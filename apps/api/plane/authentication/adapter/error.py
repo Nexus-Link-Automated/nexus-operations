@@ -81,10 +81,10 @@ class AuthenticationException(Exception):
     error_message = None
     payload = {}
 
-    def __init__(self, error_code, error_message, payload={}):
+    def __init__(self, error_code, error_message, payload=None):
         self.error_code = error_code
         self.error_message = error_message
-        self.payload = payload
+        self.payload = {} if payload is None else payload
 
     def get_error_dict(self):
         error = {"error_code": self.error_code, "error_message": self.error_message}

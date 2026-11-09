@@ -41,7 +41,6 @@ export type TChatChannel = {
   dm_member_ids: string[];
 };
 
-/** A message, or a removed message's tombstone (empty body, `removed_at` set). */
 /** A work item a message references, present only if the reader may see it. */
 export type TChatMessageReference = {
   id: string;
@@ -53,6 +52,7 @@ export type TChatMessageReference = {
   state: { name: string; group: TStateGroups; color: string } | null;
 };
 
+/** A message, or a removed message's tombstone (empty body, `removed_at` set). */
 export type TChatMessage = {
   id: string;
   workspace: string;
@@ -91,6 +91,12 @@ export type TChatMessageWrite = {
   body_html: string;
   body_json?: Record<string, unknown>;
   parent_id?: string | null;
+};
+
+/** An edit replaces both bodies: the API stores an empty `body_json` if it is left out. */
+export type TChatMessageEdit = {
+  body_html: string;
+  body_json: Record<string, unknown>;
 };
 
 export type TChatChannelCreate = {

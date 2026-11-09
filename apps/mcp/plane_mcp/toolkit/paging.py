@@ -21,9 +21,23 @@ from plane_mcp.toolkit.runtime import opt
 
 logger = get_logger(__name__)
 
+# Page size for list actions when the caller names none. Plane's own default is
+# 1000 full records, which is more than an agent's context can hold.
+DEFAULT_PAGE_SIZE = 50
+
+# Base64 editor state: useless to a model and often the largest field on a record.
+_UNLISTED_FIELDS = frozenset({"description_binary"})
+
+
+def _listed(record: dict[str, Any]) -> dict[str, Any]:
+    return {name: value for name, value in record.items() if value is not None and name not in _UNLISTED_FIELDS}
+
 
 def dump_results(items: Any, fields: str | None) -> list[Any]:
     """Serialise a page, honouring `fields` as a sparse fieldset.
+
+    Nulls and `description_binary` are left out: at a full page size they are most
+    of what a caller would otherwise have to read past.
 
     Written as a loop rather than a nested ternary: the previous one-liner read
     as though `hasattr` guarded both branches, when it guarded only the second,
@@ -33,11 +47,11 @@ def dump_results(items: Any, fields: str | None) -> list[Any]:
     dumped: list[Any] = []
     for item in items or []:
         if not hasattr(item, "model_dump"):
-            dumped.append(item)
+            dumped.append(_listed(item) if isinstance(item, dict) else item)
         elif requested:
-            dumped.append(item.model_dump(include=requested))
+            dumped.append(item.model_dump(include=requested, exclude=_UNLISTED_FIELDS, exclude_none=True))
         else:
-            dumped.append(item.model_dump())
+            dumped.append(item.model_dump(exclude=_UNLISTED_FIELDS, exclude_none=True))
     return dumped
 
 
@@ -96,7 +110,7 @@ def workitem_page(
             params=WorkItemQueryParams(
                 pql=opt(pql),
                 order_by=opt(order_by),
-                per_page=opt(per_page),
+                per_page=per_page or DEFAULT_PAGE_SIZE,
                 cursor=opt(cursor),
                 expand=opt(expand),
                 fields=opt(fields),

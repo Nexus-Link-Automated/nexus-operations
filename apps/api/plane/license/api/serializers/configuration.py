@@ -6,6 +6,9 @@ from .base import BaseSerializer
 from plane.license.models import InstanceConfiguration
 from plane.license.utils.encryption import decrypt_data
 
+# Returned in place of an encrypted value that is set. Sending it back keeps the saved value.
+INSTANCE_CONFIGURATION_MASK = "********"
+
 
 class InstanceConfigurationSerializer(BaseSerializer):
     class Meta:
@@ -14,8 +17,8 @@ class InstanceConfigurationSerializer(BaseSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Decrypt secrets value
+        # Encrypted values are write-only: report whether one is set, never what it is
         if instance.is_encrypted and instance.value is not None:
-            data["value"] = decrypt_data(instance.value)
+            data["value"] = INSTANCE_CONFIGURATION_MASK if decrypt_data(instance.value) else ""
 
         return data

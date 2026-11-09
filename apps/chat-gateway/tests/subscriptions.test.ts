@@ -109,6 +109,44 @@ describe("subscribing to a public channel the user hasn't joined", () => {
     expect(eventsOf(ada)).toHaveLength(1);
   });
 
+  it("doesn't believe an answer that a removal overtook", async () => {
+    h = await startHarness();
+    const home = h.api.addChannel({ members: [ADA.id] });
+    const team = h.api.addChannel({ kind: "private", members: [ADA.id, BEN.id] });
+    h.api.channels.get(team)!.members.delete(ADA.id);
+    const ada = await h.open(ADA.cookie);
+
+    // Ada joined after her socket opened; she asks for the channel and is taken out while the (older) answer travels.
+    h.api.channels.get(team)!.members.add(ADA.id);
+    h.api.delayPaths.set(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/${team}/`, 150);
+    ada.send({ type: "subscribe", channel_id: team });
+    await waitUntil(() => channelRequests(h!, team).length === 1);
+    await h.publish(chatEvent("member.removed", { channel_id: team, user_id: ADA.id, actor_id: BEN.id }));
+    await ada.waitFor((f) => f.channel_id === team);
+
+    await h.publish(chatEvent("message.created", { channel_id: team, message_id: randomUUID() }));
+    await h.barrier(home, ada);
+    expect(eventsOf(ada)).toEqual([]);
+  });
+
+  it("answers when it can't tell whether the user may see a channel", async () => {
+    h = await startHarness();
+    h.api.addChannel({ members: [ADA.id] });
+    const lounge = h.api.addChannel({ members: [BEN.id] });
+    const ada = await h.open(ADA.cookie);
+    h.api.failPaths.set(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/${lounge}/`, 403);
+    ada.send({ type: "subscribe", channel_id: lounge });
+    expect(await ada.next("error")).toMatchObject({ code: "unavailable", channel_id: lounge });
+    expect(ada.closeCode).toBeUndefined();
+  });
+
+  it("counts WebSocket pings towards the limit on frames", async () => {
+    h = await startHarness({ config: { rateFrames: 5, rateWindowMs: 10_000 } });
+    const ada = await h.open(ADA.cookie);
+    for (let i = 0; i < 10; i += 1) ada.socket.ping();
+    expect(await ada.closed()).toBe(CloseCode.tooManyRequests);
+  });
+
   it("limits how many channels one socket follows beyond its own", async () => {
     h = await startHarness({ config: { maxSubscriptions: 2 } });
     h.api.addChannel({ members: [ADA.id] });
@@ -116,7 +154,8 @@ describe("subscribing to a public channel the user hasn't joined", () => {
     const ada = await h.open(ADA.cookie);
     for (const channel_id of lounges) ada.send({ type: "subscribe", channel_id });
     await ada.waitFor((f) => f.type === "error");
-    expect(ada.of("subscribed")).toHaveLength(2);
+    // The refusal needs no API call, so it can arrive before the two answers do.
+    await waitUntil(() => ada.of("subscribed").length === 2);
     expect(ada.of("error")[0]).toMatchObject({ code: "too_many_subscriptions", channel_id: lounges[2] });
   });
 

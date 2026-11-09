@@ -37,3 +37,7 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("unhandledRejection", (reason) => {
   log.error("agent-bridge: unhandled rejection", { error: (reason as Error)?.message ?? String(reason) });
 });
+process.on("uncaughtException", (error) => {
+  log.error("agent-bridge: uncaught exception", { error: error?.message ?? String(error), stack: error?.stack });
+  process.exit(1);
+});

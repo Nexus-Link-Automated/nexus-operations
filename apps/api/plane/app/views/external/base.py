@@ -3,6 +3,7 @@
 # See the LICENSE file for details.
 
 # Python import
+import logging
 import os
 from typing import List, Dict, Tuple
 
@@ -18,9 +19,12 @@ from plane.app.permissions import ROLE, allow_permission
 from plane.app.serializers import ProjectLiteSerializer, WorkspaceLiteSerializer
 from plane.db.models import Project, Workspace
 from plane.license.utils.instance_value import get_configuration_value
+from plane.utils.constants import UNSPLASH_HTTP_TIMEOUT
 from plane.utils.exception_logger import log_exception
 
 from ..base import BaseAPIView
+
+logger = logging.getLogger("plane.external")
 
 
 class LLMProvider:
@@ -239,5 +243,10 @@ class UnsplashEndpoint(BaseAPIView):
 
         headers = {"Content-Type": "application/json"}
 
-        resp = requests.get(url=url, headers=headers)
-        return Response(resp.json(), status=resp.status_code)
+        try:
+            resp = requests.get(url=url, headers=headers, timeout=UNSPLASH_HTTP_TIMEOUT)
+            return Response(resp.json(), status=resp.status_code)
+        except requests.RequestException:
+            # Do not log the exception here: its URL carries the access key
+            logger.warning("Error fetching images from Unsplash")
+            return Response({"error": "Could not fetch images from Unsplash"}, status=status.HTTP_502_BAD_GATEWAY)

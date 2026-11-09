@@ -64,7 +64,8 @@ export const BrowseChannelsDialog = observer(function BrowseChannelsDialog({ wor
     <Dialog
       open
       onOpenChange={(isOpen) => {
-        if (!isOpen) onClose();
+        // A join in flight opens the channel when it lands, so the dialog stays until then.
+        if (!isOpen && joining === null) onClose();
       }}
     >
       <DialogContent size="md">
@@ -108,6 +109,7 @@ export const BrowseChannelsDialog = observer(function BrowseChannelsDialog({ wor
                         size="sm"
                         stretch="auto"
                         label={t("messages.browse.open")}
+                        disabled={joining !== null}
                         onClick={() => open(channel.id)}
                       />
                       <Button

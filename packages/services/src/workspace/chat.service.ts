@@ -12,6 +12,7 @@ import type {
   TChatChannelUpdate,
   TChatMe,
   TChatMessage,
+  TChatMessageEdit,
   TChatMessagePage,
   TChatMessagePageQuery,
   TChatMessageWrite,
@@ -138,7 +139,7 @@ export class ChatService extends APIService {
     workspaceSlug: string,
     channelId: string,
     messageId: string,
-    data: Pick<TChatMessageWrite, "body_html" | "body_json">
+    data: TChatMessageEdit
   ): Promise<TChatMessage> {
     return this.call(
       this.patch(`${this.channel(workspaceSlug, channelId)}/messages/${encodeURIComponent(messageId)}/`, data)

@@ -13,6 +13,7 @@ the sender typed, exactly as they would for a key that doesn't exist.
 import re
 
 from bs4 import BeautifulSoup
+from django.db import transaction
 
 from plane.app.permissions.base import ROLE
 from plane.chat.models import MessageReference
@@ -75,7 +76,9 @@ def _sync(message):
 def sync_references(message):
     """Make `message`'s references match its body. The message is already saved, so this never raises."""
     try:
-        _sync(message)
+        # A savepoint: an edit runs inside a transaction, which a failed query here would otherwise abort.
+        with transaction.atomic():
+            _sync(message)
     except Exception as error:
         log_exception(error)
 

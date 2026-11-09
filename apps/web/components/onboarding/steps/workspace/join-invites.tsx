@@ -12,10 +12,11 @@ import type { IWorkspaceMemberInvitation } from "@plane/types";
 import { Checkbox } from "@makeplane/propel/components/checkbox";
 import { cn, truncateText } from "@plane/utils";
 // constants
+import { InvitationVerifyEmailNotice } from "@/components/onboarding/invitation-verify-email-notice";
 import { WorkspaceLogo } from "@/components/workspace/logo";
 // hooks
 import { useWorkspace } from "@/hooks/store/use-workspace";
-import { useUserSettings } from "@/hooks/store/user";
+import { useUser, useUserSettings } from "@/hooks/store/user";
 // services
 import { WorkspaceService } from "@/services/workspace.service";
 // local components
@@ -36,6 +37,9 @@ export function WorkspaceJoinInvitesStep(props: Props) {
   // store hooks
   const { fetchWorkspaces } = useWorkspace();
   const { fetchCurrentUserSettings } = useUserSettings();
+  const { data: currentUser } = useUser();
+  // derived values
+  const canAcceptInvitations = !!currentUser?.is_email_verified;
 
   // handle invitation
   const handleInvitation = (workspace_invitation: IWorkspaceMemberInvitation, action: "accepted" | "withdraw") => {
@@ -48,7 +52,7 @@ export function WorkspaceJoinInvitesStep(props: Props) {
 
   // submit invitations
   const submitInvitations = async () => {
-    const invitation = invitations?.find((invitation) => invitation.id === invitationsRespond[0]);
+    const invitation = invitations?.find((item) => item.id === invitationsRespond[0]);
 
     if (invitationsRespond.length <= 0 && !invitation?.role) return;
 
@@ -89,6 +93,7 @@ export function WorkspaceJoinInvitesStep(props: Props) {
                   <Checkbox
                     id={`workspace-invitation-${invitation.id}`}
                     checked={isSelected}
+                    disabled={!canAcceptInvitations}
                     onCheckedChange={(checked) => handleInvitation(invitation, checked ? "accepted" : "withdraw")}
                     aria-labelledby={`workspace-invitation-${invitation.id}-name`}
                   />
@@ -113,6 +118,7 @@ export function WorkspaceJoinInvitesStep(props: Props) {
             );
           })}
       </div>
+      {!canAcceptInvitations && <InvitationVerifyEmailNotice />}
       <div className="flex flex-col gap-4">
         <Button
           variant="primary"

@@ -26,6 +26,9 @@ correctable answer.
 
 Custom properties (cf["<uuid>"]) compile against plane.nexus WorkItemPropertyValue;
 another store can take over with `register_custom_property_filter`.
+
+A condition can force a scan no index helps with, so views that take PQL are
+wrapped in `pql_statement_timeout`.
 """
 
 from __future__ import annotations
@@ -36,12 +39,18 @@ import uuid
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timedelta
 from datetime import timezone as dt_timezone
+from functools import wraps
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
+from django.conf import settings
+from django.db import OperationalError, connections, router, transaction
 from django.db.models import CharField, F, Q, QuerySet, Value
 from django.db.models.functions import Cast, Concat
 from django.utils import timezone
+from psycopg.errors import QueryCanceled
+from rest_framework import status
+from rest_framework.response import Response
 
 __all__ = [
     "PQLError",
@@ -50,6 +59,7 @@ __all__ = [
     "apply_pql",
     "parse_pql",
     "pql_fields",
+    "pql_statement_timeout",
     "register_custom_property_filter",
 ]
 
@@ -1263,3 +1273,47 @@ def apply_pql(queryset: QuerySet, pql: str | None, *, user=None, workspace_slug:
     if ctx.annotations:
         queryset = queryset.annotate(**ctx.annotations)
     return queryset.filter(q)
+
+
+# --------------------------------------------------------------------------- time limit
+
+PQL_TIMEOUT_MESSAGE = (
+    "The PQL query took too long and was stopped. Narrow it with more specific conditions, "
+    "such as a project, a state or a date range."
+)
+
+
+def pql_statement_timeout(view):
+    """Limit each SQL statement of a view method while the request carries a PQL query.
+
+    The limit is `settings.PQL_STATEMENT_TIMEOUT_MS` (0 turns it off). SET LOCAL lasts
+    only for this transaction, so other requests, Celery and whatever this connection
+    runs next keep the server's default. A statement that runs past the limit is
+    cancelled and the view answers 400 like any other PQL error. Querysets are
+    evaluated inside the view (pagination, serializers), so the whole method runs
+    inside the transaction.
+    """
+
+    @wraps(view)
+    def wrapper(self, request, *args, **kwargs):
+        from plane.db.models import Issue
+
+        pql = request.GET.get("pql")
+        limit_ms = settings.PQL_STATEMENT_TIMEOUT_MS
+        if not pql or not pql.strip() or limit_ms <= 0:
+            return view(self, request, *args, **kwargs)
+        # Reads may be routed to a replica, which is where the limit has to apply.
+        using = router.db_for_read(Issue)
+        try:
+            with transaction.atomic(using=using):
+                with connections[using].cursor() as cursor:
+                    cursor.execute(f"SET LOCAL statement_timeout = {int(limit_ms)}")
+                return view(self, request, *args, **kwargs)
+        except OperationalError as exc:
+            if not isinstance(exc.__cause__, QueryCanceled):
+                raise
+            return Response(
+                {"error": PQL_TIMEOUT_MESSAGE, "pql": [PQL_TIMEOUT_MESSAGE]}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+    return wrapper

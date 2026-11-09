@@ -10,7 +10,7 @@ import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
-from plane.chat.models import MessageReference
+from plane.chat.models import Message, MessageReference
 from plane.db.models import Issue, Project, ProjectMember, State
 
 ADMIN, MEMBER, GUEST = 20, 15, 5
@@ -254,13 +254,27 @@ class TestKeepingReferencesCurrent:
         real = "plane.chat.views.message.sync_references"
         with mock.patch(real, side_effect=lambda message: order.append("sync")):
             with mock.patch(
-                "plane.chat.views.base.publish_on_commit", side_effect=lambda *a, **k: order.append("publish")
+                "plane.chat.views.message.publish_on_commit", side_effect=lambda *a, **k: order.append("publish")
             ):
                 response = member.client.post(
                     url(f"channels/{channel.id}/messages/"), {"body_html": f"<p>{key}</p>"}, format="json"
                 )
         assert response.status_code == 201
         assert order == ["sync", "publish"]
+
+    def test_a_failed_query_while_syncing_keeps_the_edit(self, member, channel, say, url):
+        message = say(member, channel, "<p>before</p>")
+
+        def broken(*_args):
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1/0")
+
+        with mock.patch("plane.chat.references._sync", broken):
+            response = member.client.patch(
+                url(f"channels/{channel.id}/messages/{message['id']}/"), {"body_html": "<p>kept</p>"}, format="json"
+            )
+        assert response.status_code == 200, response.content
+        assert Message.objects.get(pk=message["id"]).body_stripped.strip() == "kept"
 
     def test_the_query_count_doesnt_grow_with_the_page(self, member, channel, say, url, in_project, key):
         in_project(member)

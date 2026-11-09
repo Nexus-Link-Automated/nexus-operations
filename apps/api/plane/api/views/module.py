@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from drf_spectacular.utils import OpenApiResponse, OpenApiRequest
 
 # Module imports
-from plane.nexus.pql import PQLError, apply_pql
+from plane.nexus.pql import PQLError, apply_pql, pql_statement_timeout
 from plane.api.serializers import (
     IssueSerializer,
     ModuleIssueSerializer,
@@ -643,6 +643,7 @@ class ModuleIssueListCreateAPIEndpoint(BaseAPIView):
             404: OpenApiResponse(description="Module not found"),
         },
     )
+    @pql_statement_timeout
     def get(self, request, slug, project_id, module_id):
         """List module work items
 
