@@ -350,7 +350,8 @@ class GroupedOffsetPaginator(OffsetPaginator):
         for result in results:
             result_id = result["id"]
             group_ids = list(result_group_mapping[str(result_id)])
-            result[self.FIELD_MAPPER.get(self.group_by_field_name)] = [] if "None" in group_ids else group_ids
+            # App API rows already hold the complete list; public board rows use this page's groups
+            result.setdefault(self.FIELD_MAPPER.get(self.group_by_field_name), [] if "None" in group_ids else group_ids)
             # If a result belongs to multiple groups, add it to each group
             for group_id in group_ids:
                 if not self.__result_already_added(result, grouped_by_field_name[group_id]):
@@ -594,15 +595,19 @@ class SubGroupedOffsetPaginator(OffsetPaginator):
             result_id = result["id"]
 
             if group_value in processed_results and sub_group_value in processed_results[str(group_value)]["results"]:
+                # App API rows already hold the complete lists; public board rows use this page's groups
                 if self.group_by_field_name in self.FIELD_MAPPER:
                     # for multi grouper
                     group_ids = list(result_group_mapping[str(result_id)])
-                    result[self.FIELD_MAPPER.get(self.group_by_field_name)] = [] if "None" in group_ids else group_ids
+                    result.setdefault(
+                        self.FIELD_MAPPER.get(self.group_by_field_name), [] if "None" in group_ids else group_ids
+                    )
                 if self.sub_group_by_field_name in self.FIELD_MAPPER:
                     sub_group_ids = list(result_sub_group_mapping[str(result_id)])
                     # for multi groups
-                    result[self.FIELD_MAPPER.get(self.sub_group_by_field_name)] = (
-                        [] if "None" in sub_group_ids else sub_group_ids
+                    result.setdefault(
+                        self.FIELD_MAPPER.get(self.sub_group_by_field_name),
+                        [] if "None" in sub_group_ids else sub_group_ids,
                     )
                 # If a result belongs to multiple groups, add it to each group
                 processed_results[str(group_value)]["results"][str(sub_group_value)]["results"].append(result)
