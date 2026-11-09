@@ -127,6 +127,7 @@ export const InboxIssueMainContent = observer(function InboxIssueMainContent(pro
     <>
       <div className="space-y-4 pb-4">
         <IssueTitleInput
+          key={`title-${issue.id}`}
           workspaceSlug={workspaceSlug}
           projectId={issue.project_id}
           issueId={issue.id}

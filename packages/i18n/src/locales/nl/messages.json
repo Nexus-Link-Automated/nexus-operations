@@ -6,7 +6,7 @@
     "unread_count": "{count, plural, one {# ongelezen bericht} other {# ongelezen berichten}}",
     "empty": {
       "title": "Nog geen gesprekken",
-      "description": "Kanalen en directe berichten met uw team verschijnen hier."
+      "description": "Kanalen en directe berichten met je team verschijnen hier."
     },
     "channels": {
       "title": "Kanalen",

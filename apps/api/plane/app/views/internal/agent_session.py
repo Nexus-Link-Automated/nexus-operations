@@ -15,7 +15,7 @@ from rest_framework import status
 from rest_framework.response import Response
 
 # Module imports
-from plane.app.permissions import AgentBridgeSecretPermission
+from plane.app.permissions import ROLE, AgentBridgeSecretPermission
 from plane.app.views.base import BaseAPIView
 from plane.db.models import APIToken, User, Workspace, WorkspaceMember
 from plane.db.models.api import AGENT_SESSION_TOKEN_LABEL
@@ -30,6 +30,13 @@ def _parse_uuid(value):
         return uuid.UUID(str(value))
     except (TypeError, ValueError, AttributeError):
         return None
+
+
+def _may_use_agents(workspace, user):
+    """Agents get a shell and the workspace's or the admin's provider key, so guests may not run them."""
+    return WorkspaceMember.objects.filter(
+        workspace=workspace, member=user, is_active=True, role__gte=ROLE.MEMBER.value
+    ).exists()
 
 
 class AgentSessionEndpoint(BaseAPIView):
@@ -63,12 +70,9 @@ class AgentSessionEndpoint(BaseAPIView):
             return Response({"error": "User is not active."}, status=status.HTTP_403_FORBIDDEN)
 
         workspace = Workspace.objects.filter(slug=workspace_slug).first()
-        if (
-            workspace is None
-            or not WorkspaceMember.objects.filter(workspace=workspace, member=user, is_active=True).exists()
-        ):
+        if workspace is None or not _may_use_agents(workspace, user):
             return Response(
-                {"error": "User is not an active member of this workspace."},
+                {"error": "User may not use agents in this workspace."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 

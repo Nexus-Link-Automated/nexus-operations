@@ -44,6 +44,8 @@ class FakeChatServer {
   messages: TChatMessage[] = [];
   calls: string[] = [];
   failSends = false;
+  /** Holds the next answer of a call back until the promise resolves. The answer is read when the call arrives. */
+  holds = new Map<string, Promise<void>>();
   private clock = 0;
   private ids = 0;
 
@@ -142,6 +144,13 @@ class FakeChatServer {
     };
   }
 
+  private async held<T>(call: string, answer: T): Promise<T> {
+    const hold = this.holds.get(call);
+    this.holds.delete(call);
+    await hold;
+    return answer;
+  }
+
   service(): TChatStoreService {
     const log = (call: string) => this.calls.push(call);
     return {
@@ -157,7 +166,10 @@ class FakeChatServer {
       },
       listChannels: async () => {
         log("listChannels");
-        return [...this.channels.values()].filter((c) => this.visible(c) && !c.archived).map((c) => this.payload(c));
+        return this.held(
+          "listChannels",
+          [...this.channels.values()].filter((c) => this.visible(c) && !c.archived).map((c) => this.payload(c))
+        );
       },
       getChannel: async (_slug, channelId) => {
         log(`getChannel ${channelId}`);
@@ -207,14 +219,14 @@ class FakeChatServer {
           page = top.slice(Math.max(0, end - limit), end);
           hasMore = end - limit > 0;
         }
-        return clone({ results: page, has_more: hasMore } satisfies TChatMessagePage);
+        return this.held("listMessages", clone({ results: page, has_more: hasMore } satisfies TChatMessagePage));
       },
       getMessage: async (_slug, channelId, messageId) => {
         log(`getMessage ${messageId}`);
         this.channelOr404(channelId);
         const message = this.messages.find((m) => m.id === messageId && m.channel === channelId);
         if (!message) throw new ChatServiceError(404, {});
-        return clone(message);
+        return this.held("getMessage", clone(message));
       },
       sendMessage: async (_slug, channelId, data) => {
         log(`sendMessage ${channelId}`);
@@ -267,6 +279,12 @@ class FakeSocket implements TChatStoreSocket {
   emit(event: TChatEvent) {
     this.handlers.onEvent?.(event);
   }
+}
+
+function holdOpen() {
+  let open!: () => void;
+  const opened = new Promise<void>((resolve) => (open = resolve));
+  return { opened, open };
 }
 
 /** Let every pending fetch and its follow-ups finish. */
@@ -626,5 +644,119 @@ describe("ChatStore", () => {
     socket.ready(true);
     await settle();
     expect(store.activeChannel).toBeUndefined();
+  });
+
+  it("pages from where history stopped, not from a live message that got in first", async () => {
+    const { store, server, socket } = await setup((s) => s.post("c-general", ADA, "before"));
+    await store.openChannel("c-general");
+    for (let i = 0; i < 120; i++) server.post("c-general", ADA, `missed${i}`);
+    const list = holdOpen();
+    server.holds.set("listChannels", list.opened);
+    socket.ready(true);
+    await settle();
+    socket.emit(server.createdEvent(server.post("c-general", ADA, "live")));
+    await settle();
+    list.open();
+    await settle();
+    expect(bodies(store, "c-general")).toHaveLength(122);
+    expect(bodies(store, "c-general")[1]).toBe("missed0");
+  });
+
+  it("resumes a failed catch-up from where it stopped, even after a live message", async () => {
+    const { store, server, socket } = await setup((s) => s.post("c-general", ADA, "before"));
+    await store.openChannel("c-general");
+    for (let i = 0; i < 120; i++) server.post("c-general", ADA, `missed${i}`);
+    server.holds.set("listMessages", Promise.reject(new ChatServiceError(0, undefined)));
+    socket.ready(true);
+    await settle();
+    socket.emit(server.createdEvent(server.post("c-general", ADA, "live")));
+    await settle();
+    socket.ready(true);
+    await settle();
+    expect(bodies(store, "c-general")).toHaveLength(122);
+  });
+
+  it("reloads a channel that was empty when events stopped, so older history stays reachable", async () => {
+    const { store, server, socket } = await setup();
+    await store.openChannel("c-general");
+    for (let i = 0; i < 60; i++) server.post("c-general", ADA, `m${i}`);
+    socket.ready(true);
+    await settle();
+    expect(bodies(store, "c-general")).toHaveLength(50);
+    expect(store.getMessagesState("c-general")!.hasMoreOlder).toBe(true);
+  });
+
+  it("doesn't lose a message that arrives while the channel is loading", async () => {
+    const { store, server, socket } = await setup((s) => s.post("c-general", ADA, "first"));
+    const load = holdOpen();
+    server.holds.set("listMessages", load.opened);
+    void store.openChannel("c-general");
+    await settle();
+    socket.emit(server.createdEvent(server.post("c-general", ADA, "during")));
+    await settle();
+    load.open();
+    await settle();
+    expect(bodies(store, "c-general")).toEqual(["first", "during"]);
+  });
+
+  it("keeps a channel that appears while the channel list is in flight", async () => {
+    const { store, server } = await setup();
+    const list = holdOpen();
+    server.holds.set("listChannels", list.opened);
+    void store.fetchChannels();
+    await settle();
+    await store.createChannel({ name: "new" });
+    list.open();
+    await settle();
+    expect(store.channelMap["c-new"]).toBeDefined();
+  });
+
+  it("ignores an older copy of a message that answers late", async () => {
+    const { store, server, socket } = await setup((s) => s.post("c-general", ADA, "first"));
+    await store.openChannel("c-general");
+    const message = server.messages[0]!;
+    const event = { workspace_id: WORKSPACE_ID, channel_id: "c-general", message_id: message.id, at: "t" };
+    const slow = holdOpen();
+    server.holds.set("getMessage", slow.opened);
+    socket.emit({ type: "message.updated", ...event });
+    await settle();
+    message.removed_at = "2026-01-03T00:00:00Z";
+    message.updated_at = "2026-01-03T00:00:00Z";
+    socket.emit({ type: "message.removed", ...event });
+    await settle();
+    slow.open();
+    await settle();
+    expect(store.getChannelMessages("c-general")[0]!.removed_at).not.toBeNull();
+  });
+
+  it("forgets the messages of a channel the user left while looking elsewhere", async () => {
+    const { store } = await setup((s) => s.post("c-general", ADA, "first"));
+    await store.openChannel("c-general");
+    store.closeChannel();
+    await store.leaveChannel("c-general");
+    expect(store.channelMap["c-general"]!.is_member).toBe(false);
+    expect(store.getMessagesState("c-general")).toBeUndefined();
+  });
+
+  it("drops a load that lands after a browsed channel was closed", async () => {
+    const { store, server } = await setup((s) => s.post("c-open", ADA, "first"));
+    const load = holdOpen();
+    server.holds.set("listMessages", load.opened);
+    void store.openChannel("c-open");
+    await settle();
+    store.closeChannel();
+    load.open();
+    await settle();
+    expect(store.getMessagesState("c-open")).toBeUndefined();
+  });
+
+  it("orders by the moment, whatever UTC offset a timestamp is written in", async () => {
+    const { store } = await setup((s) => {
+      s.addChannel("dm-earlier", { kind: "dm", members: [ME, ADA] });
+      s.addChannel("dm-later", { kind: "dm", members: [ME, "user-bob"] });
+      s.post("dm-earlier", ADA).created_at = "2026-01-01T02:00:00+03:00";
+      s.post("dm-later", "user-bob").created_at = "2026-01-01T00:30:00Z";
+    });
+    expect(store.directMessages.map((c) => c.id)).toEqual(["dm-later", "dm-earlier"]);
   });
 });

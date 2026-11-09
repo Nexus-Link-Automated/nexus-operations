@@ -3,10 +3,27 @@
     "title": "Agenti",
     "picker": {
       "label": "Agent",
-      "placeholder": "Vyberte agenta"
+      "trigger_label": "Agent a model: {selection}",
+      "switch_hint": "Prepnutím agenta začnete nový chat.",
+      "unavailable": "Zatiaľ žiadny API kľúč",
+      "manage_providers": "Spravovať poskytovateľov AI"
     },
     "model": {
       "label": "Jazykový model"
+    },
+    "effort": {
+      "label": "Úroveň uvažovania",
+      "trigger_label": "Úroveň uvažovania: {level}",
+      "hint": "Platí od vašej ďalšej správy.",
+      "levels": {
+        "none": "Žiadna",
+        "minimal": "Minimálna",
+        "low": "Nízka",
+        "medium": "Stredná",
+        "high": "Vysoká",
+        "xhigh": "Veľmi vysoká",
+        "max": "Maximálna"
+      }
     },
     "permission": {
       "label": "Úroveň oprávnení",
@@ -17,7 +34,7 @@
         },
         "ask_writes": {
           "name": "Pýtať sa pred zmenami",
-          "description": "Čítanie, vyhľadávanie a načítanie webu prebieha bez pýtania. Príkazy shellu, zmeny súborov a zmeny v Plane vyžadujú predchádzajúce potvrdenie."
+          "description": "Čítanie a vyhľadávanie v pracovnom adresári prebieha bez pýtania. Čítanie inde, načítanie webu, príkazy shellu, zmeny súborov a zmeny v Plane vyžadujú predchádzajúce potvrdenie."
         },
         "yolo": {
           "name": "Nikdy sa nepýtať",
@@ -93,6 +110,9 @@
       "title": "Povoliť túto akciu?",
       "allow_once": "Povoliť raz",
       "allow_always": "V tomto chate vždy povoliť",
+      "allow_always_command": "V tomto chate vždy povoliť presne tento príkaz",
+      "allow_always_file": "V tomto chate vždy povoliť úpravy tohto súboru",
+      "allow_always_tool": "V tomto chate vždy povoliť tento nástroj",
       "reject_once": "Zamietnuť",
       "reject_always": "Vždy zamietnuť"
     },
@@ -131,6 +151,7 @@
         "prompt": "Agent nedokázal odpovedať na túto správu.",
         "set_mode": "Úroveň oprávnení sa nepodarilo zmeniť.",
         "set_model": "Model sa nepodarilo zmeniť.",
+        "set_effort": "Úroveň uvažovania sa nepodarilo zmeniť.",
         "reconnect": "Opätovné pripojenie zlyhalo."
       },
       "retry": "Skúsiť znova"
@@ -165,12 +186,19 @@
           "deepseek": "DeepSeek",
           "gemini": "Gemini"
         },
-        "credentials": "Prihlasovacie údaje a nastavenia",
+        "model_help": "Členovia môžu prepínať modely v chate.",
+        "model_default": "Predvolený model poskytovateľa",
+        "model_custom": "Vlastné ID modelu",
+        "model_custom_id": "ID modelu",
+        "model_custom_id_help": "ID modelu presne tak, ako ho uvádza poskytovateľ.",
+        "fallback_credentials": "Záložné prihlasovacie údaje",
+        "fallback_credentials_summary": "Použijú sa len vtedy, keď ani člen, ani pracovný priestor nepridal kľúč v nastaveniach poskytovateľov AI.",
+        "fallback_saved": "{count, plural, one{uložené: #} few{uložené: #} many{uložené: #} other{uložené: #}}",
         "credentials_help": "Hodnoty sú iba na zápis. Uložené hodnoty zostávajú skryté; ak chcete hodnotu zmeniť, nahraďte ju.",
         "env": {
           "ANTHROPIC_API_KEY": {
             "label": "API kľúč Anthropic",
-            "help": "Alebo namiesto neho použite OAuth token Claude Code."
+            "help": "Použije sa, keď ani člen, ani pracovný priestor nemá kľúč Anthropic. Alebo namiesto neho použite OAuth token Claude Code."
           },
           "CLAUDE_CODE_OAUTH_TOKEN": {
             "label": "OAuth token Claude Code",
@@ -189,8 +217,11 @@
             "help": "Voliteľné. Predvolená hodnota je https://api.deepseek.com."
           },
           "PLANE_AGENT_MODEL": {
-            "label": "Predvolený model",
-            "help": "Voliteľné ID modelu, napr. claude-opus-5-5. Členovia môžu prepínať modely v chate."
+            "label": "Predvolený model"
+          },
+          "PLANE_AGENT_EFFORT": {
+            "label": "Predvolená úroveň uvažovania",
+            "help": "Voliteľné, napr. high. Použije sa, ak model túto úroveň podporuje. Členovia ju môžu prepnúť v chate."
           },
           "GEMINI_API_KEY": {
             "label": "API kľúč Gemini",
@@ -221,7 +252,6 @@
           "required": "Toto pole je povinné.",
           "slug": "Použite malé písmená, číslice a spojovníky.",
           "default_above_max": "Predvolená úroveň nemôže byť vyššia ako maximálna.",
-          "claude_auth": "Zadajte API kľúč Anthropic alebo OAuth token Claude Code.",
           "deepseek_auth": "Zadajte API kľúč DeepSeek."
         },
         "cancel": "Zrušiť",
@@ -249,7 +279,6 @@
       "unread": "Otvoriť {name} (nová aktivita)",
       "minimize": "Minimalizovať",
       "open_page": "Otvoriť na celej stránke",
-      "agent_menu_label": "Zmeniť agenta, teraz {agent}",
       "greeting": "Dobrý deň, som {name}",
       "suggestions": {
         "assigned_to_me": "Čo mám priradené?",
@@ -364,7 +393,8 @@
         "connected": "Prihlásené ako {email}.",
         "connected_unknown": "Prihlásené.",
         "disconnected": "Účet bol odpojený.",
-        "disconnect_failed": "Účet sa nepodarilo odpojiť."
+        "disconnect_failed": "Účet sa nepodarilo odpojiť.",
+        "sign_in_lost": "Vaše prihlásenie do {vendor} už nie je platné. Prihláste sa znova."
       }
     }
   }

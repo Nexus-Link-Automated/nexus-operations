@@ -11,8 +11,6 @@ export GH_REPO=makeplane/plane
 export RELEASE_DOWNLOAD_URL="https://github.com/$GH_REPO/releases/download"
 export FALLBACK_DOWNLOAD_URL="https://raw.githubusercontent.com/$GH_REPO/$BRANCH/deployments/cli/community"
 
-OS_NAME=$(uname)
-
 # Create necessary directories
 mkdir -p $PLANE_INSTALL_DIR/archive
 
@@ -73,19 +71,17 @@ function getStackName() {
 function syncEnvFile(){
     echo "Syncing environment variables..." >&2
     if [ -f "$PLANE_INSTALL_DIR/plane.env.bak" ]; then        
-        # READ keys of plane.env and update the values from plane.env.bak
-        while IFS= read -r line
-        do
-            # ignore if the line is empty or starts with #
-            if [ -z "$line" ] || [[ $line == \#* ]]; then
-                continue
-            fi
-            key=$(echo "$line" | cut -d'=' -f1)
-            value=$(getEnvValue "$key" "$PLANE_INSTALL_DIR/plane.env.bak")
-            if [ -n "$value" ]; then
-                updateEnvFile "$key" "$value" "$DOCKER_ENV_PATH"
-            fi
-        done < "$DOCKER_ENV_PATH"
+        # Each key in the new template takes the value it had in plane.env.bak,
+        # including an empty one; comments and new keys stay as the template has them.
+        rewriteEnvFile "$DOCKER_ENV_PATH" '
+            !/^#/ && index($0, "=") > 1 {
+                separator = index($0, "=")
+                key = substr($0, 1, separator - 1)
+                if (FILENAME == ARGV[1]) { saved[key] = substr($0, separator + 1); next }
+                if (key in saved) { print key "=" saved[key]; next }
+            }
+            FILENAME != ARGV[1] { print }
+        ' "$PLANE_INSTALL_DIR/plane.env.bak" "$DOCKER_ENV_PATH"
 
         value=$(getEnvValue "STACK_NAME" "$PLANE_INSTALL_DIR/plane.env.bak")
         if [ -n "$value" ]; then
@@ -134,14 +130,25 @@ function getEnvValue() {
     fi
 
     if [ -f "$file" ]; then
-        grep -q "^$key=" "$file"
-        if [ $? -eq 0 ]; then
-            local value
-            value=$(grep "^$key=" "$file" | cut -d'=' -f2)
-            echo "$value"
-        else
-            echo ""
-        fi
+        # Only the first "=" separates key from value. A repeated key resolves
+        # to its last value, as it does for docker compose and `source`.
+        ENV_KEY="$key" LC_ALL=C awk '
+            index($0, ENVIRON["ENV_KEY"] "=") == 1 { value = substr($0, length(ENVIRON["ENV_KEY"]) + 2) }
+            END { print value }
+        ' "$file"
+    fi
+}
+
+# Replaces $1 with the output of awk (remaining arguments), keeping its permissions.
+function rewriteEnvFile() {
+    local file=$1
+    shift
+    local tmp_file="$file.tmp"
+
+    if ! cp -p "$file" "$tmp_file" || ! LC_ALL=C awk "$@" > "$tmp_file" || ! mv "$tmp_file" "$file"; then
+        rm -f "$tmp_file"
+        echo "Failed to update $file"
+        exit 1
     fi
 }
 
@@ -156,20 +163,13 @@ function updateEnvFile() {
     fi
 
     if [ -f "$file" ]; then
-        # check if key exists in the file
-        grep -q "^$key=" "$file"
-        if [ $? -ne 0 ]; then
-            echo "$key=$value" >> "$file"
-            return
-        else 
-            if [ "$OS_NAME" == "Darwin" ]; then
-                value=$(echo "$value" | sed 's/|/\\|/g')
-                sed -i '' "s|^$key=.*|$key=$value|g" "$file"
-            else
-                value=$(echo "$value" | sed 's/\//\\\//g')
-                sed -i "s/^$key=.*/$key=$value/g" "$file"
-            fi
-        fi
+        # awk reads the key and value from its environment, so neither is
+        # treated as a pattern or an escape sequence.
+        ENV_KEY="$key" ENV_VALUE="$value" rewriteEnvFile "$file" '
+            index($0, ENVIRON["ENV_KEY"] "=") == 1 { print ENVIRON["ENV_KEY"] "=" ENVIRON["ENV_VALUE"]; found = 1; next }
+            { print }
+            END { if (!found) print ENVIRON["ENV_KEY"] "=" ENVIRON["ENV_VALUE"] }
+        ' "$file"
     else
         echo "File not found: $file"
         exit 1

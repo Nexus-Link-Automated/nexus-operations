@@ -73,6 +73,10 @@ class ModuleCreateSerializer(BaseSerializer):
         ):
             raise serializers.ValidationError("Start date cannot exceed target date")
 
+        lead = data.get("lead")
+        if lead and not ProjectMember.objects.filter(project_id=project_id, member=lead, is_active=True).exists():
+            raise serializers.ValidationError({"lead": "The lead must be an active member of this project."})
+
         if data.get("members", []):
             data["members"] = ProjectMember.objects.filter(
                 project_id=self.context.get("project_id"), member_id__in=data["members"]

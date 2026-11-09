@@ -121,7 +121,10 @@ def close_old_issues():
             # Check if Issues
             if issues:
                 if project.default_state is None:
-                    close_state = State.objects.filter(group="cancelled").first()
+                    close_state = State.objects.filter(project_id=project_id, group="cancelled").first()
+                    if close_state is None:
+                        logger.warning("close_old_issues: skipping project %s, it has no cancelled state", project_id)
+                        continue
                 else:
                     close_state = project.default_state
 

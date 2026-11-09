@@ -78,6 +78,12 @@ export type TChatMessageWrite = {
   parent_id?: string | null;
 };
 
+/** An edit replaces both bodies: the API stores an empty `body_json` if it is left out. */
+export type TChatMessageEdit = {
+  body_html: string;
+  body_json: Record<string, unknown>;
+};
+
 export type TChatChannelCreate = {
   name: string;
   description?: string;

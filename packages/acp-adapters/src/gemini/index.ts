@@ -35,7 +35,8 @@ import { agentInfo, PACKAGE_VERSION } from "../core/info.ts";
 import { arrayValue, errorMessage, numberValue, objectValue, stringValue, type JsonObject } from "../core/json.ts";
 import { MODEL_ENV } from "../core/models.ts";
 import { classifyMcpCall, type ToolCategory } from "../core/modes.ts";
-import type { PermissionDecision } from "../core/permission.ts";
+import { gateFileRead, type PathPolicy, type PathVerdict } from "../core/paths.ts";
+import { fileMemory, shellCommandMemory, type MemoryScope, type PermissionDecision } from "../core/permission.ts";
 import type { ToolCallPatch, ToolCallStart } from "../core/turn.ts";
 import { GeminiAcpClient, GeminiRpcError, type JsonRpcId } from "./client.ts";
 import {
@@ -228,9 +229,23 @@ const KIND_CATEGORY: Readonly<Record<string, ToolCategory>> = {
 
 export interface GeminiToolDescription {
   readonly category: ToolCategory;
-  readonly memoryKey: string;
+  readonly memoryKey: string | null;
+  readonly memoryScope?: MemoryScope;
   readonly rawInput?: JsonObject;
 }
+
+/** Declared with `kind: search`, but its query leaves the machine, so it is gated like a web fetch. */
+const WEB_SEARCH_TOOL = "google_web_search";
+/** Read and search tools that report no `locations`, and that Gemini CLI itself keeps in the workspace. */
+const SELF_CONFINED_READ_TOOLS = new Set([
+  "list_directory",
+  "grep_search",
+  "read_many_files",
+  "read_background_output",
+  "list_background_processes",
+  "list_mcp_resources",
+  "read_mcp_resource",
+]);
 
 /**
  * Gate category and "always allow" scope for a Gemini permission request. MCP calls are found by
@@ -238,8 +253,9 @@ export interface GeminiToolDescription {
  * the `kind` Gemini CLI declares for them. Unknown kinds count as `other` (asks in `ask_writes`).
  */
 export function describeGeminiToolCall(
-  toolCall: { toolCallId: string; title: string; kind: string },
-  mcpServerNames: readonly string[]
+  toolCall: { toolCallId: string; title: string; kind: string; locations?: unknown; content?: unknown },
+  mcpServerNames: readonly string[],
+  cwd: string
 ): GeminiToolDescription {
   const name = geminiToolName(toolCall.toolCallId);
   if (name.startsWith("mcp_")) {
@@ -256,12 +272,49 @@ export function describeGeminiToolCall(
       rawInput: input,
     };
   }
-  const category = KIND_CATEGORY[toolCall.kind] ?? "other";
+  const category = name === WEB_SEARCH_TOOL ? "fetch" : (KIND_CATEGORY[toolCall.kind] ?? "other");
   if (category === "execute") {
-    const command = toolCall.title.trim().split(/\s+/)[0] ?? "";
-    return { category, memoryKey: `gemini:${name || "shell"}:${command}`, rawInput: { command: toolCall.title } };
+    const memory = shellCommandMemory(`gemini:${name || "shell"}`, toolCall.title);
+    // The title is the command alone; a `dir_path` shows up only in the explanation as `[in <dir>]`.
+    const elsewhere = stringValue(objectValue(objectValue(arrayValue(toolCall.content)[0]).content).text).startsWith(
+      "[in "
+    );
+    return { category, ...memory, ...(elsewhere ? { memoryKey: null } : {}), rawInput: { command: toolCall.title } };
+  }
+  if (category === "edit" || category === "delete" || category === "move") {
+    const files = arrayValue(toolCall.locations).map((location) => stringValue(objectValue(location).path));
+    return { category, ...fileMemory(cwd, files) };
+  }
+  // The request names no URL to scope "Always allow" to a host, so it covers this exact fetch.
+  if (category === "fetch" && name !== WEB_SEARCH_TOOL) {
+    return { category, memoryKey: `gemini:${name || toolCall.kind}:${toolCall.title}`, memoryScope: "request" };
   }
   return { category, memoryKey: `gemini:${name || toolCall.kind}` };
+}
+
+/**
+ * What a Gemini tool call touches, for the session's path rules. `read_file`, `write_file` and
+ * `replace` report absolute `locations` (Gemini already refuses those outside the workspace, so this
+ * is a second check). `glob` reports none and Gemini does not confine its pattern, so that is read
+ * from its title (`'pattern'` or `'pattern' within dir`). Fails closed: any other read or search this
+ * adapter does not know counts as outside the working directory.
+ */
+export function geminiFileVerdict(
+  toolCall: { toolCallId: string; title: string; kind: string; locations?: unknown },
+  paths: PathPolicy
+): PathVerdict {
+  const targets = arrayValue(toolCall.locations)
+    .map((location) => stringValue(objectValue(location).path))
+    .filter(Boolean)
+    .map((file) => ({ path: file }));
+  if (targets.length > 0) return paths.check(targets);
+  if (toolCall.kind !== "read" && toolCall.kind !== "search") return { access: "inside" };
+  const name = geminiToolName(toolCall.toolCallId);
+  if (name === WEB_SEARCH_TOOL || SELF_CONFINED_READ_TOOLS.has(name)) return { access: "inside" };
+  const pattern = name === "glob" ? /^'(.*)'(?: within .*)?$/s.exec(toolCall.title)?.[1] : undefined;
+  return pattern === undefined
+    ? { access: "outside", target: toolCall.title }
+    : paths.check([{ path: "", glob: pattern }]);
 }
 
 /** Our gate's answer as one of the options Gemini offered, picked by kind; never an "always" option. */
@@ -667,9 +720,18 @@ class GeminiSession implements AdapterSession {
     const title = stringValue(toolCall.title) || "Tool";
     const kind = toolKind(toolCall.kind);
     const described = describeGeminiToolCall(
-      { toolCallId: geminiId, title, kind },
-      this.#mcpServers.map((server) => server.name)
+      { toolCallId: geminiId, title, kind, locations: toolCall.locations, content: toolCall.content },
+      this.#mcpServers.map((server) => server.name),
+      this.#host.cwd
     );
+    const verdict = geminiFileVerdict(
+      { toolCallId: geminiId, title, kind, locations: toolCall.locations },
+      this.#host.paths
+    );
+    if (verdict.access === "refused") {
+      client.respond(id, geminiPermissionOutcome("rejected", arrayValue(params.options)));
+      return;
+    }
     let decision: PermissionDecision;
     try {
       decision = await this.#host.gate.check(
@@ -677,8 +739,7 @@ class GeminiSession implements AdapterSession {
           toolCallId,
           title,
           kind,
-          category: described.category,
-          memoryKey: described.memoryKey,
+          ...gateFileRead(described, verdict),
           ...(described.rawInput ? { rawInput: described.rawInput } : {}),
         },
         state.context.signal

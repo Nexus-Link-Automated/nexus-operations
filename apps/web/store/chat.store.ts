@@ -15,6 +15,7 @@ import type {
   TChatEvent,
   TChatMe,
   TChatMessage,
+  TChatMessageEdit,
   TChatMessagePage,
   TChatMessageWrite,
 } from "@plane/types";
@@ -72,13 +73,18 @@ const isNotFound = (error: unknown) => error instanceof ChatServiceError && erro
 const byName = (channels: TChatChannel[]) => sortBy(channels, (channel) => channel.name.toLowerCase());
 
 const byNewestActivity = (channels: TChatChannel[]) =>
-  orderBy(channels, (channel) => channel.last_message_at ?? channel.created_at, "desc");
+  orderBy(channels, (channel) => Date.parse(channel.last_message_at ?? channel.created_at), "desc");
 
-/** `(created_at, id)`, the order the API pages in. ISO timestamps and UUIDs compare as plain strings. */
-const inMessageOrder = (messages: TChatMessage[]) => sortBy(messages, ["created_at", "id"]);
+/**
+ * `(created_at, id)`, the order the API pages in. Timestamps are compared as instants: REST answers in the user's
+ * timezone and events in UTC, so the same moment can be written differently.
+ */
+const inMessageOrder = (messages: TChatMessage[]) => sortBy(messages, [(m) => Date.parse(m.created_at), "id"]);
 
-const isBefore = (a: TChatMessage, b: TChatMessage) =>
-  a.created_at < b.created_at || (a.created_at === b.created_at && a.id < b.id);
+const isBefore = (a: TChatMessage, b: TChatMessage) => {
+  const [aAt, bAt] = [Date.parse(a.created_at), Date.parse(b.created_at)];
+  return aAt < bAt || (aAt === bAt && a.id < b.id);
+};
 
 const emptyMessages = (): TChatChannelMessages => ({
   ids: [],
@@ -128,11 +134,7 @@ export interface IChatStore {
   sendMessage: (channelId: string, body: Pick<TChatMessageWrite, "body_html" | "body_json">) => Promise<void>;
   retryMessage: (channelId: string, localId: string) => Promise<void>;
   discardMessage: (channelId: string, localId: string) => void;
-  editMessage: (
-    channelId: string,
-    messageId: string,
-    body: Pick<TChatMessageWrite, "body_html" | "body_json">
-  ) => Promise<void>;
+  editMessage: (channelId: string, messageId: string, body: TChatMessageEdit) => Promise<void>;
   removeMessage: (channelId: string, messageId: string) => Promise<void>;
   markRead: (channelId: string) => Promise<void>;
   createChannel: (data: TChatChannelCreate) => Promise<TChatChannel>;
@@ -147,7 +149,8 @@ export interface IChatStore {
  * the socket only says that something changed, and the store fetches it over REST, where permissions are enforced.
  *
  * - Every `ready` (the first, and after every reconnect) and every `resync` refetch the channel list and catch up
- *   each loaded channel with `messages/?after=<newest id>`, then re-read its newest page for edits and removals.
+ *   each loaded channel with `messages/?after=<newest id held when events stopped>`, then re-read its newest page
+ *   for edits and removals.
  * - The first the user hears of a new channel or DM is their own `member.added`: the channel is fetched then.
  * - A public channel the user is viewing but hasn't joined is `subscribe`d explicitly, and again after their own
  *   `member.removed`.
@@ -176,6 +179,12 @@ export class ChatStore implements IChatStore {
   private localIds = 0;
   private readonly channelRefreshes = new Map<string, { again: boolean; promise: Promise<void> }>();
   private readonly readsInFlight = new Map<string, { again: boolean; promise: Promise<void> }>();
+  private readonly messageLoads = new Map<string, { again: boolean; promise: Promise<void> }>();
+  private readonly channelLists = new Map<string, { again: boolean; promise: Promise<void> }>();
+  /** Channels changed since the running list request began; its answer is older than these. */
+  private readonly changedDuringList = new Set<string>();
+  /** Where each channel's unbroken history ends, from the moment events may have been missed until it's caught up. */
+  private readonly catchUpCursors = new Map<string, string>();
   private resyncing: { again: boolean; promise: Promise<void> } | null = null;
 
   constructor(options: { service?: TChatStoreService; createSocket?: TChatSocketFactory } = {}) {
@@ -332,6 +341,10 @@ export class ChatStore implements IChatStore {
     this.socketClosedReason = null;
     this.channelRefreshes.clear();
     this.readsInFlight.clear();
+    this.messageLoads.clear();
+    this.channelLists.clear();
+    this.changedDuringList.clear();
+    this.catchUpCursors.clear();
     this.resyncing = null;
   }
 
@@ -342,48 +355,65 @@ export class ChatStore implements IChatStore {
 
   // channels
 
-  async fetchChannels(): Promise<void> {
-    const slug = this.workspaceSlug;
-    if (!slug) return;
-    const commit = this.guard();
-    try {
-      const channels = await this.service.listChannels(slug);
-      let recheck: string | undefined;
-      commit(() => {
-        const next: Record<string, TChatChannel> = {};
-        for (const channel of channels) next[channel.id] = channel;
-        // The list has live channels only. The open one stays until a re-read says whether it was archived
-        // (still readable) or is gone.
-        const active = this.activeChannelId ? this.channelMap[this.activeChannelId] : undefined;
-        if (active && !next[active.id]) {
-          next[active.id] = active;
-          recheck = active.id;
-        }
-        for (const id of Object.keys(this.channelMap)) if (!next[id]) this.dropChannelState(id);
-        this.channelMap = next;
-        this.channelsLoaded = true;
-        this.channelsError = false;
-      });
-      if (recheck) await this.refreshChannel(recheck);
-    } catch {
-      commit(() => (this.channelsError = true));
-    }
+  fetchChannels(): Promise<void> {
+    return this.coalesce(this.channelLists, "list", async () => {
+      const slug = this.workspaceSlug;
+      if (!slug) return;
+      const commit = this.guard();
+      this.changedDuringList.clear();
+      try {
+        const channels = await this.service.listChannels(slug);
+        let recheck: string | undefined;
+        commit(() => {
+          const next: Record<string, TChatChannel> = {};
+          for (const channel of channels) next[channel.id] = channel;
+          for (const id of this.changedDuringList) {
+            const current = this.channelMap[id];
+            if (current) next[id] = current;
+            else delete next[id];
+          }
+          // The list has live channels only. The open one stays until a re-read says whether it was archived
+          // (still readable) or is gone.
+          const active = this.activeChannelId ? this.channelMap[this.activeChannelId] : undefined;
+          if (active && !next[active.id]) {
+            next[active.id] = active;
+            recheck = active.id;
+          }
+          for (const [id, previous] of Object.entries(this.channelMap)) {
+            if (!next[id]) this.dropChannelState(id);
+            else if (previous.is_member && !next[id]!.is_member && id !== this.activeChannelId)
+              this.dropChannelState(id);
+          }
+          this.channelMap = next;
+          this.channelsLoaded = true;
+          this.channelsError = false;
+        });
+        if (recheck) await this.refreshChannel(recheck);
+      } catch {
+        commit(() => (this.channelsError = true));
+      }
+    });
   }
 
   private upsertChannel(channel: TChatChannel): void {
     const previous = this.channelMap[channel.id];
     this.channelMap[channel.id] = channel;
+    this.changedDuringList.add(channel.id);
     if (channel.is_member) {
       // The gateway follows member channels on its own.
       if (previous && !previous.is_member) this.socket?.unsubscribe(channel.id);
     } else if (channel.kind === "public" && this.activeChannelId === channel.id) {
       // Still browsing it without being in it (e.g. just left): follow it explicitly, again.
       this.socket?.subscribe(channel.id);
+    } else if (previous?.is_member && this.activeChannelId !== channel.id) {
+      // Left while looking elsewhere: nothing follows it now, so what we hold would go stale.
+      this.dropChannelState(channel.id);
     }
   }
 
   private removeChannelLocally(channelId: string): void {
     delete this.channelMap[channelId];
+    this.changedDuringList.add(channelId);
     this.dropChannelState(channelId);
     if (this.activeChannelId === channelId) this.socket?.unsubscribe(channelId);
   }
@@ -392,6 +422,7 @@ export class ChatStore implements IChatStore {
     for (const id of this.channelMessages[channelId]?.ids ?? []) delete this.messageMap[id];
     delete this.channelMessages[channelId];
     delete this.pendingMessages[channelId];
+    this.catchUpCursors.delete(channelId);
   }
 
   /** Re-read one channel. Calls for the same channel while one is in flight collapse into one more read. */
@@ -453,7 +484,9 @@ export class ChatStore implements IChatStore {
         throw error;
       }
     }
-    if (!channel.is_member && channel.kind === "public") this.socket?.subscribe(channelId);
+    if (!channel.is_member && channel.kind === "public" && this.activeChannelId === channelId) {
+      this.socket?.subscribe(channelId);
+    }
     if (!this.channelMessages[channelId]?.loaded) await this.loadNewestMessages(channelId);
     if (this.activeChannelId === channelId) await this.markRead(channelId);
   }
@@ -520,12 +553,18 @@ export class ChatStore implements IChatStore {
     return this.channelMessages[channelId]!;
   }
 
+  /** Keep `message` unless a newer copy is already held: re-reads of one message can answer out of order. */
+  private holdMessage(message: TChatMessage): void {
+    const held = this.messageMap[message.id];
+    if (!held || Date.parse(message.updated_at) >= Date.parse(held.updated_at)) this.messageMap[message.id] = message;
+  }
+
   private upsertMessages(channelId: string, messages: TChatMessage[], position: "older" | "newer"): void {
     const state = this.messagesState(channelId);
     const known = new Set(state.ids);
     const fresh: TChatMessage[] = [];
     for (const message of messages) {
-      this.messageMap[message.id] = message;
+      this.holdMessage(message);
       if (!known.has(message.id) && !message.parent) fresh.push(message);
     }
     if (fresh.length === 0) return;
@@ -543,32 +582,42 @@ export class ChatStore implements IChatStore {
     state.ids = inMessageOrder([...state.ids.map((id) => this.messageMap[id]!), ...ordered]).map((m) => m.id);
   }
 
-  private async loadNewestMessages(channelId: string): Promise<void> {
-    const slug = this.workspaceSlug;
-    if (!slug) return;
-    const commit = this.guard();
-    commit(() => {
-      const state = this.messagesState(channelId);
-      state.loading = true;
-      state.error = false;
+  /** Overlapping loads share one, and a message that arrives during a load asks for one more (see `fetchMessage`). */
+  private loadNewestMessages(channelId: string): Promise<void> {
+    return this.coalesce(this.messageLoads, channelId, async () => {
+      const slug = this.workspaceSlug;
+      if (!slug) return;
+      const commit = this.guard();
+      commit(() => {
+        const state = this.messagesState(channelId);
+        state.loading = true;
+        state.error = false;
+      });
+      try {
+        const page = await this.service.listMessages(slug, channelId, { limit: CHAT_PAGE_SIZE });
+        commit(() => {
+          this.catchUpCursors.delete(channelId);
+          const channel = this.channelMap[channelId];
+          if (channel && !channel.is_member && this.activeChannelId !== channelId) {
+            // Closed while this was loading: nothing follows it now, so keeping the page would go stale.
+            this.dropChannelState(channelId);
+            return;
+          }
+          // A fresh start: whatever was held may not be contiguous with this page.
+          this.channelMessages[channelId] = { ...emptyMessages(), loaded: true, hasMoreOlder: page.has_more };
+          this.upsertMessages(channelId, page.results, "newer");
+        });
+      } catch (error) {
+        commit(() => {
+          const state = this.channelMessages[channelId];
+          if (state) {
+            state.loading = false;
+            state.error = true;
+          }
+          if (isNotFound(error)) this.removeChannelLocally(channelId);
+        });
+      }
     });
-    try {
-      const page = await this.service.listMessages(slug, channelId, { limit: CHAT_PAGE_SIZE });
-      commit(() => {
-        // A fresh start: whatever was held may not be contiguous with this page.
-        this.channelMessages[channelId] = { ...emptyMessages(), loaded: true, hasMoreOlder: page.has_more };
-        this.upsertMessages(channelId, page.results, "newer");
-      });
-    } catch (error) {
-      commit(() => {
-        const state = this.channelMessages[channelId];
-        if (state) {
-          state.loading = false;
-          state.error = true;
-        }
-        if (isNotFound(error)) this.removeChannelLocally(channelId);
-      });
-    }
   }
 
   async loadOlderMessages(channelId: string): Promise<void> {
@@ -597,7 +646,14 @@ export class ChatStore implements IChatStore {
   /** Fetch one message and put it where it belongs, if the channel's messages are loaded. */
   private async fetchMessage(channelId: string, messageId: string): Promise<void> {
     const slug = this.workspaceSlug;
-    if (!slug || !this.channelMessages[channelId]?.loaded) return;
+    const state = this.channelMessages[channelId];
+    if (!slug || !state) return;
+    if (state.loading) {
+      // The page in flight may have been read before this message existed, and it replaces what's held.
+      await this.loadNewestMessages(channelId);
+      return;
+    }
+    if (!state.loaded) return;
     const commit = this.guard();
     try {
       const message = await this.service.getMessage(slug, channelId, messageId);
@@ -661,15 +717,11 @@ export class ChatStore implements IChatStore {
     }
   }
 
-  async editMessage(
-    channelId: string,
-    messageId: string,
-    body: Pick<TChatMessageWrite, "body_html" | "body_json">
-  ): Promise<void> {
+  async editMessage(channelId: string, messageId: string, body: TChatMessageEdit): Promise<void> {
     const slug = this.requireSlug();
     const commit = this.guard();
     const message = await this.service.editMessage(slug, channelId, messageId, body);
-    commit(() => (this.messageMap[message.id] = message));
+    commit(() => this.holdMessage(message));
   }
 
   async removeMessage(channelId: string, messageId: string): Promise<void> {
@@ -781,7 +833,7 @@ export class ChatStore implements IChatStore {
     try {
       const message = await this.service.getMessage(slug, channelId, messageId);
       commit(() => {
-        if (this.messageMap[messageId]) this.messageMap[messageId] = message;
+        if (this.messageMap[messageId]) this.holdMessage(message);
       });
     } catch {
       // The channel is gone or unreadable; its own events or the next resync say so.
@@ -790,6 +842,11 @@ export class ChatStore implements IChatStore {
 
   /** After a reconnect or a `resync`: what may have happened while events weren't arriving. */
   private resync(): Promise<void> {
+    // Live events can land before the catch-up reaches a channel, so note now where its unbroken history ends.
+    for (const [channelId, state] of Object.entries(this.channelMessages)) {
+      const newest = state.ids[state.ids.length - 1];
+      if (state.loaded && newest && !this.catchUpCursors.has(channelId)) this.catchUpCursors.set(channelId, newest);
+    }
     if (this.resyncing) {
       this.resyncing.again = true;
       return this.resyncing.promise;
@@ -819,31 +876,39 @@ export class ChatStore implements IChatStore {
     const slug = this.workspaceSlug;
     if (!slug) return;
     const commit = this.guard();
+    const generation = this.generation;
     try {
+      let cursor = this.catchUpCursors.get(channelId);
       let pages = 0;
       let hasMore = true;
-      while (hasMore) {
-        const ids = this.channelMessages[channelId]?.ids ?? [];
-        const newest = ids[ids.length - 1];
-        if (!newest) break;
-        if (pages >= MAX_CATCH_UP_PAGES) {
-          // Too far behind to page through: start the channel over from its newest page.
-          // oxlint-disable-next-line no-await-in-loop -- leaves the loop
-          await this.loadNewestMessages(channelId);
-          return;
-        }
+      while (cursor && hasMore && pages < MAX_CATCH_UP_PAGES) {
         // oxlint-disable-next-line no-await-in-loop -- each page's cursor is the previous page's newest message
         const page: TChatMessagePage = await this.service.listMessages(slug, channelId, {
-          after: newest,
+          after: cursor,
           limit: CHAT_PAGE_SIZE,
         });
+        if (generation !== this.generation) return;
         pages += 1;
-        commit(() => this.upsertMessages(channelId, page.results, "newer"));
         hasMore = page.has_more;
+        cursor = page.results.at(-1)?.id ?? cursor;
+        const reached = cursor;
+        commit(() => {
+          this.upsertMessages(channelId, page.results, "newer");
+          // If a later page fails, the next resync carries on from here.
+          this.catchUpCursors.set(channelId, reached);
+        });
       }
-      // `after` only brings new messages: re-read the newest page for edits and removals made meanwhile.
-      const latest = await this.service.listMessages(slug, channelId, { limit: CHAT_PAGE_SIZE });
-      commit(() => this.upsertMessages(channelId, latest.results, "newer"));
+      if (!cursor || hasMore) {
+        // Empty when events stopped (nothing to page from), or too far behind to page through: start over.
+        await this.loadNewestMessages(channelId);
+      } else {
+        // `after` only brings new messages: re-read the newest page for edits and removals made meanwhile.
+        const latest = await this.service.listMessages(slug, channelId, { limit: CHAT_PAGE_SIZE });
+        commit(() => {
+          this.upsertMessages(channelId, latest.results, "newer");
+          this.catchUpCursors.delete(channelId);
+        });
+      }
       if (this.isViewing(channelId)) await this.markRead(channelId);
     } catch (error) {
       if (isNotFound(error)) commit(() => this.removeChannelLocally(channelId));

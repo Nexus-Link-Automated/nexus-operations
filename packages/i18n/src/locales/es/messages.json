@@ -6,7 +6,7 @@
     "unread_count": "{count, plural, one {# mensaje sin leer} other {# mensajes sin leer}}",
     "empty": {
       "title": "Aún no hay conversaciones",
-      "description": "Aquí aparecerán los canales y los mensajes directos con su equipo."
+      "description": "Aquí aparecerán los canales y los mensajes directos con tu equipo."
     },
     "channels": {
       "title": "Canales",
