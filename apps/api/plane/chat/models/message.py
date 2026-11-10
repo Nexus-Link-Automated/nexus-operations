@@ -20,7 +20,7 @@ from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVector
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import F, Q
+from django.db.models import F, Func, Q, Value
 from django.utils import timezone
 from django.utils.html import strip_tags
 
@@ -47,8 +47,13 @@ def search_document():
 
     `simple` lowercases and splits on non-word characters without stemming or stop words, so it suits all 22 locales
     the same way; a language's own configuration would only help messages written in that one language.
+
+    `<` becomes a space first: the parser reads `<Button variant="x">` in pasted code as a tag and drops its words.
     """
-    return SearchVector("body_stripped", config="simple")
+    without_tags = Func(
+        F("body_stripped"), Value("<"), Value(" "), function="translate", output_field=models.TextField()
+    )
+    return SearchVector(without_tags, config="simple")
 
 
 class MessageSystemEvent(models.TextChoices):

@@ -59,8 +59,12 @@ def to_tsquery_text(text):
     Postgres's own output with `:*` added after a quoted lexeme, which always parses back.
     """
     with connection.cursor() as cursor:
-        cursor.execute("SELECT websearch_to_tsquery('simple', %s)::text", [text])
-        query = cursor.fetchone()[0]
+        cursor.execute("SELECT q::text, querytree(q) FROM websearch_to_tsquery('simple', %s) AS q", [text])
+        query, indexable = cursor.fetchone()
+    if indexable == "T":
+        # Only words to leave out (`-word`, or `a or -b`): nearly every message matches, and the index can't narrow
+        # it, so the search would read the whole table. Nothing to look for.
+        return ""
     last = _LAST_TERM.search(query)
     if last and not last.group(1) and len(last.group(2).replace("''", "'")) >= MIN_PREFIX_LENGTH:
         query += ":*"

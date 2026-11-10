@@ -2,13 +2,13 @@
 
 import django.contrib.postgres.indexes
 import django.contrib.postgres.search
+import django.db.models
 from django.contrib.postgres.operations import AddIndexConcurrently
 from django.db import migrations
 
 
 class Migration(migrations.Migration):
-    # Required by AddIndexConcurrently, so messages can still be sent while the index builds. A failed build leaves an
-    # INVALID index; before retrying, run DROP INDEX CONCURRENTLY IF EXISTS chat_message_search_idx;
+    # Required by AddIndexConcurrently, so messages can still be sent while the index builds.
     atomic = False
 
     dependencies = [
@@ -16,10 +16,25 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # A build that failed or was interrupted leaves an INVALID index of this name, which would make every retry
+        # fail. Nothing else has this name, so dropping it first makes the migration safe to run again.
+        migrations.RunSQL(
+            "DROP INDEX CONCURRENTLY IF EXISTS chat_message_search_idx;",
+            reverse_sql=migrations.RunSQL.noop,
+        ),
         AddIndexConcurrently(
             model_name="message",
             index=django.contrib.postgres.indexes.GinIndex(
-                django.contrib.postgres.search.SearchVector("body_stripped", config="simple"),
+                django.contrib.postgres.search.SearchVector(
+                    django.db.models.Func(
+                        django.db.models.F("body_stripped"),
+                        django.db.models.Value("<"),
+                        django.db.models.Value(" "),
+                        function="translate",
+                        output_field=django.db.models.TextField(),
+                    ),
+                    config="simple",
+                ),
                 name="chat_message_search_idx",
             ),
         ),

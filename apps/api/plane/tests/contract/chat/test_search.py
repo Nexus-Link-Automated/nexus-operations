@@ -359,6 +359,21 @@ class TestOddInput:
         assert to_tsquery_text("deploy xy") == "'deploy' & 'xy':*"
         assert to_tsquery_text("deploy -xy") == "'deploy' & !'xy'"
 
+    @pytest.mark.parametrize("text", ["-xy", "-deploy -release", "deploy or -xy"])
+    def test_only_words_left_out_find_nothing(self, member, make_channel, send, search, text):
+        # Nearly every message would match, and the index can't narrow such a query down.
+        send(make_channel(members=[member.user]), member.user, "release notes")
+        assert to_tsquery_text(text) == ""
+        res = search(member, text)
+        assert res.status_code == 200 and res.data == {"results": [], "has_more": False}
+
+    def test_words_inside_angle_brackets_are_found(self, member, make_channel, send, search):
+        # Pasted code: Postgres's parser would take `<Button variant="primary">` for a tag and drop its words.
+        sent = send(make_channel(members=[member.user]), member.user, '&lt;Button variant="primary"&gt;')
+        assert sent.body_stripped == '<Button variant="primary">'
+        for word in ("button", "variant", "primary"):
+            assert _ids(search(member, word)) == [str(sent.id)], word
+
 
 @pytest.mark.contract
 @pytest.mark.django_db
