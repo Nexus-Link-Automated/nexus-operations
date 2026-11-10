@@ -105,7 +105,8 @@
       "open_dm_failed": "Nie udało się rozpocząć rozmowy",
       "edit_failed": "Nie udało się zapisać zmiany",
       "remove_failed": "Nie udało się usunąć wiadomości",
-      "message_not_found": "Ta wiadomość nie jest już dostępna."
+      "message_not_found": "Ta wiadomość nie jest już dostępna.",
+      "link_work_item_failed": "Element pracy został utworzony, ale nie udało się powiązać go z tą wiadomością."
     }
   }
 }

@@ -15,6 +15,7 @@ import type {
   TChatMessage,
   TChatMessagePage,
   TChatMessagePageQuery,
+  TChatWorkItemLink,
 } from "@plane/types";
 import { ChatStore } from "./chat.store";
 import type { TChatStoreService, TChatStoreSocket } from "./chat.store";
@@ -46,6 +47,7 @@ class FakeChatServer {
   failSends = false;
   /** Holds the next answer of a call back until the promise resolves. The answer is read when the call arrives. */
   holds = new Map<string, Promise<void>>();
+  nextLink: TChatWorkItemLink | undefined;
   private clock = 0;
   private ids = 0;
 
@@ -228,6 +230,11 @@ class FakeChatServer {
         const message = this.messages.find((m) => m.id === messageId && m.channel === channelId);
         if (!message) throw new ChatServiceError(404, {});
         return this.held("getMessage", clone(message));
+      },
+      linkWorkItem: async (_slug, channelId, messageId, issueId) => {
+        log(`linkWorkItem ${channelId} ${messageId} ${issueId}`);
+        if (!this.nextLink) throw new ChatServiceError(404, undefined);
+        return this.nextLink;
       },
       sendMessage: async (_slug, channelId, data) => {
         log(`sendMessage ${channelId}`);
@@ -677,6 +684,38 @@ describe("ChatStore", () => {
       ...Array.from({ length: 3 }, (_, i) => `before ${i}`),
       ...Array.from({ length: 120 }, (_, i) => `missed ${i}`),
     ]);
+  });
+
+  describe("linkWorkItem", () => {
+    it("shows the updated message and the note in the channel", async () => {
+      const { store, server } = await setup();
+      const original = server.post("c-general", ADA, "login is broken");
+      await store.openChannel("c-general");
+      const reference = { id: "i1", project: "p1", key: "EMP-1", name: "x", priority: "high" as const, state: null };
+      const reply = server.post("c-general", ME, "Created EMP-1");
+      server.nextLink = { message: { ...original, references: [reference] }, reply };
+      await store.linkWorkItem("c-general", original.id, "i1");
+      expect(server.calls).toContain(`linkWorkItem c-general ${original.id} i1`);
+      expect(store.messageMap[original.id]?.references).toEqual([reference]);
+      expect(store.getChannelMessages("c-general").map((message) => message.id)).toEqual([original.id, reply.id]);
+    });
+
+    it("adds no note when it was already linked", async () => {
+      const { store, server } = await setup();
+      const original = server.post("c-general", ADA);
+      await store.openChannel("c-general");
+      server.nextLink = { message: original, reply: null };
+      await store.linkWorkItem("c-general", original.id, "i1");
+      expect(store.getChannelMessages("c-general")).toHaveLength(1);
+    });
+
+    it("lets the caller know it failed", async () => {
+      const { store, server } = await setup();
+      const original = server.post("c-general", ADA);
+      await store.openChannel("c-general");
+      server.nextLink = undefined;
+      await expect(store.linkWorkItem("c-general", original.id, "i1")).rejects.toThrow();
+    });
   });
 
   describe("revealMessage", () => {

@@ -105,7 +105,8 @@
       "open_dm_failed": "Konverzáciu sa nepodarilo začať",
       "edit_failed": "Úpravu sa nepodarilo uložiť",
       "remove_failed": "Správu sa nepodarilo odstrániť",
-      "message_not_found": "Táto správa už nie je dostupná."
+      "message_not_found": "Táto správa už nie je dostupná.",
+      "link_work_item_failed": "Pracovná položka bola vytvorená, ale nepodarilo sa ju prepojiť s touto správou."
     }
   }
 }

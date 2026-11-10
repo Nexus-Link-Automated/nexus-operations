@@ -105,7 +105,8 @@
       "open_dm_failed": "Het gesprek kon niet worden gestart",
       "edit_failed": "De wijziging kon niet worden opgeslagen",
       "remove_failed": "Het bericht kon niet worden verwijderd",
-      "message_not_found": "Dit bericht is niet meer beschikbaar."
+      "message_not_found": "Dit bericht is niet meer beschikbaar.",
+      "link_work_item_failed": "Het werkitem is gemaakt, maar kon niet aan dit bericht worden gekoppeld."
     }
   }
 }

@@ -97,3 +97,63 @@ export function chatMessagePermalink(
 ): string {
   return `/${workspaceSlug}/messages/${message.channel_id}?message=${message.parent_id ?? message.id}`;
 }
+
+const WORK_ITEM_TITLE_MAX = 255;
+
+/** The first line of a message, as a work item title. */
+export function workItemTitleFromMessage(bodyStripped: string): string {
+  const firstLine = bodyStripped.trim().split(/\r?\n/)[0] ?? "";
+  return firstLine.trim().slice(0, WORK_ITEM_TITLE_MAX);
+}
+
+/** The people @mentioned in a message's HTML, first mentioned first. */
+export function mentionedUserIds(html: string): string[] {
+  const ids = Array.from(
+    new DOMParser()
+      .parseFromString(html, "text/html")
+      .querySelectorAll('mention-component[entity_name="user_mention"]'),
+    (mention) => mention.getAttribute("entity_identifier")
+  ).filter((id): id is string => !!id);
+  return [...new Set(ids)];
+}
+
+/** Who a work item from a message starts assigned to: the first person mentioned who is in the project, else the clicker. */
+export function defaultWorkItemAssignee(
+  mentioned: string[],
+  projectMemberIds: string[],
+  clickerId: string | null
+): string | null {
+  const firstMentioned = mentioned.find((id) => projectMemberIds.includes(id));
+  if (firstMentioned) return firstMentioned;
+  return clickerId && projectMemberIds.includes(clickerId) ? clickerId : null;
+}
+
+/** The project a work item from a message starts in: the channel's, the one last used, or the user's first. */
+export function defaultWorkItemProject(
+  channelProject: string | null | undefined,
+  lastUsedProject: string | null,
+  joinedProjectIds: string[]
+): string | undefined {
+  if (channelProject && joinedProjectIds.includes(channelProject)) return channelProject;
+  if (lastUsedProject && joinedProjectIds.includes(lastUsedProject)) return lastUsedProject;
+  return joinedProjectIds[0];
+}
+
+const lastProjectKey = (workspaceSlug: string) => `chat-work-item-project:${workspaceSlug}`;
+
+/** localStorage can be blocked or full; forgetting the last project only costs a click. */
+export function readLastWorkItemProject(workspaceSlug: string): string | null {
+  try {
+    return localStorage.getItem(lastProjectKey(workspaceSlug));
+  } catch {
+    return null;
+  }
+}
+
+export function writeLastWorkItemProject(workspaceSlug: string, projectId: string): void {
+  try {
+    localStorage.setItem(lastProjectKey(workspaceSlug), projectId);
+  } catch {
+    // see readLastWorkItemProject
+  }
+}

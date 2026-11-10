@@ -105,7 +105,8 @@
       "open_dm_failed": "Impossible de démarrer la conversation",
       "edit_failed": "Impossible d'enregistrer la modification",
       "remove_failed": "Impossible de supprimer le message",
-      "message_not_found": "Ce message n'est plus disponible."
+      "message_not_found": "Ce message n'est plus disponible.",
+      "link_work_item_failed": "L'élément de travail a été créé, mais n'a pas pu être lié à ce message."
     }
   }
 }

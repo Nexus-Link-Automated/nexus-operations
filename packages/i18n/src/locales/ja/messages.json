@@ -105,7 +105,8 @@
       "open_dm_failed": "会話を開始できませんでした",
       "edit_failed": "編集内容を保存できませんでした",
       "remove_failed": "メッセージを削除できませんでした",
-      "message_not_found": "このメッセージは利用できなくなりました。"
+      "message_not_found": "このメッセージは利用できなくなりました。",
+      "link_work_item_failed": "作業項目は作成されましたが、このメッセージにリンクできませんでした。"
     }
   }
 }

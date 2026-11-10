@@ -17,4 +17,9 @@ from .membership import (  # noqa: F401
     ChannelMemberEndpoint,
     ChannelReadEndpoint,
 )
-from .message import MessageDetailEndpoint, MessageEndpoint, MessageReplyEndpoint  # noqa: F401
+from .message import (  # noqa: F401
+    MessageDetailEndpoint,
+    MessageEndpoint,
+    MessageReplyEndpoint,
+    MessageWorkItemEndpoint,
+)

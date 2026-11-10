@@ -40,3 +40,21 @@ export function ChatWorkItemCard({
     </Link>
   );
 }
+
+/** The cards under a message. Empty when nothing it references is visible to the reader. */
+export function ChatWorkItemCards({
+  references,
+  workspaceSlug,
+}: {
+  references: TChatMessageReference[];
+  workspaceSlug: string;
+}) {
+  if (references.length === 0) return null;
+  return (
+    <div className="mt-1 flex flex-col gap-1">
+      {references.map((reference) => (
+        <ChatWorkItemCard key={reference.id} reference={reference} workspaceSlug={workspaceSlug} />
+      ))}
+    </div>
+  );
+}

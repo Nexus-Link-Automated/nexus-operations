@@ -52,6 +52,12 @@ export type TChatMessageReference = {
   state: { name: string; group: TStateGroups; color: string } | null;
 };
 
+/** What linking a work item to a message returns; `reply` is null if it was already linked. */
+export type TChatWorkItemLink = {
+  message: TChatMessage;
+  reply: TChatMessage | null;
+};
+
 /** A message, or a removed message's tombstone (empty body, `removed_at` set). */
 export type TChatMessage = {
   id: string;

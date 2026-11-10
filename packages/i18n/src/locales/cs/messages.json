@@ -105,7 +105,8 @@
       "open_dm_failed": "Konverzaci se nepodařilo zahájit",
       "edit_failed": "Úpravu se nepodařilo uložit",
       "remove_failed": "Zprávu se nepodařilo smazat",
-      "message_not_found": "Tato zpráva již není dostupná."
+      "message_not_found": "Tato zpráva již není dostupná.",
+      "link_work_item_failed": "Pracovní položka byla vytvořena, ale nepodařilo se ji propojit s touto zprávou."
     }
   }
 }

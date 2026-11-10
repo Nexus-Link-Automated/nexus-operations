@@ -105,7 +105,8 @@
       "open_dm_failed": "Couldn't start the conversation",
       "edit_failed": "Couldn't save the edit",
       "remove_failed": "Couldn't delete the message",
-      "message_not_found": "This message is no longer available."
+      "message_not_found": "This message is no longer available.",
+      "link_work_item_failed": "The work item was created, but it couldn't be linked to this message."
     }
   }
 }

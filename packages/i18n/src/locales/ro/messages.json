@@ -105,7 +105,8 @@
       "open_dm_failed": "Conversația nu a putut fi începută",
       "edit_failed": "Modificarea nu a putut fi salvată",
       "remove_failed": "Mesajul nu a putut fi șters",
-      "message_not_found": "Acest mesaj nu mai este disponibil."
+      "message_not_found": "Acest mesaj nu mai este disponibil.",
+      "link_work_item_failed": "Activitatea a fost creată, dar nu a putut fi asociată acestui mesaj."
     }
   }
 }

@@ -100,6 +100,12 @@ class MessageWriteSerializer(serializers.Serializer):
         return value
 
 
+class MessageWorkItemSerializer(serializers.Serializer):
+    """A work item just created from a message, to link to it."""
+
+    issue_id = serializers.UUIDField()
+
+
 class MessageEditSerializer(MessageWriteSerializer):
     """Editing changes the body only; a message never moves between threads."""
 

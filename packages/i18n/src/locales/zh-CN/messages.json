@@ -105,7 +105,8 @@
       "open_dm_failed": "无法开始对话",
       "edit_failed": "无法保存编辑",
       "remove_failed": "无法删除消息",
-      "message_not_found": "此消息已不可用。"
+      "message_not_found": "此消息已不可用。",
+      "link_work_item_failed": "工作项已创建，但无法关联到此消息。"
     }
   }
 }

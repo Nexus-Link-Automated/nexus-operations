@@ -105,7 +105,8 @@
       "open_dm_failed": "대화를 시작하지 못했습니다",
       "edit_failed": "편집 내용을 저장하지 못했습니다",
       "remove_failed": "메시지를 삭제하지 못했습니다",
-      "message_not_found": "이 메시지는 더 이상 사용할 수 없습니다."
+      "message_not_found": "이 메시지는 더 이상 사용할 수 없습니다.",
+      "link_work_item_failed": "작업 항목이 생성되었지만 이 메시지에 연결하지 못했습니다."
     }
   }
 }
