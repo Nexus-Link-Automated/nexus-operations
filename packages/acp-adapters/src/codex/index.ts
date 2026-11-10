@@ -64,10 +64,15 @@ const INTERRUPT_GRACE_MS = 5_000;
  *   approval instead of asking, and MCP servers are configured to always ask (so the mode can
  *   change mid-session). With full access Codex has no other reason to ask, and the gate accepts
  *   everything in `yolo`.
+ *
+ * The app-server takes a policy only with `turn/start`, so a running turn keeps the one it began
+ * with. That matters only when leaving `yolo`: see `#stopIfTightened`.
  */
 export function approvalPolicyFor(mode: PermissionModeId): "untrusted" | "on-request" {
   return mode === "yolo" ? "on-request" : "untrusted";
 }
+
+const TIGHTENED_NOTICE = "Codex stopped this turn to apply the stricter permission level. Send a message to continue.";
 
 export const CHATGPT_NOT_CONNECTED = `ChatGPT is not connected. Sign in with ChatGPT in ${AI_PROVIDERS_SETTINGS}.`;
 
@@ -134,6 +139,10 @@ export function createCodexAdapter(options: CodexAdapterOptions = {}): AgentAdap
 
 interface TurnState {
   readonly context: TurnContext;
+  /** What this turn's `turn/start` carried; Codex keeps it until the turn ends. */
+  readonly approvalPolicy: ReturnType<typeof approvalPolicyFor>;
+  /** The turn is being stopped because its policy became too loose for the level. */
+  stoppedByTightening: boolean;
   turnId: string | undefined;
   lastTextItem: string | undefined;
   readonly summarisedItems: Set<string>;
@@ -277,6 +286,8 @@ class CodexSession implements AdapterSession {
     const done = outcome.promise;
     const state: TurnState = {
       context,
+      approvalPolicy: approvalPolicyFor(this.#host.mode()),
+      stoppedByTightening: false,
       turnId: undefined,
       lastTextItem: undefined,
       summarisedItems: new Set(),
@@ -294,17 +305,8 @@ class CodexSession implements AdapterSession {
     const env = this.#host.env;
     const stallMs = positive(env[CODEX_ENV.stallTimeoutMs]) ?? DEFAULT_STALL_TIMEOUT_MS;
     const turnMs = positive(env[CODEX_ENV.turnTimeoutMs]) ?? DEFAULT_TURN_TIMEOUT_MS;
-    const interrupt = () => {
-      if (state.turnId)
-        void client
-          .request("turn/interrupt", { threadId: this.#threadId, turnId: state.turnId }, INTERRUPT_GRACE_MS)
-          .catch(() => {});
-    };
-    const onAbort = () => {
-      interrupt();
-      // Do not wait forever for Codex to confirm the interrupt.
-      setTimeout(() => state.finish("interrupted"), INTERRUPT_GRACE_MS).unref();
-    };
+    const interrupt = () => this.#interrupt(state);
+    const onAbort = () => this.#stopTurn(state);
     context.signal.addEventListener("abort", onAbort, { once: true });
     const startedAt = Date.now();
     const watchdog = setInterval(
@@ -325,15 +327,18 @@ class CodexSession implements AdapterSession {
       const started = await client.request("turn/start", {
         threadId: this.#threadId,
         input: [{ type: "text", text: promptToText(context.prompt), text_elements: [] }],
-        approvalPolicy: approvalPolicyFor(this.#host.mode()),
+        approvalPolicy: state.approvalPolicy,
         ...(this.#host.model() ? { model: this.#host.model() } : {}),
         ...(this.#host.effort() ? { effort: this.#host.effort() } : {}),
       });
       state.turnId = stringValue(objectValue(started.turn).id);
       if (context.signal.aborted) onAbort();
+      else await this.#stopIfTightened(state);
       const result = await done;
       // After a failure the queue may still be parked on an approval nobody will answer.
       if (result.status !== "failed") await this.#queue;
+      // The core closes open cards only for a cancellation that came through it.
+      if (state.stoppedByTightening) await this.#host.toolCalls.failOpen(TIGHTENED_NOTICE).catch(() => {});
       if (context.signal.aborted || result.status === "interrupted") return "cancelled";
       if (result.status === "failed") throw new Error(result.error ?? state.lastError ?? "codex turn failed");
       return "end_turn";
@@ -348,8 +353,41 @@ class CodexSession implements AdapterSession {
     }
   }
 
+  async setMode(): Promise<void> {
+    // Before `turn/start` has returned there is nothing to interrupt; `prompt` checks then.
+    if (this.#turn?.turnId) await this.#stopIfTightened(this.#turn);
+  }
+
   async close(): Promise<void> {
     this.#client?.close();
+  }
+
+  #interrupt(state: TurnState): void {
+    if (state.turnId)
+      void this.#client
+        ?.request("turn/interrupt", { threadId: this.#threadId, turnId: state.turnId }, INTERRUPT_GRACE_MS)
+        .catch(() => {});
+  }
+
+  #stopTurn(state: TurnState): void {
+    this.#interrupt(state);
+    // Do not wait forever for Codex to confirm the interrupt.
+    setTimeout(() => state.finish("interrupted"), INTERRUPT_GRACE_MS).unref();
+  }
+
+  /**
+   * A turn started in `yolo` runs under `on-request`, where Codex no longer asks about commands or
+   * file changes, so the gate cannot apply a stricter level to them. The app-server has no way to
+   * change a running turn's policy, so the only way to apply the level at once is to stop the turn.
+   * The other changes need nothing: `ask_all` and `ask_writes` share a policy and the gate reads
+   * the level live, and loosening to `yolo` only makes the gate accept what Codex still asks.
+   */
+  async #stopIfTightened(state: TurnState): Promise<void> {
+    if (state.approvalPolicy !== "on-request" || this.#host.mode() === "yolo") return;
+    if (state.stoppedByTightening || state.completedByCodex) return;
+    state.stoppedByTightening = true;
+    this.#stopTurn(state);
+    await this.#host.emit({ sessionUpdate: "notice", severity: "warning", title: TIGHTENED_NOTICE }).catch(() => {});
   }
 
   async #signIn(client: CodexAppServerClient, auth: CodexAuth): Promise<void> {

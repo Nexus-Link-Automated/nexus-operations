@@ -8,7 +8,7 @@ import { statSync } from "node:fs";
 import path from "node:path";
 
 import type { McpServer } from "@agentclientprotocol/sdk";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { codexEfforts, commandTargets } from "../src/codex/index.ts";
 import { spawnClient, tempDir, textOf, updatesOfKind, type SpawnedClient } from "./helpers/client.ts";
@@ -24,6 +24,10 @@ const planeMcp: McpServer = {
     { name: "X-Workspace-slug", value: "acme" },
   ],
 };
+
+function interrupts(fake: ReturnType<typeof fakeCodexEnv>) {
+  return fake.log().filter((message) => message.method === "turn/interrupt");
+}
 
 describe("plane-acp-codex over stdio (fake app-server)", () => {
   let client: SpawnedClient | undefined;
@@ -411,6 +415,88 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
     });
     expect(updatesOfKind(client.updates, "notice")[0]).toMatchObject({ title: "MCP server broken failed to start" });
     expect(fake.log().some((message) => message.method === "turn/interrupt")).toBe(true);
+  });
+
+  describe("changing the level during a turn", () => {
+    const start = async (modeId: string, env: NodeJS.ProcessEnv = {}) => {
+      const fake = fakeCodexEnv(env);
+      const spawned = spawnClient("codex", fake.env);
+      client = spawned;
+      await spawned.agent.request("initialize", { protocolVersion: 1 });
+      const { sessionId } = await spawned.agent.request("session/new", {
+        cwd: tempDir(),
+        mcpServers: [],
+        _meta: { "plane/initialModeId": modeId },
+      });
+      const prompt = (text: string) =>
+        spawned.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] });
+      const setMode = (next: string) => spawned.agent.request("session/set_mode", { sessionId, modeId: next });
+      const cancel = () => spawned.agent.notify("session/cancel", { sessionId });
+      const working = () =>
+        vi.waitFor(() => expect(textOf(spawned.updates, "agent_message_chunk")).toContain("working"));
+      return { fake, spawned, prompt, setMode, cancel, working };
+    };
+
+    it("stops a running yolo turn when the level is tightened, and the next turn runs under the new policy", async () => {
+      const { fake, spawned, prompt, setMode, working } = await start("yolo");
+      const turn = prompt("wait");
+      await working();
+
+      await setMode("ask_writes");
+
+      await expect(turn).resolves.toMatchObject({ stopReason: "cancelled" });
+      expect(interrupts(fake)).toHaveLength(1);
+      expect(updatesOfKind(spawned.updates, "notice")).toEqual([
+        expect.objectContaining({ severity: "warning", title: expect.stringContaining("permission level") }),
+      ]);
+
+      await prompt("hello");
+      const policies = fake
+        .log()
+        .filter((message) => message.method === "turn/start")
+        .map((message) => (message.params as any).approvalPolicy);
+      expect(policies).toEqual(["on-request", "untrusted"]);
+    });
+
+    it("stops a turn tightened before Codex has confirmed it started", async () => {
+      const { fake, prompt, setMode } = await start("yolo", { FAKE_CODEX_TURN_START_DELAY_MS: "200" });
+      const turn = prompt("wait");
+      await vi.waitFor(() => expect(fake.log().some((message) => message.method === "turn/start")).toBe(true));
+
+      await setMode("ask_all");
+
+      await expect(turn).resolves.toMatchObject({ stopReason: "cancelled" });
+      expect(interrupts(fake)).toHaveLength(1);
+    });
+
+    it("closes tool cards left open by a turn stopped for tightening", async () => {
+      const { spawned, prompt, setMode } = await start("yolo");
+      const turn = prompt("wait tool");
+      await vi.waitFor(() => expect(updatesOfKind(spawned.updates, "tool_call")).toHaveLength(1));
+
+      await setMode("ask_writes");
+      await turn;
+
+      expect(updatesOfKind(spawned.updates, "tool_call_update").at(-1)).toMatchObject({ status: "failed" });
+    });
+
+    it.each([
+      ["ask_writes", "ask_all"],
+      ["ask_all", "ask_writes"],
+      ["ask_writes", "yolo"],
+    ])("leaves a running turn alone going from %s to %s, which Codex's policy does not need", async (from, to) => {
+      const { fake, spawned, prompt, setMode, cancel, working } = await start(from);
+      const turn = prompt("wait");
+      await working();
+
+      await setMode(to);
+      cancel();
+
+      await expect(turn).resolves.toMatchObject({ stopReason: "cancelled" });
+      // Only the cancel's own interrupt.
+      expect(interrupts(fake)).toHaveLength(1);
+      expect(updatesOfKind(spawned.updates, "notice")).toEqual([]);
+    });
   });
 
   describe("waiting on a person", () => {

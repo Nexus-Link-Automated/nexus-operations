@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "Ptát se pokaždé",
-          "description": "Ptát se před každým voláním nástroje, včetně čtení."
+          "description": "Ptát se před každým voláním nástroje, včetně čtení. Codex spouští příkazy ze svého vestavěného seznamu pouze pro čtení bez ptaní."
         },
         "ask_writes": {
           "name": "Ptát se před změnami",

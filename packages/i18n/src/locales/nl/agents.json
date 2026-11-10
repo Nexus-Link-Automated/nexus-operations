@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "Elke keer vragen",
-          "description": "Vóór elke toolaanroep om toestemming vragen, ook bij leesacties."
+          "description": "Vóór elke toolaanroep om toestemming vragen, ook bij leesacties. Codex voert opdrachten van zijn ingebouwde alleen-lezenlijst uit zonder te vragen."
         },
         "ask_writes": {
           "name": "Vragen vóór wijzigingen",

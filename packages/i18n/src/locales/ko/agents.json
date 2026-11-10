@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "매번 확인",
-          "description": "읽기를 포함한 모든 도구 호출 전에 확인합니다."
+          "description": "읽기를 포함한 모든 도구 호출 전에 확인합니다. Codex는 기본 제공 읽기 전용 목록의 명령을 확인 없이 실행합니다."
         },
         "ask_writes": {
           "name": "변경 전 확인",

@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "Selalu tanya",
-          "description": "Tanyakan sebelum setiap pemanggilan alat, termasuk operasi baca."
+          "description": "Tanyakan sebelum setiap pemanggilan alat, termasuk operasi baca. Codex menjalankan perintah dalam daftar bawaan baca-saja tanpa bertanya."
         },
         "ask_writes": {
           "name": "Tanya sebelum perubahan",

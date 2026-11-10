@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "Perguntar sempre",
-          "description": "Perguntar antes de cada chamada de ferramenta, incluindo leituras."
+          "description": "Perguntar antes de cada chamada de ferramenta, incluindo leituras. O Codex executa sem perguntar os comandos da sua lista integrada somente leitura."
         },
         "ask_writes": {
           "name": "Perguntar antes de alterações",

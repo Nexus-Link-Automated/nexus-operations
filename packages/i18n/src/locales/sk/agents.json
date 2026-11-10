@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "Pýtať sa zakaždým",
-          "description": "Pýtať sa pred každým volaním nástroja vrátane čítania."
+          "description": "Pýtať sa pred každým volaním nástroja vrátane čítania. Codex spúšťa príkazy zo svojho vstavaného zoznamu iba na čítanie bez pýtania."
         },
         "ask_writes": {
           "name": "Pýtať sa pred zmenami",

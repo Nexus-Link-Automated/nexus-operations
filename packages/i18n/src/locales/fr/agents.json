@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "Toujours demander",
-          "description": "Demander avant chaque appel d’outil, y compris les lectures."
+          "description": "Demander avant chaque appel d’outil, y compris les lectures. Codex exécute sans demander les commandes de sa liste intégrée en lecture seule."
         },
         "ask_writes": {
           "name": "Demander avant les modifications",

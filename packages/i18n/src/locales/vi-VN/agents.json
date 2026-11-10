@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "Luôn hỏi",
-          "description": "Hỏi trước mỗi lần gọi công cụ, kể cả thao tác đọc."
+          "description": "Hỏi trước mỗi lần gọi công cụ, kể cả thao tác đọc. Codex chạy các lệnh trong danh sách chỉ đọc tích hợp mà không hỏi."
         },
         "ask_writes": {
           "name": "Hỏi trước khi thay đổi",
