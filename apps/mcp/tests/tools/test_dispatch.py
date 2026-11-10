@@ -542,34 +542,22 @@ def test_no_description_warns_about_a_failure_the_caller_cannot_avoid(resource_m
 # --- complete/archive use the project's day, and Plane's own "has it ended" test ---
 
 
-def _project_in(zone):
+@pytest.mark.parametrize("action", ["complete", "archive"])
+def test_ending_a_cycle_sends_a_past_utc_instant(action, registered, spy):
+    """A bare date is read in the token owner's timezone, which can put it in the
+    future, so the cycle stays running and archive is refused."""
+    import datetime
     from types import SimpleNamespace
 
-    return SimpleNamespace(id="p", timezone=zone)
-
-
-@pytest.mark.parametrize("zone", ["Pacific/Kiritimati", "Pacific/Pago_Pago", "UTC", "Asia/Kolkata"])
-def test_complete_sets_the_project_days_date(zone, registered, spy):
-    """Plane reads the bare date as midnight in the project's timezone. The
-    server's date could be tomorrow there, so the cycle stayed running."""
-    import datetime
-    from zoneinfo import ZoneInfo
-
-    spy.returns["projects.retrieve"] = _project_in(zone)
-    registered["cycle"].fn(action="complete", project_id="p", cycle_id="c")
+    spy.returns["cycles.retrieve"] = SimpleNamespace(id="c", end_date=None)
+    before = datetime.datetime.now(datetime.timezone.utc)
+    registered["cycle"].fn(action=action, project_id="p", cycle_id="c")
 
     sent = next(c for c in spy.recorder.calls if c.method == "cycles.update").kwargs["data"].end_date
-    assert sent == datetime.datetime.now(ZoneInfo(zone)).date().isoformat()
-
-
-def test_complete_falls_back_to_utc_for_an_unknown_zone(registered, spy):
-    import datetime
-
-    spy.returns["projects.retrieve"] = _project_in("Not/AZone")
-    registered["cycle"].fn(action="complete", project_id="p", cycle_id="c")
-
-    sent = next(c for c in spy.recorder.calls if c.method == "cycles.update").kwargs["data"].end_date
-    assert sent == datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+    instant = datetime.datetime.fromisoformat(sent)
+    assert instant.utcoffset() == datetime.timedelta(0)
+    assert instant < before, "must already have passed when Plane compares it"
+    assert before - instant < datetime.timedelta(minutes=1)
 
 
 def test_still_running_compares_instants_like_plane():

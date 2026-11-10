@@ -383,3 +383,45 @@ class TestCycleDetailAPIEndpoint:
         assert cycle_data["started_issues"] == 0
         assert cycle_data["unstarted_issues"] == 0
         assert cycle_data["backlog_issues"] == 0
+
+
+@pytest.mark.contract
+class TestEndingACycleAcrossTimezones:
+    """How the MCP completes a cycle: a PATCH of end_date alone, then archive."""
+
+    def detail_url(self, workspace, project, cycle):
+        return f"/api/v1/workspaces/{workspace.slug}/projects/{project.id}/cycles/{cycle.id}/"
+
+    @pytest.fixture
+    def far_behind_utc(self, create_user):
+        create_user.user_timezone = "Pacific/Pago_Pago"
+        create_user.save()
+
+    @pytest.mark.django_db
+    def test_a_bare_end_date_is_read_in_the_token_owners_timezone(
+        self, api_key_client, workspace, project, create_cycle, far_behind_utc
+    ):
+        project.timezone = "Pacific/Kiritimati"
+        project.save()
+        response = api_key_client.patch(
+            self.detail_url(workspace, project, create_cycle), {"end_date": "2030-06-15"}, format="json"
+        )
+        assert response.status_code == status.HTTP_200_OK
+        create_cycle.refresh_from_db()
+        assert create_cycle.end_date.isoformat() == "2030-06-15T11:00:00+00:00"
+
+    @pytest.mark.django_db
+    def test_an_explicit_past_instant_ends_the_cycle_at_once(
+        self, api_key_client, workspace, project, create_cycle, far_behind_utc
+    ):
+        create_cycle.start_date = timezone.now() - timedelta(days=1)
+        create_cycle.save()
+        ended = timezone.now() - timedelta(seconds=5)
+        url = self.detail_url(workspace, project, create_cycle)
+
+        response = api_key_client.patch(url, {"end_date": ended.isoformat()}, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        create_cycle.refresh_from_db()
+        assert create_cycle.end_date == ended
+        assert api_key_client.post(f"{url}archive/").status_code == status.HTTP_204_NO_CONTENT
