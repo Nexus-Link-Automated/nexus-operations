@@ -90,35 +90,20 @@ export const IssueDetailQuickActions = observer(function IssueDetailQuickActions
     }
   };
 
+  // The delete and archive modals show the success or error toast, so a failure must reach them.
   const handleDeleteIssue = async () => {
-    try {
-      const deleteIssue = issue?.archived_at ? removeArchivedIssue : removeIssue;
-      const redirectionPath = issue?.archived_at
-        ? `/${workspaceSlug}/projects/${projectId}/archives/issues`
-        : `/${workspaceSlug}/projects/${projectId}/issues`;
+    const deleteIssue = issue?.archived_at ? removeArchivedIssue : removeIssue;
+    const redirectionPath = issue?.archived_at
+      ? `/${workspaceSlug}/projects/${projectId}/archives/issues`
+      : `/${workspaceSlug}/projects/${projectId}/issues`;
 
-      await deleteIssue(workspaceSlug, projectId, issueId);
-      router.push(redirectionPath);
-    } catch (_error) {
-      setToast({
-        title: t("toast.error"),
-        type: "error",
-        message: t("entity.delete.failed", { entity: t("issue.label", { count: 1 }) }),
-      });
-    }
+    await deleteIssue(workspaceSlug, projectId, issueId);
+    router.push(redirectionPath);
   };
 
   const handleArchiveIssue = async () => {
-    try {
-      await archiveIssue(workspaceSlug, projectId, issueId);
-      router.push(`/${workspaceSlug}/projects/${projectId}/issues`);
-    } catch (_error) {
-      setToast({
-        title: t("toast.error"),
-        type: "error",
-        message: t("issue.archive.failed.message"),
-      });
-    }
+    await archiveIssue(workspaceSlug, projectId, issueId);
+    router.push(`/${workspaceSlug}/projects/${projectId}/issues`);
   };
 
   const handleRestore = async () => {

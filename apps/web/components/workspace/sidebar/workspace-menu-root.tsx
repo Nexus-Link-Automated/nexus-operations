@@ -48,7 +48,10 @@ export const WorkspaceMenuRoot = observer(function WorkspaceMenuRoot(props: Work
   // local state
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
 
-  const handleWorkspaceNavigation = (workspace: IWorkspace) => updateUserProfile({ last_workspace_id: workspace?.id });
+  const handleWorkspaceNavigation = (workspace: IWorkspace) => {
+    // remembering the last workspace visited is best-effort and must not block switching
+    updateUserProfile({ last_workspace_id: workspace?.id }).catch(() => undefined);
+  };
 
   const handleSignOut = async () => {
     await signOut().catch(() =>

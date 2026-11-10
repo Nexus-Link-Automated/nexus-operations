@@ -108,9 +108,10 @@ export const WorkspaceCreateStep = observer(function WorkspaceCreateStep({
 
   const completeStep = async (workspaceId: string) => {
     if (!user) return;
+    // the workspace already exists; remembering it as the last one visited is best-effort
     await updateUserProfile({
       last_workspace_id: workspaceId,
-    });
+    }).catch(() => undefined);
     await fetchCurrentUserSettings();
   };
 

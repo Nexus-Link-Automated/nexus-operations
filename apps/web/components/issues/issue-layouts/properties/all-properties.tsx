@@ -62,6 +62,7 @@ import { useProjectState } from "@/hooks/store/use-project-state";
 import { useUserProfile } from "@/hooks/store/user";
 import { useAppRouter } from "@/hooks/use-app-router";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
+import { useIssueUpdateErrorToast } from "@/hooks/use-issue-update-error-toast";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // local components
 import { buildLabelStepDownVariants, LabelsStepDownChip } from "./label-step-down";
@@ -94,7 +95,7 @@ export interface IIssueProperties {
 export const IssueProperties = observer(function IssueProperties(props: IIssueProperties) {
   const {
     issue,
-    updateIssue,
+    updateIssue: updateIssueProp,
     displayProperties,
     isReadOnly,
     className,
@@ -123,6 +124,11 @@ export const IssueProperties = observer(function IssueProperties(props: IIssuePr
   const { data: userProfile } = useUserProfile();
   const { isMobile } = usePlatformOS();
   const projectDetails = getProjectById(issue.project_id);
+  const withErrorToast = useIssueUpdateErrorToast(isEpic);
+  const updateIssue = updateIssueProp
+    ? (projectId: string | null, issueId: string, data: Partial<TIssue>) =>
+        withErrorToast(() => updateIssueProp(projectId, issueId, data))
+    : undefined;
 
   // router
   const router = useAppRouter();
@@ -180,19 +186,20 @@ export const IssueProperties = observer(function IssueProperties(props: IIssuePr
       for (const moduleId of updatedModuleIds)
         if (issue.module_ids.includes(moduleId)) modulesToRemove.push(moduleId);
         else modulesToAdd.push(moduleId);
-      if (modulesToAdd.length > 0) issueOperations.addModulesToIssue(modulesToAdd);
-      if (modulesToRemove.length > 0) issueOperations.removeModulesFromIssue(modulesToRemove);
+      if (modulesToAdd.length > 0) void withErrorToast(() => issueOperations.addModulesToIssue(modulesToAdd));
+      if (modulesToRemove.length > 0)
+        void withErrorToast(() => issueOperations.removeModulesFromIssue(modulesToRemove));
     },
-    [issueOperations, issue]
+    [issueOperations, issue, withErrorToast]
   );
 
   const handleCycle = useCallback(
     (cycleId: string | null) => {
       if (!issue || issue.cycle_id === cycleId) return;
-      if (cycleId) issueOperations.addIssueToCycle?.(cycleId);
-      else issueOperations.removeIssueFromCycle?.();
+      if (cycleId) void withErrorToast(() => issueOperations.addIssueToCycle(cycleId));
+      else void withErrorToast(() => issueOperations.removeIssueFromCycle());
     },
-    [issue, issueOperations]
+    [issue, issueOperations, withErrorToast]
   );
 
   const handleStartDate = async (date: Date | null) => {

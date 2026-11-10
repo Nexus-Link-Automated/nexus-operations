@@ -180,9 +180,8 @@ export const BaseKanBanRoot = observer(function BaseKanBanRoot(props: IBaseKanBa
 
     try {
       await removeIssue(draggedIssue.project_id, draggedIssueId);
-      setDeleteIssueModal(false);
-      setDraggedIssueId(undefined);
-    } catch (_error) {
+    } finally {
+      // the delete modal shows the success or error toast
       setDeleteIssueModal(false);
       setDraggedIssueId(undefined);
     }

@@ -16,6 +16,7 @@ import { ControllerInput } from "@/components/common/controller-input";
 import { setToast } from "@plane/blocks/toast";
 // hooks
 import { useInstance } from "@/hooks/store";
+import { showSaveErrorToast } from "@/helpers/save-error";
 // local components
 import { SendTestEmailModal } from "./test-email-modal";
 
@@ -125,6 +126,7 @@ export function InstanceEmailForm(props: IInstanceEmailForm) {
       });
     } catch (err) {
       console.error(err);
+      showSaveErrorToast(err);
     }
   };
 

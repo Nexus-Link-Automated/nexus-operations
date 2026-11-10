@@ -133,26 +133,29 @@ export class ProfileStore implements IUserProfileStore {
    * @returns {Promise<TUserProfile | undefined>}
    */
   updateUserProfile = async (data: Partial<TUserProfile>): Promise<TUserProfile | undefined> => {
-    const currentUserProfileData = this.data;
+    // copy only the fields being changed, so a rollback leaves other updates made meanwhile alone
+    const previousValues = cloneDeep(
+      Object.fromEntries(Object.keys(data).map((key) => [key, this.data[key as keyof TUserProfile]]))
+    ) as Partial<TUserProfile>;
     try {
-      if (currentUserProfileData) {
-        this.mutateUserProfile(data);
-      }
+      this.mutateUserProfile(data);
       if (data.language) {
         void setLanguage(data.language as TLanguage);
       }
       const userProfile = await this.userService.updateCurrentUserProfile(data);
       return userProfile;
-    } catch {
-      if (currentUserProfileData) {
-        this.mutateUserProfile(currentUserProfileData);
-      }
+    } catch (error) {
       runInAction(() => {
+        this.mutateUserProfile(previousValues);
         this.error = {
           status: "user-profile-update-error",
           message: "Failed to update user profile",
         };
       });
+      if (data.language && previousValues.language) {
+        void setLanguage(previousValues.language as TLanguage);
+      }
+      throw error;
     }
   };
 

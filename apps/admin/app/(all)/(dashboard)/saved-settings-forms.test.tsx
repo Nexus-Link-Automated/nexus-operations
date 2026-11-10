@@ -5,19 +5,25 @@
  */
 
 import type { ReactElement } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { INSTANCE_CONFIGURATION_MASK } from "@plane/constants";
-import type { IFormattedInstanceConfiguration } from "@plane/types";
+import type { IFormattedInstanceConfiguration, IInstance, IInstanceAdmin } from "@plane/types";
+import { useOAuthProviderConfigForm } from "@/hooks/use-oauth-provider-config-form";
 import { InstanceAIForm } from "./ai/form";
 import { InstanceEmailForm } from "./email/email-config-form";
+import { GeneralConfigurationForm } from "./general/form";
 import { InstanceImageConfigForm } from "./image/form";
 
-const updateInstanceConfigurations = vi.hoisted(() => vi.fn());
+const { updateInstanceConfigurations, updateInstanceInfo, setToast } = vi.hoisted(() => ({
+  updateInstanceConfigurations: vi.fn(),
+  updateInstanceInfo: vi.fn(),
+  setToast: vi.fn(),
+}));
 
-vi.mock("@/hooks/store", () => ({ useInstance: () => ({ updateInstanceConfigurations }) }));
-vi.mock("@plane/blocks/toast", () => ({ setToast: vi.fn() }));
+vi.mock("@/hooks/store", () => ({ useInstance: () => ({ updateInstanceConfigurations, updateInstanceInfo }) }));
+vi.mock("@plane/blocks/toast", () => ({ setToast }));
 vi.mock("./email/test-email-modal", () => ({ SendTestEmailModal: () => null }));
 
 const config = {
@@ -50,8 +56,16 @@ const CASES: { name: string; key: string; label: RegExp; form: () => ReactElemen
   },
 ];
 
+// what the API answers when the admin's session has ended
+const SIGNED_OUT = { detail: "Authentication credentials were not provided." };
+
+const lastToast = () => setToast.mock.calls.at(-1)?.[0] as { type: string; title: string } | undefined;
+
 beforeEach(() => {
   updateInstanceConfigurations.mockReset();
+  updateInstanceInfo.mockReset();
+  setToast.mockReset();
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
 
 describe.each(CASES)("$name settings form", ({ key, label, form }) => {
@@ -67,5 +81,52 @@ describe.each(CASES)("$name settings form", ({ key, label, form }) => {
     expect(updateInstanceConfigurations.mock.calls[0][0][key]).toBe("typed-value");
     await waitFor(() => expect((screen.getByLabelText(label) as HTMLInputElement).value).toBe(""));
     expect((screen.getByLabelText(label) as HTMLInputElement).placeholder).toBe("Keep saved value");
+  });
+
+  it.each([
+    ["the save fails", { error: "Something went wrong please try again later" }, "Error"],
+    ["the session has expired", SIGNED_OUT, "Session expired"],
+  ])("shows an error toast when %s", async (_case, failure, title) => {
+    updateInstanceConfigurations.mockRejectedValue(failure);
+    render(form());
+
+    await userEvent.type(screen.getByLabelText(label), "typed-value");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(setToast).toHaveBeenCalledTimes(1));
+    expect(lastToast()).toMatchObject({ type: "error", title });
+    // the typed value stays, so the admin can save again
+    expect((screen.getByLabelText(label) as HTMLInputElement).value).toBe("typed-value");
+  });
+});
+
+describe("general settings form", () => {
+  const instance = { instance_name: "Acme", is_telemetry_enabled: true, instance_id: "id-1" } as IInstance;
+  const admins = [{ user_detail: { email: "admin@example.com" } }] as unknown as IInstanceAdmin[];
+
+  it.each([
+    ["the save fails", { instance_name: ["This field may not be blank."] }, "Error"],
+    ["the session has expired", SIGNED_OUT, "Session expired"],
+  ])("shows an error toast when %s", async (_case, failure, title) => {
+    updateInstanceInfo.mockRejectedValue(failure);
+    render(<GeneralConfigurationForm instance={instance} instanceAdmins={admins} />);
+
+    await userEvent.type(screen.getByLabelText(/^Name of instance/), " Inc");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(setToast).toHaveBeenCalledTimes(1));
+    expect(lastToast()).toMatchObject({ type: "error", title });
+  });
+});
+
+describe("OAuth provider settings forms", () => {
+  it("shows an error toast when the save fails", async () => {
+    updateInstanceConfigurations.mockRejectedValue({ error: "Something went wrong please try again later" });
+    const { result } = renderHook(() => useOAuthProviderConfigForm("GitHub", { GITHUB_CLIENT_ID: "client-id" }));
+
+    await act(() => result.current.onSave());
+
+    expect(setToast).toHaveBeenCalledTimes(1);
+    expect(lastToast()).toMatchObject({ type: "error", title: "Error" });
   });
 });
