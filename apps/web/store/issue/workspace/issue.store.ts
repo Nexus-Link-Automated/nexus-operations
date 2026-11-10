@@ -152,7 +152,9 @@ export class WorkspaceIssues extends BaseIssuesStore implements IWorkspaceIssues
         subGroupId
       );
       // call the fetch issues API with the params for next page in issues
-      const response = await this.workspaceService.getViewIssues(workspaceSlug, params);
+      const response = await this.workspaceService.getViewIssues(workspaceSlug, params, {
+        signal: this.controller.signal,
+      });
 
       // after the next page of issues are fetched, call the base method to process the response
       this.onfetchNexIssues(response, groupId, subGroupId);
