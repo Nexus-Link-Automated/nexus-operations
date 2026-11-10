@@ -12,6 +12,7 @@ import type { TChatSocketClosedReason, TChatSocketHandlers, TChatSocketStatus } 
 import type {
   TChatChannel,
   TChatChannelCreate,
+  TChatChannelUpdate,
   TChatEvent,
   TChatMe,
   TChatMessage,
@@ -28,6 +29,7 @@ export type TChatStoreService = Pick<
   | "listChannels"
   | "getChannel"
   | "createChannel"
+  | "updateChannel"
   | "openDm"
   | "joinChannel"
   | "leaveChannel"
@@ -172,6 +174,7 @@ export interface IChatStore {
   linkWorkItem: (channelId: string, messageId: string, issueId: string) => Promise<void>;
   markRead: (channelId: string) => Promise<void>;
   createChannel: (data: TChatChannelCreate) => Promise<TChatChannel>;
+  updateChannel: (channelId: string, data: TChatChannelUpdate) => Promise<TChatChannel>;
   openDm: (memberIds: string[]) => Promise<TChatChannel>;
   joinChannel: (channelId: string) => Promise<void>;
   leaveChannel: (channelId: string) => Promise<void>;
@@ -269,6 +272,7 @@ export class ChatStore implements IChatStore {
       linkWorkItem: action.bound,
       markRead: action.bound,
       createChannel: action.bound,
+      updateChannel: action.bound,
       openDm: action.bound,
       joinChannel: action.bound,
       leaveChannel: action.bound,
@@ -586,6 +590,15 @@ export class ChatStore implements IChatStore {
     const slug = this.requireSlug();
     const commit = this.guard();
     const channel = await this.service.createChannel(slug, data);
+    commit(() => this.upsertChannel(channel));
+    return channel;
+  }
+
+  /** Rename a channel, edit its description, or link or unlink its project. */
+  async updateChannel(channelId: string, data: TChatChannelUpdate): Promise<TChatChannel> {
+    const slug = this.requireSlug();
+    const commit = this.guard();
+    const channel = await this.service.updateChannel(slug, channelId, data);
     commit(() => this.upsertChannel(channel));
     return channel;
   }

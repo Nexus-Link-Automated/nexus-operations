@@ -55,6 +55,19 @@
       "private_help": "Solo le persone aggiunte possono vederlo, insieme ai suoi messaggi.",
       "submit": "Crea canale"
     },
+    "project": {
+      "label": "Progetto",
+      "none": "Nessun progetto",
+      "hidden": "Un progetto di cui non fai parte",
+      "unlink": "Scollega",
+      "help": "Le modifiche di stato degli elementi di lavoro di questo progetto vengono pubblicate nel canale.",
+      "linked": "Collegato a {name}"
+    },
+    "channel_settings": {
+      "title": "Impostazioni del canale",
+      "description": "Impostazioni di #{name}.",
+      "save": "Salva"
+    },
     "browse": {
       "title": "Sfoglia i canali",
       "description": "Canali pubblici a cui non ti sei unito.",
@@ -105,7 +118,9 @@
       "sending": "Invio…",
       "failed": "Non inviato.",
       "retry": "Riprova",
-      "discard": "Scarta"
+      "discard": "Scarta",
+      "automatic_sender": "Aggiornamenti degli elementi di lavoro",
+      "automatic": "Automatico"
     },
     "day": {
       "today": "Oggi",
@@ -134,6 +149,7 @@
       "remove_failed": "Impossibile eliminare il messaggio",
       "message_not_found": "Questo messaggio non è più disponibile.",
       "link_work_item_failed": "L'elemento di lavoro è stato creato, ma non è stato possibile collegarlo a questo messaggio.",
+      "update_channel_failed": "Impossibile salvare le impostazioni del canale",
       "load_members_failed": "Impossibile caricare i membri",
       "add_members_failed": "Impossibile aggiungere le persone",
       "remove_member_failed": "Impossibile rimuovere dal canale",

@@ -4,10 +4,11 @@
 
 """Messages, their thread replies, and the work items they reference.
 
-A message is sent by a user (`sender`) or by an agent (`sender_agent`, the agent's
-slug), never both. A user deleting a message calls `remove()`: the body and
-attachments are cleared and `removed_at` is set, but the row stays so its thread
-replies and read cursors keep working. `deleted_at` (soft delete) is reserved for removing data for real.
+A message is sent by a user (`sender`), by an agent (`sender_agent`, the agent's
+slug), or by Nexus itself (`system_event`, what it announces), and only ever one of
+them. A user deleting a message calls `remove()`: the body and attachments are
+cleared and `removed_at` is set, but the row stays so its thread replies and read
+cursors keep working. `deleted_at` (soft delete) is reserved for removing data for real.
 """
 
 from django.core.exceptions import ValidationError
@@ -18,9 +19,15 @@ from django.utils.html import strip_tags
 
 from plane.db.models import BaseModel, FileAsset
 
-__all__ = ["Message", "MessageReference"]
+__all__ = ["Message", "MessageReference", "MessageSystemEvent"]
 
 _ALIVE = Q(deleted_at__isnull=True)
+
+
+class MessageSystemEvent(models.TextChoices):
+    """What an automatic message announces. Nobody typed it, so nobody can edit it."""
+
+    WORK_ITEM_STATE = "work_item_state", "Work item state changes"
 
 
 class Message(BaseModel):
@@ -29,6 +36,7 @@ class Message(BaseModel):
     sender = models.ForeignKey("db.User", on_delete=models.CASCADE, null=True, blank=True, related_name="chat_messages")
     # Slug of an instance-level agent (`AgentDefinition.slug` on the agent branches).
     sender_agent = models.SlugField(max_length=100, null=True, blank=True)
+    system_event = models.CharField(max_length=32, choices=MessageSystemEvent.choices, null=True, blank=True)
     body_html = models.TextField(blank=True, default="<p></p>")
     # Stored as the client sent it, unlike the sanitized body_html: render from body_html, never from this.
     body_json = models.JSONField(blank=True, default=dict)
@@ -43,8 +51,19 @@ class Message(BaseModel):
         ordering = ("created_at",)
         constraints = [
             models.CheckConstraint(
-                condition=(Q(sender__isnull=False) & Q(sender_agent__isnull=True))
-                | (Q(sender__isnull=True) & Q(sender_agent__isnull=False) & ~Q(sender_agent="")),
+                condition=(Q(sender__isnull=False) & Q(sender_agent__isnull=True) & Q(system_event__isnull=True))
+                | (
+                    Q(sender__isnull=True)
+                    & Q(sender_agent__isnull=False)
+                    & ~Q(sender_agent="")
+                    & Q(system_event__isnull=True)
+                )
+                | (
+                    Q(sender__isnull=True)
+                    & Q(sender_agent__isnull=True)
+                    & Q(system_event__isnull=False)
+                    & ~Q(system_event="")
+                ),
                 name="chat_message_one_sender",
             ),
             models.CheckConstraint(condition=~Q(parent=F("id")), name="chat_message_not_own_parent"),

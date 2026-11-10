@@ -9,7 +9,7 @@ import { observer } from "mobx-react";
 // plane imports
 import { Button } from "@makeplane/propel/components/button";
 import { IconButton } from "@makeplane/propel/components/icon-button";
-import { DeleteOutline, EditOutline } from "@makeplane/propel/icons";
+import { DeleteOutline, EditOutline, WorkItemsOutline } from "@makeplane/propel/icons";
 import { ConfirmDialog } from "@plane/blocks/dialog";
 import { setToast } from "@plane/blocks/toast";
 import type { EditorRefApi } from "@plane/editor";
@@ -107,7 +107,11 @@ export const ChatMessageItem = observer(function ChatMessageItem({
   const canChange = !!channel?.is_member && !channel.archived_at;
   const mine = !!message.sender && message.sender === userId;
   const removed = !!message.removed_at;
-  const name = (message.sender && getUserDetails(message.sender)?.display_name) || t("messages.unknown_member");
+  // Posted by Nexus, not typed by anyone: no sender to show, and nothing to edit or turn into a work item.
+  const automatic = !!message.system_event;
+  const name = automatic
+    ? t("messages.message.automatic_sender")
+    : (message.sender && getUserDetails(message.sender)?.display_name) || t("messages.unknown_member");
   const time = renderFormattedTime(message.created_at, "12-hour");
 
   const save = async () => {
@@ -161,6 +165,10 @@ export const ChatMessageItem = observer(function ChatMessageItem({
           >
             {time}
           </time>
+        ) : automatic ? (
+          <span className="grid size-8 place-items-center rounded-full bg-layer-2 text-secondary">
+            <WorkItemsOutline className="size-4" aria-hidden />
+          </span>
         ) : (
           <MemberAvatar userId={message.sender} size="md" />
         )}
@@ -169,6 +177,11 @@ export const ChatMessageItem = observer(function ChatMessageItem({
         {!continued && (
           <div className="flex items-baseline gap-2">
             <span className="text-body-sm-semibold text-primary">{name}</span>
+            {automatic && (
+              <span className="rounded-sm bg-layer-2 px-1 text-caption-sm-medium text-tertiary">
+                {t("messages.message.automatic")}
+              </span>
+            )}
             <time dateTime={message.created_at} className="text-caption-sm-regular text-tertiary">
               {time}
             </time>
@@ -239,7 +252,7 @@ export const ChatMessageItem = observer(function ChatMessageItem({
           </p>
         )}
       </div>
-      {canChange && !removed && !editing && (
+      {canChange && !removed && !editing && !automatic && (
         <MessageActions
           message={message}
           workspaceSlug={workspaceSlug}

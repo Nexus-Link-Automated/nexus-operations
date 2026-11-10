@@ -80,7 +80,10 @@ class ChannelDetailEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
         return Response(self.channel_payload(self.get_channel(channel_id).id))
 
     def patch(self, request, slug, channel_id):
-        """Rename a channel or edit its description: a channel admin or a workspace admin."""
+        """Rename a channel, edit its description, or link or unlink a project: a channel admin or a workspace admin.
+
+        Linking also needs membership of the project (`can_link_project`); keeping or clearing a link doesn't.
+        """
         channel = self.get_channel(channel_id)
         require_named_channel(channel, "A direct message has no name or description.")
         require_channel_admin(channel, self.role)
@@ -91,7 +94,10 @@ class ChannelDetailEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
                 locked = _locked(channel)
                 require_not_archived(locked)
                 serializer = ChannelUpdateSerializer(
-                    locked, data=request.data, partial=True, context={"workspace_id": channel.workspace_id}
+                    locked,
+                    data=request.data,
+                    partial=True,
+                    context={"workspace_id": channel.workspace_id, "user": request.user},
                 )
                 serializer.is_valid(raise_exception=True)
                 if any(getattr(locked, field) != value for field, value in serializer.validated_data.items()):

@@ -26,6 +26,7 @@ import { useTranslation } from "@plane/i18n";
 import { useAppRouter } from "@/hooks/use-app-router";
 import { useChat } from "@/hooks/store/use-chat";
 // local imports
+import { ChannelProjectField } from "./channel-project";
 import { chatErrorMessage } from "./helpers";
 
 /** The API's limit on channel names (`Channel.name`). */
@@ -45,6 +46,7 @@ export function CreateChannelDialog({ workspaceSlug, onClose }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
+  const [project, setProject] = useState<string | null>(null);
   const [error, setError] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -61,6 +63,7 @@ export function CreateChannelDialog({ workspaceSlug, onClose }: Props) {
         name: trimmed,
         description: description.trim(),
         kind: isPrivate ? "private" : "public",
+        ...(project ? { project } : {}),
       });
       onClose();
       router.push(`/${workspaceSlug}/messages/${channel.id}`);
@@ -131,6 +134,12 @@ export function CreateChannelDialog({ workspaceSlug, onClose }: Props) {
                 description={t("messages.create_channel.private_help")}
                 checked={isPrivate}
                 onCheckedChange={setIsPrivate}
+              />
+              <ChannelProjectField
+                workspaceSlug={workspaceSlug}
+                value={project}
+                onChange={setProject}
+                disabled={isSubmitting}
               />
             </form>
           </DialogBody>

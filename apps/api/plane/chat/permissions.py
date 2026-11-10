@@ -26,6 +26,10 @@ can remove it.
 
 Opening a DM or group DM needs a workspace member or admin, or a guest a workspace
 admin has granted it to (`ChatGuestPermission`).
+
+Linking a public or private channel to a project (`can_link_project`) needs a channel
+admin or a workspace admin who is also a member or admin of that project. Unlinking
+needs only the channel admin: it stops the posts and shows nobody anything.
 """
 
 from django.db.models import Exists, OuterRef, Q
@@ -33,7 +37,7 @@ from django.db.models import Exists, OuterRef, Q
 from plane.app.permissions.base import ROLE
 from plane.chat.exceptions import Conflict, Forbidden, NotFound
 from plane.chat.models import Channel, ChannelKind, ChannelMember, ChannelMemberRole, ChatGuestPermission
-from plane.db.models import WorkspaceMember
+from plane.db.models import ProjectMember, WorkspaceMember
 
 
 def workspace_role(user, slug):
@@ -149,6 +153,22 @@ def can_open_dms(user, workspace_id, role):
     return (
         role is not None
         and ChatGuestPermission.objects.filter(workspace_id=workspace_id, user=user, can_open_dms=True).exists()
+    )
+
+
+def can_link_project(user, project, workspace_id):
+    """Whether `user` may link a channel to `project`, whose state changes everyone reading the channel will see.
+
+    Only someone who sees all of the project's work items can make that call: an active member or admin of
+    the project. Project guests can't, as Plane shows them only part of the project. Archived projects can't
+    be linked, since nothing is posted for them.
+    """
+    return (
+        project.workspace_id == workspace_id
+        and project.archived_at is None
+        and ProjectMember.objects.filter(
+            project=project, member=user, is_active=True, role__gte=ROLE.MEMBER.value
+        ).exists()
     )
 
 

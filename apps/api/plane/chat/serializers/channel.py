@@ -6,7 +6,8 @@ from rest_framework import serializers
 
 from plane.app.serializers.base import BaseSerializer
 from plane.chat.models import GROUP_DM_MAX_MEMBERS, Channel, ChannelKind
-from plane.db.models import Project, ProjectMember
+from plane.chat.permissions import can_link_project
+from plane.db.models import Project
 
 # The description is sent with every channel in every list, so it has to stay small.
 MAX_DESCRIPTION_LENGTH = 2_000
@@ -53,14 +54,23 @@ class ChannelSerializer(BaseSerializer):
 
 
 class ChannelUpdateSerializer(BaseSerializer):
-    """Renaming a public or private channel or editing its description.
+    """Renaming a public or private channel, editing its description, or linking it to a project.
 
-    Needs `workspace_id` in the context, to keep names unique within the workspace.
+    Needs `workspace_id` and `user` in the context: names are unique within the workspace, and a channel can
+    only be linked to a project the caller is a member of (`can_link_project`).
     """
+
+    project = serializers.PrimaryKeyRelatedField(
+        queryset=Project.objects.all(),
+        required=False,
+        allow_null=True,
+        # The same message as `validate_project`, so an unknown ID and another workspace's look alike.
+        error_messages={"does_not_exist": "Project not found."},
+    )
 
     class Meta:
         model = Channel
-        fields = ["name", "description"]
+        fields = ["name", "description", "project"]
         extra_kwargs = {"description": {"max_length": MAX_DESCRIPTION_LENGTH}}
 
     def validate_name(self, value):
@@ -76,42 +86,26 @@ class ChannelUpdateSerializer(BaseSerializer):
             raise serializers.ValidationError("A channel with this name already exists.")
         return name
 
+    def validate_project(self, project):
+        # Keeping the link it has is fine: an admin who isn't in the project can still rename the channel.
+        if project is None or (self.instance is not None and self.instance.project_id == project.pk):
+            return project
+        if not can_link_project(self.context["user"], project, self.context["workspace_id"]):
+            # The same message whether the project is elsewhere or just not yours, so it doesn't leak.
+            raise serializers.ValidationError("Project not found.")
+        return project
+
 
 class ChannelCreateSerializer(ChannelUpdateSerializer):
-    """Creating a public or private channel. DMs are opened through `dms/` instead.
-
-    Also needs `user` in the context: a channel can only be linked to a project the creator is a member of.
-    """
+    """Creating a public or private channel, optionally linked to a project. DMs are opened through `dms/` instead."""
 
     kind = serializers.ChoiceField(
         choices=[ChannelKind.PUBLIC, ChannelKind.PRIVATE], required=False, default=ChannelKind.PUBLIC
-    )
-    project = serializers.PrimaryKeyRelatedField(
-        queryset=Project.objects.all(),
-        required=False,
-        allow_null=True,
-        default=None,
-        # The same message as `validate_project`, so an unknown ID and another workspace's look alike.
-        error_messages={"does_not_exist": "Project not found."},
     )
 
     class Meta(ChannelUpdateSerializer.Meta):
         fields = ["name", "description", "kind", "project"]
         extra_kwargs = {**ChannelUpdateSerializer.Meta.extra_kwargs, "name": {"required": True}}
-
-    def validate_project(self, project):
-        if project is None:
-            return None
-        is_member = ProjectMember.objects.filter(
-            project=project,
-            workspace_id=self.context["workspace_id"],
-            member=self.context["user"],
-            is_active=True,
-        ).exists()
-        if not is_member:
-            # The same message whether the project is elsewhere or just not yours, so it doesn't leak.
-            raise serializers.ValidationError("Project not found.")
-        return project
 
 
 class DirectMessageOpenSerializer(serializers.Serializer):

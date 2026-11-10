@@ -58,6 +58,7 @@ class MessageSerializer(BaseSerializer):
             "channel",
             "sender",
             "sender_agent",
+            "system_event",
             "body_html",
             "body_json",
             "body_stripped",

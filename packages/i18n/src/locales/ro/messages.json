@@ -55,6 +55,19 @@
       "private_help": "Doar persoanele adăugate pot vedea canalul și mesajele lui.",
       "submit": "Creați canalul"
     },
+    "project": {
+      "label": "Proiect",
+      "none": "Niciun proiect",
+      "hidden": "Un proiect din care nu faci parte",
+      "unlink": "Dezleagă",
+      "help": "Modificările de stare ale elementelor de lucru din acest proiect sunt publicate în canal.",
+      "linked": "Legat de {name}"
+    },
+    "channel_settings": {
+      "title": "Setările canalului",
+      "description": "Setări pentru #{name}.",
+      "save": "Salvează"
+    },
     "browse": {
       "title": "Răsfoiți canalele",
       "description": "Canale publice cărora nu v-ați alăturat.",
@@ -105,7 +118,9 @@
       "sending": "Se trimite…",
       "failed": "Netrimis.",
       "retry": "Reîncercați",
-      "discard": "Renunțați"
+      "discard": "Renunțați",
+      "automatic_sender": "Actualizări ale elementelor de lucru",
+      "automatic": "Automat"
     },
     "day": {
       "today": "Astăzi",
@@ -134,6 +149,7 @@
       "remove_failed": "Mesajul nu a putut fi șters",
       "message_not_found": "Acest mesaj nu mai este disponibil.",
       "link_work_item_failed": "Activitatea a fost creată, dar nu a putut fi asociată acestui mesaj.",
+      "update_channel_failed": "Setările canalului nu au putut fi salvate",
       "load_members_failed": "Membrii nu au putut fi încărcați",
       "add_members_failed": "Persoanele nu au putut fi adăugate",
       "remove_member_failed": "Eliminarea din canal nu a reușit",

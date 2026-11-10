@@ -55,6 +55,19 @@
       "private_help": "Alleen toegevoegde mensen kunnen het kanaal en de berichten zien.",
       "submit": "Kanaal maken"
     },
+    "project": {
+      "label": "Project",
+      "none": "Geen project",
+      "hidden": "Een project waarvan je geen lid bent",
+      "unlink": "Ontkoppelen",
+      "help": "Statuswijzigingen van werkitems in dit project worden in het kanaal geplaatst.",
+      "linked": "Gekoppeld aan {name}"
+    },
+    "channel_settings": {
+      "title": "Kanaalinstellingen",
+      "description": "Instellingen voor #{name}.",
+      "save": "Opslaan"
+    },
     "browse": {
       "title": "Kanalen bekijken",
       "description": "Openbare kanalen waaraan je niet deelneemt.",
@@ -105,7 +118,9 @@
       "sending": "Versturen…",
       "failed": "Niet verstuurd.",
       "retry": "Opnieuw proberen",
-      "discard": "Weggooien"
+      "discard": "Weggooien",
+      "automatic_sender": "Updates van werkitems",
+      "automatic": "Automatisch"
     },
     "day": {
       "today": "Vandaag",
@@ -134,6 +149,7 @@
       "remove_failed": "Het bericht kon niet worden verwijderd",
       "message_not_found": "Dit bericht is niet meer beschikbaar.",
       "link_work_item_failed": "Het werkitem is gemaakt, maar kon niet aan dit bericht worden gekoppeld.",
+      "update_channel_failed": "Kan de kanaalinstellingen niet opslaan",
       "load_members_failed": "De leden konden niet worden geladen",
       "add_members_failed": "De personen konden niet worden toegevoegd",
       "remove_member_failed": "Verwijderen uit het kanaal is mislukt",

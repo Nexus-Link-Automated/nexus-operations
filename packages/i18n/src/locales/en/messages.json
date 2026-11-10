@@ -55,6 +55,19 @@
       "private_help": "Only people who are added can see it and its messages.",
       "submit": "Create channel"
     },
+    "project": {
+      "label": "Project",
+      "none": "No project",
+      "hidden": "A project you're not in",
+      "unlink": "Unlink",
+      "help": "State changes of this project's work items are posted in the channel.",
+      "linked": "Linked to {name}"
+    },
+    "channel_settings": {
+      "title": "Channel settings",
+      "description": "Settings for #{name}.",
+      "save": "Save"
+    },
     "browse": {
       "title": "Browse channels",
       "description": "Public channels you haven't joined.",
@@ -105,7 +118,9 @@
       "sending": "Sending…",
       "failed": "Not sent.",
       "retry": "Retry",
-      "discard": "Discard"
+      "discard": "Discard",
+      "automatic_sender": "Work item updates",
+      "automatic": "Automatic"
     },
     "day": {
       "today": "Today",
@@ -134,6 +149,7 @@
       "remove_failed": "Couldn't delete the message",
       "message_not_found": "This message is no longer available.",
       "link_work_item_failed": "The work item was created, but it couldn't be linked to this message.",
+      "update_channel_failed": "Couldn't save the channel settings",
       "load_members_failed": "Couldn't load the members",
       "add_members_failed": "Couldn't add people",
       "remove_member_failed": "Couldn't remove them from the channel",

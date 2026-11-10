@@ -9,7 +9,7 @@ from crum import impersonate
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
-from plane.chat.models import Channel, ChannelKind, Message, MessageReference
+from plane.chat.models import Channel, ChannelKind, Message, MessageReference, MessageSystemEvent
 from plane.tests.factories import WorkspaceFactory
 
 
@@ -42,6 +42,20 @@ class TestMessageSender:
     def test_rejects_both_a_user_and_an_agent(self, channel, alice):
         with pytest.raises(IntegrityError), transaction.atomic():
             Message.objects.create(channel=channel, sender=alice, sender_agent="maia")
+
+    def test_system_sender(self, channel):
+        message = Message.objects.create(channel=channel, system_event=MessageSystemEvent.WORK_ITEM_STATE)
+        assert message.sender_id is None and message.sender_agent is None
+
+    @pytest.mark.parametrize("other", ["empty", "agent", "user"])
+    def test_a_system_message_has_no_other_sender(self, channel, alice, other):
+        senders = {
+            "empty": {"system_event": ""},
+            "agent": {"system_event": MessageSystemEvent.WORK_ITEM_STATE, "sender_agent": "maia"},
+            "user": {"system_event": MessageSystemEvent.WORK_ITEM_STATE, "sender": alice},
+        }[other]
+        with pytest.raises(IntegrityError), transaction.atomic():
+            Message.objects.create(channel=channel, **senders)
 
 
 @pytest.mark.unit

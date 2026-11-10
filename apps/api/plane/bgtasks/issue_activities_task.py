@@ -17,6 +17,7 @@ from django.utils import timezone
 # Module imports
 from plane.app.serializers import IssueActivitySerializer
 from plane.bgtasks.notification_task import notifications
+from plane.chat.project_feed import queue_state_changes
 from plane.db.models import (
     CommentReaction,
     Cycle,
@@ -1628,6 +1629,8 @@ def issue_activity(
 
         # Save all the values to database
         issue_activities_created = IssueActivity.objects.bulk_create(issue_activities)
+        # State changes go to the chat channels linked to the project (plane.chat.project_feed).
+        queue_state_changes(issue_activities_created)
 
         if notification:
             notifications.delay(

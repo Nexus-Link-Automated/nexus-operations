@@ -55,6 +55,19 @@
       "private_help": "Chỉ những người được thêm mới xem được kênh và tin nhắn trong kênh.",
       "submit": "Tạo kênh"
     },
+    "project": {
+      "label": "Dự án",
+      "none": "Không có dự án",
+      "hidden": "Một dự án bạn không tham gia",
+      "unlink": "Hủy liên kết",
+      "help": "Các thay đổi trạng thái của hạng mục công việc trong dự án này được đăng lên kênh.",
+      "linked": "Đã liên kết với {name}"
+    },
+    "channel_settings": {
+      "title": "Cài đặt kênh",
+      "description": "Cài đặt cho #{name}.",
+      "save": "Lưu"
+    },
     "browse": {
       "title": "Duyệt kênh",
       "description": "Các kênh công khai mà bạn chưa tham gia.",
@@ -105,7 +118,9 @@
       "sending": "Đang gửi…",
       "failed": "Chưa gửi được.",
       "retry": "Thử lại",
-      "discard": "Bỏ"
+      "discard": "Bỏ",
+      "automatic_sender": "Cập nhật hạng mục công việc",
+      "automatic": "Tự động"
     },
     "day": {
       "today": "Hôm nay",
@@ -134,6 +149,7 @@
       "remove_failed": "Không thể xóa tin nhắn",
       "message_not_found": "Tin nhắn này không còn khả dụng.",
       "link_work_item_failed": "Mục công việc đã được tạo nhưng không thể liên kết với tin nhắn này.",
+      "update_channel_failed": "Không thể lưu cài đặt kênh",
       "load_members_failed": "Không thể tải danh sách thành viên",
       "add_members_failed": "Không thể thêm người",
       "remove_member_failed": "Không thể xóa khỏi kênh",

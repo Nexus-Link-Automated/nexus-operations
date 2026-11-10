@@ -55,6 +55,19 @@
       "private_help": "只有被添加的成员才能查看此频道及其消息。",
       "submit": "创建频道"
     },
+    "project": {
+      "label": "项目",
+      "none": "无项目",
+      "hidden": "你未加入的项目",
+      "unlink": "取消关联",
+      "help": "此项目中工作项的状态变更会发布到该频道。",
+      "linked": "已关联到 {name}"
+    },
+    "channel_settings": {
+      "title": "频道设置",
+      "description": "#{name} 的设置。",
+      "save": "保存"
+    },
     "browse": {
       "title": "浏览频道",
       "description": "您尚未加入的公开频道。",
@@ -105,7 +118,9 @@
       "sending": "正在发送…",
       "failed": "未发送。",
       "retry": "重试",
-      "discard": "放弃"
+      "discard": "放弃",
+      "automatic_sender": "工作项更新",
+      "automatic": "自动"
     },
     "day": {
       "today": "今天",
@@ -134,6 +149,7 @@
       "remove_failed": "无法删除消息",
       "message_not_found": "此消息已不可用。",
       "link_work_item_failed": "工作项已创建，但无法关联到此消息。",
+      "update_channel_failed": "无法保存频道设置",
       "load_members_failed": "无法加载成员",
       "add_members_failed": "无法添加成员",
       "remove_member_failed": "无法从频道中移除",

@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => ({
   push: (() => undefined) as (href: string) => void,
   search: "",
   toast: vi.fn(),
+  projects: {} as Record<string, { id: string; name: string }>,
+  canLink: (_projectId: string) => true,
 }));
 
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -64,6 +66,43 @@ vi.mock("@/hooks/store/use-member", () => {
     }),
   };
 });
+vi.mock("@/hooks/store/use-project", () => ({
+  useProject: () => ({
+    joinedProjectIds: Object.keys(mocks.projects),
+    getProjectById: (id: string) => mocks.projects[id],
+  }),
+}));
+vi.mock("@/hooks/store/user", () => ({
+  useUserPermissions: () => ({
+    allowPermissions: (_roles: number[], _level: string, _slug: string, projectId: string) => mocks.canLink(projectId),
+  }),
+}));
+// Plane's project picker is tested on its own; here it is a plain select over the projects it would offer.
+vi.mock("@/components/dropdowns/project/project-select", () => ({
+  ProjectSelect: ({
+    value,
+    onChange,
+    filterOption,
+    resolveProject,
+  }: {
+    value: string | null;
+    onChange: (id: string | null) => void;
+    filterOption: (id: string) => boolean;
+    resolveProject: (id: string) => { name: string } | undefined;
+  }) => (
+    <select aria-label="Project" value={value ?? ""} onChange={(event) => onChange(event.target.value || null)}>
+      <option value="">No project</option>
+      {value && !mocks.projects[value] && <option value={value}>{resolveProject(value)?.name}</option>}
+      {Object.values(mocks.projects)
+        .filter((project) => filterOption(project.id))
+        .map((project) => (
+          <option key={project.id} value={project.id}>
+            {project.name}
+          </option>
+        ))}
+    </select>
+  ),
+}));
 // The rich-text editor, in the composer and when editing a message, is Plane's own and tested there; here it shows
 // its HTML as text. Its handle gives back what it started with, so the composer can send a draft.
 vi.mock("@/components/editor/lite-text", async () => {
@@ -126,6 +165,7 @@ const message = (id: string, sender: string, text: string, minute: number, extra
     channel: "c-general",
     sender,
     sender_agent: null,
+    system_event: null,
     body_html: `<p>${text}</p>`,
     body_json: {},
     body_stripped: text,
@@ -171,6 +211,7 @@ function makeStore(service: Partial<TChatStoreService> = {}) {
     linkWorkItem: notCalled,
     editMessage: notCalled,
     removeMessage: notCalled,
+    updateChannel: notCalled,
     ...service,
   } as TChatStoreService;
   const store = new ChatStore({ service: fullService, createSocket: () => socket });
@@ -201,6 +242,8 @@ const inRouter = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRoute
 const byTemplate = (fixed: string) => (content: string) => content.includes(fixed);
 
 beforeEach(() => {
+  mocks.projects = {};
+  mocks.canLink = () => true;
   mocks.push = () => undefined;
   mocks.search = "";
   mocks.toast.mockClear();
@@ -310,6 +353,29 @@ describe("CreateChannelDialog", () => {
     expect(onClose).toHaveBeenCalled();
     expect(push).toHaveBeenCalledWith("/acme/messages/c-new");
     expect(store.joinedChannels.map((c) => c.id)).toEqual(["c-new"]);
+  });
+
+  it("links the new channel to a project the user may link", async () => {
+    mocks.projects = { "p-gw": { id: "p-gw", name: "Gateway" }, "p-guest": { id: "p-guest", name: "Guest only" } };
+    mocks.canLink = (id) => id === "p-gw";
+    const createChannel = vi.fn(async () => channel({ id: "c-new", name: "gateway", project: "p-gw" }));
+    const { store } = makeStore({ createChannel });
+    mocks.chat = store;
+    await started(store, []);
+    render(<CreateChannelDialog workspaceSlug="acme" onClose={() => undefined} />);
+
+    const select = screen.getByRole("combobox", { name: "Project" });
+    // A project where the user is only a guest isn't offered.
+    expect(within(select).queryByRole("option", { name: "Guest only" })).toBeNull();
+    await userEvent.type(screen.getByRole("textbox", { name: /^Name/ }), "gateway");
+    await userEvent.selectOptions(select, "p-gw");
+    await userEvent.click(screen.getByRole("button", { name: "Create channel" }));
+    expect(createChannel).toHaveBeenCalledWith("acme", {
+      name: "gateway",
+      description: "",
+      kind: "public",
+      project: "p-gw",
+    });
   });
 });
 
@@ -744,6 +810,27 @@ describe("ChatMessageList", () => {
     vi.unstubAllGlobals();
   });
 
+  it("shows an automatic message as Nexus's, with no actions on it", async () => {
+    const automatic = message("m1", ME, "EMP-142 moved to In Review", 0, {
+      sender: null,
+      system_event: "work_item_state",
+    });
+    const { store } = makeStore({
+      listMessages: async () => ({ results: [automatic], has_more: false }),
+      markRead: async () => channel({ my_role: "admin" }),
+    });
+    mocks.chat = store;
+    await started(store, [channel({ my_role: "admin" })]);
+    await store.openChannel("c-general");
+    render(<ChatMessageList workspaceSlug="acme" channelId="c-general" intro={null} />);
+
+    const row = screen.getByRole("article");
+    expect(within(row).getByText("Work item updates")).toBeTruthy();
+    expect(within(row).getByText("Automatic")).toBeTruthy();
+    expect(within(row).getByText("EMP-142 moved to In Review")).toBeTruthy();
+    expect(within(row).queryByRole("button", { hidden: true })).toBeNull();
+  });
+
   it("offers Edit and Delete only where the API would allow them", async () => {
     const results = [message("m1", ME, "mine", 0)];
     const renderIn = async (overrides: Partial<TChatChannel>) => {
@@ -916,6 +1003,41 @@ describe("ChatChannelView", () => {
     expect(await screen.findByText(/This channel is archived/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Leave channel" })).toBeNull();
+  });
+
+  it("shows the linked project to someone who can see it", async () => {
+    mocks.projects = { "p-gw": { id: "p-gw", name: "Gateway" } };
+    const { store } = makeStore();
+    mocks.chat = store;
+    await started(store, [channel({ project: "p-gw" }), channel({ id: "c-hidden", project: "p-secret" })]);
+    const view = render(<ChatChannelView workspaceSlug="acme" channelId="c-general" />);
+    expect(await screen.findByText("Gateway")).toBeTruthy();
+    view.unmount();
+    render(<ChatChannelView workspaceSlug="acme" channelId="c-hidden" />);
+    await screen.findByText("general");
+    expect(screen.queryByTitle(byTemplate("Linked to"))).toBeNull();
+  });
+
+  it("lets only an admin change the linked project", async () => {
+    mocks.projects = { "p-gw": { id: "p-gw", name: "Gateway" } };
+    const updateChannel = vi.fn(async (_slug: string, _id: string, data: { project?: string | null }) =>
+      channel({ my_role: "admin", project: data.project ?? null })
+    );
+    const { store } = makeStore({ updateChannel });
+    mocks.chat = store;
+    await started(store, [channel({ my_role: "member", project: "p-gw" })]);
+    const view = render(<ChatChannelView workspaceSlug="acme" channelId="c-general" />);
+    await screen.findByText("Gateway");
+    expect(screen.queryByRole("button", { name: "Channel settings" })).toBeNull();
+    view.unmount();
+
+    runInAction(() => (store.channelMap["c-general"]!.my_role = "admin"));
+    render(<ChatChannelView workspaceSlug="acme" channelId="c-general" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Channel settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Unlink" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateChannel).toHaveBeenCalledWith("acme", "c-general", { project: null });
+    await vi.waitFor(() => expect(store.channelMap["c-general"]?.project).toBeNull());
   });
 
   it("says so when the channel doesn't exist or isn't visible", async () => {

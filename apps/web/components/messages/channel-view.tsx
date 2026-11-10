@@ -9,7 +9,7 @@ import { observer } from "mobx-react";
 // plane imports
 import { Button } from "@makeplane/propel/components/button";
 import { IconButton } from "@makeplane/propel/components/icon-button";
-import { ArchiveOutline, HashOutline, LockOutline, MembersOutline } from "@makeplane/propel/icons";
+import { ArchiveOutline, HashOutline, LockOutline, MembersOutline, SettingsOutline } from "@makeplane/propel/icons";
 import { EmptyStateCompact } from "@plane/blocks/empty-state";
 import { setToast } from "@plane/blocks/toast";
 import { useTranslation } from "@plane/i18n";
@@ -21,6 +21,7 @@ import { useMember } from "@/hooks/store/use-member";
 import { useAppRouter } from "@/hooks/use-app-router";
 // local imports
 import { ChannelMembersDialog } from "./channel-members-dialog";
+import { ChannelProjectBadge, ChannelSettingsDialog } from "./channel-project";
 import type { TChatComposerBody } from "./composer";
 import { ChatComposer } from "./composer";
 import { channelDisplayName } from "./helpers";
@@ -40,6 +41,7 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
   const [notFound, setNotFound] = useState(false);
   const [joining, setJoining] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const channel = chat.channelMap[channelId];
   const started = chat.workspaceSlug === workspaceSlug;
   // A channel that was shown and then went away: the user lost access (removed, or a private channel left).
@@ -81,6 +83,8 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
   );
   const isNamed = channel.kind === "public" || channel.kind === "private";
   const archived = !!channel.archived_at;
+  // The API lets channel admins and workspace admins change a channel (`is_channel_admin`).
+  const canManage = isNamed && !archived && (channel.my_role === "admin" || !!chat.me?.is_workspace_admin);
 
   const join = async () => {
     setJoining(true);
@@ -126,6 +130,7 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
             </p>
           )}
         </div>
+        {isNamed && channel.project && <ChannelProjectBadge projectId={channel.project} />}
         {isNamed && (
           <IconButton
             variant="ghost"
@@ -133,6 +138,15 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
             icon={<MembersOutline />}
             aria-label={t("messages.members.open")}
             onClick={() => setShowMembers(true)}
+          />
+        )}
+        {canManage && (
+          <IconButton
+            variant="ghost"
+            size="sm"
+            icon={<SettingsOutline />}
+            aria-label={t("messages.channel_settings.title")}
+            onClick={() => setSettingsOpen(true)}
           />
         )}
         {isNamed && channel.is_member && !archived && (
@@ -147,6 +161,9 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
       </header>
       {showMembers && (
         <ChannelMembersDialog workspaceSlug={workspaceSlug} channel={channel} onClose={() => setShowMembers(false)} />
+      )}
+      {settingsOpen && (
+        <ChannelSettingsDialog workspaceSlug={workspaceSlug} channel={channel} onClose={() => setSettingsOpen(false)} />
       )}
 
       <ChatMessageList

@@ -55,6 +55,19 @@
       "private_help": "追加されたメンバーだけがチャンネルとそのメッセージを閲覧できます。",
       "submit": "チャンネルを作成"
     },
+    "project": {
+      "label": "プロジェクト",
+      "none": "プロジェクトなし",
+      "hidden": "参加していないプロジェクト",
+      "unlink": "リンクを解除",
+      "help": "このプロジェクトの作業項目の状態変更がチャンネルに投稿されます。",
+      "linked": "{name} にリンク済み"
+    },
+    "channel_settings": {
+      "title": "チャンネル設定",
+      "description": "#{name} の設定。",
+      "save": "保存"
+    },
     "browse": {
       "title": "チャンネルを探す",
       "description": "まだ参加していない公開チャンネルです。",
@@ -105,7 +118,9 @@
       "sending": "送信中……",
       "failed": "送信されませんでした。",
       "retry": "再試行",
-      "discard": "破棄"
+      "discard": "破棄",
+      "automatic_sender": "作業項目の更新",
+      "automatic": "自動"
     },
     "day": {
       "today": "今日",
@@ -134,6 +149,7 @@
       "remove_failed": "メッセージを削除できませんでした",
       "message_not_found": "このメッセージは利用できなくなりました。",
       "link_work_item_failed": "作業項目は作成されましたが、このメッセージにリンクできませんでした。",
+      "update_channel_failed": "チャンネル設定を保存できませんでした",
       "load_members_failed": "メンバーを読み込めませんでした",
       "add_members_failed": "メンバーを追加できませんでした",
       "remove_member_failed": "チャンネルから削除できませんでした",
