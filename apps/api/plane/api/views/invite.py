@@ -17,8 +17,14 @@ from drf_spectacular.utils import (
 from plane.api.views.base import BaseViewSet
 from plane.db.models import WorkspaceMemberInvite, Workspace
 from plane.api.serializers import WorkspaceInviteSerializer
+from plane.utils.host import base_host
 from plane.utils.permissions import WorkspaceOwnerPermission
 from plane.utils.openapi.parameters import WORKSPACE_SLUG_PARAMETER
+from plane.utils.workspace_invite import (
+    active_members_with_emails,
+    send_workspace_invitations,
+    workspace_invite_token,
+)
 
 
 class WorkspaceInvitationsViewset(BaseViewSet):
@@ -90,7 +96,16 @@ class WorkspaceInvitationsViewset(BaseViewSet):
         workspace = Workspace.objects.get(slug=slug)
         serializer = WorkspaceInviteSerializer(data=request.data, context={"slug": slug})
         serializer.is_valid(raise_exception=True)
-        serializer.save(workspace=workspace, created_by=request.user)
+        email = serializer.validated_data["email"]
+        if active_members_with_emails(workspace.id, [email]).exists():
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data={"error": "User is already a member of the workspace", "code": "USER_ALREADY_MEMBER"},
+            )
+        invitation = serializer.save(workspace=workspace, created_by=request.user, token=workspace_invite_token(email))
+        send_workspace_invitations(
+            [invitation], workspace.id, base_host(request=request, is_app=True), request.user.email
+        )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @extend_schema(

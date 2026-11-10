@@ -230,8 +230,24 @@ class ProjectMemberListCreateAPIEndpoint(BaseAPIView):
     def post(self, request, slug, project_id):
         serializer = ProjectMemberSerializer(data=request.data, context={"slug": slug})
         serializer.is_valid(raise_exception=True)
-        serializer.save(project_id=project_id)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        # Removing a member only deactivates the row, and the row is unique per
+        # project and user, so adding the same person back reactivates it.
+        existing = ProjectMember.objects.filter(
+            project_id=project_id, member=serializer.validated_data["member"]
+        ).first()
+        if existing is None:
+            serializer.save(project_id=project_id)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        if existing.is_active:
+            return Response(
+                {"error": "User is already a member of the project", "code": "USER_ALREADY_MEMBER"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        existing.is_active = True
+        existing.role = serializer.validated_data.get("role", ProjectMember._meta.get_field("role").default)
+        existing.save()
+        return Response(ProjectMemberSerializer(existing).data, status=status.HTTP_201_CREATED)
 
 
 # API endpoint to get and update a project member

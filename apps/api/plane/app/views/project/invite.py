@@ -24,6 +24,7 @@ from plane.app.serializers import (
     ProjectMemberInvitePublicSerializer,
 )
 from plane.app.permissions import allow_permission, ROLE
+from plane.bgtasks.project_invitation_task import project_invitation
 from plane.db.models import (
     ProjectMember,
     Workspace,
@@ -75,12 +76,19 @@ class ProjectInvitationsViewset(BaseViewSet):
             return Response({"error": "Emails are required"}, status=status.HTTP_400_BAD_REQUEST)
 
         for email in emails:
-            workspace_role = WorkspaceMember.objects.filter(
-                workspace__slug=slug, member__email=email.get("email"), is_active=True
-            ).role
+            # Invitations are stored lowercased, so look the account up the same way.
+            invite_email = str(email.get("email") or "").strip().lower()
+            workspace_role = (
+                WorkspaceMember.objects.filter(workspace__slug=slug, member__email=invite_email, is_active=True)
+                .values_list("role", flat=True)
+                .first()
+            )
 
             if workspace_role in [5, 20] and workspace_role != email.get("role", 5):
-                return Response({"error": "You cannot invite a user with different role than workspace role"})
+                return Response(
+                    {"error": "You cannot invite a user with different role than workspace role"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         workspace = Workspace.objects.get(slug=slug)
 
@@ -118,7 +126,7 @@ class ProjectInvitationsViewset(BaseViewSet):
 
         # Send invitations
         for invitation in project_invitations:
-            project_invitations.delay(
+            project_invitation.delay(
                 invitation.email,
                 project_id,
                 invitation.token,
