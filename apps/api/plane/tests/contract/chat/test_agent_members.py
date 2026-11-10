@@ -7,6 +7,7 @@
 from uuid import uuid4
 
 import pytest
+from crum import impersonate
 from django.core.exceptions import ValidationError
 
 from plane.chat.models import Channel, ChannelAgent, ChannelKind, ChannelMember, ChannelMemberRole
@@ -379,6 +380,20 @@ class TestEvents:
         assert sorted(events[0:2], key=str) == sorted(removed, key=str)
         assert sorted(events[2:4], key=str) == sorted(added, key=str)
         assert sorted(events[4:], key=str) == sorted(removed, key=str)
+
+    def test_the_instance_admin_who_changed_the_registry_is_not_named(
+        self, make_channel, agent, published, create_user
+    ):
+        # They needn't be in the workspace, so their ID has no place in its channels' events.
+        seat(make_channel(), agent)
+        with impersonate(create_user):
+            agent.is_enabled = False
+            agent.save()
+            agent.is_enabled = True
+            agent.save()
+            agent.delete(soft=False)
+        assert len(published.events) == 3
+        assert all("actor_id" not in event for event in published.events)
 
     def test_deleting_a_disabled_agent_says_nothing_more(self, make_channel, make_agent, published):
         agent = make_agent(enabled=False)

@@ -1747,6 +1747,26 @@ describe("ChatStore channel members and agents", () => {
     expect(store.channelAgents["c-general"]).toBeUndefined();
   });
 
+  it("drops agents that load after the list was closed, and so stops re-reading them", async () => {
+    const { store, server, socket } = await setup((s) => s.agents.set("c-general", [channelAgent("c-general", "bot")]));
+    const slow = holdOpen();
+    server.holds.set("listAgents", slow.opened);
+    const loading = store.fetchChannelAgents("c-general");
+    store.forgetChannelMembers("c-general");
+    slow.open();
+    await loading;
+    expect(store.channelAgents["c-general"]).toBeUndefined();
+
+    server.calls = [];
+    socket.emit(agentEvent("member.removed", "c-general", "bot"));
+    await settle();
+    expect(server.calls).toEqual([]);
+
+    // Shown again: loads as usual.
+    await store.fetchChannelAgents("c-general");
+    expect(store.channelAgents["c-general"]!.map((a) => a.agent)).toEqual(["bot"]);
+  });
+
   it("treats a member event naming nobody as an agent's, from a gateway that drops agent_id", async () => {
     const { store, server, socket } = await setup();
     await store.fetchChannelAgents("c-general");

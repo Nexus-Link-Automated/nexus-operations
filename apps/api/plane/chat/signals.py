@@ -164,7 +164,7 @@ def agent_availability_changed(sender, instance, **kwargs):
     if previous is None or previous == instance.is_enabled:
         return
     event_type = EventType.MEMBER_ADDED if instance.is_enabled else EventType.MEMBER_REMOVED
-    publish_on_commit(*[agent_member_event(event_type, seat) for seat in _agent_seats(instance)])
+    publish_on_commit(*[agent_member_event(event_type, seat, by_registry=True) for seat in _agent_seats(instance)])
 
 
 @receiver(pre_delete, sender=AgentDefinition, dispatch_uid="chat_agent_deleted")
@@ -174,4 +174,6 @@ def agent_deleted(sender, instance, **kwargs):
     Its messages stay and show as from a removed agent. A disabled agent has already been announced as gone.
     """
     if instance.is_enabled:
-        publish_on_commit(*[agent_member_event(EventType.MEMBER_REMOVED, seat) for seat in _agent_seats(instance)])
+        publish_on_commit(
+            *[agent_member_event(EventType.MEMBER_REMOVED, seat, by_registry=True) for seat in _agent_seats(instance)]
+        )

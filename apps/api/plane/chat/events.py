@@ -84,8 +84,8 @@ def events_channel(workspace_id):
     return f"chat:workspace:{workspace_id}"
 
 
-def _event(event_type, workspace_id, **ids):
-    ids["actor_id"] = getattr(get_current_user(), "id", None)
+def _event(event_type, workspace_id, *, with_actor=True, **ids):
+    ids["actor_id"] = getattr(get_current_user(), "id", None) if with_actor else None
     event = {"type": EventType(event_type).value, "workspace_id": str(workspace_id)}
     event.update((key, str(value)) for key, value in ids.items() if value is not None)
     event["at"] = timezone.now().isoformat()
@@ -110,10 +110,17 @@ def member_event(event_type, member):
     return _event(event_type, member.workspace_id, channel_id=member.channel_id, user_id=member.user_id)
 
 
-def agent_member_event(event_type, channel_agent):
-    """An agent joined or left a channel. It names the agent and no person, so no one's own access changes."""
+def agent_member_event(event_type, channel_agent, *, by_registry=False):
+    """An agent joined or left a channel. It names the agent and no person, so no one's own access changes.
+
+    `by_registry`: an instance admin changed the agent itself, who needn't be in the workspace, so isn't named.
+    """
     return _event(
-        event_type, channel_agent.workspace_id, channel_id=channel_agent.channel_id, agent_id=channel_agent.agent_id
+        event_type,
+        channel_agent.workspace_id,
+        with_actor=not by_registry,
+        channel_id=channel_agent.channel_id,
+        agent_id=channel_agent.agent_id,
     )
 
 

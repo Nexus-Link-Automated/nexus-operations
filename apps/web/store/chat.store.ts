@@ -350,6 +350,8 @@ export class ChatStore implements IChatStore {
   private readonly drafts = new Map<string, string>();
   private readonly memberLoads = new Map<string, { again: boolean; promise: Promise<void> }>();
   private readonly agentLoads = new Map<string, { again: boolean; promise: Promise<void> }>();
+  /** Channels whose people and agents something shows, from `fetchChannelMembers` until `forgetChannelMembers`. */
+  private readonly shownMembers = new Set<string>();
   /** Bumped by every new search, so an answer to an older one is dropped. */
   private searchGeneration = 0;
 
@@ -572,6 +574,7 @@ export class ChatStore implements IChatStore {
     this.availableAgents = null;
     this.memberLoads.clear();
     this.agentLoads.clear();
+    this.shownMembers.clear();
     this.channelRefreshes.clear();
     this.readsInFlight.clear();
     this.messageLoads.clear();
@@ -823,26 +826,34 @@ export class ChatStore implements IChatStore {
 
   /** Load the channel's people, and keep them current until `forgetChannelMembers`. */
   fetchChannelMembers(channelId: string): Promise<void> {
+    this.shownMembers.add(channelId);
     return this.coalesce(this.memberLoads, channelId, async () => {
       const slug = this.requireSlug();
       const commit = this.guard();
       const members = await this.service.listMembers(slug, channelId);
-      commit(() => (this.channelMembers[channelId] = members));
+      // Closed while this loaded: holding the list again would keep re-reading it for nobody.
+      commit(() => {
+        if (this.shownMembers.has(channelId)) this.channelMembers[channelId] = members;
+      });
     });
   }
 
   /** Load the channel's agents, and keep them current until `forgetChannelMembers`. */
   fetchChannelAgents(channelId: string): Promise<void> {
+    this.shownMembers.add(channelId);
     return this.coalesce(this.agentLoads, channelId, async () => {
       const slug = this.requireSlug();
       const commit = this.guard();
       const agents = await this.service.listAgents(slug, channelId);
-      commit(() => (this.channelAgents[channelId] = agents));
+      commit(() => {
+        if (this.shownMembers.has(channelId)) this.channelAgents[channelId] = agents;
+      });
     });
   }
 
   /** Nothing shows the channel's members any more: stop keeping them. */
   forgetChannelMembers(channelId: string): void {
+    this.shownMembers.delete(channelId);
     delete this.channelMembers[channelId];
     delete this.channelAgents[channelId];
   }
@@ -898,7 +909,7 @@ export class ChatStore implements IChatStore {
     } catch (error) {
       // Gone already, whoever removed it; anything else (no right to, archived) is for the caller to say.
       if (!isNotFound(error)) throw error;
-      void this.fetchChannelAgents(channelId).catch(() => undefined);
+      if (this.channelAgents[channelId]) void this.fetchChannelAgents(channelId).catch(() => undefined);
     }
     commit(() => {
       const held = this.channelAgents[channelId];
