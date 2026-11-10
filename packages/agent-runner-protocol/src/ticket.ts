@@ -35,10 +35,13 @@ const ENV_KEY = /^[A-Z][A-Z0-9_]{0,63}$/;
 
 /**
  * What a ticket is good for. `acp` (the default when absent) opens one agent over `/acp`; `login`
- * drives the provider sign-in helper over the runner's `/auth/*` endpoints. Each endpoint refuses
- * the other kind, so a sign-in ticket can never start an agent and vice versa.
+ * drives the provider sign-in helper over the runner's `/auth/*` endpoints; `members` lists whose
+ * directories the runner holds (`GET /members`; its adapter, user and workspace claims are unused);
+ * `offboard` stops everything of the ticket's user in its workspace and deletes their directories
+ * (`POST /members/offboard`). Each endpoint refuses every other kind, so a sign-in ticket can never
+ * start an agent, and only an `offboard` ticket can delete anything.
  */
-export const SPAWN_PURPOSES = ["acp", "login"] as const;
+export const SPAWN_PURPOSES = ["acp", "login", "members", "offboard"] as const;
 export type SpawnPurpose = (typeof SPAWN_PURPOSES)[number];
 
 export function isSpawnPurpose(value: unknown): value is SpawnPurpose {

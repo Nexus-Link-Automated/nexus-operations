@@ -50,6 +50,12 @@ describe("spawn tickets", () => {
     if (!login.ok) throw new Error("expected a valid ticket");
     expect(login.ticket.purpose).toBe("login");
     expect(ticketPurpose(login.ticket)).toBe("login");
+
+    for (const purpose of ["members", "offboard"] as const) {
+      const verified = verifySpawnTicket(signSpawnTicket({ ...CLAIMS, env: {}, purpose }, SECRET), SECRET);
+      if (!verified.ok) throw new Error("expected a valid ticket");
+      expect(ticketPurpose(verified.ticket)).toBe(purpose);
+    }
   });
 
   it("rejects an expired ticket", () => {

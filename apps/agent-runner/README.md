@@ -54,6 +54,23 @@ reaches the runner.
   503 at capacity / shutting down / helper not installed, 504 the helper did not answer in time
   (`reason: "timeout"`).
 
+### Members (`/members`)
+
+When a workspace membership ends, the bridge removes that member's agent state here. Each request
+carries its own single-use ticket; neither kind can start an agent or a sign-in, and no other kind is
+accepted.
+
+| Endpoint                 | Ticket `purpose` | Answer                                                    |
+| ------------------------ | ---------------- | --------------------------------------------------------- |
+| `GET /members`           | `members`        | `{members: [{workspaceId, userId}]}`: everyone with a dir |
+| `POST /members/offboard` | `offboard`       | `{status: "removed"}`                                     |
+
+- `members` tickets name no one: their adapter, user and workspace claims are ignored.
+- `offboard` acts on the ticket's user in its workspace: it stops their agents and sign-ins (whatever
+  the adapter), kills anything still running as their uid, and deletes their cwd, `HOME` (stored
+  sign-ins included) and `TMPDIR`. Until it finishes, new agents for them get 409 and sign-ins fail.
+  It is idempotent. The uid stays reserved for them, so it is never handed to anyone else.
+
 The runner makes no access decisions: the bridge has already authenticated the user and checked
 membership, and the ticket carries its word. The runner only maps the adapter to a fixed bin
 (`node <@plane/acp-adapters>/dist/bin/<adapter>.mjs`), never to anything an admin or user typed.

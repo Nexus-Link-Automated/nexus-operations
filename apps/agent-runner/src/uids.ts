@@ -43,6 +43,13 @@ export class UidAllocator {
     return next;
   }
 
+  /** The uid already allocated to `key`, if any; never allocates. */
+  lookup(key: string): Promise<number | undefined> {
+    const next = this.#chain.then(async () => (await this.#load()).get(key));
+    this.#chain = next.catch(() => undefined);
+    return next;
+  }
+
   async #uidFor(key: string): Promise<number> {
     const map = await this.#load();
     const existing = map.get(key);
