@@ -81,8 +81,8 @@ export interface NewSessionOptions {
   readonly initialEffort?: string;
 }
 
-/** `session/load` takes the same starting choices except the permission level, which the bridge sets. */
-export type LoadSessionOptions = Omit<NewSessionOptions, "initialModeId">;
+/** `session/load` takes the same starting choices as `session/new`, and the bridge clamps the level the same way. */
+export type LoadSessionOptions = NewSessionOptions;
 
 function startMeta(options: NewSessionOptions): { _meta?: Record<string, string> } {
   const meta: Record<string, string> = {};
@@ -451,7 +451,7 @@ export class AgentChatSession {
       await this.#open();
       let resumed = false;
       if (sessionId && this.supportsLoad) {
-        await this.loadSession(sessionId, choices);
+        await this.loadSession(sessionId, { ...choices, ...(modeId ? { initialModeId: modeId } : {}) });
         resumed = true;
       } else if (sessionId) {
         const previous = this.#transcript;

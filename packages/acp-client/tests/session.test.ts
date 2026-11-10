@@ -276,6 +276,7 @@ describe("AgentChatSession: modes and models", () => {
     await waitFor(session, (snapshot) => snapshot.status === "reconnecting");
     await waitFor(session, (snapshot) => snapshot.status === "ready");
     expect(fake.log.loadRequests.at(-1)?._meta).toEqual({
+      "plane/initialModeId": "ask_writes",
       "plane/initialModel": "smart",
       "plane/initialEffort": "high",
     });
@@ -287,6 +288,16 @@ describe("AgentChatSession: modes and models", () => {
     expect(session.choices).toEqual({ initialModel: "smart", initialEffort: "high" });
     await session.newSession(session.choices);
     expect(effortOption(session.snapshot.transcript)?.currentValue).toBe("high");
+  });
+
+  it("keeps the chosen permission level across a reconnect", async () => {
+    const { session, fake, current } = await ready();
+    await session.setMode("ask_all");
+    current().closeWith(AgentCloseCode.sessionExpired);
+    await waitFor(session, (snapshot) => snapshot.status === "reconnecting");
+    await waitFor(session, (snapshot) => snapshot.status === "ready");
+    expect(fake.log.loadRequests.at(-1)?._meta?.["plane/initialModeId"]).toBe("ask_all");
+    expect(session.snapshot.transcript.modes?.currentModeId).toBe("ask_all");
   });
 
   it("starts a session on the requested model and effort, and keeps them across a reconnect", async () => {

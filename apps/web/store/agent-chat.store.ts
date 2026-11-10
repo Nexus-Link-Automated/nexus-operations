@@ -262,6 +262,12 @@ export class AgentChatStore implements IAgentChatStore {
     return toSessionChoices(this.choices.recall(this.workspaceSlug, this.agentId));
   }
 
+  /** Keeps the permission level, model and effort the user picked when the chat moves to another session. */
+  private sameChoices(): LoadSessionOptions {
+    const modeId = this.snapshot?.transcript.modes?.currentModeId;
+    return { ...this.currentChoices(), ...(modeId ? { initialModeId: modeId } : {}) };
+  }
+
   /** Remember the current model and effort for this agent, so its next chat starts on them. */
   private rememberChoices(): void {
     if (!this.workspaceSlug || !this.agentId) return;
@@ -355,10 +361,8 @@ export class AgentChatStore implements IAgentChatStore {
     const session = this.session;
     if (!session) return;
     this.error = null;
-    // Keep the permission level, model and effort the user picked for this chat.
-    const modeId = this.snapshot?.transcript.modes?.currentModeId;
     try {
-      await session.newSession({ ...this.currentChoices(), ...(modeId ? { initialModeId: modeId } : {}) });
+      await session.newSession(this.sameChoices());
       if (session.supportsList) void this.fetchSessions();
     } catch (error) {
       this.setError(error, "new_session");
@@ -370,7 +374,7 @@ export class AgentChatStore implements IAgentChatStore {
     if (!session) return;
     this.error = null;
     try {
-      await session.loadSession(sessionId, this.currentChoices());
+      await session.loadSession(sessionId, this.sameChoices());
     } catch (error) {
       this.setError(error, "load_session");
     }

@@ -242,7 +242,9 @@ export function createFakeAgent(options: FakeAgentOptions = {}) {
         if (!session) throw RequestError.resourceNotFound(params.sessionId);
         log.loaded.push(params.sessionId);
         log.loadRequests.push(params);
-        // Like the real agents, a loaded session starts on the requested model and effort, else the defaults.
+        // Like the real agents, a loaded session starts on the requested level, model and effort, else the defaults.
+        const wantedMode = params._meta?.["plane/initialModeId"];
+        session.mode = typeof wantedMode === "string" ? wantedMode : "ask_writes";
         const wantedModel = params._meta?.["plane/initialModel"];
         session.model = typeof wantedModel === "string" && wantedModel in MODEL_EFFORTS ? wantedModel : "fast";
         session.effort = effortFor(session.model, params._meta?.["plane/initialEffort"]);

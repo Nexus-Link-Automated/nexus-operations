@@ -225,6 +225,16 @@ describe("AgentChatStore", () => {
     expect(store.error).toBeNull();
   });
 
+  it("opens an earlier chat on the same permission level", async () => {
+    const { store, fake } = await openReady();
+    const first = store.snapshot?.sessionId;
+    await store.startNewSession();
+    await store.setPermissionLevel("ask_all");
+    await store.loadSession(first!);
+    expect(fake.log.loadRequests.at(-1)?._meta?.["plane/initialModeId"]).toBe("ask_all");
+    expect(store.snapshot?.transcript.modes?.currentModeId).toBe("ask_all");
+  });
+
   it("resumes the same session after a 4410", async () => {
     const { store, current, fake } = await openReady();
     const sessionId = store.snapshot?.sessionId;
