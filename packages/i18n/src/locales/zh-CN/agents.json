@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "每次都询问",
-          "description": "每次调用工具前都会询问，包括读取操作。"
+          "description": "每次调用工具前都会询问，包括读取操作。Codex 会直接运行其内置只读列表中的命令，不会询问。"
         },
         "ask_writes": {
           "name": "更改前询问",

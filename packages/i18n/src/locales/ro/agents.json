@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "Confirmare de fiecare dată",
-          "description": "Se cere confirmarea înaintea fiecărui apel de instrument, inclusiv pentru citiri."
+          "description": "Se cere confirmarea înaintea fiecărui apel de instrument, inclusiv pentru citiri. Codex rulează fără confirmare comenzile din lista sa integrată doar pentru citire."
         },
         "ask_writes": {
           "name": "Confirmare înainte de modificări",

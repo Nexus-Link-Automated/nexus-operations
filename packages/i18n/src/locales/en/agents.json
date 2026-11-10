@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "Ask every time",
-          "description": "Ask before every tool call, including reads."
+          "description": "Ask before every tool call, including reads. Codex runs commands on its built-in read-only list without asking."
         },
         "ask_writes": {
           "name": "Ask before changes",

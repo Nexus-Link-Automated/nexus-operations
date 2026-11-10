@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { ReactNode } from "react";
 import { Badge } from "@makeplane/propel/components/badge";
 import { Collapsible } from "@makeplane/propel/components/collapsible";
@@ -22,6 +22,7 @@ import {
 } from "@makeplane/propel/icons";
 import type { PendingPermission, ToolCallContent, ToolCallItem, ToolKind } from "@plane/acp-client";
 import { useTranslation } from "@plane/i18n";
+import { cn } from "@plane/utils";
 // local imports
 import { formatJson, keyedByContent } from "../helpers";
 import { PermissionPrompt } from "../permission-prompt";
@@ -88,15 +89,25 @@ type Props = {
 export const ToolCallCard = memo(function ToolCallCard({ item, permission, onRespondToPermission }: Props) {
   const { t } = useTranslation();
   const Icon = KIND_ICONS[item.toolKind] ?? ToolOutline;
-  const input = formatJson(item.rawInput);
+  const [expanded, setExpanded] = useState(false);
+  // While an approval is open the member must be able to see all of what they are approving.
+  const awaitingApproval = !!permission;
+  const input = formatJson(item.rawInput, awaitingApproval ? Number.POSITIVE_INFINITY : undefined);
   const output = formatJson(item.rawOutput);
   const hasDetails = !!input || !!output || item.content.length > 0 || item.locations.length > 0;
   const title = item.title || t("agents.tool_call.untitled");
 
   const header = (
-    <span className="flex min-w-0 items-center gap-2">
+    <span className={cn("flex min-w-0 gap-2", awaitingApproval ? "items-start" : "items-center")}>
       <Icon className="size-4 flex-shrink-0 text-tertiary" />
-      <span className="truncate text-body-xs-medium text-primary">{title}</span>
+      <span
+        className={cn(
+          "text-body-xs-medium text-primary",
+          awaitingApproval ? "min-w-0 break-words whitespace-pre-wrap" : "truncate"
+        )}
+      >
+        {title}
+      </span>
       <Badge variant={STATUS_VARIANTS[item.status]} size="sm" label={t(`agents.tool_call.status.${item.status}`)} />
     </span>
   );
@@ -104,12 +115,15 @@ export const ToolCallCard = memo(function ToolCallCard({ item, permission, onRes
   return (
     <div className="flex flex-col gap-2 rounded-md border border-subtle p-2">
       {hasDetails ? (
-        <Collapsible trigger={header}>
+        <Collapsible trigger={header} open={awaitingApproval || expanded} onOpenChange={setExpanded}>
           <div className="flex flex-col gap-2 pt-1">
             {item.locations.length > 0 && (
               <ul className="flex flex-col gap-0.5 text-caption-md-regular text-secondary">
                 {item.locations.map((location) => (
-                  <li key={`${location.path}:${location.line ?? ""}`} className="font-mono truncate">
+                  <li
+                    key={`${location.path}:${location.line ?? ""}`}
+                    className={cn("font-mono", awaitingApproval ? "break-all" : "truncate")}
+                  >
                     {location.path}
                     {location.line != null ? `:${location.line}` : ""}
                   </li>

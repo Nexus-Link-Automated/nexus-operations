@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "Pytanie za każdym razem",
-          "description": "Pytanie przed każdym wywołaniem narzędzia, także przy odczytach."
+          "description": "Pytanie przed każdym wywołaniem narzędzia, także przy odczytach. Codex uruchamia polecenia ze swojej wbudowanej listy tylko do odczytu bez pytania."
         },
         "ask_writes": {
           "name": "Pytanie przed zmianami",

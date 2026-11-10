@@ -7,7 +7,7 @@
 //   <command>" asks to run that command; "cat etc" / "cat creds" ask to read a file outside the cwd /
 //   a sign-in file; "patch <file>..." starts a file change and asks to apply it; "plane" / "plane
 //   list" ask to call a Plane MCP tool; "wait" streams one delta then waits for turn/interrupt;
-//   anything else answers "ok".
+//   "wait tool" starts a command then waits for turn/interrupt; anything else answers "ok".
 // Every message it receives is appended to $FAKE_CODEX_LOG (JSONL) so tests can assert on
 // thread/start params, approval replies and approval policies; the first line of each run is
 // `{ start: { codexHome, apiKeyInEnv }, argv }`.
@@ -15,6 +15,7 @@
 // signs in with ChatGPT instead. `account/login/start {type: "chatgptDeviceCode"}` completes after
 // a moment (FAKE_CODEX_LOGIN=fail fails it, =hang never completes) and writes $CODEX_HOME/auth.json.
 // FAKE_CODEX_APPROVAL_PAUSE_MS: stay silent this long after an approval answer before going on.
+// FAKE_CODEX_TURN_START_DELAY_MS: hold the `turn/start` response this long.
 "use strict";
 
 const fs = require("node:fs");
@@ -228,6 +229,11 @@ async function runTurn(text) {
     complete();
     return;
   }
+  if (text === "wait tool") {
+    const item = { type: "commandExecution", id: `cmd-${n}`, command: "sleep 60", cwd: "/work", commandActions: [] };
+    notify("item/started", { turnId: activeTurn, item: { ...item, status: "inProgress" } });
+    return; // completes on turn/interrupt, without reporting the item's end
+  }
   if (text === "wait") {
     notify("item/agentMessage/delta", { turnId: activeTurn, itemId: `m-${n}`, delta: "working" });
     return; // completes on turn/interrupt
@@ -328,9 +334,14 @@ function handle(msg) {
     case "turn/start": {
       turnCount += 1;
       activeTurn = `turn-${turnCount}`;
-      send({ id: msg.id, result: { turn: { id: activeTurn, status: "inProgress", items: [] } } });
       const text = (msg.params.input[0] && msg.params.input[0].text) || "";
-      setImmediate(() => void runTurn(text));
+      const started = () => {
+        send({ id: msg.id, result: { turn: { id: activeTurn, status: "inProgress", items: [] } } });
+        setImmediate(() => void runTurn(text));
+      };
+      const delayMs = Number(process.env.FAKE_CODEX_TURN_START_DELAY_MS);
+      if (delayMs) setTimeout(started, delayMs);
+      else started();
       return;
     }
     case "turn/interrupt":

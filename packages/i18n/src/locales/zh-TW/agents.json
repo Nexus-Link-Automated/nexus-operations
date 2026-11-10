@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "每次都詢問",
-          "description": "每次呼叫工具前都會詢問，包括讀取操作。"
+          "description": "每次呼叫工具前都會詢問，包括讀取操作。Codex 會直接執行其內建唯讀清單中的指令，不會詢問。"
         },
         "ask_writes": {
           "name": "變更前詢問",

@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "Chiedere ogni volta",
-          "description": "Chiedere conferma prima di ogni chiamata a uno strumento, comprese le letture."
+          "description": "Chiedere conferma prima di ogni chiamata a uno strumento, comprese le letture. Codex esegue senza chiedere i comandi del suo elenco integrato di sola lettura."
         },
         "ask_writes": {
           "name": "Chiedere prima delle modifiche",

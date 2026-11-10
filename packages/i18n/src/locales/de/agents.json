@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "Jedes Mal fragen",
-          "description": "Vor jedem Tool-Aufruf nachfragen, auch vor Lesezugriffen."
+          "description": "Vor jedem Tool-Aufruf nachfragen, auch vor Lesezugriffen. Codex führt Befehle von seiner integrierten Nur-Lesen-Liste ohne Nachfrage aus."
         },
         "ask_writes": {
           "name": "Vor Änderungen fragen",

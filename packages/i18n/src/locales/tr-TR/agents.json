@@ -30,7 +30,7 @@
       "levels": {
         "ask_all": {
           "name": "Her seferinde sor",
-          "description": "Okumalar dahil her araç çağrısından önce onay istenir."
+          "description": "Okumalar dahil her araç çağrısından önce onay istenir. Codex, yerleşik salt okunur listesindeki komutları onay istemeden çalıştırır."
         },
         "ask_writes": {
           "name": "Değişikliklerden önce sor",
