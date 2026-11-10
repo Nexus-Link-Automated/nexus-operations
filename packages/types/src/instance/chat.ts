@@ -4,8 +4,21 @@
  * See the LICENSE file for details.
  */
 
-/** The per-user rate limits on Nexus Messages requests, by what they limit. */
-export type TInstanceChatRateLimitName = "send" | "edit" | "upload" | "channel" | "search" | "read" | "work_item";
+/**
+ * The rate limits on Nexus Messages, by what they limit: per-user limits on requests, and the limits on agents
+ * answering mentions (`agent_*`).
+ */
+export type TInstanceChatRateLimitName =
+  | "send"
+  | "edit"
+  | "upload"
+  | "channel"
+  | "search"
+  | "read"
+  | "work_item"
+  | "agent_session"
+  | "agent_channel"
+  | "agent_post";
 
 /** God mode's Messages settings (`/api/instances/chat/settings/`). */
 export type TInstanceChatSettings = {
@@ -17,6 +30,8 @@ export type TInstanceChatSettings = {
   export_expiry_hours: number;
   /** Read only: each is one or more DRF rates such as "30/minute", all of which apply. */
   rate_limits: Partial<Record<TInstanceChatRateLimitName, string[]>>;
+  /** Read only: how long an agent may work on a mention before it stops. */
+  agent_reply_timeout_seconds?: number;
 };
 
 export type TMessageExportStatus = "queued" | "running" | "ready" | "failed" | "expired";

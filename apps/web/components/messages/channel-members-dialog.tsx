@@ -224,8 +224,8 @@ export const ChannelMembersDialog = observer(function ChannelMembersDialog({ cha
                         ))}
                       </ul>
                     )}
-                    {/* Nothing reaches an agent from a channel yet; say so rather than let a mention look ignored. */}
-                    <p className="text-caption-md-regular text-tertiary">{t("messages.members.agents_inert")}</p>
+                    {/* What a mention of one does, and with whose permissions, before anyone tries it. */}
+                    <p className="text-caption-md-regular text-tertiary">{t("messages.members.agents_how")}</p>
                   </section>
 
                   <section aria-labelledby="chat-members-people" className="flex flex-col gap-2">

@@ -43,13 +43,13 @@
       "no_agents": "此频道中没有代理。",
       "unavailable": "不可用",
       "remove_agent": "移除 {name}",
-      "agents_inert": "频道中的代理暂时还不参与对话。",
       "agents_load_failed": "无法加载可添加的代理。",
       "no_available_agents": "没有更多可用的代理。实例管理员可以添加代理。",
       "choose_agent": "代理",
       "permission_level": "权限级别",
       "private_notice": "这是一个私有频道。{name} 将能够阅读其中的消息，而这些消息目前只有频道中的人可以看到。",
       "public_notice": "{name} 将能够阅读此频道的消息。",
+      "agents_how": "用 @ 提及代理即可向它提问。它会在话题中回复，使用提问者在 Plane 中的权限。访客无法向代理提问。",
       "remove": "移除 {name}",
       "add_title": "添加成员",
       "search": "搜索成员",
@@ -269,13 +269,31 @@
           "channel": "创建频道或打开私信",
           "search": "搜索消息",
           "read": "标记为已读",
-          "work_item": "从消息创建工作项"
-        }
+          "work_item": "从消息创建工作项",
+          "agent_session": "一个人启动的代理会话",
+          "agent_channel": "一个代理在一个频道中的会话",
+          "agent_post": "一个代理发布的回复"
+        },
+        "agents_title": "回复 @提及 的代理",
+        "agents_description": "对在频道中被提及时进行回复的代理的限制。在 API 上使用环境变量 CHAT_RATE_LIMIT_AGENT_* 设置，时间限制使用 CHAT_AGENT_REPLY_TIMEOUT_SECONDS 设置。",
+        "agent_timeout": "代理回复的时间限制",
+        "seconds": "{count, plural, other {# 秒}}"
       }
     },
     "agent": {
       "tag": "代理",
-      "removed": "已删除的代理"
+      "removed": "已删除的代理",
+      "responding": "{name} 正在回复…",
+      "mention_section": "代理",
+      "notice": {
+        "timeout": "我在完成之前用完了时间，所以停止了。",
+        "unavailable": "我现在无法回复：代理服务不可用。请稍后再试。",
+        "credentials": "我无法回复：我没有可用的 AI 提供商凭据。管理员可以在工作区的 AI 提供商设置中进行配置。",
+        "failed": "处理此请求时出了问题，所以我无法回复。",
+        "empty": "我已完成，但没有可回复的内容。请提供更多细节后再问一次。",
+        "rate_limited": "短时间内请求我的次数太多。请几分钟后再试。",
+        "still_working": "我仍在处理此话题中的上一个请求。请在我回复后再问。"
+      }
     }
   }
 }

@@ -43,13 +43,13 @@
       "no_agents": "Aucun agent dans ce canal.",
       "unavailable": "Indisponible",
       "remove_agent": "Retirer {name}",
-      "agents_inert": "Les agents d'un canal ne participent pas encore aux conversations.",
       "agents_load_failed": "Impossible de charger les agents que vous pouvez ajouter.",
       "no_available_agents": "Aucun autre agent n'est disponible. Un administrateur de l'instance peut ajouter des agents.",
       "choose_agent": "Agent",
       "permission_level": "Niveau d'autorisation",
       "private_notice": "Ce canal est privé. {name} pourra lire ses messages, que seules les personnes qui y sont peuvent voir aujourd'hui.",
       "public_notice": "{name} pourra lire les messages de ce canal.",
+      "agents_how": "Mentionnez un agent avec @ pour lui poser une question. Il répond dans le fil, avec les autorisations Plane de la personne qui a demandé. Les invités ne peuvent pas solliciter d'agents.",
       "remove": "Retirer {name}",
       "add_title": "Ajouter des personnes",
       "search": "Rechercher des personnes",
@@ -269,13 +269,31 @@
           "channel": "Créer un canal ou ouvrir un message direct",
           "search": "Rechercher dans les messages",
           "read": "Marquer comme lu",
-          "work_item": "Créer un élément de travail à partir d’un message"
-        }
+          "work_item": "Créer un élément de travail à partir d’un message",
+          "agent_session": "Sessions d'agents lancées par une personne",
+          "agent_channel": "Sessions d'un agent dans un canal",
+          "agent_post": "Réponses publiées par un agent"
+        },
+        "agents_title": "Agents qui répondent aux @mentions",
+        "agents_description": "Limites pour les agents qui répondent lorsqu'ils sont mentionnés dans un canal. Définissez-les avec les variables d'environnement CHAT_RATE_LIMIT_AGENT_*, et le délai avec CHAT_AGENT_REPLY_TIMEOUT_SECONDS, sur l'API.",
+        "agent_timeout": "Temps dont dispose un agent pour répondre",
+        "seconds": "{count, plural, one {# seconde} other {# secondes}}"
       }
     },
     "agent": {
       "tag": "Agent",
-      "removed": "Agent supprimé"
+      "removed": "Agent supprimé",
+      "responding": "{name} est en train de répondre…",
+      "mention_section": "Agents",
+      "notice": {
+        "timeout": "J'ai manqué de temps avant de terminer, alors je me suis arrêté.",
+        "unavailable": "Je ne peux pas répondre pour le moment : le service des agents est indisponible. Réessayez plus tard.",
+        "credentials": "Je ne peux pas répondre : je n'ai pas d'identifiants valides pour mon fournisseur d'IA. Un administrateur peut les configurer dans les paramètres des fournisseurs d'IA de l'espace de travail.",
+        "failed": "Un problème est survenu pendant que je travaillais là-dessus, je n'ai donc pas pu répondre.",
+        "empty": "J'ai terminé sans rien à dire. Reposez la question avec plus de détails.",
+        "rate_limited": "On m'a sollicité trop souvent en peu de temps. Réessayez dans quelques minutes.",
+        "still_working": "Je travaille encore sur la dernière demande de ce fil. Redemandez une fois que j'aurai répondu."
+      }
     }
   }
 }

@@ -9,7 +9,7 @@ import React, { useState } from "react";
 import type { EIssueCommentAccessSpecifier } from "@plane/constants";
 // plane imports
 import { LiteTextEditorWithRef } from "@plane/editor";
-import type { EditorRefApi, ILiteTextEditorProps, TFileHandler } from "@plane/editor";
+import type { EditorRefApi, ILiteTextEditorProps, TFileHandler, TMentionSection } from "@plane/editor";
 import { useTranslation } from "@plane/i18n";
 import type { MakeOptional } from "@plane/types";
 import { cn, isCommentEmpty } from "@plane/utils";
@@ -45,6 +45,8 @@ type LiteTextEditorWrapperProps = MakeOptional<
   parentClassName?: string;
   editorClassName?: string;
   submitButtonText?: string;
+  /** Mention suggestions of the caller's own, listed before the people found for the query. */
+  extraMentionSections?: (query: string) => TMentionSection[];
 } & (
     | {
         editable: false;
@@ -81,6 +83,7 @@ export const LiteTextEditor = React.forwardRef(function LiteTextEditor(
     editorClassName = "",
     showPlaceholderOnEmpty = true,
     submitButtonText = "common.comment",
+    extraMentionSections,
     ...rest
   } = props;
   // states
@@ -155,7 +158,8 @@ export const LiteTextEditor = React.forwardRef(function LiteTextEditor(
               searchCallback: async (query) => {
                 const res = await fetchMentions(query);
                 if (!res) throw new Error("Failed in fetching mentions");
-                return res;
+                const extra = extraMentionSections?.(query) ?? [];
+                return extra.length > 0 ? [...extra, ...res] : res;
               },
               renderComponent: EditorMentionsRoot,
               getMentionedEntityDetails: (id) => ({

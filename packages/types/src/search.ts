@@ -12,7 +12,7 @@ import type { IProject } from "./project";
 import type { IUser } from "./users";
 import type { IWorkspace } from "./workspace";
 
-export type TSearchEntities = "user_mention" | "issue" | "project" | "cycle" | "module" | "page";
+export type TSearchEntities = "user_mention" | "agent_mention" | "issue" | "project" | "cycle" | "module" | "page";
 
 export type TUserSearchResponse = {
   member__avatar_url: IUser["avatar_url"];

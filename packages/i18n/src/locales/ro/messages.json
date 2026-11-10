@@ -43,13 +43,13 @@
       "no_agents": "Nu există agenți în acest canal.",
       "unavailable": "Indisponibil",
       "remove_agent": "Elimină {name}",
-      "agents_inert": "Agenții dintr-un canal nu participă încă la conversații.",
       "agents_load_failed": "Agenții pe care îi poți adăuga nu au putut fi încărcați.",
       "no_available_agents": "Nu mai sunt agenți disponibili. Un administrator al instanței poate adăuga agenți.",
       "choose_agent": "Agent",
       "permission_level": "Nivel de permisiune",
       "private_notice": "Acest canal este privat. {name} va putea citi mesajele lui, pe care acum le văd doar persoanele din canal.",
       "public_notice": "{name} va putea citi mesajele acestui canal.",
+      "agents_how": "Menționați un agent cu @ ca să-l întrebați ceva. Răspunde în fir, cu permisiunile din Plane ale celui care a întrebat. Invitații nu pot întreba agenții.",
       "remove": "Eliminați pe {name}",
       "add_title": "Adăugați persoane",
       "search": "Căutați persoane",
@@ -269,13 +269,31 @@
           "channel": "Crearea unui canal sau deschiderea unui mesaj direct",
           "search": "Căutarea în mesaje",
           "read": "Marcarea ca citit",
-          "work_item": "Crearea unui element de lucru dintr-un mesaj"
-        }
+          "work_item": "Crearea unui element de lucru dintr-un mesaj",
+          "agent_session": "Sesiuni de agenți pornite de o persoană",
+          "agent_channel": "Sesiuni ale unui agent într-un canal",
+          "agent_post": "Răspunsuri publicate de un agent"
+        },
+        "agents_title": "Agenți care răspund la @mențiuni",
+        "agents_description": "Limite pentru agenții care răspund când sunt menționați într-un canal. Setați-le cu variabilele de mediu CHAT_RATE_LIMIT_AGENT_*, iar limita de timp cu CHAT_AGENT_REPLY_TIMEOUT_SECONDS, în API.",
+        "agent_timeout": "Timpul pe care îl are un agent pentru a răspunde",
+        "seconds": "{count, plural, one {# secundă} few {# secunde} other {# de secunde}}"
       }
     },
     "agent": {
       "tag": "Agent",
-      "removed": "Agent eliminat"
+      "removed": "Agent eliminat",
+      "responding": "{name} răspunde…",
+      "mention_section": "Agenți",
+      "notice": {
+        "timeout": "Mi-a expirat timpul înainte să termin, așa că m-am oprit.",
+        "unavailable": "Nu pot răspunde acum: serviciul de agenți nu este disponibil. Încercați din nou mai târziu.",
+        "credentials": "Nu pot răspunde: nu am date de autentificare valide pentru furnizorul meu de AI. Un administrator le poate configura în setările furnizorilor de AI ale spațiului de lucru.",
+        "failed": "Ceva nu a mers bine cât am lucrat la asta, așa că nu am putut răspunde.",
+        "empty": "Am terminat fără să am ceva de spus. Încercați să întrebați din nou, cu mai multe detalii.",
+        "rate_limited": "Am fost întrebat prea des într-un timp scurt. Încercați din nou peste câteva minute.",
+        "still_working": "Încă lucrez la ultima cerere din acest fir. Întrebați din nou după ce răspund."
+      }
     }
   }
 }

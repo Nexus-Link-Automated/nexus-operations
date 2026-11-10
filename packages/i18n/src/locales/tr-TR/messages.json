@@ -43,13 +43,13 @@
       "no_agents": "Bu kanalda ajan yok.",
       "unavailable": "Kullanılamıyor",
       "remove_agent": "{name} kaldır",
-      "agents_inert": "Kanaldaki ajanlar henüz konuşmalara katılmıyor.",
       "agents_load_failed": "Ekleyebileceğiniz ajanlar yüklenemedi.",
       "no_available_agents": "Başka kullanılabilir ajan yok. Bir örnek yöneticisi ajan ekleyebilir.",
       "choose_agent": "Ajan",
       "permission_level": "İzin düzeyi",
       "private_notice": "Bu kanal özel. {name}, şu anda yalnızca kanaldaki kişilerin görebildiği mesajlarını okuyabilecek.",
       "public_notice": "{name} bu kanalın mesajlarını okuyabilecek.",
+      "agents_how": "Bir ajana bir şey sormak için @ ile ondan bahsedin. Ajan, soran kişinin Plane izinleriyle konuda yanıt verir. Konuklar ajanlara soru soramaz.",
       "remove": "{name} kişisini çıkar",
       "add_title": "Kişi ekle",
       "search": "Kişi arayın",
@@ -269,13 +269,31 @@
           "channel": "Kanal oluşturma veya doğrudan mesaj açma",
           "search": "Mesajlarda arama",
           "read": "Okundu olarak işaretleme",
-          "work_item": "Mesajdan iş öğesi oluşturma"
-        }
+          "work_item": "Mesajdan iş öğesi oluşturma",
+          "agent_session": "Bir kişinin başlattığı ajan oturumları",
+          "agent_channel": "Bir kanalda bir ajanın oturumları",
+          "agent_post": "Bir ajanın gönderdiği yanıtlar"
+        },
+        "agents_title": "@bahsetmelere yanıt veren ajanlar",
+        "agents_description": "Bir kanalda bahsedildiklerinde yanıt veren ajanlar için sınırlar. Bunları API'de CHAT_RATE_LIMIT_AGENT_* ortam değişkenleriyle, süre sınırını ise CHAT_AGENT_REPLY_TIMEOUT_SECONDS ile ayarlayın.",
+        "agent_timeout": "Bir ajanın yanıt vermek için sahip olduğu süre",
+        "seconds": "{count, plural, one {# saniye} other {# saniye}}"
       }
     },
     "agent": {
       "tag": "Ajan",
-      "removed": "Kaldırılmış ajan"
+      "removed": "Kaldırılmış ajan",
+      "responding": "{name} yanıtlıyor…",
+      "mention_section": "Ajanlar",
+      "notice": {
+        "timeout": "Bitirmeden önce sürem doldu, bu yüzden durdum.",
+        "unavailable": "Şu anda yanıt veremiyorum: ajan hizmeti kullanılamıyor. Daha sonra tekrar deneyin.",
+        "credentials": "Yanıt veremiyorum: yapay zekâ sağlayıcım için çalışan kimlik bilgilerim yok. Bir yönetici bunları çalışma alanının yapay zekâ sağlayıcı ayarlarından yapılandırabilir.",
+        "failed": "Bunun üzerinde çalışırken bir şeyler ters gitti, bu yüzden yanıt veremedim.",
+        "empty": "Bitirdim ama söyleyecek bir şeyim yok. Daha ayrıntılı olarak tekrar sormayı deneyin.",
+        "rate_limited": "Kısa sürede çok sık soruldum. Birkaç dakika sonra tekrar deneyin.",
+        "still_working": "Bu konudaki son istek üzerinde hâlâ çalışıyorum. Yanıt verdikten sonra tekrar sorun."
+      }
     }
   }
 }

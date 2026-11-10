@@ -27,6 +27,19 @@ import type {
   TWorkspaceAgent,
 } from "@plane/types";
 
+/** An agent working on a reply to a mention, shown in the thread its reply goes in. */
+export type TChatRespondingAgent = {
+  channelId: string;
+  /** The agent's registry ID. */
+  agentId: string;
+  /** The message that mentioned it. */
+  messageId: string;
+};
+
+/** How long past the agent's own time limit an agent is still shown as responding when no event says it stopped. */
+const RESPONDING_GRACE_MS = 60_000;
+const DEFAULT_AGENT_REPLY_TIMEOUT_SECONDS = 300;
+
 /** The REST calls the store makes. `ChatService` in the app; a fake in tests. */
 export type TChatStoreService = Pick<
   ChatService,
@@ -214,6 +227,7 @@ export interface IChatStore {
   channelMembers: Record<string, TChatChannelMember[]>;
   channelAgents: Record<string, TChatChannelAgent[]>;
   availableAgents: TWorkspaceAgent[] | null;
+  respondingAgents: Record<string, TChatRespondingAgent[]>;
   // computed
   joinedChannels: TChatChannel[];
   browsableChannels: TChatChannel[];
@@ -230,6 +244,9 @@ export interface IChatStore {
   getThreadReplies: (parentId: string) => TChatMessage[];
   getThreadState: (parentId: string) => TChatThreadMessages | undefined;
   getPendingReplies: (parentId: string) => TChatPendingMessage[];
+  getRespondingAgents: (threadId: string) => TChatRespondingAgent[];
+  getMentionableAgents: (channelId: string) => TChatChannelAgent[];
+  getAgentName: (agentId: string) => string | undefined;
   // actions
   start: (workspaceSlug: string, userId: string) => Promise<void>;
   stop: () => void;
@@ -271,6 +288,7 @@ export interface IChatStore {
   forgetChannelMembers: (channelId: string) => void;
   addChannelMembers: (channelId: string, memberIds: string[]) => Promise<void>;
   removeChannelMember: (channelId: string, userId: string) => Promise<void>;
+  watchChannelAgents: (channelId: string) => () => void;
   fetchAvailableAgents: () => Promise<void>;
   addChannelAgent: (channelId: string, data: TChatChannelAgentAdd) => Promise<TChatChannelAgent>;
   removeChannelAgent: (channelId: string, agentId: string) => Promise<void>;
@@ -290,8 +308,11 @@ export interface IChatStore {
  *   `member.removed`.
  * - Writes go through REST. A sent message shows as pending until the API returns it; its event is then a no-op.
  * - A channel's people and agents are held only while something shows them (`fetchChannelMembers`,
- *   `fetchChannelAgents`, until `forgetChannelMembers`), and re-read on their `member.*` events and on resync. An event
+ *   `fetchChannelAgents`, until `forgetChannelMembers`; agents also while `watchChannelAgents` holds them, for the
+ *   mention picker and for naming agent mentions), and re-read on their `member.*` events and on resync. An event
  *   about an agent names it with `agent_id` and no `user_id`; it changes nothing else.
+ * - `agent.responding` shows an agent as working on a mention in the thread its reply goes in, until
+ *   `agent.responded`, or the agent's time limit (plus a minute) if that event never comes.
  * - Thread replies stay out of the channel's list and out of its unread count, like the API's. The open thread holds
  *   its replies the way a channel holds its messages, and is caught up the same way. A reply's event re-reads its
  *   parent, whose summary (`reply_count`, `last_reply_at`) changed; after a reconnect, only the parents on the
@@ -324,6 +345,8 @@ export class ChatStore implements IChatStore {
   channelAgents: Record<string, TChatChannelAgent[]> = {};
   /** The registry's agents enabled for the workspace, once asked for: what a channel can be given. */
   availableAgents: TWorkspaceAgent[] | null = null;
+  /** By the thread the agents' replies go in (its first message). */
+  respondingAgents: Record<string, TChatRespondingAgent[]> = {};
 
   private readonly service: TChatStoreService;
   private readonly createSocket: TChatSocketFactory;
@@ -352,6 +375,10 @@ export class ChatStore implements IChatStore {
   private readonly agentLoads = new Map<string, { again: boolean; promise: Promise<void> }>();
   /** Channels whose people and agents something shows, from `fetchChannelMembers` until `forgetChannelMembers`. */
   private readonly shownMembers = new Set<string>();
+  /** How many things show each channel's agents through `watchChannelAgents`. */
+  private readonly agentWatchers = new Map<string, number>();
+  /** Clears a responding agent whose `agent.responded` never came. */
+  private readonly respondingTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** Bumped by every new search, so an answer to an older one is dropped. */
   private searchGeneration = 0;
 
@@ -382,6 +409,7 @@ export class ChatStore implements IChatStore {
       channelMembers: observable,
       channelAgents: observable,
       availableAgents: observable.ref,
+      respondingAgents: observable,
       // computed
       joinedChannels: computed,
       browsableChannels: computed,
@@ -425,6 +453,7 @@ export class ChatStore implements IChatStore {
       forgetChannelMembers: action.bound,
       addChannelMembers: action.bound,
       removeChannelMember: action.bound,
+      watchChannelAgents: action.bound,
       fetchAvailableAgents: action.bound,
       addChannelAgent: action.bound,
       removeChannelAgent: action.bound,
@@ -508,6 +537,29 @@ export class ChatStore implements IChatStore {
     else this.drafts.delete(channelId);
   };
 
+  /** The agents working on a reply in this thread (by its first message). */
+  getRespondingAgents = (threadId: string): TChatRespondingAgent[] => this.respondingAgents[threadId] ?? [];
+
+  /**
+   * The agents the user can ask something by mentioning them here: the channel's available agents, for someone who
+   * may run agents (never a guest) and is in the channel. What the API checks before it starts one.
+   */
+  getMentionableAgents = (channelId: string): TChatChannelAgent[] => {
+    const channel = this.channelMap[channelId];
+    if (!this.me?.can_mention_agents || !channel?.is_member || channel.archived_at) return [];
+    if (channel.kind !== "public" && channel.kind !== "private") return [];
+    return (this.channelAgents[channelId] ?? []).filter((agent) => agent.is_available);
+  };
+
+  /** What the registry calls an agent, if any list the store holds has it. */
+  getAgentName = (agentId: string): string | undefined => {
+    for (const agents of Object.values(this.channelAgents)) {
+      const found = agents.find((agent) => agent.agent === agentId);
+      if (found) return found.name;
+    }
+    return this.availableAgents?.find((agent) => agent.id === agentId)?.name;
+  };
+
   /** The user can see the channel's newest messages: it is open, the tab is visible, and the list is at the bottom. */
   private isViewing(channelId: string): boolean {
     return this.activeChannelId === channelId && this.isDocumentVisible && this.isAtNewest;
@@ -572,6 +624,10 @@ export class ChatStore implements IChatStore {
     this.channelMembers = {};
     this.channelAgents = {};
     this.availableAgents = null;
+    this.respondingAgents = {};
+    for (const timer of this.respondingTimers.values()) clearTimeout(timer);
+    this.respondingTimers.clear();
+    this.agentWatchers.clear();
     this.memberLoads.clear();
     this.agentLoads.clear();
     this.shownMembers.clear();
@@ -841,21 +897,50 @@ export class ChatStore implements IChatStore {
   /** Load the channel's agents, and keep them current until `forgetChannelMembers`. */
   fetchChannelAgents(channelId: string): Promise<void> {
     this.shownMembers.add(channelId);
+    return this.loadChannelAgents(channelId);
+  }
+
+  /** Whether anything shows the channel's agents: its member list, or a `watchChannelAgents` holder. */
+  private agentsShown(channelId: string): boolean {
+    return this.shownMembers.has(channelId) || !!this.agentWatchers.get(channelId);
+  }
+
+  /** Read the channel's agents, and hold them if something still shows them when they land. */
+  private loadChannelAgents(channelId: string): Promise<void> {
     return this.coalesce(this.agentLoads, channelId, async () => {
       const slug = this.requireSlug();
       const commit = this.guard();
       const agents = await this.service.listAgents(slug, channelId);
+      // Closed while this loaded: holding the list again would keep re-reading it for nobody.
       commit(() => {
-        if (this.shownMembers.has(channelId)) this.channelAgents[channelId] = agents;
+        if (this.agentsShown(channelId)) this.channelAgents[channelId] = agents;
       });
     });
   }
 
-  /** Nothing shows the channel's members any more: stop keeping them. */
+  /** Nothing shows the channel's members any more: stop keeping them (its agents stay while they are watched). */
   forgetChannelMembers(channelId: string): void {
     this.shownMembers.delete(channelId);
     delete this.channelMembers[channelId];
-    delete this.channelAgents[channelId];
+    if (!this.agentWatchers.get(channelId)) delete this.channelAgents[channelId];
+  }
+
+  /** Load the channel's agents and keep them current until the returned release is called. */
+  watchChannelAgents(channelId: string): () => void {
+    this.agentWatchers.set(channelId, (this.agentWatchers.get(channelId) ?? 0) + 1);
+    void this.loadChannelAgents(channelId).catch(() => undefined);
+    let released = false;
+    return action(() => {
+      if (released) return;
+      released = true;
+      const left = (this.agentWatchers.get(channelId) ?? 1) - 1;
+      if (left > 0) {
+        this.agentWatchers.set(channelId, left);
+        return;
+      }
+      this.agentWatchers.delete(channelId);
+      if (!this.shownMembers.has(channelId)) delete this.channelAgents[channelId];
+    });
   }
 
   /** Add people to a named channel. Any member can; people already in it are skipped. */
@@ -909,7 +994,7 @@ export class ChatStore implements IChatStore {
     } catch (error) {
       // Gone already, whoever removed it; anything else (no right to, archived) is for the caller to say.
       if (!isNotFound(error)) throw error;
-      if (this.channelAgents[channelId]) void this.fetchChannelAgents(channelId).catch(() => undefined);
+      if (this.channelAgents[channelId]) void this.loadChannelAgents(channelId).catch(() => undefined);
     }
     commit(() => {
       const held = this.channelAgents[channelId];
@@ -921,7 +1006,7 @@ export class ChatStore implements IChatStore {
   private refreshShownMembers(): Promise<unknown> {
     return Promise.all([
       ...Object.keys(this.channelMembers).map((id) => this.fetchChannelMembers(id).catch(() => undefined)),
-      ...Object.keys(this.channelAgents).map((id) => this.fetchChannelAgents(id).catch(() => undefined)),
+      ...Object.keys(this.channelAgents).map((id) => this.loadChannelAgents(id).catch(() => undefined)),
     ]);
   }
 
@@ -1552,7 +1637,7 @@ export class ChatStore implements IChatStore {
       case "member.updated":
         // An agent (a gateway too old to pass `agent_id` on sends neither ID): only the channel's agents changed.
         if (event.agent_id !== undefined || event.user_id === undefined) {
-          if (this.channelAgents[channelId]) void this.fetchChannelAgents(channelId).catch(() => undefined);
+          if (this.channelAgents[channelId]) void this.loadChannelAgents(channelId).catch(() => undefined);
           return;
         }
         // My own: the channel appears, goes, or my role changed. Someone else's: the member count changed.
@@ -1563,9 +1648,45 @@ export class ChatStore implements IChatStore {
         // Read in another tab.
         if (known) void this.refreshChannel(channelId);
         return;
+      case "agent.responding":
+      case "agent.responded": {
+        const { parent_id: threadId, agent_id: agentId, message_id: messageId } = event;
+        if (!threadId || !agentId || !messageId) return;
+        if (event.type === "agent.responding") this.noteResponding({ channelId, agentId, messageId }, threadId);
+        else this.clearResponding(threadId, agentId, messageId);
+        return;
+      }
       default:
         return;
     }
+  }
+
+  private noteResponding(entry: TChatRespondingAgent, threadId: string): void {
+    const key = `${threadId}:${entry.agentId}:${entry.messageId}`;
+    const held = this.respondingAgents[threadId] ?? [];
+    if (!held.some((item) => item.agentId === entry.agentId && item.messageId === entry.messageId)) {
+      this.respondingAgents[threadId] = [...held, entry];
+    }
+    clearTimeout(this.respondingTimers.get(key));
+    const seconds = this.me?.agent_reply_timeout_seconds ?? DEFAULT_AGENT_REPLY_TIMEOUT_SECONDS;
+    this.respondingTimers.set(
+      key,
+      setTimeout(
+        action(() => this.clearResponding(threadId, entry.agentId, entry.messageId)),
+        seconds * 1000 + RESPONDING_GRACE_MS
+      )
+    );
+  }
+
+  private clearResponding(threadId: string, agentId: string, messageId: string): void {
+    const key = `${threadId}:${agentId}:${messageId}`;
+    clearTimeout(this.respondingTimers.get(key));
+    this.respondingTimers.delete(key);
+    const left = (this.respondingAgents[threadId] ?? []).filter(
+      (item) => !(item.agentId === agentId && item.messageId === messageId)
+    );
+    if (left.length > 0) this.respondingAgents[threadId] = left;
+    else delete this.respondingAgents[threadId];
   }
 
   /** A new message: fetch it into the channel, then move the read cursor past it if the user is looking. */

@@ -72,6 +72,13 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
     if (started && linkedThreadId) void chat.openThread(channelId, linkedThreadId);
   }, [chat, channelId, started, linkedThreadId]);
 
+  // A channel's agents name its agent mentions, and the mention list offers them. DMs never have agents.
+  const hasAgents = channel?.kind === "public" || channel?.kind === "private";
+  useEffect(() => {
+    if (!started || !hasAgents) return;
+    return chat.watchChannelAgents(channelId);
+  }, [chat, channelId, started, hasAgents]);
+
   if (notFound || (wasShown && !channel)) {
     return (
       <div className="flex flex-1 items-center justify-center">

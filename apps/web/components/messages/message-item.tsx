@@ -9,7 +9,13 @@ import { observer } from "mobx-react";
 // plane imports
 import { Button } from "@makeplane/propel/components/button";
 import { IconButton } from "@makeplane/propel/components/icon-button";
-import { DeleteOutline, EditOutline, ReplyOutline, WorkItemsOutline } from "@makeplane/propel/icons";
+import {
+  DeleteOutline,
+  EditOutline,
+  ReplyOutline,
+  WarningCircleOutline,
+  WorkItemsOutline,
+} from "@makeplane/propel/icons";
 import { ConfirmDialog } from "@plane/blocks/dialog";
 import { setToast } from "@plane/blocks/toast";
 import type { EditorRefApi } from "@plane/editor";
@@ -25,6 +31,7 @@ import { useWorkspace } from "@/hooks/store/use-workspace";
 // store
 import type { TChatPendingMessage } from "@/store/chat.store";
 // local imports
+import { ChatAgentResponding } from "./agent-responding";
 import { ChatMessageAttachments, ChatPendingAttachments } from "./attachments";
 import { chatSender, chatSenderName, isChatRateLimited } from "./helpers";
 import { ChatCreateWorkItemAction } from "./create-work-item-action";
@@ -270,6 +277,15 @@ export const ChatMessageItem = observer(function ChatMessageItem({
               />
             </div>
           </div>
+        ) : message.agent_notice ? (
+          // The agent couldn't answer a mention. The body says why in English; say it in the reader's language.
+          <p
+            role="note"
+            className="mt-0.5 flex items-start gap-1.5 rounded-sm bg-layer-2 px-2 py-1 text-body-sm-regular text-secondary"
+          >
+            <WarningCircleOutline className="mt-0.5 size-3.5 flex-shrink-0 text-warning-primary" aria-hidden />
+            <span>{t(`messages.agent.notice.${message.agent_notice}`)}</span>
+          </p>
         ) : (
           !isCommentEmpty(message.body_html) && (
             <ChatMessageBody id={`chat-message-${message.id}`} html={message.body_html} />
@@ -282,6 +298,7 @@ export const ChatMessageItem = observer(function ChatMessageItem({
         )}
         {/* Shown on a removed message too: its thread stays reachable. */}
         {!inThread && <ChatThreadSummary message={message} />}
+        {!inThread && !message.parent && <ChatAgentResponding threadId={message.id} className="mt-1" />}
       </div>
       {canChange && !removed && !editing && (canReply || !automatic) && (
         <MessageActions

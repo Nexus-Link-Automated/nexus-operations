@@ -43,13 +43,13 @@
       "no_agents": "No agents in this channel.",
       "unavailable": "Unavailable",
       "remove_agent": "Remove {name}",
-      "agents_inert": "Agents in a channel don't take part in conversations yet.",
       "agents_load_failed": "Couldn't load the agents you can add.",
       "no_available_agents": "No more agents are available. An instance admin can add agents.",
       "choose_agent": "Agent",
       "permission_level": "Permission level",
       "private_notice": "This channel is private. {name} will be able to read its messages, which only the people in it can see now.",
       "public_notice": "{name} will be able to read this channel's messages.",
+      "agents_how": "Mention an agent with @ to ask it something. It replies in the thread, with the Plane permissions of whoever asked. Guests can't ask agents.",
       "remove": "Remove {name}",
       "add_title": "Add people",
       "search": "Search people",
@@ -269,13 +269,31 @@
           "channel": "Create a channel or open a direct message",
           "search": "Search messages",
           "read": "Mark as read",
-          "work_item": "Create a work item from a message"
-        }
+          "work_item": "Create a work item from a message",
+          "agent_session": "Agent sessions one person starts",
+          "agent_channel": "Agent sessions for one agent in one channel",
+          "agent_post": "Replies one agent posts"
+        },
+        "agents_title": "Agents answering @mentions",
+        "agents_description": "Limits on agents that reply when they're mentioned in a channel. Set them with the CHAT_RATE_LIMIT_AGENT_* environment variables, and the time limit with CHAT_AGENT_REPLY_TIMEOUT_SECONDS, on the API.",
+        "agent_timeout": "Time an agent may take to reply",
+        "seconds": "{count, plural, one {# second} other {# seconds}}"
       }
     },
     "agent": {
       "tag": "Agent",
-      "removed": "Removed agent"
+      "removed": "Removed agent",
+      "responding": "{name} is responding…",
+      "mention_section": "Agents",
+      "notice": {
+        "timeout": "I ran out of time before I could finish, so I stopped.",
+        "unavailable": "I can't reply right now: the agent service is unavailable. Try again later.",
+        "credentials": "I can't reply: I don't have working credentials for my AI provider. An admin can set them up in the workspace's AI provider settings.",
+        "failed": "Something went wrong while I was working on this, so I couldn't reply.",
+        "empty": "I finished without anything to say. Try asking again with more detail.",
+        "rate_limited": "I've been asked too often in a short time. Try again in a few minutes.",
+        "still_working": "I'm still working on the last request in this thread. Ask again once I've replied."
+      }
     }
   }
 }

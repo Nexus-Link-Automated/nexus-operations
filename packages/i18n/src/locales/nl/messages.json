@@ -43,13 +43,13 @@
       "no_agents": "Geen agents in dit kanaal.",
       "unavailable": "Niet beschikbaar",
       "remove_agent": "{name} verwijderen",
-      "agents_inert": "Agents in een kanaal nemen nog niet deel aan gesprekken.",
       "agents_load_failed": "De agents die je kunt toevoegen konden niet worden geladen.",
       "no_available_agents": "Er zijn geen andere agents beschikbaar. Een instantiebeheerder kan agents toevoegen.",
       "choose_agent": "Agent",
       "permission_level": "Machtigingsniveau",
       "private_notice": "Dit kanaal is privé. {name} kan de berichten erin lezen, die nu alleen de mensen in het kanaal zien.",
       "public_notice": "{name} kan de berichten van dit kanaal lezen.",
+      "agents_how": "Vermeld een agent met @ om hem iets te vragen. Hij antwoordt in de thread, met de Plane-rechten van degene die het vroeg. Gasten kunnen geen agents iets vragen.",
       "remove": "{name} verwijderen",
       "add_title": "Personen toevoegen",
       "search": "Personen zoeken",
@@ -269,13 +269,31 @@
           "channel": "Een kanaal maken of een direct bericht openen",
           "search": "Berichten doorzoeken",
           "read": "Markeren als gelezen",
-          "work_item": "Een werkitem maken van een bericht"
-        }
+          "work_item": "Een werkitem maken van een bericht",
+          "agent_session": "Agentsessies die één persoon start",
+          "agent_channel": "Sessies van één agent in één kanaal",
+          "agent_post": "Antwoorden die één agent plaatst"
+        },
+        "agents_title": "Agents die op @vermeldingen reageren",
+        "agents_description": "Limieten voor agents die reageren wanneer ze in een kanaal worden vermeld. Stel ze in met de omgevingsvariabelen CHAT_RATE_LIMIT_AGENT_*, en de tijdslimiet met CHAT_AGENT_REPLY_TIMEOUT_SECONDS, op de API.",
+        "agent_timeout": "Tijd die een agent heeft om te reageren",
+        "seconds": "{count, plural, one {# seconde} other {# seconden}}"
       }
     },
     "agent": {
       "tag": "Agent",
-      "removed": "Verwijderde agent"
+      "removed": "Verwijderde agent",
+      "responding": "{name} reageert…",
+      "mention_section": "Agents",
+      "notice": {
+        "timeout": "Mijn tijd was op voordat ik klaar was, dus ik ben gestopt.",
+        "unavailable": "Ik kan nu niet reageren: de agentservice is niet beschikbaar. Probeer het later opnieuw.",
+        "credentials": "Ik kan niet reageren: ik heb geen werkende inloggegevens voor mijn AI-provider. Een beheerder kan ze instellen in de AI-providerinstellingen van de werkruimte.",
+        "failed": "Er ging iets mis terwijl ik hieraan werkte, dus ik kon niet reageren.",
+        "empty": "Ik ben klaar, maar heb niets te zeggen. Vraag het opnieuw met meer details.",
+        "rate_limited": "Ik ben in korte tijd te vaak gevraagd. Probeer het over een paar minuten opnieuw.",
+        "still_working": "Ik werk nog aan het vorige verzoek in deze thread. Vraag het opnieuw zodra ik heb gereageerd."
+      }
     }
   }
 }

@@ -91,6 +91,16 @@ export type TChatAgentDetails = {
   is_available: boolean;
 };
 
+/** Why an agent's message is a note instead of an answer to a mention. */
+export type TChatAgentNotice =
+  | "timeout"
+  | "unavailable"
+  | "credentials"
+  | "failed"
+  | "empty"
+  | "rate_limited"
+  | "still_working";
+
 /**
  * A message, or a removed message's tombstone (empty body, `removed_at` set). Exactly one of `sender`,
  * `sender_agent` and `system_event` is set; an automatic message (`system_event`) has no sender and can't be edited.
@@ -105,6 +115,11 @@ export type TChatMessage = {
   /** That agent as the registry has it now; null once it is deleted from the registry (show "Removed agent"). */
   sender_agent_details: TChatAgentDetails | null;
   system_event: TChatSystemEvent | null;
+  /**
+   * Set on an agent's message that is a note instead of an answer to a mention: why it couldn't answer. The body
+   * says so too, in English; show the note in the reader's language instead.
+   */
+  agent_notice: TChatAgentNotice | null;
   body_html: string;
   body_json: Record<string, unknown>;
   body_stripped: string;
@@ -213,6 +228,10 @@ export type TChatMe = {
   can_open_dms: boolean;
   /** Admins and members, in a channel they administer (any channel, for a workspace admin). Never guests. */
   can_add_agents: boolean;
+  /** Admins and members: an @mention of an agent in a channel they are in asks it to reply. Never guests. */
+  can_mention_agents: boolean;
+  /** How long an agent may work on a mention before it stops. */
+  agent_reply_timeout_seconds: number;
 };
 
 export type TChatChannelMember = {
@@ -274,19 +293,22 @@ export type TChatEventType =
   | "member.removed"
   | "member.updated"
   | "read.updated"
-  | "access.revoked";
+  | "access.revoked"
+  | "agent.responding"
+  | "agent.responded";
 
 /** A chat event: IDs only. Fetch what it is about over REST. */
 export type TChatEvent = {
   type: TChatEventType;
   workspace_id: string;
   channel_id?: string;
+  /** `message.*`: the message. `agent.*`: the message that mentioned the agent. */
   message_id?: string;
-  /** `message.*` on a thread reply: the thread's first message. */
+  /** `message.*` on a thread reply: the thread's first message. `agent.*`: the thread the agent replies in. */
   parent_id?: string;
   /** `member.*`, `read.updated`: the person it is about. */
   user_id?: string;
-  /** `member.*` about an agent instead of a person: the agent's registry ID. */
+  /** `member.*` about an agent instead of a person, and `agent.*`: the agent's registry ID. */
   agent_id?: string;
   /** Who made the change, when someone did. */
   actor_id?: string;

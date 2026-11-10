@@ -17,9 +17,11 @@ const mocks = vi.hoisted(() => ({
     deleteAttachment: ReturnType<typeof vi.fn>;
     getDraft: (channelId: string) => string | undefined;
     setDraft: (channelId: string, html: string) => void;
+    getMentionableAgents?: (channelId: string) => unknown[];
   },
   html: "<p></p>",
   clearEditor: vi.fn(),
+  editorProps: {} as { extraMentionSections?: (query: string) => unknown[] },
 }));
 
 vi.mock("@/hooks/store/use-chat", () => ({ useChat: () => mocks.chat }));
@@ -28,7 +30,8 @@ vi.mock("@/hooks/store/use-workspace", () => ({
 }));
 vi.mock("@/hooks/use-file-size", () => ({ useFileSize: () => ({ maxFileSize: 1000 }) }));
 vi.mock("@/components/editor/lite-text", () => ({
-  LiteTextEditor: forwardRef(function Editor(_props, ref) {
+  LiteTextEditor: forwardRef(function Editor(props, ref) {
+    mocks.editorProps = props as typeof mocks.editorProps;
     useImperativeHandle(ref, () => ({
       getDocument: () => ({ html: mocks.html, json: {} }),
       clearEditor: mocks.clearEditor,
@@ -187,5 +190,51 @@ describe("ChatComposer attachments", () => {
     await attach(...Array.from({ length: 11 }, (_, i) => new File(["x"], `f${i}.png`, { type: "image/png" })));
     expect((await screen.findByRole("alert")).textContent).toContain("attachments");
     expect(mocks.chat.uploadAttachment).toHaveBeenCalledTimes(10);
+  });
+});
+
+const agent = (id: string, name: string) => ({
+  id: `seat-${id}`,
+  channel: "c1",
+  agent: id,
+  slug: id,
+  name,
+  description: "",
+  adapter: "claude",
+  permission_level: "ask_writes",
+  is_available: true,
+  added_by: null,
+  added_at: "2026-01-01T00:00:00Z",
+});
+
+describe("ChatComposer agent mentions", () => {
+  it("lists the channel's agents the user may mention, tagged, before the people", () => {
+    const getMentionableAgents = vi.fn(() => [agent("maia", "Maia"), agent("scout", "Scout")]);
+    mocks.chat = { uploadAttachment: vi.fn(), deleteAttachment: vi.fn(), getMentionableAgents };
+    renderComposer();
+    const [section] = mocks.editorProps.extraMentionSections!("ma") as {
+      key: string;
+      title: string;
+      items: { entity_name: string; entity_identifier: string; title: string; subTitle: string }[];
+    }[];
+    expect(getMentionableAgents).toHaveBeenCalledWith("c1");
+    expect(section!.title).toBe("Agents");
+    expect(
+      section!.items.map(({ entity_name, entity_identifier, title, subTitle }) => ({
+        entity_name,
+        entity_identifier,
+        title,
+        subTitle,
+      }))
+    ).toEqual([{ entity_name: "agent_mention", entity_identifier: "maia", title: "Maia", subTitle: "Agent" }]);
+    expect(mocks.editorProps.extraMentionSections!("")[0]).toMatchObject({
+      items: [{ title: "Maia" }, { title: "Scout" }],
+    });
+  });
+
+  it("lists none when there are none to mention (a guest, a DM, a channel without agents)", () => {
+    mocks.chat = { uploadAttachment: vi.fn(), deleteAttachment: vi.fn(), getMentionableAgents: () => [] };
+    renderComposer();
+    expect(mocks.editorProps.extraMentionSections!("ma")).toEqual([]);
   });
 });

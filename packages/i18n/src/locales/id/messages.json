@@ -43,13 +43,13 @@
       "no_agents": "Tidak ada agen di kanal ini.",
       "unavailable": "Tidak tersedia",
       "remove_agent": "Hapus {name}",
-      "agents_inert": "Agen di kanal belum ikut serta dalam percakapan.",
       "agents_load_failed": "Tidak dapat memuat agen yang dapat Anda tambahkan.",
       "no_available_agents": "Tidak ada agen lain yang tersedia. Admin instans dapat menambahkan agen.",
       "choose_agent": "Agen",
       "permission_level": "Tingkat izin",
       "private_notice": "Kanal ini privat. {name} akan dapat membaca pesannya, yang saat ini hanya dapat dilihat oleh orang di dalamnya.",
       "public_notice": "{name} akan dapat membaca pesan di kanal ini.",
+      "agents_how": "Sebut agen dengan @ untuk menanyakan sesuatu. Agen membalas di utas, dengan izin Plane milik orang yang bertanya. Tamu tidak dapat bertanya kepada agen.",
       "remove": "Keluarkan {name}",
       "add_title": "Tambahkan orang",
       "search": "Cari orang",
@@ -269,13 +269,31 @@
           "channel": "Membuat kanal atau membuka pesan langsung",
           "search": "Mencari pesan",
           "read": "Menandai sebagai dibaca",
-          "work_item": "Membuat item kerja dari pesan"
-        }
+          "work_item": "Membuat item kerja dari pesan",
+          "agent_session": "Sesi agen yang dimulai satu orang",
+          "agent_channel": "Sesi satu agen di satu kanal",
+          "agent_post": "Balasan yang diposting satu agen"
+        },
+        "agents_title": "Agen yang menjawab @sebutan",
+        "agents_description": "Batas untuk agen yang membalas saat disebut di kanal. Atur dengan variabel lingkungan CHAT_RATE_LIMIT_AGENT_*, dan batas waktunya dengan CHAT_AGENT_REPLY_TIMEOUT_SECONDS, di API.",
+        "agent_timeout": "Waktu yang dimiliki agen untuk membalas",
+        "seconds": "{count, plural, other {# detik}}"
       }
     },
     "agent": {
       "tag": "Agen",
-      "removed": "Agen yang dihapus"
+      "removed": "Agen yang dihapus",
+      "responding": "{name} sedang membalas…",
+      "mention_section": "Agen",
+      "notice": {
+        "timeout": "Waktu saya habis sebelum selesai, jadi saya berhenti.",
+        "unavailable": "Saya tidak bisa membalas sekarang: layanan agen tidak tersedia. Coba lagi nanti.",
+        "credentials": "Saya tidak bisa membalas: saya tidak punya kredensial yang berfungsi untuk penyedia AI saya. Admin dapat mengaturnya di pengaturan penyedia AI ruang kerja.",
+        "failed": "Terjadi kesalahan saat saya mengerjakan ini, jadi saya tidak bisa membalas.",
+        "empty": "Saya selesai tanpa ada yang bisa disampaikan. Coba tanyakan lagi dengan lebih rinci.",
+        "rate_limited": "Saya terlalu sering ditanya dalam waktu singkat. Coba lagi dalam beberapa menit.",
+        "still_working": "Saya masih mengerjakan permintaan terakhir di utas ini. Tanyakan lagi setelah saya membalas."
+      }
     }
   }
 }
