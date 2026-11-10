@@ -131,6 +131,9 @@ class TestRetentionSetting:
         assert response.data["retention_days"] == 0
         assert response.data["min_retention_days"] == 30
         assert response.data["rate_limits"]["send"] == ["30/minute", "500/hour"]
+        assert response.data["rate_limits"]["agent_session"] == ["5/minute", "60/hour"]
+        assert response.data["rate_limits"]["agent_post"] == ["120/hour"]
+        assert response.data["agent_reply_timeout_seconds"] == 300
 
     @pytest.mark.parametrize("value, stored", [(30, "30"), ("365", "365"), (0, "0")])
     def test_set(self, god, value, stored):

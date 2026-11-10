@@ -11,6 +11,10 @@ cleared and `removed_at` is set, but the row stays so its thread replies and rea
 cursors keep working. `deleted_at` (soft delete) is reserved for removing data for real.
 
 `body_stripped` is the body as plain text, for search (`plane.chat.search`), previews and work item titles.
+
+An agent's message in reply to a mention (`plane.chat.agent_replies`) that isn't an answer, but a note that it couldn't
+give one (it timed out, its service is down, it is still working on the last mention), has `agent_notice` set to why.
+The body says so too, in English, for search, exports and emails; the web app shows its own words for the notice.
 """
 
 import re
@@ -26,7 +30,7 @@ from django.utils.html import strip_tags
 
 from plane.db.models import BaseModel, FileAsset
 
-__all__ = ["Message", "MessageReference", "MessageSystemEvent", "plain_text", "search_document"]
+__all__ = ["AgentNotice", "Message", "MessageReference", "MessageSystemEvent", "plain_text", "search_document"]
 
 _ALIVE = Q(deleted_at__isnull=True)
 
@@ -62,6 +66,18 @@ class MessageSystemEvent(models.TextChoices):
     WORK_ITEM_STATE = "work_item_state", "Work item state changes"
 
 
+class AgentNotice(models.TextChoices):
+    """Why an agent's message is a note instead of a reply to the mention."""
+
+    TIMEOUT = "timeout", "Ran out of time"
+    UNAVAILABLE = "unavailable", "The agent service is unavailable"
+    CREDENTIALS = "credentials", "No working provider credentials"
+    FAILED = "failed", "The session failed"
+    EMPTY = "empty", "Finished without a reply"
+    RATE_LIMITED = "rate_limited", "Too many mentions"
+    STILL_WORKING = "still_working", "Still working on an earlier mention in the thread"
+
+
 class Message(BaseModel):
     workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="chat_messages")
     channel = models.ForeignKey("chat.Channel", on_delete=models.CASCADE, related_name="messages")
@@ -71,6 +87,7 @@ class Message(BaseModel):
     system_event = models.CharField(max_length=32, choices=MessageSystemEvent.choices, null=True, blank=True)
     # What an automatic message is about, for rendering it per reader (`project_feed.body_for_reader`).
     system_data = models.JSONField(null=True, blank=True)
+    agent_notice = models.CharField(max_length=32, choices=AgentNotice.choices, null=True, blank=True)
     body_html = models.TextField(blank=True, default="<p></p>")
     # Stored as the client sent it, unlike the sanitized body_html: render from body_html, never from this.
     body_json = models.JSONField(blank=True, default=dict)
@@ -101,6 +118,10 @@ class Message(BaseModel):
                 name="chat_message_one_sender",
             ),
             models.CheckConstraint(condition=~Q(parent=F("id")), name="chat_message_not_own_parent"),
+            models.CheckConstraint(
+                condition=Q(agent_notice__isnull=True) | Q(sender_agent__isnull=False),
+                name="chat_message_notice_by_agent",
+            ),
         ]
         indexes = [
             models.Index(fields=["channel", "created_at"], name="chat_message_channel_idx"),

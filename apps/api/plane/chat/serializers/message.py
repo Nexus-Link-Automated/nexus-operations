@@ -63,6 +63,7 @@ class MessageSerializer(BaseSerializer):
             "sender_agent",
             "sender_agent_details",
             "system_event",
+            "agent_notice",
             "body_html",
             "body_json",
             "body_stripped",

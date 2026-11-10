@@ -45,6 +45,8 @@ def _settings_payload():
         "export_expiry_hours": settings.CHAT_EXPORT_EXPIRY_HOURS,
         # Read only here: they are set with CHAT_RATE_LIMIT_<NAME> environment variables.
         "rate_limits": {name: rate.split(",") for name, rate in settings.CHAT_RATE_LIMITS.items()},
+        # Set with CHAT_AGENT_REPLY_TIMEOUT_SECONDS.
+        "agent_reply_timeout_seconds": settings.CHAT_AGENT_REPLY_TIMEOUT_SECONDS,
     }
 
 

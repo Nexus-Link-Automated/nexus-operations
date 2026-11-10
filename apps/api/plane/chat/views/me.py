@@ -8,6 +8,7 @@ It also carries the workspace ID: the chat gateway reads it here to admit a sock
 channel to follow, in one call that only an active member of the workspace gets an answer from.
 """
 
+from django.conf import settings
 from rest_framework.response import Response
 
 from plane.chat.agents import can_add_agents
@@ -27,5 +28,9 @@ class ChatMeEndpoint(ChatBaseEndpoint):
                 "can_open_dms": can_open_dms(request.user, self.workspace.id, self.role),
                 # In a channel they administer, or any channel as a workspace admin.
                 "can_add_agents": can_add_agents(self.role),
+                # Who may run agents may also set them off with a mention, in a channel they are in.
+                "can_mention_agents": can_add_agents(self.role),
+                # How long an agent may work on a mention; the web app stops showing it as working after this.
+                "agent_reply_timeout_seconds": settings.CHAT_AGENT_REPLY_TIMEOUT_SECONDS,
             }
         )

@@ -11,6 +11,9 @@ Going over one answers 429 with `Retry-After`. The counts live in the shared cac
 Every chat endpoint needs a signed-in session, so the limits are by user, not by IP address: people behind one NAT or
 proxy don't share a budget. Automatic posts (`project_feed`) and digests (`digest`) are Celery tasks, not requests,
 so nothing here counts them.
+
+Agents answering mentions (`agent_replies`) also run in Celery; `allow()` counts their limits (`agent_*`) by person,
+by agent in a channel and by agent instead.
 """
 
 from django.conf import settings
@@ -33,3 +36,27 @@ class ChatRateThrottle(SimpleRateThrottle):
 def chat_throttles(name):
     """One throttle per rate in the `name` limit."""
     return [ChatRateThrottle(name, rate) for rate in settings.CHAT_RATE_LIMITS[name].split(",")]
+
+
+class _SubjectThrottle(ChatRateThrottle):
+    """A limit counted for something other than the request's user: an agent, or an agent in a channel."""
+
+    def __init__(self, name, rate, subject):
+        self.subject = subject
+        super().__init__(name, rate)
+
+    def get_cache_key(self, request, view):
+        return f"chat_throttle:{self.name}:{self.duration}:{self.subject}"
+
+
+def allow(name, subject):
+    """Count one use of the `name` limit by `subject` outside a request (in a Celery task, say).
+
+    False once any of its rates is used up. Every rate is checked, like a request's throttles, so a short window that
+    is full doesn't hide a long one.
+    """
+    results = [
+        _SubjectThrottle(name, rate, subject).allow_request(None, None)
+        for rate in settings.CHAT_RATE_LIMITS[name].split(",")
+    ]
+    return all(results)

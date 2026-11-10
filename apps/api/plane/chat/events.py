@@ -12,10 +12,11 @@ Each is one JSON object, published to Redis on `chat:workspace:<workspace_id>`:
     type          an `EventType`
     workspace_id  the workspace
     channel_id    the channel; absent for `access.revoked`
-    message_id    `message.*`: the message. `read.updated`: the message the read cursor moved to
-    parent_id     `message.*`, when the message is a thread reply
+    message_id    `message.*`: the message. `read.updated`: the message the read cursor moved to.
+                  `agent.*`: the message that mentioned the agent
+    parent_id     `message.*`, when the message is a thread reply. `agent.*`: the thread the reply goes in
     user_id       `member.*`, `read.updated` and `access.revoked`: the person it is about
-    agent_id      `member.*` about an agent (`ChannelAgent`) instead of a person: the agent's registry ID
+    agent_id      `member.*` about an agent (`ChannelAgent`) instead of a person, and `agent.*`: the agent's registry ID
     actor_id      who made the change; absent when no request did (a job, a signal outside a request)
     at            when it was made, ISO 8601 in UTC
 
@@ -39,6 +40,9 @@ What is published, by write. A write that changes nothing publishes nothing.
     disable, enable or delete an      member.removed, member.added or member.removed, with agent_id, for
       agent in the registry             each channel it is in (see `signals.py`)
     move the read cursor forward      read.updated, private to `user_id` (the gateway enforces it)
+    an agent starts on a mention      agent.responding, with no actor_id (see `agent_replies.py`)
+    the agent's reply or note posts,  message.created for it, then agent.responded; agent.responded alone
+      or it ends without one            when nothing could be posted
     leave the workspace or            member.removed for each channel ended and member.updated for
       deactivate the account          anyone handed a private channel (see `signals.py`), then
                                       access.revoked
@@ -77,6 +81,8 @@ class EventType(StrEnum):
     MEMBER_UPDATED = "member.updated"
     READ_UPDATED = "read.updated"
     ACCESS_REVOKED = "access.revoked"
+    AGENT_RESPONDING = "agent.responding"
+    AGENT_RESPONDED = "agent.responded"
 
 
 def events_channel(workspace_id):
@@ -121,6 +127,18 @@ def agent_member_event(event_type, channel_agent, *, by_registry=False):
         with_actor=not by_registry,
         channel_id=channel_agent.channel_id,
         agent_id=channel_agent.agent_id,
+    )
+
+
+def agent_reply_event(event_type, message, agent_id):
+    """An agent started or stopped working on `message`, which mentioned it. Its reply goes in `parent_id`'s thread."""
+    return _event(
+        event_type,
+        message.workspace_id,
+        channel_id=message.channel_id,
+        message_id=message.pk,
+        parent_id=message.parent_id or message.pk,
+        agent_id=agent_id,
     )
 
 
