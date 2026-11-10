@@ -1307,6 +1307,14 @@ describe("threads", () => {
 
   const panel = () => screen.getByRole("complementary", { name: "Thread" });
 
+  it("keeps a thread's unsent reply apart from the channel's draft", async () => {
+    const { store } = await view();
+    store.setDraft("c-general/p1", "<p>reply text</p>");
+    await userEvent.click(screen.getByRole("button", { name: byTemplate("reply") }));
+    expect((await within(panel()).findByTestId("chat-reply-p1")).textContent).toBe("reply text");
+    expect(store.getDraft("c-general")).toBeUndefined();
+  });
+
   it("shows a summary under a message with replies, and none under one without", async () => {
     await view();
     const [withReplies, without] = within(screen.getByRole("log", { name: "Messages" })).getAllByRole("article");
