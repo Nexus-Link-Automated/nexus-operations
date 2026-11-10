@@ -569,6 +569,10 @@ class IssueSequence(ProjectBaseModel):
         verbose_name_plural = "Issue Sequences"
         db_table = "issue_sequences"
         ordering = ("-created_at",)
+        indexes = [
+            # Serves the per-project MAX(sequence) lookup that numbers each new work item.
+            models.Index(fields=["project", "sequence"], name="issue_sequence_project_seq_idx"),
+        ]
 
 
 class IssueSubscriber(ProjectBaseModel):
