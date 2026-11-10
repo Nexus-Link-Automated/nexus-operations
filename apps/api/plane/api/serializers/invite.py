@@ -11,6 +11,7 @@ from rest_framework import serializers
 from plane.db.models import WorkspaceMemberInvite
 from .base import BaseSerializer
 from plane.app.permissions.base import ROLE
+from plane.utils.workspace_invite import normalize_invite_email
 
 
 class WorkspaceInviteSerializer(BaseSerializer):
@@ -43,7 +44,7 @@ class WorkspaceInviteSerializer(BaseSerializer):
             validate_email(value)
         except ValidationError:
             raise serializers.ValidationError("Invalid email address", code="INVALID_EMAIL_ADDRESS")
-        return value
+        return normalize_invite_email(value)
 
     def validate_role(self, value):
         if value not in [ROLE.ADMIN.value, ROLE.MEMBER.value, ROLE.GUEST.value]:

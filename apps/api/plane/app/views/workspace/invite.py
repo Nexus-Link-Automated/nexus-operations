@@ -2,13 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-# Python imports
-from datetime import datetime
-
-import jwt
-
 # Django imports
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.utils import timezone
@@ -26,10 +20,15 @@ from plane.app.serializers import (
     WorkSpaceMemberSerializer,
 )
 from plane.app.views.base import BaseAPIView
-from plane.bgtasks.workspace_invitation_task import workspace_invitation
 from plane.db.models import User, Workspace, WorkspaceMember, WorkspaceMemberInvite
 from plane.utils.cache import invalidate_cache, invalidate_cache_directly
 from plane.utils.host import base_host
+from plane.utils.workspace_invite import (
+    active_members_with_emails,
+    normalize_invite_email,
+    send_workspace_invitations,
+    workspace_invite_token,
+)
 from .. import BaseViewSet
 
 
@@ -69,10 +68,8 @@ class WorkspaceInvitationsViewset(BaseViewSet):
         workspace = Workspace.objects.get(slug=slug)
 
         # Check if user is already a member of workspace
-        workspace_members = WorkspaceMember.objects.filter(
-            workspace_id=workspace.id,
-            member__email__in=[email.get("email") for email in emails],
-            is_active=True,
+        workspace_members = active_members_with_emails(
+            workspace.id, [email.get("email") for email in emails]
         ).select_related("member", "member__avatar_asset")
 
         if workspace_members:
@@ -88,15 +85,12 @@ class WorkspaceInvitationsViewset(BaseViewSet):
         for email in emails:
             try:
                 validate_email(email.get("email"))
+                invite_email = normalize_invite_email(email.get("email"))
                 workspace_invitations.append(
                     WorkspaceMemberInvite(
-                        email=email.get("email").strip().lower(),
+                        email=invite_email,
                         workspace_id=workspace.id,
-                        token=jwt.encode(
-                            {"email": email, "timestamp": datetime.now().timestamp()},
-                            settings.SECRET_KEY,
-                            algorithm="HS256",
-                        ),
+                        token=workspace_invite_token(invite_email),
                         role=email.get("role", 5),
                         created_by=request.user,
                     )
@@ -115,15 +109,7 @@ class WorkspaceInvitationsViewset(BaseViewSet):
 
         current_site = base_host(request=request, is_app=True)
 
-        # Send invitations
-        for invitation in workspace_invitations:
-            workspace_invitation.delay(
-                invitation.email,
-                workspace.id,
-                invitation.token,
-                current_site,
-                request.user.email,
-            )
+        send_workspace_invitations(workspace_invitations, workspace.id, current_site, request.user.email)
 
         return Response({"message": "Emails sent successfully"}, status=status.HTTP_200_OK)
 
