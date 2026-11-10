@@ -166,13 +166,7 @@ export const GeneralProfileSettingsForm = observer(function GeneralProfileSettin
         if (rejectedResult) {
           throw rejectedResult.reason ?? new Error("Failed to update profile");
         }
-        const values = results.map(
-          (result) => (result as PromiseFulfilledResult<IUser | TUserProfile | undefined>).value
-        );
-        if (values.some((v) => v === undefined)) {
-          throw new Error("Failed to update profile");
-        }
-        return values;
+        return results.map((result) => (result as PromiseFulfilledResult<IUser | TUserProfile | undefined>).value);
       })
       .finally(() => setIsLoading(false));
 

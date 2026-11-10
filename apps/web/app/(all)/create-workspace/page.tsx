@@ -54,7 +54,9 @@ const CreateWorkspacePage = observer(function CreateWorkspacePage() {
   };
 
   const onSubmit = async (workspace: IWorkspace) => {
-    await updateUserProfile({ last_workspace_id: workspace.id }).then(() => router.push(`/${workspace.slug}`));
+    // the workspace already exists; remembering it as the last one visited is best-effort
+    await updateUserProfile({ last_workspace_id: workspace.id }).catch(() => undefined);
+    router.push(`/${workspace.slug}`);
   };
 
   return (
