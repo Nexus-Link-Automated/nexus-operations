@@ -83,20 +83,39 @@ def claim_attachments(message, asset_ids, user):
     FileAsset.objects.bulk_update(claimable, ["entity_identifier"])
 
 
-def has_attachments(message):
-    return assets().filter(entity_identifier=str(message.pk)).exists()
+def _attributes(asset):
+    return asset.attributes if isinstance(asset.attributes, dict) else {}
 
 
-def _describe(asset):
-    base = (
-        f"/api/workspaces/{asset.workspace.slug}/chat/channels/{asset.attributes['channel_id']}/attachments/{asset.id}/"
+def is_on(asset, message):
+    """Whether `asset` really is one of `message`'s files: a finished upload its sender made for its channel.
+
+    `claim_attachments` only ever claims such files. Checked again on every read so that a row made some
+    other way, pointing at a message it was never sent with, is not shown or served as part of it.
+    """
+    return (
+        message.sender_id is not None
+        and asset.entity_identifier == str(message.pk)
+        and asset.is_uploaded
+        and asset.workspace_id == message.workspace_id
+        and asset.created_by_id == message.sender_id
+        and _attributes(asset).get("channel_id") == str(message.channel_id)
     )
-    file_type = asset.attributes.get("type", "")
+
+
+def has_attachments(message):
+    return any(is_on(asset, message) for asset in assets().filter(entity_identifier=str(message.pk)))
+
+
+def _describe(asset, message):
+    base = f"/api/workspaces/{asset.workspace.slug}/chat/channels/{message.channel_id}/attachments/{asset.id}/"
+    attributes = _attributes(asset)
+    file_type = attributes.get("type", "")
     return {
         "id": str(asset.id),
-        "name": asset.attributes.get("name", ""),
+        "name": attributes.get("name", ""),
         "type": file_type,
-        "size": asset.attributes.get("size", 0),
+        "size": attributes.get("size", 0),
         # Set only for the raster types the endpoint serves inline; anything else can only be downloaded.
         "preview_url": f"{base}?preview=1" if file_type in settings.INLINE_SAFE_MIME_TYPES else None,
         "download_url": base,
@@ -115,8 +134,10 @@ def attachments_for(messages, user):
         .select_related("workspace")
         .order_by("created_at", "id")
     )
+    by_id = {str(message.id): message for message in messages}
     for asset in rows:
-        held[asset.entity_identifier].append(asset)
+        if is_on(asset, by_id[asset.entity_identifier]):
+            held[asset.entity_identifier].append(asset)
     if not held:
         return {}
     member_of = set(
@@ -127,7 +148,11 @@ def attachments_for(messages, user):
     return {
         message.id: {
             "count": len(held[str(message.id)]),
-            "files": [_describe(asset) for asset in held[str(message.id)]] if message.channel_id in member_of else [],
+            "files": (
+                [_describe(asset, message) for asset in held[str(message.id)]]
+                if message.channel_id in member_of
+                else []
+            ),
         }
         for message in messages
         if str(message.id) in held

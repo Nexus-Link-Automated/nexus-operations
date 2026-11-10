@@ -10,13 +10,14 @@ Every refusal here is the same 404, for a file that isn't there and for someone 
 import uuid
 
 from django.conf import settings
+from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
-from plane.chat.attachments import SIGNED_URL_SECONDS, assets, clean_filename
+from plane.chat.attachments import SIGNED_URL_SECONDS, assets, clean_filename, is_on
 from plane.chat.exceptions import NotFound
 from plane.chat.models import Message
 from plane.chat.permissions import require_not_archived, visible_channels
@@ -73,9 +74,14 @@ class AttachmentEndpoint(_AttachmentEndpoint):
 
 class AttachmentDetailEndpoint(_AttachmentEndpoint):
     def _own_unsent(self, request, channel, asset_id):
-        """The caller's own upload for this channel, not yet on a message."""
+        """The caller's own upload for this channel, not yet on a message.
+
+        Locked, as `claim_attachments` locks it, so a send can't claim it while it is being discarded: whichever
+        comes second sees the other's outcome. Call inside a transaction.
+        """
         asset = (
             assets()
+            .select_for_update()
             .filter(
                 pk=asset_id,
                 workspace_id=channel.workspace_id,
@@ -93,12 +99,13 @@ class AttachmentDetailEndpoint(_AttachmentEndpoint):
         """Redirect to the file: inline for a raster image asked for with `?preview=1`, otherwise as a download."""
         channel = self.member_channel(channel_id)
         asset = assets().filter(pk=asset_id, workspace_id=channel.workspace_id, is_uploaded=True).first()
+        message = (
+            Message.objects.filter(pk=asset.entity_identifier, channel=channel, removed_at__isnull=True).first()
+            if asset is not None and asset.entity_identifier is not None
+            else None
+        )
         # A file on a message in another channel, or one not yet on a message at all, is no more found than a typo.
-        if (
-            asset is None
-            or asset.entity_identifier is None
-            or not Message.objects.filter(pk=asset.entity_identifier, channel=channel, removed_at__isnull=True).exists()
-        ):
+        if message is None or not is_on(asset, message):
             raise NotFound(NOT_FOUND)
 
         file_type = asset.attributes.get("type")
@@ -119,18 +126,22 @@ class AttachmentDetailEndpoint(_AttachmentEndpoint):
     def patch(self, request, slug, channel_id, asset_id):
         """The upload finished. Until this, the file can't go on a message."""
         channel = self.member_channel(channel_id)
-        asset = self._own_unsent(request, channel, asset_id)
-        if not asset.is_uploaded:
-            asset.is_uploaded = True
-            asset.save(update_fields=["is_uploaded"])
+        with transaction.atomic():
+            asset = self._own_unsent(request, channel, asset_id)
+            newly_finished = not asset.is_uploaded
+            if newly_finished:
+                asset.is_uploaded = True
+                asset.save(update_fields=["is_uploaded"])
+        if newly_finished:
             get_asset_object_metadata.delay(str(asset.id))
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def delete(self, request, slug, channel_id, asset_id):
         """Discard an upload that hasn't been sent."""
         channel = self.member_channel(channel_id)
-        asset = self._own_unsent(request, channel, asset_id)
-        asset.is_deleted = True
-        asset.deleted_at = timezone.now()
-        asset.save(update_fields=["is_deleted", "deleted_at"])
+        with transaction.atomic():
+            asset = self._own_unsent(request, channel, asset_id)
+            asset.is_deleted = True
+            asset.deleted_at = timezone.now()
+            asset.save(update_fields=["is_deleted", "deleted_at"])
         return Response(status=status.HTTP_204_NO_CONTENT)

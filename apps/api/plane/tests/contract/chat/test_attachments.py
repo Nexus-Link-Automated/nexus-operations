@@ -432,6 +432,32 @@ class TestFetching:
             listing = reader.client.get(url(f"channels/{channel.id}/messages/"))
             assert listing.data["results"][0]["attachments"] == []
 
+    def test_only_files_the_sender_sent_with_it_count_as_a_messages(
+        self, member, member2, channel, make_channel, send, upload, url, attachment_url
+    ):
+        ChannelMember.objects.create(channel=channel, user=member2.user)
+        message = send(channel, member.user)
+        real = upload(channel, member.user, on=message)
+        # Rows pointing at the message that it was never sent with: someone else's file, a file for
+        # another channel, one never finished, and one whose attributes aren't what an upload stores.
+        someone_elses = upload(channel, member2.user, on=message)
+        other_channel = upload(make_channel(members=[member.user]), member.user, on=message)
+        unfinished = upload(channel, member.user, on=message, is_uploaded=False)
+        malformed = upload(channel, member.user, on=message)
+        FileAsset.objects.filter(pk=malformed.pk).update(attributes={})
+
+        for reader in (member, member2):
+            detail = reader.client.get(url(f"channels/{channel.id}/messages/{message.id}/"))
+            assert detail.status_code == 200
+            assert [a["id"] for a in detail.data["attachments"]] == [str(real.id)]
+            assert detail.data["attachment_count"] == 1
+            listing = reader.client.get(url(f"channels/{channel.id}/messages/"))
+            assert listing.status_code == 200
+            assert [a["id"] for a in listing.data["results"][0]["attachments"]] == [str(real.id)]
+            for forged in (someone_elses, other_channel, unfinished, malformed):
+                assert reader.client.get(attachment_url(channel, forged.id)).status_code == 404
+            assert reader.client.get(attachment_url(channel, real.id)).status_code == 302
+
     def test_no_storage_url_or_key_in_the_message(self, member, channel, send, upload, url):
         message = send(channel, member.user)
         asset = upload(channel, member.user, on=message)
@@ -608,6 +634,29 @@ class TestOtherAssetEndpoints:
         assert res.status_code == 204
         asset.refresh_from_db()
         assert asset.project_id is None
+
+    @pytest.mark.parametrize("path", ["/api/workspaces/{slug}/file-assets/", "/api/users/file-assets/"])
+    def test_legacy_upload_refuses_the_entity_type(self, member, channel, send, workspace, path):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from plane.settings.storage import S3Storage
+
+        message = send(channel, member.user)
+        with mock.patch.object(S3Storage, "save", side_effect=lambda name, *args, **kwargs: name):
+            res = member.client.post(
+                path.format(slug=workspace.slug),
+                {
+                    "asset": SimpleUploadedFile("invoice.pdf", b"%PDF-1.4", content_type="application/pdf"),
+                    "entity_type": CHAT_ATTACHMENT,
+                    "entity_identifier": str(message.id),
+                    "is_uploaded": "true",
+                    "workspace": str(workspace.id),
+                    "attributes": '{"name": "invoice.pdf", "type": "application/pdf", "channel_id": "%s"}' % channel.id,
+                },
+                format="multipart",
+            )
+        assert res.status_code == 400 and "entity_type" in res.data
+        assert not FileAsset.objects.filter(entity_type=CHAT_ATTACHMENT).exists()
 
     @pytest.mark.parametrize("path", ["", "projects/{project}/"])
     def test_generic_upload_refuses_the_entity_type(self, admin, workspace, project, path):
