@@ -12,6 +12,9 @@ The entry is a snapshot, so what the inbox lists is checked when it is read: an 
 disappears once its message is removed or its receiver can no longer see the channel.
 
 Each entry is also queued for the email digest of mentions left unread (`plane.chat.digest`).
+
+An agent's finished reply in an agent DM reaches its person's inbox the same way, though nobody mentioned them
+(`notify_agent_reply`).
 """
 
 import uuid
@@ -154,6 +157,39 @@ def notify_mentions(message, previous_html=None):
         # A savepoint: callers may be inside a transaction, which a failed query here would otherwise abort.
         with transaction.atomic():
             _notify(message, previous_html)
+    except Exception as error:
+        log_exception(error)
+
+
+def notify_agent_reply(message, receiver_id):
+    """An agent's finished reply in an agent DM reaches its person's inbox once.
+
+    Like a mention, so muting the DM ("Nothing") or losing access keeps it out; but not the email digest, which is
+    about mentions, and whose person asked for the reply moments ago. Never raises.
+    """
+    try:
+        with transaction.atomic():
+            receivers = _recipients(message, _user_ids([receiver_id]))
+            if not receivers or _entries(message).filter(receiver_id__in=receivers).exists():
+                return
+            data = _data(message)
+            agent = data["chat_message"]["sender_agent"]
+            name = (agent and agent["name"]) or REMOVED_AGENT_NAME
+            Notification.objects.bulk_create(
+                [
+                    Notification(
+                        workspace_id=message.workspace_id,
+                        entity_identifier=message.id,
+                        entity_name=CHAT_MESSAGE_ENTITY,
+                        title=f"{name} replied to you",
+                        sender=CHAT_MENTION_SENDER,
+                        triggered_by_id=None,
+                        receiver_id=receiver,
+                        data=data,
+                    )
+                    for receiver in receivers
+                ]
+            )
     except Exception as error:
         log_exception(error)
 

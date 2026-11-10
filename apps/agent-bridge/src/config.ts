@@ -45,6 +45,7 @@ const schema = z.object({
   AGENT_BRIDGE_MAX_CONNECTIONS_PER_USER: positiveInt(4),
   AGENT_BRIDGE_MAX_CONNECTIONS: positiveInt(500),
   AGENT_BRIDGE_IDLE_TIMEOUT_MS: positiveInt(15 * 60_000),
+  AGENT_BRIDGE_DM_IDLE_TIMEOUT_MS: positiveInt(10 * 60_000),
   AGENT_BRIDGE_PING_INTERVAL_MS: positiveInt(30_000),
   AGENT_BRIDGE_LOGIN_START_LIMIT: positiveInt(10),
   AGENT_BRIDGE_LOGIN_START_WINDOW_MS: positiveInt(10 * 60_000),
@@ -96,6 +97,8 @@ export interface BridgeConfig {
   readonly maxConnections: number;
   /** Close a connection after this long without traffic while no request is in flight. */
   readonly idleTimeoutMs: number;
+  /** An agent DM's held session closes after this long without a turn. */
+  readonly dmIdleTimeoutMs: number;
   readonly pingIntervalMs: number;
   /** Sign-in starts allowed per user per window (`<base>/connections/<provider>/start`). */
   readonly loginStartLimit: number;
@@ -133,6 +136,7 @@ export function loadBridgeConfig(env: NodeJS.ProcessEnv = process.env): BridgeCo
     maxConnectionsPerUser: e.AGENT_BRIDGE_MAX_CONNECTIONS_PER_USER,
     maxConnections: e.AGENT_BRIDGE_MAX_CONNECTIONS,
     idleTimeoutMs: e.AGENT_BRIDGE_IDLE_TIMEOUT_MS,
+    dmIdleTimeoutMs: e.AGENT_BRIDGE_DM_IDLE_TIMEOUT_MS,
     pingIntervalMs: e.AGENT_BRIDGE_PING_INTERVAL_MS,
     loginStartLimit: e.AGENT_BRIDGE_LOGIN_START_LIMIT,
     loginStartWindowMs: e.AGENT_BRIDGE_LOGIN_START_WINDOW_MS,

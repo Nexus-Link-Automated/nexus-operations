@@ -400,6 +400,11 @@
         "disconnect_failed": "无法断开账号连接。",
         "sign_in_lost": "您的 {vendor} 登录已失效，请重新登录。"
       }
+    },
+    "moved_to_messages": {
+      "title": "与智能体的聊天已移至消息",
+      "description": "现在每个智能体都在消息中与你有单独的会话。此页面暂时保留你以前的聊天。",
+      "open": "在消息中打开"
     }
   }
 }

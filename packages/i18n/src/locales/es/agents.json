@@ -400,6 +400,11 @@
         "disconnect_failed": "No se pudo desconectar la cuenta.",
         "sign_in_lost": "Su sesión de {vendor} ya no es válida. Inicie sesión de nuevo."
       }
+    },
+    "moved_to_messages": {
+      "title": "Los chats con agentes ahora están en Mensajes",
+      "description": "Cada agente tiene ahora su propia conversación contigo en Mensajes. Esta página conserva tus chats anteriores por ahora.",
+      "open": "Abrir en Mensajes"
     }
   }
 }

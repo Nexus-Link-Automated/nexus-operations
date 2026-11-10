@@ -5,8 +5,10 @@
 from rest_framework import serializers
 
 from plane.app.serializers.base import BaseSerializer
+from plane.chat.agents import agent_details
 from plane.chat.models import Channel
 from plane.chat.search import MAX_QUERY_LENGTH, MIN_QUERY_LENGTH
+from plane.chat.serializers.channel import ChannelSerializer
 
 
 class MessageSearchQuerySerializer(serializers.Serializer):
@@ -42,11 +44,22 @@ class SearchChannelSerializer(BaseSerializer):
 
     is_member = serializers.BooleanField(read_only=True)
     dm_member_ids = serializers.SerializerMethodField()
+    # An agent DM is named after its agent: `{"agent": <agent details or null>}`; null for every other kind.
+    agent_dm = serializers.SerializerMethodField()
 
     class Meta:
         model = Channel
-        fields = ["id", "kind", "name", "archived_at", "is_member", "dm_member_ids"]
+        fields = ["id", "kind", "name", "archived_at", "is_member", "dm_member_ids", "agent_dm"]
         read_only_fields = fields
 
     def get_dm_member_ids(self, channel):
-        return channel.dm_key.split(":") if channel.dm_key else []
+        return ChannelSerializer.get_dm_member_ids(self, channel)
+
+    def get_agent_dm(self, channel):
+        if not channel.is_agent_dm:
+            return None
+        from plane.chat.agent_dm import dm_channel_agent
+
+        row = dm_channel_agent(channel)
+        agent = row.agent if row is not None and row.agent.deleted_at is None else None
+        return {"agent": agent_details(agent)}

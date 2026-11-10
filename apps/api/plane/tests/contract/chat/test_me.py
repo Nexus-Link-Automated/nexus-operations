@@ -24,6 +24,7 @@ class TestMe:
             "can_open_dms": True,
             "can_add_agents": True,
             "can_mention_agents": True,
+            "can_open_agent_dms": True,
             "agent_reply_timeout_seconds": 300,
         }
         assert member.client.get(url("me/")).data == {
@@ -34,6 +35,7 @@ class TestMe:
             "can_open_dms": True,
             "can_add_agents": True,
             "can_mention_agents": True,
+            "can_open_agent_dms": True,
             "agent_reply_timeout_seconds": 300,
         }
 
@@ -48,6 +50,7 @@ class TestMe:
             "can_open_dms": False,
             "can_add_agents": False,
             "can_mention_agents": False,
+            "can_open_agent_dms": False,
             "agent_reply_timeout_seconds": 300,
         }
         admin.client.put(url(f"guests/{guest.user.id}/dm-access/"))

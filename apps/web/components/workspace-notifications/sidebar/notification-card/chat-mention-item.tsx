@@ -24,7 +24,7 @@ type Props = {
   notificationId: string;
 };
 
-/** An @mention in a message. Opening it marks it read and goes to the message, not to a work item peek. */
+/** An @mention in a message, or an agent's reply in its DM. Opening it marks it read and goes to the message, not to a work item peek. */
 export const ChatMentionNotificationItem = observer(function ChatMentionNotificationItem({
   workspaceSlug,
   notificationId,
@@ -79,9 +79,11 @@ export const ChatMentionNotificationItem = observer(function ChatMentionNotifica
                 isUnread ? "text-body-xs-semibold text-primary" : "text-body-xs-regular text-secondary"
               )}
             >
-              {isConversation
-                ? t("messages.notification.mentioned_in_dm", { name })
-                : t("messages.notification.mentioned_in_channel", { name, channel: chatMessage.channel_name ?? "" })}
+              {chatMessage.channel_kind === "agent_dm"
+                ? t("messages.notification.replied_in_agent_dm", { name })
+                : isConversation
+                  ? t("messages.notification.mentioned_in_dm", { name })
+                  : t("messages.notification.mentioned_in_channel", { name, channel: chatMessage.channel_name ?? "" })}
             </div>
             <NotificationOption
               workspaceSlug={workspaceSlug}

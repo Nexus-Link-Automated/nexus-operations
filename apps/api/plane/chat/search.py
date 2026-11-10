@@ -108,7 +108,8 @@ def search_messages(user, slug, role, query_text):
     )
     # An ID listed twice does no harm to `IN`, so skip the work of removing duplicates.
     matching = in_body.order_by().values("pk").union(in_filenames.order_by().values("pk"), all=True)
-    return readable_messages(user, slug, role).filter(removed_at__isnull=True, pk__in=matching)
+    # An agent's reply still being written is matched once it is finished.
+    return readable_messages(user, slug, role).filter(removed_at__isnull=True, agent_streaming=False, pk__in=matching)
 
 
 def with_snippet(queryset, query_text):

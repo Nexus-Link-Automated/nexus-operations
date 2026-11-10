@@ -19,6 +19,11 @@
       "new": "Nuevo mensaje",
       "none": "Aún no hay mensajes directos."
     },
+    "agent_dms": {
+      "title": "Agentes",
+      "new": "Chatear con un agente",
+      "none": "Aún no hay chats con agentes."
+    },
     "channel": {
       "member_count": "{count, plural, one {# miembro} other {# miembros}}",
       "join": "Unirse",
@@ -179,7 +184,8 @@
     },
     "notification": {
       "mentioned_in_channel": "{name} le mencionó en #{channel}",
-      "mentioned_in_dm": "{name} le mencionó en un mensaje directo"
+      "mentioned_in_dm": "{name} le mencionó en un mensaje directo",
+      "replied_in_agent_dm": "{name} te respondió"
     },
     "errors": {
       "retry": "Volver a intentar",
@@ -197,6 +203,7 @@
       "rate_limited": "Estás haciendo eso demasiado a menudo. Espera un momento y vuelve a intentarlo.",
       "add_agent_failed": "No se pudo añadir el agente",
       "remove_agent_failed": "No se pudo quitar el agente",
+      "open_agent_dm_failed": "No se pudo abrir la conversación con el agente",
       "load_members_failed": "No se pudieron cargar los miembros",
       "add_members_failed": "No se pudo añadir a las personas",
       "remove_member_failed": "No se pudo quitar del canal",
@@ -272,10 +279,11 @@
           "work_item": "Crear un elemento de trabajo a partir de un mensaje",
           "agent_session": "Sesiones de agentes que inicia una persona",
           "agent_channel": "Sesiones de un agente en un canal",
-          "agent_post": "Respuestas que publica un agente"
+          "agent_post": "Respuestas que publica un agente",
+          "agent_dm_turn": "Turnos que inicia una persona en chats con agentes"
         },
         "agents_title": "Agentes que responden a @menciones",
-        "agents_description": "Límites para los agentes que responden cuando se les menciona en un canal. Defínelos con las variables de entorno CHAT_RATE_LIMIT_AGENT_*, y el tiempo límite con CHAT_AGENT_REPLY_TIMEOUT_SECONDS, en la API.",
+        "agents_description": "Límites para los agentes que responden cuando se les menciona en un canal. Defínelos con las variables de entorno CHAT_RATE_LIMIT_AGENT_*, y el tiempo límite con CHAT_AGENT_REPLY_TIMEOUT_SECONDS, en la API. El tiempo límite también se aplica a cada turno en un chat con un agente.",
         "agent_timeout": "Tiempo que tiene un agente para responder",
         "seconds": "{count, plural, one {# segundo} other {# segundos}}"
       }
@@ -292,7 +300,44 @@
         "failed": "Algo salió mal mientras trabajaba en esto, así que no pude responder.",
         "empty": "Terminé sin nada que decir. Prueba a preguntar de nuevo con más detalle.",
         "rate_limited": "Me han preguntado demasiadas veces en poco tiempo. Inténtalo de nuevo en unos minutos.",
-        "still_working": "Todavía estoy trabajando en la última solicitud de este hilo. Vuelve a preguntar cuando haya respondido."
+        "still_working": "Todavía estoy trabajando en la última solicitud de este hilo. Vuelve a preguntar cuando haya respondido.",
+        "stopped": "Detuviste esta respuesta."
+      }
+    },
+    "agent_picker": {
+      "title": "Chatear con un agente",
+      "description": "Todo lo que envíes en la conversación va al agente, que trabaja con tus permisos. Solo tú puedes verla.",
+      "empty": "No hay agentes disponibles en este espacio de trabajo.",
+      "load_failed": "No se pudieron cargar los agentes."
+    },
+    "agent_dm": {
+      "intro_description": "Solo tú puedes ver esta conversación. Cada mensaje que envíes aquí va a {name}, que trabaja con tus permisos.",
+      "level_label": "Nivel de permisos",
+      "level_default": "{name} (predeterminado)",
+      "stop": "Detener",
+      "writing": "Escribiendo…",
+      "read_only": {
+        "agent_unavailable": "Un administrador desactivó a {name}, así que esta conversación es de solo lectura.",
+        "agent_removed": "Este agente se eliminó, así que esta conversación es de solo lectura.",
+        "cannot_run_agents": "Ya no puedes usar agentes en este espacio de trabajo, así que esta conversación es de solo lectura."
+      },
+      "tool_calls": "Herramientas usadas",
+      "tool_status": {
+        "pending": "En espera",
+        "in_progress": "En curso",
+        "completed": "Hecho",
+        "failed": "Falló"
+      },
+      "permission": {
+        "title": "{name} necesita tu aprobación",
+        "untitled": "Usar una herramienta",
+        "answer_failed": "No se pudo enviar tu respuesta",
+        "expired": "Esta solicitud ya no espera respuesta.",
+        "unavailable": "No se pudo contactar con el servicio de agentes. Inténtalo de nuevo."
+      },
+      "errors": {
+        "level_failed": "No se pudo cambiar el nivel de permisos",
+        "stop_failed": "No se pudo detener al agente"
       }
     }
   }

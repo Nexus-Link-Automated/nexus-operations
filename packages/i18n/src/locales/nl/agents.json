@@ -400,6 +400,11 @@
         "disconnect_failed": "Het account kon niet worden ontkoppeld.",
         "sign_in_lost": "Uw aanmelding bij {vendor} is niet meer geldig. Log opnieuw in."
       }
+    },
+    "moved_to_messages": {
+      "title": "Chats met agents staan nu in Berichten",
+      "description": "Elke agent heeft nu een eigen gesprek met je in Berichten. Deze pagina bewaart je eerdere chats voorlopig.",
+      "open": "Openen in Berichten"
     }
   }
 }

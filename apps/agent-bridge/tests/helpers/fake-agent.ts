@@ -26,17 +26,27 @@ export type PromptScript = (agent: FakeAgent, prompt: Message) => Promise<unknow
 const MODES = ["ask_all", "ask_writes", "yolo"].map((id) => ({ id, name: id }));
 
 /** A scripted ACP agent behind an in-memory channel. Answers the usual requests and records everything. */
+export interface FakeAgentOptions {
+  http: boolean;
+  /** Advertise `agentCapabilities.loadSession` (default true). */
+  loadSession?: boolean;
+  /** Answer `session/load` with an error. */
+  failLoad?: boolean;
+  /** Text chunks replayed as `session/update`s before `session/load` answers, as a real agent replays history. */
+  loadReplay?: readonly string[];
+}
+
 export class FakeAgent {
   readonly received: Message[] = [];
   closed = false;
   readonly #writer: WritableStreamDefaultWriter<AnyMessage>;
   readonly channel: AgentChannel;
   readonly grant: AgentSessionGrant;
-  readonly options: { http: boolean };
+  readonly options: FakeAgentOptions;
   script: PromptScript | undefined;
   #nextId = 0;
 
-  constructor(grant: AgentSessionGrant, options: { http: boolean }, script?: PromptScript) {
+  constructor(grant: AgentSessionGrant, options: FakeAgentOptions, script?: PromptScript) {
     this.script = script;
     this.grant = grant;
     this.options = options;
@@ -56,6 +66,16 @@ export class FakeAgent {
 
   async send(message: Record<string, unknown>): Promise<void> {
     await this.#writer.write({ jsonrpc: "2.0", ...message } as AnyMessage);
+  }
+
+  /** The client sent `session/cancel`. */
+  get cancelled(): boolean {
+    return this.received.some((m) => m.method === "session/cancel");
+  }
+
+  /** The requests received with this method, in order. */
+  requests(method: string): Message[] {
+    return this.received.filter((m) => m.method === method && m.id !== undefined);
   }
 
   /** A `session/update` for the current session. */
@@ -84,6 +104,11 @@ export class FakeAgent {
       const message = value as unknown as Message;
       this.received.push(message);
       if (typeof message.method !== "string" || message.id === undefined) continue;
+      if (message.method === "session/load" && (this.options.failLoad || this.options.loadReplay?.length)) {
+        // oxlint-disable-next-line no-await-in-loop -- in order
+        await this.#load(message);
+        continue;
+      }
       if (message.method === "session/prompt" && this.script) {
         // Not awaited: the script may wait for answers, which arrive through this same loop.
         void this.#runScript(this.script, message);
@@ -92,6 +117,20 @@ export class FakeAgent {
       // oxlint-disable-next-line no-await-in-loop -- in order
       await this.send({ id: message.id, result: this.#answer(message) }).catch(() => undefined);
     }
+  }
+
+  async #load(message: Message): Promise<void> {
+    if (this.options.failLoad) {
+      await this.send({ id: message.id, error: { code: -32_002, message: "Session not found" } }).catch(
+        () => undefined
+      );
+      return;
+    }
+    for (const text of this.options.loadReplay ?? []) {
+      // oxlint-disable-next-line no-await-in-loop -- in order
+      await this.update({ sessionUpdate: "agent_message_chunk", content: { type: "text", text } });
+    }
+    await this.send({ id: message.id, result: this.#answer(message) }).catch(() => undefined);
   }
 
   async #runScript(script: PromptScript, message: Message): Promise<void> {
@@ -110,7 +149,10 @@ export class FakeAgent {
       case "initialize":
         return {
           protocolVersion: 1,
-          agentCapabilities: { loadSession: true, mcpCapabilities: { http: this.options.http, sse: false } },
+          agentCapabilities: {
+            loadSession: this.options.loadSession ?? true,
+            mcpCapabilities: { http: this.options.http, sse: false },
+          },
           authMethods: [],
         };
       case "session/new":
@@ -134,15 +176,15 @@ export class FakeTransport implements AgentTransport {
   fail = false;
   /** Given to every agent opened from now on. */
   script: PromptScript | undefined;
-  readonly options: { http: boolean };
+  readonly options: FakeAgentOptions;
 
-  constructor(options: { http: boolean } = { http: true }) {
+  constructor(options: FakeAgentOptions = { http: true }) {
     this.options = options;
   }
 
   async open(grant: AgentSessionGrant): Promise<AgentChannel> {
     if (this.fail) throw new Error("runner down");
-    const agent = new FakeAgent(grant, this.options, this.script);
+    const agent = new FakeAgent(grant, { ...this.options }, this.script);
     this.agents.push(agent);
     return agent.channel;
   }

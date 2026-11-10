@@ -33,6 +33,9 @@ the agent, mentioning whoever asked so it reaches their inbox. If the session fa
 saying why (`Message.agent_notice`), so a mention never goes unanswered without a word.
 
 While the agent works, `agent.responding` and then `agent.responded` events tell the channel's readers.
+
+Agent DMs (`plane.chat.agent_dm`) share the runs, the internal endpoint and the notes, but not the rest: there every
+message the person sends is for the agent, and its replies are streamed into the DM.
 """
 
 import json
@@ -100,6 +103,7 @@ NOTICE_TEXT = {
     AgentNotice.EMPTY: "I finished without anything to say. Try asking again with more detail.",
     AgentNotice.RATE_LIMITED: "I've been asked too often in a short time. Try again in a few minutes.",
     AgentNotice.STILL_WORKING: "I'm still working on the last request in this thread. Ask again once I've replied.",
+    AgentNotice.STOPPED: "Stopped before I could reply.",
 }
 # What the bridge reports, as the note to post.
 BRIDGE_ERRORS = {
@@ -174,7 +178,15 @@ def live_channel_agent(channel_id, agent_id):
 
 
 def queue_agent_replies(message):
-    """Have the worker answer the agents a new message mentions, once it commits. Edits never call this."""
+    """Have the worker answer the agents a new message mentions, once it commits. Edits never call this.
+
+    In an agent DM every new top-level message is for the agent, mentioned or not (`plane.chat.agent_dm`).
+    """
+    if message.channel.is_agent_dm:
+        from plane.chat.agent_dm import queue_dm_turn
+
+        queue_dm_turn(message)
+        return
     if message.sender_id is None or not mentioned_agent_ids(message.body_html):
         return
     message_id = str(message.id)
@@ -464,6 +476,10 @@ def finish_run(run_id, outcome):
     run = _claim_run(run_id)
     if run is None:
         return None, "unknown"
+    if run.get("kind") == "dm":
+        from plane.chat.agent_dm import finish_dm_run
+
+        return finish_dm_run(run_id, run, outcome)
     message = Message.objects.filter(pk=run["message_id"]).select_related("channel", "workspace").first()
     try:
         if message is None or outcome is None:

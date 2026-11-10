@@ -32,7 +32,7 @@ export interface StubRequest {
 
 export interface StubChannel {
   readonly id: string;
-  readonly kind: "public" | "private" | "dm";
+  readonly kind: "public" | "private" | "dm" | "agent_dm";
   archived: boolean;
   readonly members: Set<string>;
 }

@@ -19,6 +19,11 @@
       "new": "Neue Nachricht",
       "none": "Noch keine Direktnachrichten."
     },
+    "agent_dms": {
+      "title": "Agenten",
+      "new": "Mit einem Agenten chatten",
+      "none": "Noch keine Agenten-Chats."
+    },
     "channel": {
       "member_count": "{count, plural, one {# Mitglied} other {# Mitglieder}}",
       "join": "Beitreten",
@@ -179,7 +184,8 @@
     },
     "notification": {
       "mentioned_in_channel": "{name} hat Sie in #{channel} erwähnt",
-      "mentioned_in_dm": "{name} hat Sie in einer Direktnachricht erwähnt"
+      "mentioned_in_dm": "{name} hat Sie in einer Direktnachricht erwähnt",
+      "replied_in_agent_dm": "{name} hat Ihnen geantwortet"
     },
     "errors": {
       "retry": "Erneut versuchen",
@@ -197,6 +203,7 @@
       "rate_limited": "Sie tun das zu oft. Warten Sie einen Moment und versuchen Sie es erneut.",
       "add_agent_failed": "Der Agent konnte nicht hinzugefügt werden",
       "remove_agent_failed": "Der Agent konnte nicht entfernt werden",
+      "open_agent_dm_failed": "Die Unterhaltung mit dem Agenten konnte nicht geöffnet werden",
       "load_members_failed": "Mitglieder konnten nicht geladen werden",
       "add_members_failed": "Personen konnten nicht hinzugefügt werden",
       "remove_member_failed": "Konnte nicht aus dem Kanal entfernt werden",
@@ -272,10 +279,11 @@
           "work_item": "Arbeitselement aus einer Nachricht erstellen",
           "agent_session": "Agentensitzungen, die eine Person startet",
           "agent_channel": "Agentensitzungen eines Agenten in einem Kanal",
-          "agent_post": "Antworten, die ein Agent postet"
+          "agent_post": "Antworten, die ein Agent postet",
+          "agent_dm_turn": "Durchläufe, die eine Person in Agenten-Chats startet"
         },
         "agents_title": "Agenten, die auf @Erwähnungen antworten",
-        "agents_description": "Limits für Agenten, die antworten, wenn sie in einem Kanal erwähnt werden. Legen Sie sie mit den Umgebungsvariablen CHAT_RATE_LIMIT_AGENT_* und das Zeitlimit mit CHAT_AGENT_REPLY_TIMEOUT_SECONDS in der API fest.",
+        "agents_description": "Limits für Agenten, die antworten, wenn sie in einem Kanal erwähnt werden. Legen Sie sie mit den Umgebungsvariablen CHAT_RATE_LIMIT_AGENT_* und das Zeitlimit mit CHAT_AGENT_REPLY_TIMEOUT_SECONDS in der API fest. Das Zeitlimit gilt auch für jeden Durchlauf in einem Agenten-Chat.",
         "agent_timeout": "Zeit, die ein Agent für eine Antwort hat",
         "seconds": "{count, plural, one {# Sekunde} other {# Sekunden}}"
       }
@@ -292,7 +300,44 @@
         "failed": "Bei der Arbeit daran ist etwas schiefgegangen, deshalb konnte ich nicht antworten.",
         "empty": "Ich bin fertig, habe aber nichts zu sagen. Fragen Sie noch einmal mit mehr Details.",
         "rate_limited": "Ich wurde in kurzer Zeit zu oft gefragt. Versuchen Sie es in ein paar Minuten erneut.",
-        "still_working": "Ich arbeite noch an der letzten Anfrage in diesem Thread. Fragen Sie erneut, sobald ich geantwortet habe."
+        "still_working": "Ich arbeite noch an der letzten Anfrage in diesem Thread. Fragen Sie erneut, sobald ich geantwortet habe.",
+        "stopped": "Sie haben diese Antwort gestoppt."
+      }
+    },
+    "agent_picker": {
+      "title": "Mit einem Agenten chatten",
+      "description": "Alles, was Sie in der Unterhaltung senden, geht an den Agenten, der mit Ihren Berechtigungen arbeitet. Nur Sie können sie sehen.",
+      "empty": "In diesem Workspace sind keine Agenten verfügbar.",
+      "load_failed": "Die Agenten konnten nicht geladen werden."
+    },
+    "agent_dm": {
+      "intro_description": "Nur Sie können diese Unterhaltung sehen. Jede Nachricht, die Sie hier senden, geht an {name}, der mit Ihren Berechtigungen arbeitet.",
+      "level_label": "Berechtigungsstufe",
+      "level_default": "{name} (Standard)",
+      "stop": "Stoppen",
+      "writing": "Schreibt…",
+      "read_only": {
+        "agent_unavailable": "{name} wurde von einem Admin deaktiviert, daher ist diese Unterhaltung schreibgeschützt.",
+        "agent_removed": "Dieser Agent wurde entfernt, daher ist diese Unterhaltung schreibgeschützt.",
+        "cannot_run_agents": "Sie können in diesem Workspace keine Agenten mehr verwenden, daher ist diese Unterhaltung schreibgeschützt."
+      },
+      "tool_calls": "Verwendete Tools",
+      "tool_status": {
+        "pending": "Wartet",
+        "in_progress": "Läuft",
+        "completed": "Erledigt",
+        "failed": "Fehlgeschlagen"
+      },
+      "permission": {
+        "title": "{name} braucht Ihre Freigabe",
+        "untitled": "Ein Tool verwenden",
+        "answer_failed": "Ihre Antwort konnte nicht gesendet werden",
+        "expired": "Diese Anfrage wartet nicht mehr auf eine Antwort.",
+        "unavailable": "Der Agentendienst war nicht erreichbar. Versuchen Sie es erneut."
+      },
+      "errors": {
+        "level_failed": "Die Berechtigungsstufe konnte nicht geändert werden",
+        "stop_failed": "Der Agent konnte nicht gestoppt werden"
       }
     }
   }

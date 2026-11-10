@@ -11,6 +11,7 @@ import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { ChatService } from "@plane/services";
 import type {
+  TChatAgentPermissionRequest,
   TChatChannel,
   TChatChannelAgent,
   TChatEvent,
@@ -47,7 +48,9 @@ vi.mock("@plane/blocks/toast", async (importOriginal) => ({
 
 vi.mock("@/hooks/store/use-chat", () => ({ useChat: () => mocks.chat }));
 vi.mock("@/hooks/use-file-size", () => ({ useFileSize: () => ({ maxFileSize: 5_242_880 }) }));
-vi.mock("@/hooks/use-app-router", () => ({ useAppRouter: () => ({ push: (href: string) => mocks.push(href) }) }));
+vi.mock("@/hooks/use-app-router", () => ({
+  useAppRouter: () => ({ push: (href: string) => mocks.push(href), replace: (href: string) => mocks.push(href) }),
+}));
 vi.mock("@/hooks/store/use-workspace", () => ({
   useWorkspace: () => ({ getWorkspaceBySlug: () => ({ id: "ws-1" }) }),
 }));
@@ -183,6 +186,7 @@ const channel = (overrides: Partial<TChatChannel>): TChatChannel => ({
   last_message_at: null,
   member_count: 3,
   dm_member_ids: [],
+  agent_dm: null,
   ...overrides,
 });
 
@@ -197,6 +201,8 @@ const message = (id: string, sender: string, text: string, minute: number, extra
     sender_agent_details: null,
     system_event: null,
     agent_notice: null,
+    agent_streaming: false,
+    agent_tool_calls: null,
     body_html: `<p>${text}</p>`,
     body_json: {},
     body_stripped: text,
@@ -263,6 +269,7 @@ async function started(store: ChatStore, channels: TChatChannel[]) {
       can_add_agents: true,
       can_mention_agents: true,
       agent_reply_timeout_seconds: 300,
+      can_open_agent_dms: true,
     };
     store.channelMap = Object.fromEntries(channels.map((c) => [c.id, c]));
     store.channelsLoaded = true;
@@ -1516,6 +1523,7 @@ describe("search", () => {
     archived_at: null,
     is_member: true,
     dm_member_ids: [],
+    agent_dm: null,
   };
   const hit = (found: TChatMessage, extra: Partial<TChatSearchResult> = {}): TChatSearchResult => ({
     message: found,
@@ -1762,6 +1770,7 @@ describe("agents", () => {
                 archived_at: null,
                 is_member: true,
                 dm_member_ids: [],
+                agent_dm: null,
               },
               snippet: [{ text: "deploy", match: true }],
             },
@@ -2081,5 +2090,232 @@ describe("agents answering mentions", () => {
     expect(within(note!).queryByText(byTemplate("English body"))).toBeNull();
     expect(within(answer!).queryByRole("note")).toBeNull();
     expect(within(answer!).getByText("Two items are left.")).toBeTruthy();
+  });
+});
+
+describe("agent DMs", () => {
+  const maia = { id: "agent-maia", slug: "maia", name: "Maia", adapter: "claude" as const };
+  const registry: TWorkspaceAgent[] = [
+    {
+      ...maia,
+      description: "Plans releases",
+      default_permission_level: "ask_writes",
+      max_permission_level: "ask_writes",
+      credential_source: "instance",
+    },
+  ];
+  const agentDm = (overrides: Partial<NonNullable<TChatChannel["agent_dm"]>> = {}, extra: Partial<TChatChannel> = {}) =>
+    channel({
+      id: "adm-1",
+      kind: "agent_dm",
+      name: "",
+      dm_member_ids: [ME],
+      member_count: 1,
+      agent_dm: {
+        agent: { ...maia, is_available: true },
+        permission_level: "ask_writes",
+        default_permission_level: "ask_writes",
+        max_permission_level: "ask_writes",
+        responding: false,
+        read_only_reason: null,
+        ...overrides,
+      },
+      ...extra,
+    });
+  const fromMaia = (id: string, text: string, minute: number, extra: Partial<TChatMessage> = {}) =>
+    message(id, null as unknown as string, text, minute, {
+      channel: "adm-1",
+      sender: null,
+      sender_agent: maia.slug,
+      sender_agent_details: { ...maia, is_available: true },
+      ...extra,
+    });
+  const permission: TChatAgentPermissionRequest = {
+    id: "p1",
+    title: "Edit work item WEB-1",
+    options: [
+      { option_id: "allow", name: "Allow", kind: "allow_once" },
+      { option_id: "always", name: "Always", kind: "allow_always" },
+      { option_id: "reject", name: "Reject", kind: "reject_once" },
+    ],
+    message_id: null,
+    expires_at: "2026-01-05T10:00:00Z",
+  };
+
+  async function view(dm: TChatChannel, messages: TChatMessage[] = [], service: Partial<TChatStoreService> = {}) {
+    const { store } = makeStore({
+      listMessages: async () => ({ results: messages, has_more: false }),
+      markRead: async () => dm,
+      listAgentPermissions: async () => [],
+      ...service,
+    });
+    mocks.chat = store;
+    await started(store, [dm]);
+    inRouter(<MessagesRoot workspaceSlug="acme" channelId="adm-1" />);
+    await screen.findByRole("log", { name: "Messages" });
+    return store;
+  }
+
+  it("lists agent DMs in their own section, and opens one from the agent picker", async () => {
+    const openAgentDm = vi.fn(async () => agentDm());
+    const { store } = makeStore({ listAvailableAgents: async () => registry, openAgentDm });
+    mocks.chat = store;
+    const pushed: string[] = [];
+    mocks.push = (href) => pushed.push(href);
+    await started(store, [
+      agentDm({}, { unread_count: 2 }),
+      channel({ id: "dm-1", kind: "dm", name: "", dm_member_ids: [ADA, ME] }),
+    ]);
+    inRouter(<ChannelSidebar workspaceSlug="acme" activeChannelId={undefined} />);
+
+    const agents = screen.getByRole("heading", { name: "Agents" }).closest("section")!;
+    const [row] = within(agents).getAllByRole("link");
+    expect(row!.textContent).toBe("Maia2");
+    expect(row!.getAttribute("href")).toBe("/acme/messages/adm-1/");
+    // Not with the person-to-person DMs.
+    const dms = screen.getByRole("heading", { name: "Direct messages" }).closest("section")!;
+    expect(within(dms).getByRole("link").textContent).toContain("Ada");
+
+    await userEvent.click(within(agents).getByRole("button", { name: "Chat with an agent" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(await within(dialog).findByRole("button", { name: /Maia/ }));
+    expect(openAgentDm).toHaveBeenCalledWith("acme", maia.id);
+    await vi.waitFor(() => expect(pushed).toEqual(["/acme/messages/adm-1"]));
+  });
+
+  it("offers no agent picker to someone who may not run agents", async () => {
+    const { store } = makeStore();
+    mocks.chat = store;
+    await started(store, []);
+    runInAction(() => (store.me = { ...store.me!, can_open_agent_dms: false }));
+    inRouter(<ChannelSidebar workspaceSlug="acme" activeChannelId={undefined} />);
+    expect(screen.queryByRole("heading", { name: "Agents" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Chat with an agent" })).toBeNull();
+  });
+
+  it("shows the agent in the header with its level, a Stop button while it works, and no Reply in thread", async () => {
+    const stopAgentTurn = vi.fn(async () => undefined);
+    const store = await view(
+      agentDm({ responding: true }),
+      [message("m1", ME, "plan the release", 0, { channel: "adm-1" })],
+      {
+        stopAgentTurn,
+        getChannel: async () => agentDm({ responding: false }),
+      }
+    );
+    const header = screen.getByRole("heading", { level: 1 }).closest("header")!;
+    expect(within(header).getByRole("heading", { level: 1 }).textContent).toBe("Maia");
+    expect(within(header).getByRole("combobox", { name: "Permission level" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("is responding");
+
+    const [row] = within(screen.getByRole("log", { name: "Messages" })).getAllByRole("article");
+    fireEvent.mouseOver(row!);
+    expect(within(row!).queryByRole("button", { name: "Reply in thread", hidden: true })).toBeNull();
+    expect(within(row!).getByRole("button", { name: "Edit message", hidden: true })).toBeTruthy();
+
+    await userEvent.click(within(header).getByRole("button", { name: "Stop" }));
+    expect(stopAgentTurn).toHaveBeenCalledWith("acme", "adm-1");
+    await vi.waitFor(() => expect(within(header).queryByRole("button", { name: "Stop" })).toBeNull());
+    expect(store.channelMap["adm-1"]!.agent_dm!.responding).toBe(false);
+  });
+
+  it("shows a reply being written, and the tool calls a reply made", async () => {
+    await view(agentDm({ responding: true }), [
+      fromMaia("m1", "Here is the plan", 0, {
+        agent_tool_calls: [
+          { id: "t1", title: "List work items", status: "completed" },
+          { id: "t2", title: "Edit WEB-1", status: "failed" },
+        ],
+      }),
+      fromMaia("m2", "Drafting", 1, { agent_streaming: true }),
+    ]);
+    const [done, draft] = within(screen.getByRole("log", { name: "Messages" })).getAllByRole("article");
+    const tools = within(done!).getByRole("list", { name: "Tools used" });
+    expect(
+      within(tools)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent)
+    ).toEqual(["List work itemsDone", "Edit WEB-1Failed"]);
+    expect(within(done!).queryByText("Writing…")).toBeNull();
+    expect(within(draft!).getByRole("status").textContent).toBe("Writing…");
+    // The draft says it is being written, so "is responding" isn't repeated.
+    expect(screen.queryByText(byTemplate("is responding"))).toBeNull();
+  });
+
+  it("asks for approval with the agent's options, and sends the answer", async () => {
+    const answerAgentPermission = vi.fn(async () => undefined);
+    await view(agentDm({ responding: true }), [], {
+      listAgentPermissions: async () => [permission],
+      answerAgentPermission,
+    });
+    const prompt = await screen.findByRole("group", { name: byTemplate("needs your approval") });
+    expect(within(prompt).getByText("Edit work item WEB-1")).toBeTruthy();
+    expect(
+      within(prompt)
+        .getAllByRole("button")
+        .map((button) => button.textContent)
+    ).toEqual(["Allow once", "Always allow in this chat", "Deny"]);
+    await userEvent.click(within(prompt).getByRole("button", { name: "Allow once" }));
+    expect(answerAgentPermission).toHaveBeenCalledWith("acme", "adm-1", "p1", "allow");
+    await vi.waitFor(() => expect(screen.queryByRole("group", { name: byTemplate("needs your approval") })).toBeNull());
+  });
+
+  it("says when an approval came too late", async () => {
+    const { ChatServiceError } = await import("@plane/services");
+    await view(agentDm({ responding: true }), [], {
+      listAgentPermissions: async () => [permission],
+      answerAgentPermission: async () => {
+        throw new ChatServiceError(409, { error: "No longer pending." });
+      },
+    });
+    const prompt = await screen.findByRole("group", { name: byTemplate("needs your approval") });
+    await userEvent.click(within(prompt).getByRole("button", { name: "Deny" }));
+    await vi.waitFor(() =>
+      expect(mocks.toast).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "error", message: "This request is no longer waiting for an answer." })
+      )
+    );
+  });
+
+  it("is read-only once the agent is turned off, with a notice instead of the composer", async () => {
+    await view(agentDm({ read_only_reason: "agent_unavailable" }), [
+      message("m1", ME, "hello", 0, { channel: "adm-1" }),
+    ]);
+    expect(screen.getByRole("note").textContent).toContain("has been turned off by an admin");
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Permission level" }).hasAttribute("disabled")).toBe(true);
+    const [row] = within(screen.getByRole("log", { name: "Messages" })).getAllByRole("article");
+    fireEvent.mouseOver(row!);
+    expect(within(row!).queryByRole("button", { name: "Edit message", hidden: true })).toBeNull();
+  });
+
+  it("names a deleted agent's DM a removed agent, read-only", async () => {
+    await view(
+      agentDm({
+        agent: null,
+        permission_level: null,
+        default_permission_level: null,
+        max_permission_level: null,
+        read_only_reason: "agent_removed",
+      })
+    );
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Removed agent");
+    expect(screen.getByRole("note").textContent).toBe(
+      "This agent has been removed, so this conversation is read-only."
+    );
+    expect(screen.queryByRole("combobox", { name: "Permission level" })).toBeNull();
+  });
+
+  it("opens the last agent's DM from the sidebar's Agents link", async () => {
+    const openAgentDm = vi.fn(async () => agentDm());
+    const { store } = makeStore({ listAvailableAgents: async () => registry, openAgentDm });
+    mocks.chat = store;
+    const pushed: string[] = [];
+    mocks.push = (href) => pushed.push(href);
+    mocks.search = "agent=last";
+    await started(store, []);
+    inRouter(<MessagesRoot workspaceSlug="acme" channelId={undefined} />);
+    await vi.waitFor(() => expect(pushed).toEqual(["/acme/messages/adm-1"]));
+    expect(openAgentDm).toHaveBeenCalledWith("acme", maia.id);
   });
 });

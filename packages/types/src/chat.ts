@@ -15,7 +15,22 @@ import type { TFileSignedURLResponse } from "./file";
 import type { TIssuePriorities } from "./issues";
 import type { TStateGroups } from "./state";
 
-export type TChatChannelKind = "public" | "private" | "dm" | "group_dm";
+export type TChatChannelKind = "public" | "private" | "dm" | "group_dm" | "agent_dm";
+
+/** Why an agent DM takes no new messages: its agent is disabled or deleted, or the person may no longer run agents. */
+export type TChatAgentDmReadOnlyReason = "agent_unavailable" | "agent_removed" | "cannot_run_agents";
+
+/** An agent DM's agent and how it works there. Levels are null once the registry has deleted the agent. */
+export type TChatAgentDm = {
+  agent: TChatAgentDetails | null;
+  /** The level the agent works at in this DM: the person's choice, at most the registry's maximum. */
+  permission_level: TAgentPermissionLevel | null;
+  default_permission_level: TAgentPermissionLevel | null;
+  max_permission_level: TAgentPermissionLevel | null;
+  /** A turn is running: the agent is working on the person's last message. */
+  responding: boolean;
+  read_only_reason: TChatAgentDmReadOnlyReason | null;
+};
 
 export type TChatMemberRole = "admin" | "member";
 
@@ -40,8 +55,10 @@ export type TChatChannel = {
   unread_count: number;
   last_message_at: string | null;
   member_count: number;
-  /** Everyone in a DM or group DM, the caller included; empty for named channels. */
+  /** Everyone in a DM or group DM, the caller included; empty for named channels. The person, for an agent DM. */
   dm_member_ids: string[];
+  /** Set only on an agent DM (one person and one agent). */
+  agent_dm: TChatAgentDm | null;
 };
 
 /** A work item a message references, present only if the reader may see it. */
@@ -99,7 +116,32 @@ export type TChatAgentNotice =
   | "failed"
   | "empty"
   | "rate_limited"
-  | "still_working";
+  | "still_working"
+  | "stopped";
+
+/** A tool call an agent made while writing a reply: its title and how it went. */
+export type TChatAgentToolCall = {
+  id: string;
+  title: string;
+  status: "pending" | "in_progress" | "completed" | "failed";
+};
+
+/** An ACP permission option the agent offers, e.g. allow once or reject. */
+export type TChatAgentPermissionOption = {
+  option_id: string;
+  name: string;
+  kind: "allow_once" | "allow_always" | "reject_once" | "reject_always";
+};
+
+/** A tool call in an agent DM waiting for its person's approval (`agent-dm/permissions/`). */
+export type TChatAgentPermissionRequest = {
+  id: string;
+  title: string;
+  options: TChatAgentPermissionOption[];
+  /** The reply being written, if the agent has started one. */
+  message_id: string | null;
+  expires_at: string;
+};
 
 /**
  * A message, or a removed message's tombstone (empty body, `removed_at` set). Exactly one of `sender`,
@@ -120,6 +162,10 @@ export type TChatMessage = {
    * says so too, in English; show the note in the reader's language instead.
    */
   agent_notice: TChatAgentNotice | null;
+  /** An agent's reply in an agent DM that it is still writing: the body grows until it is finished. */
+  agent_streaming: boolean;
+  /** The tool calls an agent made for this reply (titles and status only), or null. */
+  agent_tool_calls: TChatAgentToolCall[] | null;
   body_html: string;
   body_json: Record<string, unknown>;
   body_stripped: string;
@@ -176,7 +222,10 @@ export type TChatSearchSnippetSegment = { text: string; match: boolean };
 export type TChatSearchChannel = Pick<
   TChatChannel,
   "id" | "kind" | "name" | "archived_at" | "is_member" | "dm_member_ids"
->;
+> & {
+  /** For an agent DM, its agent (null once deleted from the registry); null for any other kind. */
+  agent_dm: Pick<TChatAgentDm, "agent"> | null;
+};
 
 export type TChatSearchResult = {
   message: TChatMessage;
@@ -232,6 +281,8 @@ export type TChatMe = {
   can_mention_agents: boolean;
   /** How long an agent may work on a mention before it stops. */
   agent_reply_timeout_seconds: number;
+  /** Admins and members may open a direct conversation with an agent. Never guests. */
+  can_open_agent_dms: boolean;
 };
 
 export type TChatChannelMember = {
@@ -295,7 +346,9 @@ export type TChatEventType =
   | "read.updated"
   | "access.revoked"
   | "agent.responding"
-  | "agent.responded";
+  | "agent.responded"
+  | "agent.permission_requested"
+  | "agent.permission_resolved";
 
 /** A chat event: IDs only. Fetch what it is about over REST. */
 export type TChatEvent = {

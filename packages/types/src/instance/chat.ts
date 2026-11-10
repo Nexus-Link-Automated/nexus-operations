@@ -18,7 +18,8 @@ export type TInstanceChatRateLimitName =
   | "work_item"
   | "agent_session"
   | "agent_channel"
-  | "agent_post";
+  | "agent_post"
+  | "agent_dm_turn";
 
 /** God mode's Messages settings (`/api/instances/chat/settings/`). */
 export type TInstanceChatSettings = {

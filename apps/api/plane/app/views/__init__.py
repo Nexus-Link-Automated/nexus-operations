@@ -247,4 +247,8 @@ from .timezone.base import TimezoneEndpoint
 from .internal.agent_session import AgentSessionEndpoint
 from .internal.agent_connection import AgentConnectionAuthorizeEndpoint, AgentConnectionEndpoint
 from .internal.agent_offboarding import AgentOffboardingEndpoint
-from .internal.chat_agent_reply import ChatAgentReplyEndpoint
+from .internal.chat_agent_reply import (
+    ChatAgentDraftEndpoint,
+    ChatAgentPermissionEndpoint,
+    ChatAgentReplyEndpoint,
+)

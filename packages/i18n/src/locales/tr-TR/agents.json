@@ -400,6 +400,11 @@
         "disconnect_failed": "Hesabın bağlantısı kesilemedi.",
         "sign_in_lost": "{vendor} oturumunuz artık geçerli değil. Yeniden oturum açın."
       }
+    },
+    "moved_to_messages": {
+      "title": "Ajan sohbetleri Mesajlar'a taşındı",
+      "description": "Artık her ajanın Mesajlar'da sizinle kendi sohbeti var. Bu sayfa şimdilik önceki sohbetlerinizi saklıyor.",
+      "open": "Mesajlar'da aç"
     }
   }
 }

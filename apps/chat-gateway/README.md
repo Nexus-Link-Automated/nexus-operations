@@ -77,10 +77,17 @@ to the channel's followers and changes no one's own access.
 `agent.responding` and `agent.responded` say that an agent @mentioned in the channel has started, and stopped,
 working on a reply: `message_id` is the mention, `parent_id` the thread the reply goes in, `agent_id` the agent.
 They go to the channel's followers like any channel event. The reply itself is a `message.created` before
-`agent.responded`.
+`agent.responded`. In an agent DM (`agent_dm`) they have no `parent_id`: `message_id` is the person's message the agent
+is answering, and the reply is a top-level draft, `message.created` then `message.updated` as it is written.
+
+`agent.permission_requested` and `agent.permission_resolved` say that the agent in an agent DM is waiting for its
+person to answer a permission prompt, and that the prompt was answered or has lapsed: `user_id` is the DM's person,
+`agent_id` the agent, `message_id` the draft reply if there is one yet. Like `read.updated`, they go only to the sockets
+of `user_id`, and only while those follow the channel. The browser fetches the prompt itself over REST.
 
 Types: `message.created|updated|removed`, `channel.created|updated|archived|unarchived`,
-`member.added|removed|updated`, `read.updated`, `access.revoked`, `agent.responding|responded`.
+`member.added|removed|updated`, `read.updated`, `access.revoked`, `agent.responding|responded`,
+`agent.permission_requested|resolved`.
 
 ### Who gets an event
 
@@ -97,7 +104,8 @@ channel, which it does in one of two ways:
 
 Two events are about the user rather than a channel:
 
-- `read.updated` goes only to the sockets of the user whose read position it is.
+- `read.updated` goes only to the sockets of the user whose read position it is, and `agent.permission_*` only to
+  those of the agent DM's person (`user_id`).
 - `member.removed` about the user is forwarded, so they learn they are out, and then the channel stops.
 
 ### Revocation

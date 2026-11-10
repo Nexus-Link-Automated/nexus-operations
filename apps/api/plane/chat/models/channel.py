@@ -4,11 +4,13 @@
 
 """Channels and their members.
 
-A channel is public, private, a DM (two people) or a group DM (three to
-`GROUP_DM_MAX_MEMBERS` people). DMs and group DMs have no name and a fixed
-membership: `dm_key` holds their sorted member IDs, so the same set of people
-always gets the same channel. Create them with `Channel.objects.get_or_create_dm`
-or `get_or_create_group_dm`, never directly.
+A channel is public, private, a DM (two people), a group DM (three to
+`GROUP_DM_MAX_MEMBERS` people) or an agent DM (one person and one agent from the
+registry, `plane.chat.agent_dm`). DMs, group DMs and agent DMs have no name and a
+fixed membership: `dm_key` holds their sorted member IDs (for an agent DM
+`agent:<user id>:<agent id>`), so the same set always gets the same channel.
+Create them with `Channel.objects.get_or_create_dm`, `get_or_create_group_dm` or
+`get_or_create_agent_dm`, never directly.
 
 Every row is soft deleted (`deleted_at`), like Plane's own tables; uniqueness only
 holds among rows that are not deleted.
@@ -42,10 +44,15 @@ class ChannelKind(models.TextChoices):
     PRIVATE = "private", "Private"
     DM = "dm", "Direct message"
     GROUP_DM = "group_dm", "Group direct message"
+    AGENT_DM = "agent_dm", "Direct message with an agent"
 
 
 NAMED_KINDS = (ChannelKind.PUBLIC, ChannelKind.PRIVATE)
-DIRECT_KINDS = (ChannelKind.DM, ChannelKind.GROUP_DM)
+DIRECT_KINDS = (ChannelKind.DM, ChannelKind.GROUP_DM, ChannelKind.AGENT_DM)
+
+
+def agent_dm_key(user_id, agent_id):
+    return f"agent:{user_id}:{agent_id}"
 
 
 class ChannelMemberRole(models.TextChoices):
@@ -111,11 +118,37 @@ class ChannelManager(SoftDeletionManager):
                     pass  # Someone restored them concurrently.
         return channel, False
 
+    def get_or_create_agent_dm(self, workspace, user, agent, permission_level):
+        """Return `(channel, created)` for `user`'s DM with the registry's `agent`, at `permission_level` if new.
+
+        The caller checks that `user` may run agents and that the agent is enabled.
+        """
+        from plane.chat.models.agent import ChannelAgent
+
+        dm_key = agent_dm_key(user.pk, agent.pk)
+        channel = self.filter(workspace=workspace, dm_key=dm_key).first()
+        if channel is not None:
+            return channel, False
+        try:
+            with transaction.atomic():
+                channel = self.create(workspace=workspace, kind=ChannelKind.AGENT_DM, dm_key=dm_key)
+                member = ChannelMember.objects.create(channel=channel, user=user)
+                ChannelAgent(channel=channel, agent=agent, permission_level=permission_level).save(
+                    created_by_id=user.pk
+                )
+                publish_on_commit(
+                    member_event(EventType.MEMBER_ADDED, member), channel_event(EventType.CHANNEL_CREATED, channel)
+                )
+            return channel, True
+        except IntegrityError:
+            # Opened in another tab at the same moment; use that one.
+            return self.get(workspace=workspace, dm_key=dm_key), False
+
 
 class Channel(BaseModel):
     workspace = models.ForeignKey("db.Workspace", on_delete=models.CASCADE, related_name="chat_channels")
     kind = models.CharField(max_length=16, choices=ChannelKind.choices)
-    # Required for public and private channels, empty for DMs and group DMs.
+    # Required for public and private channels, empty for DMs, group DMs and agent DMs.
     name = models.CharField(max_length=80, blank=True, default="")
     description = models.TextField(blank=True, default="")
     # Its work items' state changes are posted here (`plane.chat.project_feed`). Public and private channels only.
@@ -123,7 +156,7 @@ class Channel(BaseModel):
         "db.Project", on_delete=models.SET_NULL, null=True, blank=True, related_name="chat_channels"
     )
     archived_at = models.DateTimeField(null=True, blank=True)
-    # Sorted member IDs joined by ":"; set only for DMs and group DMs.
+    # Sorted member IDs joined by ":" (`agent:<user>:<agent>` for an agent DM); set only for the direct kinds.
     dm_key = models.TextField(null=True, blank=True, editable=False)
 
     objects = ChannelManager()
@@ -160,6 +193,10 @@ class Channel(BaseModel):
     @property
     def is_direct(self):
         return self.kind in DIRECT_KINDS
+
+    @property
+    def is_agent_dm(self):
+        return self.kind == ChannelKind.AGENT_DM
 
 
 class ChannelMember(BaseModel):

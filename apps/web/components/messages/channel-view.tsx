@@ -22,11 +22,13 @@ import { useChat } from "@/hooks/store/use-chat";
 import { useMember } from "@/hooks/store/use-member";
 import { useAppRouter } from "@/hooks/use-app-router";
 // local imports
+import { AgentDmLevelSelect, AgentDmPermissionPrompts, AgentDmReadOnlyNotice, AgentDmStopButton } from "./agent-dm";
 import { ChannelMembersDialog } from "./channel-members-dialog";
 import { ChannelProjectBadge, ChannelSettingsDialog } from "./channel-project";
 import type { TChatComposerBody } from "./composer";
 import { ChatComposer } from "./composer";
 import { channelDisplayName } from "./helpers";
+import { ChatAgentAvatar } from "./member-avatar";
 import { ChatMessageList } from "./message-list";
 
 type Props = {
@@ -97,8 +99,11 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
     channel,
     chat.userId,
     (id) => getUserDetails(id)?.display_name,
-    t("messages.unknown_member")
+    t("messages.unknown_member"),
+    t("messages.agent.removed")
   );
+  const isAgentDm = channel.kind === "agent_dm";
+  const agentDm = isAgentDm ? channel.agent_dm : null;
   const isNamed = channel.kind === "public" || channel.kind === "private";
   const archived = !!channel.archived_at;
   // The API lets channel admins and workspace admins change a channel (`is_channel_admin`).
@@ -145,7 +150,11 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
       )}
     >
       <header className="flex flex-shrink-0 items-center gap-3 border-b border-subtle px-4 py-2.5">
-        <ChannelIcon channel={channel} />
+        {isAgentDm ? (
+          <ChatAgentAvatar adapter={agentDm?.agent?.adapter ?? null} size="sm" />
+        ) : (
+          <ChannelIcon channel={channel} />
+        )}
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-body-md-semibold text-primary">{name}</h1>
           {isNamed && (
@@ -154,6 +163,8 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
             </p>
           )}
         </div>
+        {isAgentDm && <AgentDmStopButton channel={channel} />}
+        {isAgentDm && <AgentDmLevelSelect channel={channel} />}
         {isNamed && channel.project && <ChannelProjectBadge projectId={channel.project} />}
         {isNamed && (
           <IconButton
@@ -199,14 +210,26 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
             <p className="text-body-sm-regular text-tertiary">
               {isNamed
                 ? channel.description || t("messages.channel.intro_description")
-                : t("messages.dm.intro_description")}
+                : isAgentDm
+                  ? t("messages.agent_dm.intro_description", { name })
+                  : t("messages.dm.intro_description")}
             </p>
           </div>
         }
       />
 
       <div className="flex-shrink-0 px-4 pb-4">
-        {archived ? (
+        {isAgentDm && agentDm?.agent && (
+          <>
+            <AgentDmPermissionPrompts channel={channel} agentName={name} />
+            {agentDm.responding && !chat.getChannelMessages(channel.id).some((m) => m.agent_streaming) && (
+              <ChatAgentRespondingLine name={name} />
+            )}
+          </>
+        )}
+        {agentDm?.read_only_reason ? (
+          <AgentDmReadOnlyNotice channel={channel} name={name} />
+        ) : archived ? (
           <div className="flex items-center gap-2 rounded-md bg-layer-2 px-3 py-2 text-body-sm-regular text-secondary">
             <ArchiveOutline className="size-4 flex-shrink-0" aria-hidden />
             {t("messages.channel.archived")}
@@ -239,6 +262,17 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
     </div>
   );
 });
+
+/** The agent is working on the person's last message: shown until its reply is finished. */
+function ChatAgentRespondingLine({ name }: { name: string }) {
+  const { t } = useTranslation();
+  return (
+    <p role="status" className="flex items-center gap-1.5 pb-1 text-caption-md-regular text-tertiary">
+      <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-accent-primary" />
+      {t("messages.agent.responding", { name })}
+    </p>
+  );
+}
 
 function ChannelIcon({ channel }: { channel: TChatChannel }) {
   if (channel.kind === "private") return <LockOutline className="size-4 flex-shrink-0 text-tertiary" aria-hidden />;

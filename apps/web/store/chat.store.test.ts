@@ -9,6 +9,9 @@ import { describe, expect, it, vi } from "vitest";
 import { ChatServiceError } from "@plane/services";
 import type { TChatSocketHandlers } from "@plane/services";
 import type {
+  TAgentPermissionLevel,
+  TChatAgentDm,
+  TChatAgentPermissionRequest,
   TChatChannel,
   TChatChannelAgent,
   TChatChannelKind,
@@ -63,6 +66,13 @@ class FakeChatServer {
   removeAgentFailure: ChatServiceError | undefined;
   /** What `me` says: a guest may not mention agents. */
   canMentionAgents = true;
+  /** Agent DMs by channel: their agent and state. */
+  agentDms = new Map<string, Omit<TChatAgentDm, "agent"> & { agentId: string | null }>();
+  /** Pending permission prompts by agent DM. */
+  permissions = new Map<string, TChatAgentPermissionRequest[]>();
+  /** What answering a permission prompt or stopping a turn throws instead, if set. */
+  answerFailure: ChatServiceError | undefined;
+  stopFailure: ChatServiceError | undefined;
   private clock = 0;
   private ids = 0;
 
@@ -91,6 +101,8 @@ class FakeChatServer {
       sender_agent_details: null,
       system_event: null,
       agent_notice: null,
+      agent_streaming: false,
+      agent_tool_calls: null,
       body_html: `<p>${text}</p>`,
       body_json: {},
       body_stripped: text,
@@ -189,7 +201,7 @@ class FakeChatServer {
         const { id, kind, name, archived_at, is_member, dm_member_ids } = this.payload(this.channels.get(m.channel)!);
         return {
           message: m,
-          channel: { id, kind, name, archived_at, is_member, dm_member_ids },
+          channel: { id, kind, name, archived_at, is_member, dm_member_ids, agent_dm: null },
           snippet: [{ text: m.body_stripped, match: true }],
         };
       }),
@@ -220,8 +232,38 @@ class FakeChatServer {
       unread_count: unread,
       last_message_at: top.at(-1)?.created_at ?? null,
       member_count: channel.members.size,
-      dm_member_ids: channel.kind === "dm" || channel.kind === "group_dm" ? sortBy([...channel.members]) : [],
+      dm_member_ids:
+        channel.kind === "dm" || channel.kind === "group_dm" || channel.kind === "agent_dm"
+          ? sortBy([...channel.members])
+          : [],
+      agent_dm: this.agentDmPayload(channel.id),
     };
+  }
+
+  agentDmPayload(channelId: string): TChatAgentDm | null {
+    const dm = this.agentDms.get(channelId);
+    if (!dm) return null;
+    const { agentId, ...rest } = dm;
+    const agent = this.registry.find((a) => a.id === agentId);
+    return {
+      ...rest,
+      agent: agent
+        ? { id: agent.id, slug: agent.slug, name: agent.name, adapter: agent.adapter, is_available: true }
+        : null,
+    };
+  }
+
+  addAgentDm(channelId: string, agentId: string, state: Partial<Omit<TChatAgentDm, "agent">> = {}) {
+    this.addChannel(channelId, { kind: "agent_dm", name: "" });
+    this.agentDms.set(channelId, {
+      agentId,
+      permission_level: "ask_writes",
+      default_permission_level: "ask_writes",
+      max_permission_level: "yolo",
+      responding: false,
+      read_only_reason: null,
+      ...state,
+    });
   }
 
   private async held<T>(call: string, answer: T): Promise<T> {
@@ -245,6 +287,7 @@ class FakeChatServer {
           can_add_agents: true,
           can_mention_agents: this.canMentionAgents,
           agent_reply_timeout_seconds: 300,
+          can_open_agent_dms: this.canMentionAgents,
         };
       },
       listChannels: async () => {
@@ -404,6 +447,36 @@ class FakeChatServer {
       listAvailableAgents: async () => {
         log("listAvailableAgents");
         return clone(this.registry);
+      },
+      openAgentDm: async (_slug, agentId) => {
+        const id = `adm-${agentId}`;
+        log(`openAgentDm ${agentId}`);
+        if (!this.channels.has(id)) this.addAgentDm(id, agentId);
+        return this.payload(this.channels.get(id)!);
+      },
+      setAgentDmLevel: async (_slug, channelId, level: TAgentPermissionLevel) => {
+        log(`setAgentDmLevel ${channelId} ${level}`);
+        this.agentDms.get(channelId)!.permission_level = level;
+        return this.payload(this.channelOr404(channelId));
+      },
+      stopAgentTurn: async (_slug, channelId) => {
+        log(`stopAgentTurn ${channelId}`);
+        if (this.stopFailure) throw this.stopFailure;
+        this.agentDms.get(channelId)!.responding = false;
+      },
+      listAgentPermissions: async (_slug, channelId) => {
+        log(`listAgentPermissions ${channelId}`);
+        this.channelOr404(channelId);
+        return clone(this.permissions.get(channelId) ?? []);
+      },
+      answerAgentPermission: async (_slug, channelId, requestId, optionId) => {
+        log(`answerAgentPermission ${channelId} ${requestId} ${optionId}`);
+        const pending = this.permissions.get(channelId) ?? [];
+        this.permissions.set(
+          channelId,
+          pending.filter((request) => request.id !== requestId)
+        );
+        if (this.answerFailure) throw this.answerFailure;
       },
     };
   }
@@ -2010,5 +2083,189 @@ describe("ChatStore agents answering mentions", () => {
     socket.emit(agentEvent("agent.responding", "bot", "m1"));
     store.stop();
     expect(store.respondingAgents).toEqual({});
+  });
+});
+
+const permissionPrompt = (id: string): TChatAgentPermissionRequest => ({
+  id,
+  title: "Edit work item WEB-1",
+  options: [
+    { option_id: "allow", name: "Allow", kind: "allow_once" },
+    { option_id: "reject", name: "Reject", kind: "reject_once" },
+  ],
+  message_id: null,
+  expires_at: "2026-01-05T00:05:00Z",
+});
+
+describe("ChatStore agent DMs", () => {
+  const AGENT = "agent-maia";
+  const registry = (s: FakeChatServer) => {
+    s.registry = [
+      {
+        id: AGENT,
+        name: "Maia",
+        slug: "maia",
+        description: "",
+        adapter: "claude",
+        default_permission_level: "ask_writes",
+        max_permission_level: "yolo",
+        credential_source: "instance",
+      },
+    ];
+  };
+  const event = (type: TChatEvent["type"], extra: Partial<TChatEvent> = {}): TChatEvent => ({
+    type,
+    workspace_id: WORKSPACE_ID,
+    channel_id: "adm-1",
+    at: "2026-01-05T00:00:00Z",
+    ...extra,
+  });
+
+  it("lists agent DMs in their own list, newest activity first, apart from DMs", async () => {
+    const { store } = await setup((s) => {
+      registry(s);
+      s.addAgentDm("adm-1", AGENT);
+      s.addAgentDm("adm-2", AGENT);
+      s.post("adm-1", ME, "older");
+      s.post("adm-2", ME, "newer");
+      s.addChannel("dm-1", { kind: "dm", members: [ME, ADA] });
+    });
+    expect(store.agentDms.map((c) => c.id)).toEqual(["adm-2", "adm-1"]);
+    expect(store.directMessages.map((c) => c.id)).toEqual(["dm-1"]);
+    expect(store.channelMap["adm-1"]!.agent_dm!.agent!.name).toBe("Maia");
+    expect(store.me?.can_open_agent_dms).toBe(true);
+  });
+
+  it("opens the agent's DM, the same one again the second time", async () => {
+    const { store, server } = await setup(registry);
+    const first = await store.openAgentDm(AGENT);
+    const second = await store.openAgentDm(AGENT);
+    expect(first.id).toBe("adm-agent-maia");
+    expect(second.id).toBe(first.id);
+    expect(store.agentDms.map((c) => c.id)).toEqual([first.id]);
+    expect(server.calls).toEqual([`openAgentDm ${AGENT}`, `openAgentDm ${AGENT}`]);
+  });
+
+  it("offers no agents to mention in an agent DM", async () => {
+    const { store } = await setup((s) => {
+      registry(s);
+      s.addAgentDm("adm-1", AGENT);
+    });
+    expect(store.getMentionableAgents("adm-1")).toEqual([]);
+  });
+
+  it("doesn't count an agent's draft as unread, and takes the API's count once it has responded", async () => {
+    const { store, server, socket } = await setup((s) => {
+      registry(s);
+      s.addAgentDm("adm-1", AGENT);
+    });
+    const draft = server.post("adm-1", ME, "partial");
+    draft.sender = null;
+    draft.sender_agent = "maia";
+    draft.agent_streaming = true;
+    socket.emit({ ...server.createdEvent(draft), actor_id: undefined });
+    await settle();
+    expect(store.channelMap["adm-1"]!.unread_count).toBe(0);
+
+    server.agentDms.get("adm-1")!.responding = true;
+    socket.emit(event("agent.responding", { message_id: "m-ask", agent_id: AGENT }));
+    await settle();
+    expect(server.calls).toContain("getChannel adm-1");
+    expect(store.channelMap["adm-1"]!.agent_dm!.responding).toBe(true);
+
+    draft.agent_streaming = false;
+    server.agentDms.get("adm-1")!.responding = false;
+    server.calls = [];
+    socket.emit(event("agent.responded", { message_id: "m-ask", agent_id: AGENT }));
+    await settle();
+    expect(server.calls).toContain("getChannel adm-1");
+    expect(store.channelMap["adm-1"]!.agent_dm!.responding).toBe(false);
+    // The fake's unread counts any top-level message not the user's; the API leaves drafts out until they finish.
+    expect(store.channelMap["adm-1"]!.unread_count).toBe(1);
+    // Nothing is shown as responding in a thread: the DM's own state says it.
+    expect(store.respondingAgents).toEqual({});
+  });
+
+  it("re-reads an agent DM when its agent is disabled, so it shows read-only", async () => {
+    const { store, server, socket } = await setup((s) => {
+      registry(s);
+      s.addAgentDm("adm-1", AGENT);
+    });
+    server.agentDms.get("adm-1")!.read_only_reason = "agent_unavailable";
+    socket.emit(event("member.removed", { agent_id: AGENT }));
+    await settle();
+    expect(store.channelMap["adm-1"]!.agent_dm!.read_only_reason).toBe("agent_unavailable");
+  });
+
+  it("holds the pending permission prompts while the DM is open, re-read on their events", async () => {
+    const { store, server, socket } = await setup((s) => {
+      registry(s);
+      s.addAgentDm("adm-1", AGENT);
+    });
+    await store.openChannel("adm-1");
+    expect(server.calls).toContain("listAgentPermissions adm-1");
+    expect(store.getAgentPermissions("adm-1")).toEqual([]);
+
+    server.permissions.set("adm-1", [permissionPrompt("p1")]);
+    socket.emit(event("agent.permission_requested", { user_id: ME, agent_id: AGENT }));
+    await settle();
+    expect(store.getAgentPermissions("adm-1").map((p) => p.id)).toEqual(["p1"]);
+
+    server.permissions.set("adm-1", []);
+    socket.emit(event("agent.permission_resolved", { user_id: ME, agent_id: AGENT }));
+    await settle();
+    expect(store.getAgentPermissions("adm-1")).toEqual([]);
+
+    store.closeChannel();
+    server.calls = [];
+    socket.emit(event("agent.permission_requested", { user_id: ME, agent_id: AGENT }));
+    await settle();
+    expect(server.calls).toEqual([]);
+    expect(store.agentPermissions).toEqual({});
+  });
+
+  it("answers a permission prompt, and re-reads the list when it was no longer pending", async () => {
+    const { store, server } = await setup((s) => {
+      registry(s);
+      s.addAgentDm("adm-1", AGENT);
+      s.permissions.set("adm-1", [permissionPrompt("p1"), permissionPrompt("p2")]);
+    });
+    await store.openChannel("adm-1");
+    await store.answerAgentPermission("adm-1", "p1", "allow");
+    expect(server.calls).toContain("answerAgentPermission adm-1 p1 allow");
+    expect(store.getAgentPermissions("adm-1").map((p) => p.id)).toEqual(["p2"]);
+
+    server.answerFailure = new ChatServiceError(409, { error: "No longer pending." });
+    server.calls = [];
+    await expect(store.answerAgentPermission("adm-1", "p2", "reject")).rejects.toMatchObject({ status: 409 });
+    await settle();
+    expect(server.calls).toContain("listAgentPermissions adm-1");
+    expect(store.getAgentPermissions("adm-1")).toEqual([]);
+  });
+
+  it("stops the running turn, and takes 'nothing running' as stopped", async () => {
+    const { store, server } = await setup((s) => {
+      registry(s);
+      s.addAgentDm("adm-1", AGENT, { responding: true });
+    });
+    expect(store.channelMap["adm-1"]!.agent_dm!.responding).toBe(true);
+    await store.stopAgentTurn("adm-1");
+    expect(server.calls).toEqual(["stopAgentTurn adm-1", "getChannel adm-1"]);
+    expect(store.channelMap["adm-1"]!.agent_dm!.responding).toBe(false);
+
+    server.stopFailure = new ChatServiceError(409, {});
+    await expect(store.stopAgentTurn("adm-1")).resolves.toBeUndefined();
+    server.stopFailure = new ChatServiceError(503, {});
+    await expect(store.stopAgentTurn("adm-1")).rejects.toMatchObject({ status: 503 });
+  });
+
+  it("changes the level the agent works at in the DM", async () => {
+    const { store, server } = await setup((s) => {
+      registry(s);
+      s.addAgentDm("adm-1", AGENT);
+    });
+    await store.setAgentDmLevel("adm-1", "yolo");
+    expect(server.calls).toEqual(["setAgentDmLevel adm-1 yolo"]);
+    expect(store.channelMap["adm-1"]!.agent_dm!.permission_level).toBe("yolo");
   });
 });

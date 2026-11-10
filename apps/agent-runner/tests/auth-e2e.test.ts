@@ -89,6 +89,7 @@ describe("browser → bridge → runner → sign-in helper", () => {
       maxConnectionsPerUser: 2,
       maxConnections: 10,
       idleTimeoutMs: 60_000,
+      dmIdleTimeoutMs: 60_000,
       pingIntervalMs: 30_000,
       loginStartLimit: 10,
       loginStartWindowMs: 60_000,

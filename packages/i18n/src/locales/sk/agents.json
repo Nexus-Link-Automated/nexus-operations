@@ -400,6 +400,11 @@
         "disconnect_failed": "Účet sa nepodarilo odpojiť.",
         "sign_in_lost": "Vaše prihlásenie do {vendor} už nie je platné. Prihláste sa znova."
       }
+    },
+    "moved_to_messages": {
+      "title": "Chaty s agentmi sa presunuli do Správ",
+      "description": "Každý agent má teraz s vami vlastnú konverzáciu v Správach. Táto stránka zatiaľ uchováva vaše staršie chaty.",
+      "open": "Otvoriť v Správach"
     }
   }
 }

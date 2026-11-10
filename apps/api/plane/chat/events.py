@@ -13,9 +13,11 @@ Each is one JSON object, published to Redis on `chat:workspace:<workspace_id>`:
     workspace_id  the workspace
     channel_id    the channel; absent for `access.revoked`
     message_id    `message.*`: the message. `read.updated`: the message the read cursor moved to.
-                  `agent.*`: the message that mentioned the agent
-    parent_id     `message.*`, when the message is a thread reply. `agent.*`: the thread the reply goes in
-    user_id       `member.*`, `read.updated` and `access.revoked`: the person it is about
+                  `agent.responding`/`agent.responded`: the message that mentioned the agent (in an agent DM,
+                  the person's latest message). `agent.permission_*`: the agent's draft reply, if any
+    parent_id     `message.*`, when the message is a thread reply. `agent.*` in a channel: the thread the reply goes
+                  in (absent in an agent DM, whose replies are top-level)
+    user_id       `member.*`, `read.updated`, `access.revoked` and `agent.permission_*`: the person it is about
     agent_id      `member.*` about an agent (`ChannelAgent`) instead of a person, and `agent.*`: the agent's registry ID
     actor_id      who made the change; absent when no request did (a job, a signal outside a request)
     at            when it was made, ISO 8601 in UTC
@@ -43,6 +45,11 @@ What is published, by write. A write that changes nothing publishes nothing.
     an agent starts on a mention      agent.responding, with no actor_id (see `agent_replies.py`)
     the agent's reply or note posts,  message.created for it, then agent.responded; agent.responded alone
       or it ends without one            when nothing could be posted
+    a turn in an agent DM             agent.responding; message.created for the draft reply and message.updated
+                                      as it is written and once finalised (see `agent_dm.py`); agent.responded
+    an agent asks for approval in     agent.permission_requested, private to `user_id` (the DM's person; the
+      an agent DM                       gateway enforces it); agent.permission_resolved once it is answered or
+                                        expires
     leave the workspace or            member.removed for each channel ended and member.updated for
       deactivate the account          anyone handed a private channel (see `signals.py`), then
                                       access.revoked
@@ -83,6 +90,8 @@ class EventType(StrEnum):
     ACCESS_REVOKED = "access.revoked"
     AGENT_RESPONDING = "agent.responding"
     AGENT_RESPONDED = "agent.responded"
+    AGENT_PERMISSION_REQUESTED = "agent.permission_requested"
+    AGENT_PERMISSION_RESOLVED = "agent.permission_resolved"
 
 
 def events_channel(workspace_id):
@@ -139,6 +148,23 @@ def agent_reply_event(event_type, message, agent_id):
         message_id=message.pk,
         parent_id=message.parent_id or message.pk,
         agent_id=agent_id,
+    )
+
+
+def agent_dm_event(event_type, channel, agent_id, message_id):
+    """The agent started or stopped a turn in an agent DM, prompted by the person's `message_id`."""
+    return _event(event_type, channel.workspace_id, channel_id=channel.pk, message_id=message_id, agent_id=agent_id)
+
+
+def agent_permission_event(event_type, channel, user_id, agent_id, message_id=None):
+    """The agent in an agent DM asked its person to approve a tool call, or the question is settled."""
+    return _event(
+        event_type,
+        channel.workspace_id,
+        channel_id=channel.pk,
+        user_id=user_id,
+        agent_id=agent_id,
+        message_id=message_id,
     )
 
 

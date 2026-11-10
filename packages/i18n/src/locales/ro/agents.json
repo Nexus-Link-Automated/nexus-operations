@@ -400,6 +400,11 @@
         "disconnect_failed": "Contul nu a putut fi deconectat.",
         "sign_in_lost": "Autentificarea dvs. la {vendor} nu mai este validă. Autentificați-vă din nou."
       }
+    },
+    "moved_to_messages": {
+      "title": "Conversațiile cu agenții s-au mutat în Mesaje",
+      "description": "Fiecare agent are acum propria conversație cu dumneavoastră în Mesaje. Deocamdată, această pagină păstrează conversațiile anterioare.",
+      "open": "Deschideți în Mesaje"
     }
   }
 }

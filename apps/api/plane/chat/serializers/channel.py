@@ -5,9 +5,11 @@
 from rest_framework import serializers
 
 from plane.app.serializers.base import BaseSerializer
+from plane.chat.agents import agent_details, effective_permission_level
 from plane.chat.models import GROUP_DM_MAX_MEMBERS, Channel, ChannelKind
 from plane.chat.permissions import can_link_project
 from plane.db.models import Project
+from plane.license.models import AgentPermissionLevel
 
 # The description is sent with every channel in every list, so it has to stay small.
 MAX_DESCRIPTION_LENGTH = 2_000
@@ -23,8 +25,10 @@ class ChannelSerializer(BaseSerializer):
     unread_count = serializers.IntegerField(read_only=True)
     last_message_at = serializers.DateTimeField(read_only=True, allow_null=True)
     member_count = serializers.IntegerField(read_only=True)
-    # Who is in a DM or group DM, so the client can name it; empty for named channels.
+    # Who is in a DM or group DM, so the client can name it; empty for named channels. An agent DM's person.
     dm_member_ids = serializers.SerializerMethodField()
+    # An agent DM's agent, the level it works at there, whether it is replying, and why the DM is read-only.
+    agent_dm = serializers.SerializerMethodField()
 
     class Meta:
         model = Channel
@@ -46,11 +50,32 @@ class ChannelSerializer(BaseSerializer):
             "last_message_at",
             "member_count",
             "dm_member_ids",
+            "agent_dm",
         ]
         read_only_fields = fields
 
     def get_dm_member_ids(self, channel):
+        if channel.kind == ChannelKind.AGENT_DM:
+            from plane.chat.agent_dm import dm_person_id
+
+            return [dm_person_id(channel)]
         return channel.dm_key.split(":") if channel.dm_key else []
+
+    def get_agent_dm(self, channel):
+        if channel.kind != ChannelKind.AGENT_DM:
+            return None
+        from plane.chat.agent_dm import dm_channel_agent, is_responding, read_only_reason
+
+        row = dm_channel_agent(channel)
+        agent = row.agent if row is not None and row.agent.deleted_at is None else None
+        return {
+            "agent": agent_details(agent),
+            "permission_level": effective_permission_level(row) if agent else None,
+            "default_permission_level": agent.default_permission_level if agent else None,
+            "max_permission_level": agent.max_permission_level if agent else None,
+            "responding": is_responding(channel.id),
+            "read_only_reason": read_only_reason(channel, row),
+        }
 
 
 class ChannelUpdateSerializer(BaseSerializer):
@@ -115,3 +140,19 @@ class DirectMessageOpenSerializer(serializers.Serializer):
     """
 
     member_ids = serializers.ListField(child=serializers.UUIDField(), min_length=1, max_length=GROUP_DM_MAX_MEMBERS)
+
+
+class AgentDmOpenSerializer(serializers.Serializer):
+    """The registry's agent to open (or reopen) the caller's agent DM with."""
+
+    agent_id = serializers.UUIDField()
+
+
+class AgentDmUpdateSerializer(serializers.Serializer):
+    """The level the agent works at in the DM, up to the registry's maximum for it."""
+
+    permission_level = serializers.ChoiceField(choices=AgentPermissionLevel.choices)
+
+
+class AgentPermissionAnswerSerializer(serializers.Serializer):
+    option_id = serializers.CharField(max_length=200)

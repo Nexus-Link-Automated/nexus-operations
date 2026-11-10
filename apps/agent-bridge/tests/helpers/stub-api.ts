@@ -51,6 +51,14 @@ export class StubPlaneApi {
   readonly replies: Record<string, unknown>[] = [];
   /** Answer agent-replies with these statuses first, one per request (e.g. 503, then the default 201). */
   readonly replyStatuses: number[] = [];
+  /** `POST /api/internal/chat/agent-replies/draft/` bodies, in order. */
+  readonly drafts: Record<string, unknown>[] = [];
+  /** Answer drafts with these statuses first (e.g. 409), then 200. */
+  readonly draftStatuses: number[] = [];
+  /** `POST /api/internal/chat/agent-replies/permission/` bodies, in order. */
+  readonly permissions: Record<string, unknown>[] = [];
+  /** Answer permission prompts with these statuses first (e.g. 409), then 201. */
+  readonly permissionStatuses: number[] = [];
   mcpUrl = MCP_URL;
   expiresInMs = 2 * 60 * 60_000;
   #server: Server | undefined;
@@ -142,6 +150,22 @@ export class StubPlaneApi {
         return { status: 204 };
       }
       return { status: 405, body: {} };
+    }
+    if (
+      url.pathname === "/api/internal/chat/agent-replies/draft/" ||
+      url.pathname === "/api/internal/chat/agent-replies/permission/"
+    ) {
+      if (req.headers["x-agent-bridge-secret"] !== BRIDGE_SECRET) {
+        return { status: 403, body: { detail: "Invalid agent bridge credentials." } };
+      }
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
+      if (url.pathname.endsWith("/draft/")) {
+        this.drafts.push(body);
+        const status = this.draftStatuses.shift() ?? 200;
+        return { status, body: status === 200 ? { message_id: "draft-message" } : { error: "refused" } };
+      }
+      this.permissions.push(body);
+      return { status: this.permissionStatuses.shift() ?? 201, body: {} };
     }
     if (url.pathname === "/api/internal/chat/agent-replies/") {
       if (req.headers["x-agent-bridge-secret"] !== BRIDGE_SECRET) {

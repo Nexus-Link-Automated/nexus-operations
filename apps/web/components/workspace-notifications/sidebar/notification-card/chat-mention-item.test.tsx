@@ -114,6 +114,22 @@ describe("a chat mention in the inbox", () => {
     expect(screen.getByRole("img", { name: "Release bot" })).toBeTruthy();
   });
 
+  it("says an agent replied, for its reply in the person's agent DM", () => {
+    mocks.notification = notification({
+      triggered_by_details: null,
+      data: {
+        chat_message: chatMessage({
+          channel_kind: "agent_dm",
+          channel_name: "",
+          sender_agent: { slug: "maia", name: "Maia", adapter: "claude" },
+        }),
+      },
+    });
+    render(<NotificationItem workspaceSlug="acme" notificationId="n1" />);
+    expect(screen.getByText(/replied to you/)).toBeTruthy();
+    expect(screen.queryByText(/mentioned you/)).toBeNull();
+  });
+
   it("calls an agent the registry no longer has a removed agent", () => {
     mocks.notification = notification({
       triggered_by_details: null,

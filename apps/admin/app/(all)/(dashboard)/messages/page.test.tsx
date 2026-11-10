@@ -49,6 +49,7 @@ const SETTINGS: TInstanceChatSettings = {
     read: ["120/minute"],
     agent_session: ["60/hour"],
     agent_post: ["120/hour"],
+    agent_dm_turn: ["200/hour"],
   },
   agent_reply_timeout_seconds: 300,
 };
@@ -178,6 +179,7 @@ describe("rate limits", () => {
     expect(await screen.findByText("Agents answering @mentions")).toBeTruthy();
     expect(screen.getByText("Agent sessions one person starts")).toBeTruthy();
     expect(screen.getByText("Replies one agent posts")).toBeTruthy();
+    expect(screen.getByText("Turns one person starts in agent chats")).toBeTruthy();
     expect(screen.queryByText("Agent sessions for one agent in one channel")).toBeNull();
     expect(screen.getByText("Time an agent may take to reply")).toBeTruthy();
     expect(screen.getByText("{count, plural, one {# second} other {# seconds}}")).toBeTruthy();

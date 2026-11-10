@@ -7,6 +7,18 @@
 export { MAX_REPLY_CHARS, driveChannelSession } from "./channel-session.ts";
 export type { ChannelSessionError, ChannelSessionOutcome, DriveChannelSessionOptions } from "./channel-session.ts";
 export { loadBridgeConfig, runnerHttpUrl } from "./config.ts";
+export { DmSessions, DraftStreamer, HeldDmSession } from "./dm-session.ts";
+export type {
+  DmPermissionOption,
+  DmPostResult,
+  DmReporter,
+  DmSessionsOptions,
+  DmToolCall,
+  DmTurnAdmission,
+  DmTurnOutcome,
+  DmTurnRequest,
+  OpenedDmAgent,
+} from "./dm-session.ts";
 export { CONNECTION_PROVIDERS, RateLimiter, connectionsRouter } from "./connections.ts";
 export type { ConnectionProvider, ConnectionsRouterOptions } from "./connections.ts";
 export type { BridgeConfig } from "./config.ts";

@@ -7,6 +7,7 @@
 import { PERMISSION_LEVELS, type PermissionLevel } from "@plane/agent-runner-protocol";
 import { z } from "zod";
 
+import type { DmPermissionOption, DmPostResult, DmToolCall, DmTurnOutcome } from "./dm-session.ts";
 import { trimTrailingSlashes } from "./origin.ts";
 
 /** Header the API's `AgentBridgeSecretPermission` checks. */
@@ -83,6 +84,9 @@ export type ChannelReply =
   | { readonly status: "ok"; readonly text: string; readonly permissionRequests: readonly string[] }
   | { readonly status: "failed"; readonly error: string };
 
+const toolCallsBody = (toolCalls: readonly DmToolCall[]) =>
+  toolCalls.map((call) => ({ id: call.id, title: call.title, status: call.status }));
+
 /** Account sign-in methods (personal only), as the API names them. */
 export type AccountMethod = "chatgpt" | "google_account";
 
@@ -120,6 +124,18 @@ export interface PlaneApi {
    * network errors and 5xx; a 4xx (unknown run, the agent may no longer post, too many posts) is final.
    */
   reportChannelReply(runId: string, reply: ChannelReply): Promise<void>;
+  /**
+   * The draft of an agent DM's reply so far (`POST /api/internal/chat/agent-replies/draft/`). Not retried: the next
+   * draft carries everything again. `refused` when the run is unknown or the agent may no longer post (404, 409).
+   */
+  reportDmDraft(runId: string, draft: { text: string; toolCalls: readonly DmToolCall[] }): Promise<DmPostResult>;
+  /** A permission prompt for the DM's person (`POST /api/internal/chat/agent-replies/permission/`). Not retried. */
+  reportDmPermission(
+    runId: string,
+    request: { requestId: string; title: string; options: readonly DmPermissionOption[] }
+  ): Promise<DmPostResult>;
+  /** What came of an agent DM turn, through the same endpoint and retries as `reportChannelReply`. */
+  reportDmReply(runId: string, outcome: DmTurnOutcome): Promise<void>;
 }
 
 const level = z.enum(PERMISSION_LEVELS);
@@ -197,6 +213,41 @@ export function createPlaneApi(options: PlaneApiOptions): PlaneApi {
     },
     body: JSON.stringify(body),
   });
+
+  /** An agent's reply or note for the API to post; retried on network errors and 5xx, a 4xx is final. */
+  const postReply = async (body: Record<string, unknown>): Promise<void> => {
+    const delays = options.reportRetryDelaysMs ?? [1_000, 5_000];
+    let lastError: PlaneApiError | undefined;
+    for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+      if (attempt > 0) {
+        // oxlint-disable-next-line no-await-in-loop -- retries wait their turn
+        await new Promise((resolve) => setTimeout(resolve, delays[attempt - 1]));
+      }
+      // oxlint-disable-next-line no-await-in-loop -- one attempt at a time
+      const response = await call("/api/internal/chat/agent-replies/", internal("POST", body)).catch(
+        (error: PlaneApiError) => error
+      );
+      if (response instanceof PlaneApiError) {
+        lastError = response;
+        continue;
+      }
+      if (response.ok) return;
+      // oxlint-disable-next-line no-await-in-loop -- one attempt at a time
+      lastError = await errorFor(response, "chat/agent-replies");
+      if (response.status < 500) break;
+    }
+    throw lastError ?? new PlaneApiError("chat/agent-replies failed", 0);
+  };
+
+  /** A draft or a permission prompt of an agent DM turn: sent once. */
+  const postDm = async (path: string, what: string, body: Record<string, unknown>): Promise<DmPostResult> => {
+    const response = await call(path, internal("POST", body)).catch((error: PlaneApiError) => error);
+    if (response instanceof PlaneApiError) return "error";
+    if (response.ok) return "ok";
+    if (response.status === 404 || response.status === 409) return "refused";
+    if (response.status === 401 || response.status === 403) throw await errorFor(response, what);
+    return "error";
+  };
 
   return {
     async currentUser(cookie, signal) {
@@ -306,27 +357,42 @@ export function createPlaneApi(options: PlaneApiOptions): PlaneApi {
         reply.status === "ok"
           ? { run_id: runId, status: "ok", text: reply.text, permission_requests: reply.permissionRequests }
           : { run_id: runId, status: "failed", error: reply.error };
-      const delays = options.reportRetryDelaysMs ?? [1_000, 5_000];
-      let lastError: PlaneApiError | undefined;
-      for (let attempt = 0; attempt <= delays.length; attempt += 1) {
-        if (attempt > 0) {
-          // oxlint-disable-next-line no-await-in-loop -- sequential retry
-          await new Promise((resolve) => setTimeout(resolve, delays[attempt - 1]));
-        }
-        // oxlint-disable-next-line no-await-in-loop -- sequential retry
-        const response = await call("/api/internal/chat/agent-replies/", internal("POST", body)).catch(
-          (error: PlaneApiError) => error
-        );
-        if (response instanceof PlaneApiError) {
-          lastError = response;
-          continue;
-        }
-        if (response.ok) return;
-        // oxlint-disable-next-line no-await-in-loop -- sequential retry
-        lastError = await errorFor(response, "chat/agent-replies");
-        if (response.status < 500) break;
-      }
-      throw lastError ?? new PlaneApiError("chat/agent-replies failed", 0);
+      await postReply(body);
+    },
+
+    async reportDmReply(runId, outcome) {
+      const common = {
+        run_id: runId,
+        text: outcome.text,
+        tool_calls: toolCallsBody(outcome.toolCalls),
+        session_ref: outcome.sessionRef,
+      };
+      await postReply(
+        outcome.status === "ok"
+          ? { ...common, status: "ok", permission_requests: [], stop_reason: outcome.stopReason }
+          : { ...common, status: "failed", error: outcome.error }
+      );
+    },
+
+    async reportDmDraft(runId, draft) {
+      return postDm("/api/internal/chat/agent-replies/draft/", "chat/agent-replies/draft", {
+        run_id: runId,
+        text: draft.text,
+        tool_calls: toolCallsBody(draft.toolCalls),
+      });
+    },
+
+    async reportDmPermission(runId, request) {
+      return postDm("/api/internal/chat/agent-replies/permission/", "chat/agent-replies/permission", {
+        run_id: runId,
+        request_id: request.requestId,
+        title: request.title,
+        options: request.options.map((option) => ({
+          option_id: option.optionId,
+          name: option.name,
+          kind: option.kind,
+        })),
+      });
     },
 
     async deleteAgentConnection(input, signal) {

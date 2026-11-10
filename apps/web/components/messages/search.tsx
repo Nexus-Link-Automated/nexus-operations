@@ -142,7 +142,8 @@ export const ChatSearchPanel = observer(function ChatSearchPanel({
         scopeChannel,
         chat.userId,
         (id) => getUserDetails(id)?.display_name,
-        t("messages.unknown_member")
+        t("messages.unknown_member"),
+        t("messages.agent.removed")
       )
     : "";
 
@@ -273,7 +274,8 @@ const ChatSearchResultRow = observer(function ChatSearchResultRow({ workspaceSlu
     channel,
     chat.userId,
     (id) => getUserDetails(id)?.display_name,
-    t("messages.unknown_member")
+    t("messages.unknown_member"),
+    t("messages.agent.removed")
   );
   const sender = chatSender(message);
   const senderName = chatSenderName(message, (id) => getUserDetails(id)?.display_name, t);

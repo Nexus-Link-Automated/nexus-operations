@@ -4,8 +4,9 @@
  * See the LICENSE file for details.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
+import { useSearchParams } from "next/navigation";
 import { EmptyStateCompact } from "@plane/blocks/empty-state";
 import { useTranslation } from "@plane/i18n";
 import { cn } from "@plane/utils";
@@ -17,6 +18,7 @@ import { ChannelSidebar } from "./channel-sidebar";
 import { ChatConnectionBanner } from "./connection-banner";
 import { ChatSearchPanel } from "./search";
 import { ChatThreadPanel } from "./thread-panel";
+import { useOpenAgentDm } from "./use-open-agent-dm";
 
 type Props = {
   workspaceSlug: string;
@@ -35,6 +37,18 @@ export const MessagesRoot = observer(function MessagesRoot({ workspaceSlug, chan
   const chat = useChat();
   // Set when a result is opened on a narrow screen, where the results would cover it; searching again shows them.
   const [searchHidden, setSearchHidden] = useState(false);
+  const searchParams = useSearchParams();
+  const openAgentDm = useOpenAgentDm(workspaceSlug);
+  // `?agent=<id>` (or `last`) opens that agent's conversation: the sidebar's Agents entry and the old agent page link
+  // here. Followed once per link.
+  const agentParam = channelId ? null : searchParams.get("agent");
+  const followedAgentParam = useRef<string | null>(null);
+  const started = chat.workspaceSlug === workspaceSlug;
+  useEffect(() => {
+    if (!started || !agentParam || followedAgentParam.current === agentParam) return;
+    followedAgentParam.current = agentParam;
+    void openAgentDm(agentParam === "last" ? undefined : agentParam, { replace: true });
+  }, [started, agentParam, openAgentDm]);
   const thread = chat.activeThread?.channelId === channelId ? chat.activeThread : null;
   const threadChannel = thread ? chat.channelMap[thread.channelId] : undefined;
   const showSearch = !!chat.search && !searchHidden && !(thread && threadChannel);

@@ -19,6 +19,11 @@
       "new": "Nová správa",
       "none": "Zatiaľ žiadne priame správy."
     },
+    "agent_dms": {
+      "title": "Agenti",
+      "new": "Chatovať s agentom",
+      "none": "Zatiaľ žiadne chaty s agentmi."
+    },
     "channel": {
       "member_count": "{count, plural, one {# člen} few {# členovia} many {# člena} other {# členov}}",
       "join": "Pripojiť sa",
@@ -179,7 +184,8 @@
     },
     "notification": {
       "mentioned_in_channel": "{name} vás spomína v #{channel}",
-      "mentioned_in_dm": "{name} vás spomína v priamej správe"
+      "mentioned_in_dm": "{name} vás spomína v priamej správe",
+      "replied_in_agent_dm": "{name} vám odpovedal"
     },
     "errors": {
       "retry": "Skúsiť znova",
@@ -197,6 +203,7 @@
       "rate_limited": "Robíte to príliš často. Chvíľu počkajte a skúste to znova.",
       "add_agent_failed": "Agenta sa nepodarilo pridať",
       "remove_agent_failed": "Agenta sa nepodarilo odstrániť",
+      "open_agent_dm_failed": "Konverzáciu s agentom sa nepodarilo otvoriť",
       "load_members_failed": "Členov sa nepodarilo načítať",
       "add_members_failed": "Ľudí sa nepodarilo pridať",
       "remove_member_failed": "Z kanála sa nepodarilo odobrať",
@@ -272,10 +279,11 @@
           "work_item": "Vytvoriť pracovnú položku zo správy",
           "agent_session": "Relácie agentov, ktoré spustí jeden človek",
           "agent_channel": "Relácie jedného agenta v jednom kanáli",
-          "agent_post": "Odpovede, ktoré zverejní jeden agent"
+          "agent_post": "Odpovede, ktoré zverejní jeden agent",
+          "agent_dm_turn": "Kolá, ktoré jeden človek spustí v chatoch s agentmi"
         },
         "agents_title": "Agenti odpovedajúci na @zmienky",
-        "agents_description": "Limity pre agentov, ktorí odpovedajú, keď sú spomenutí v kanáli. Nastavte ich premennými prostredia CHAT_RATE_LIMIT_AGENT_* a časový limit pomocou CHAT_AGENT_REPLY_TIMEOUT_SECONDS v API.",
+        "agents_description": "Limity pre agentov, ktorí odpovedajú, keď sú spomenutí v kanáli. Nastavte ich premennými prostredia CHAT_RATE_LIMIT_AGENT_* a časový limit pomocou CHAT_AGENT_REPLY_TIMEOUT_SECONDS v API. Časový limit platí aj pre každé kolo v chate s agentom.",
         "agent_timeout": "Čas, ktorý má agent na odpoveď",
         "seconds": "{count, plural, one {# sekunda} few {# sekundy} many {# sekundy} other {# sekúnd}}"
       }
@@ -292,7 +300,44 @@
         "failed": "Pri práci na tomto sa niečo pokazilo, takže som nemohol odpovedať.",
         "empty": "Skončil som bez toho, aby som mal čo povedať. Skúste sa opýtať znova a podrobnejšie.",
         "rate_limited": "V krátkom čase sa ma pýtate príliš často. Skúste to o pár minút.",
-        "still_working": "Stále pracujem na poslednej požiadavke v tomto vlákne. Opýtajte sa znova, keď odpoviem."
+        "still_working": "Stále pracujem na poslednej požiadavke v tomto vlákne. Opýtajte sa znova, keď odpoviem.",
+        "stopped": "Túto odpoveď ste zastavili."
+      }
+    },
+    "agent_picker": {
+      "title": "Chatovať s agentom",
+      "description": "Všetko, čo v konverzácii pošlete, ide agentovi, ktorý pracuje s vašimi oprávneniami. Vidíte ju len vy.",
+      "empty": "V tomto pracovnom priestore nie sú k dispozícii žiadni agenti.",
+      "load_failed": "Agentov sa nepodarilo načítať."
+    },
+    "agent_dm": {
+      "intro_description": "Túto konverzáciu vidíte len vy. Každá správa, ktorú sem pošlete, ide agentovi {name}, ktorý pracuje s vašimi oprávneniami.",
+      "level_label": "Úroveň oprávnení",
+      "level_default": "{name} (predvolené)",
+      "stop": "Zastaviť",
+      "writing": "Píše…",
+      "read_only": {
+        "agent_unavailable": "Správca agenta {name} vypol, takže táto konverzácia je len na čítanie.",
+        "agent_removed": "Tento agent bol odstránený, takže táto konverzácia je len na čítanie.",
+        "cannot_run_agents": "V tomto pracovnom priestore už nemôžete používať agentov, takže táto konverzácia je len na čítanie."
+      },
+      "tool_calls": "Použité nástroje",
+      "tool_status": {
+        "pending": "Čaká",
+        "in_progress": "Prebieha",
+        "completed": "Hotovo",
+        "failed": "Zlyhalo"
+      },
+      "permission": {
+        "title": "{name} potrebuje váš súhlas",
+        "untitled": "Použiť nástroj",
+        "answer_failed": "Vašu odpoveď sa nepodarilo odoslať",
+        "expired": "Táto požiadavka už nečaká na odpoveď.",
+        "unavailable": "Službu agentov sa nepodarilo zastihnúť. Skúste to znova."
+      },
+      "errors": {
+        "level_failed": "Úroveň oprávnení sa nepodarilo zmeniť",
+        "stop_failed": "Agenta sa nepodarilo zastaviť"
       }
     }
   }

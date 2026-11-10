@@ -64,6 +64,8 @@ class MessageSerializer(BaseSerializer):
             "sender_agent_details",
             "system_event",
             "agent_notice",
+            "agent_streaming",
+            "agent_tool_calls",
             "body_html",
             "body_json",
             "body_stripped",

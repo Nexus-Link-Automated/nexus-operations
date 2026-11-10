@@ -19,6 +19,11 @@
       "new": "Nouveau message",
       "none": "Aucun message direct pour le moment."
     },
+    "agent_dms": {
+      "title": "Agents",
+      "new": "Discuter avec un agent",
+      "none": "Aucune discussion avec un agent pour l'instant."
+    },
     "channel": {
       "member_count": "{count, plural, one {# membre} many {# membres} other {# membres}}",
       "join": "Rejoindre",
@@ -179,7 +184,8 @@
     },
     "notification": {
       "mentioned_in_channel": "{name} vous a mentionné dans #{channel}",
-      "mentioned_in_dm": "{name} vous a mentionné dans un message direct"
+      "mentioned_in_dm": "{name} vous a mentionné dans un message direct",
+      "replied_in_agent_dm": "{name} vous a répondu"
     },
     "errors": {
       "retry": "Réessayer",
@@ -197,6 +203,7 @@
       "rate_limited": "Vous faites cela trop souvent. Patientez un instant et réessayez.",
       "add_agent_failed": "Impossible d'ajouter l'agent",
       "remove_agent_failed": "Impossible de retirer l'agent",
+      "open_agent_dm_failed": "Impossible d'ouvrir la conversation avec l'agent",
       "load_members_failed": "Impossible de charger les membres",
       "add_members_failed": "Impossible d'ajouter ces personnes",
       "remove_member_failed": "Impossible de retirer cette personne du canal",
@@ -272,10 +279,11 @@
           "work_item": "Créer un élément de travail à partir d’un message",
           "agent_session": "Sessions d'agents lancées par une personne",
           "agent_channel": "Sessions d'un agent dans un canal",
-          "agent_post": "Réponses publiées par un agent"
+          "agent_post": "Réponses publiées par un agent",
+          "agent_dm_turn": "Tours lancés par une personne dans les discussions avec des agents"
         },
         "agents_title": "Agents qui répondent aux @mentions",
-        "agents_description": "Limites pour les agents qui répondent lorsqu'ils sont mentionnés dans un canal. Définissez-les avec les variables d'environnement CHAT_RATE_LIMIT_AGENT_*, et le délai avec CHAT_AGENT_REPLY_TIMEOUT_SECONDS, sur l'API.",
+        "agents_description": "Limites pour les agents qui répondent lorsqu'ils sont mentionnés dans un canal. Définissez-les avec les variables d'environnement CHAT_RATE_LIMIT_AGENT_*, et le délai avec CHAT_AGENT_REPLY_TIMEOUT_SECONDS, sur l'API. Le délai s'applique aussi à chaque tour dans une discussion avec un agent.",
         "agent_timeout": "Temps dont dispose un agent pour répondre",
         "seconds": "{count, plural, one {# seconde} other {# secondes}}"
       }
@@ -292,7 +300,44 @@
         "failed": "Un problème est survenu pendant que je travaillais là-dessus, je n'ai donc pas pu répondre.",
         "empty": "J'ai terminé sans rien à dire. Reposez la question avec plus de détails.",
         "rate_limited": "On m'a sollicité trop souvent en peu de temps. Réessayez dans quelques minutes.",
-        "still_working": "Je travaille encore sur la dernière demande de ce fil. Redemandez une fois que j'aurai répondu."
+        "still_working": "Je travaille encore sur la dernière demande de ce fil. Redemandez une fois que j'aurai répondu.",
+        "stopped": "Vous avez arrêté cette réponse."
+      }
+    },
+    "agent_picker": {
+      "title": "Discuter avec un agent",
+      "description": "Tout ce que vous envoyez dans la conversation va à l'agent, qui agit avec vos autorisations. Vous seul pouvez la voir.",
+      "empty": "Aucun agent n'est disponible dans cet espace de travail.",
+      "load_failed": "Impossible de charger les agents."
+    },
+    "agent_dm": {
+      "intro_description": "Vous seul pouvez voir cette conversation. Chaque message envoyé ici va à {name}, qui agit avec vos autorisations.",
+      "level_label": "Niveau d'autorisation",
+      "level_default": "{name} (par défaut)",
+      "stop": "Arrêter",
+      "writing": "Rédaction…",
+      "read_only": {
+        "agent_unavailable": "{name} a été désactivé par un administrateur : cette conversation est en lecture seule.",
+        "agent_removed": "Cet agent a été supprimé : cette conversation est en lecture seule.",
+        "cannot_run_agents": "Vous ne pouvez plus utiliser d'agents dans cet espace de travail : cette conversation est en lecture seule."
+      },
+      "tool_calls": "Outils utilisés",
+      "tool_status": {
+        "pending": "En attente",
+        "in_progress": "En cours",
+        "completed": "Terminé",
+        "failed": "Échec"
+      },
+      "permission": {
+        "title": "{name} a besoin de votre accord",
+        "untitled": "Utiliser un outil",
+        "answer_failed": "Impossible d'envoyer votre réponse",
+        "expired": "Cette demande n'attend plus de réponse.",
+        "unavailable": "Le service d'agents est injoignable. Réessayez."
+      },
+      "errors": {
+        "level_failed": "Impossible de modifier le niveau d'autorisation",
+        "stop_failed": "Impossible d'arrêter l'agent"
       }
     }
   }

@@ -19,6 +19,11 @@
       "new": "Mesaj nou",
       "none": "Încă nu există mesaje directe."
     },
+    "agent_dms": {
+      "title": "Agenți",
+      "new": "Discutați cu un agent",
+      "none": "Încă nu există conversații cu agenți."
+    },
     "channel": {
       "member_count": "{count, plural, one {# membru} few {# membri} other {# de membri}}",
       "join": "Alăturați-vă",
@@ -179,7 +184,8 @@
     },
     "notification": {
       "mentioned_in_channel": "{name} v-a menționat în #{channel}",
-      "mentioned_in_dm": "{name} v-a menționat într-un mesaj direct"
+      "mentioned_in_dm": "{name} v-a menționat într-un mesaj direct",
+      "replied_in_agent_dm": "{name} v-a răspuns"
     },
     "errors": {
       "retry": "Reîncercați",
@@ -197,6 +203,7 @@
       "rate_limited": "Faceți asta prea des. Așteptați puțin și încercați din nou.",
       "add_agent_failed": "Agentul nu a putut fi adăugat",
       "remove_agent_failed": "Agentul nu a putut fi eliminat",
+      "open_agent_dm_failed": "Conversația cu agentul nu a putut fi deschisă",
       "load_members_failed": "Membrii nu au putut fi încărcați",
       "add_members_failed": "Persoanele nu au putut fi adăugate",
       "remove_member_failed": "Eliminarea din canal nu a reușit",
@@ -272,10 +279,11 @@
           "work_item": "Crearea unui element de lucru dintr-un mesaj",
           "agent_session": "Sesiuni de agenți pornite de o persoană",
           "agent_channel": "Sesiuni ale unui agent într-un canal",
-          "agent_post": "Răspunsuri publicate de un agent"
+          "agent_post": "Răspunsuri publicate de un agent",
+          "agent_dm_turn": "Ture pornite de o persoană în conversațiile cu agenți"
         },
         "agents_title": "Agenți care răspund la @mențiuni",
-        "agents_description": "Limite pentru agenții care răspund când sunt menționați într-un canal. Setați-le cu variabilele de mediu CHAT_RATE_LIMIT_AGENT_*, iar limita de timp cu CHAT_AGENT_REPLY_TIMEOUT_SECONDS, în API.",
+        "agents_description": "Limite pentru agenții care răspund când sunt menționați într-un canal. Setați-le cu variabilele de mediu CHAT_RATE_LIMIT_AGENT_*, iar limita de timp cu CHAT_AGENT_REPLY_TIMEOUT_SECONDS, în API. Limita de timp se aplică și fiecărei ture dintr-o conversație cu un agent.",
         "agent_timeout": "Timpul pe care îl are un agent pentru a răspunde",
         "seconds": "{count, plural, one {# secundă} few {# secunde} other {# de secunde}}"
       }
@@ -292,7 +300,44 @@
         "failed": "Ceva nu a mers bine cât am lucrat la asta, așa că nu am putut răspunde.",
         "empty": "Am terminat fără să am ceva de spus. Încercați să întrebați din nou, cu mai multe detalii.",
         "rate_limited": "Am fost întrebat prea des într-un timp scurt. Încercați din nou peste câteva minute.",
-        "still_working": "Încă lucrez la ultima cerere din acest fir. Întrebați din nou după ce răspund."
+        "still_working": "Încă lucrez la ultima cerere din acest fir. Întrebați din nou după ce răspund.",
+        "stopped": "Ați oprit acest răspuns."
+      }
+    },
+    "agent_picker": {
+      "title": "Discutați cu un agent",
+      "description": "Tot ce trimiteți în conversație ajunge la agent, care lucrează cu permisiunile dumneavoastră. Doar dumneavoastră o puteți vedea.",
+      "empty": "Nu există agenți disponibili în acest spațiu de lucru.",
+      "load_failed": "Agenții nu au putut fi încărcați."
+    },
+    "agent_dm": {
+      "intro_description": "Doar dumneavoastră puteți vedea această conversație. Fiecare mesaj trimis aici ajunge la {name}, care lucrează cu permisiunile dumneavoastră.",
+      "level_label": "Nivel de permisiuni",
+      "level_default": "{name} (implicit)",
+      "stop": "Opriți",
+      "writing": "Scrie…",
+      "read_only": {
+        "agent_unavailable": "{name} a fost dezactivat de un administrator, așa că această conversație este doar pentru citire.",
+        "agent_removed": "Acest agent a fost eliminat, așa că această conversație este doar pentru citire.",
+        "cannot_run_agents": "Nu mai puteți folosi agenți în acest spațiu de lucru, așa că această conversație este doar pentru citire."
+      },
+      "tool_calls": "Instrumente folosite",
+      "tool_status": {
+        "pending": "În așteptare",
+        "in_progress": "În curs",
+        "completed": "Gata",
+        "failed": "Eșuat"
+      },
+      "permission": {
+        "title": "{name} are nevoie de aprobarea dumneavoastră",
+        "untitled": "Folosirea unui instrument",
+        "answer_failed": "Răspunsul nu a putut fi trimis",
+        "expired": "Această solicitare nu mai așteaptă un răspuns.",
+        "unavailable": "Serviciul de agenți nu a putut fi contactat. Încercați din nou."
+      },
+      "errors": {
+        "level_failed": "Nivelul de permisiuni nu a putut fi schimbat",
+        "stop_failed": "Agentul nu a putut fi oprit"
       }
     }
   }

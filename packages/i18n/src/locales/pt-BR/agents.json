@@ -400,6 +400,11 @@
         "disconnect_failed": "Não foi possível desconectar a conta.",
         "sign_in_lost": "Seu login no {vendor} não é mais válido. Entre novamente."
       }
+    },
+    "moved_to_messages": {
+      "title": "As conversas com agentes agora estão em Mensagens",
+      "description": "Cada agente agora tem a própria conversa com você em Mensagens. Por enquanto, esta página mantém suas conversas anteriores.",
+      "open": "Abrir em Mensagens"
     }
   }
 }

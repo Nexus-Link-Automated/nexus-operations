@@ -19,6 +19,11 @@
       "new": "Pesan baru",
       "none": "Belum ada pesan langsung."
     },
+    "agent_dms": {
+      "title": "Agen",
+      "new": "Mengobrol dengan agen",
+      "none": "Belum ada obrolan dengan agen."
+    },
     "channel": {
       "member_count": "{count, plural, one {# anggota} other {# anggota}}",
       "join": "Bergabung",
@@ -179,7 +184,8 @@
     },
     "notification": {
       "mentioned_in_channel": "{name} menyebut Anda di #{channel}",
-      "mentioned_in_dm": "{name} menyebut Anda dalam pesan langsung"
+      "mentioned_in_dm": "{name} menyebut Anda dalam pesan langsung",
+      "replied_in_agent_dm": "{name} membalas Anda"
     },
     "errors": {
       "retry": "Coba lagi",
@@ -197,6 +203,7 @@
       "rate_limited": "Anda melakukannya terlalu sering. Tunggu sebentar lalu coba lagi.",
       "add_agent_failed": "Tidak dapat menambahkan agen",
       "remove_agent_failed": "Tidak dapat menghapus agen",
+      "open_agent_dm_failed": "Gagal membuka percakapan dengan agen",
       "load_members_failed": "Tidak dapat memuat anggota",
       "add_members_failed": "Tidak dapat menambahkan orang",
       "remove_member_failed": "Tidak dapat mengeluarkan dari kanal",
@@ -272,10 +279,11 @@
           "work_item": "Membuat item kerja dari pesan",
           "agent_session": "Sesi agen yang dimulai satu orang",
           "agent_channel": "Sesi satu agen di satu kanal",
-          "agent_post": "Balasan yang diposting satu agen"
+          "agent_post": "Balasan yang diposting satu agen",
+          "agent_dm_turn": "Giliran yang dimulai satu orang dalam obrolan agen"
         },
         "agents_title": "Agen yang menjawab @sebutan",
-        "agents_description": "Batas untuk agen yang membalas saat disebut di kanal. Atur dengan variabel lingkungan CHAT_RATE_LIMIT_AGENT_*, dan batas waktunya dengan CHAT_AGENT_REPLY_TIMEOUT_SECONDS, di API.",
+        "agents_description": "Batas untuk agen yang membalas saat disebut di kanal. Atur dengan variabel lingkungan CHAT_RATE_LIMIT_AGENT_*, dan batas waktunya dengan CHAT_AGENT_REPLY_TIMEOUT_SECONDS, di API. Batas waktu juga berlaku untuk setiap giliran dalam obrolan agen.",
         "agent_timeout": "Waktu yang dimiliki agen untuk membalas",
         "seconds": "{count, plural, other {# detik}}"
       }
@@ -292,7 +300,44 @@
         "failed": "Terjadi kesalahan saat saya mengerjakan ini, jadi saya tidak bisa membalas.",
         "empty": "Saya selesai tanpa ada yang bisa disampaikan. Coba tanyakan lagi dengan lebih rinci.",
         "rate_limited": "Saya terlalu sering ditanya dalam waktu singkat. Coba lagi dalam beberapa menit.",
-        "still_working": "Saya masih mengerjakan permintaan terakhir di utas ini. Tanyakan lagi setelah saya membalas."
+        "still_working": "Saya masih mengerjakan permintaan terakhir di utas ini. Tanyakan lagi setelah saya membalas.",
+        "stopped": "Anda menghentikan balasan ini."
+      }
+    },
+    "agent_picker": {
+      "title": "Mengobrol dengan agen",
+      "description": "Semua yang Anda kirim dalam percakapan ini diteruskan ke agen, yang bekerja dengan izin Anda. Hanya Anda yang dapat melihatnya.",
+      "empty": "Tidak ada agen yang tersedia di ruang kerja ini.",
+      "load_failed": "Gagal memuat agen."
+    },
+    "agent_dm": {
+      "intro_description": "Hanya Anda yang dapat melihat percakapan ini. Setiap pesan yang Anda kirim di sini diteruskan ke {name}, yang bekerja dengan izin Anda.",
+      "level_label": "Tingkat izin",
+      "level_default": "{name} (bawaan)",
+      "stop": "Hentikan",
+      "writing": "Sedang menulis…",
+      "read_only": {
+        "agent_unavailable": "{name} telah dinonaktifkan oleh admin, jadi percakapan ini hanya-baca.",
+        "agent_removed": "Agen ini telah dihapus, jadi percakapan ini hanya-baca.",
+        "cannot_run_agents": "Anda tidak dapat lagi menggunakan agen di ruang kerja ini, jadi percakapan ini hanya-baca."
+      },
+      "tool_calls": "Alat yang digunakan",
+      "tool_status": {
+        "pending": "Menunggu",
+        "in_progress": "Berjalan",
+        "completed": "Selesai",
+        "failed": "Gagal"
+      },
+      "permission": {
+        "title": "{name} memerlukan persetujuan Anda",
+        "untitled": "Menggunakan alat",
+        "answer_failed": "Gagal mengirim jawaban Anda",
+        "expired": "Permintaan ini tidak lagi menunggu jawaban.",
+        "unavailable": "Layanan agen tidak dapat dihubungi. Coba lagi."
+      },
+      "errors": {
+        "level_failed": "Gagal mengubah tingkat izin",
+        "stop_failed": "Gagal menghentikan agen"
       }
     }
   }

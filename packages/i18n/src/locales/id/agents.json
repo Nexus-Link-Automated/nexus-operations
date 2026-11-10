@@ -400,6 +400,11 @@
         "disconnect_failed": "Akun tidak dapat diputuskan.",
         "sign_in_lost": "Login {vendor} Anda tidak lagi valid. Masuk lagi."
       }
+    },
+    "moved_to_messages": {
+      "title": "Obrolan dengan agen kini ada di Pesan",
+      "description": "Setiap agen kini memiliki percakapannya sendiri dengan Anda di Pesan. Untuk saat ini halaman ini menyimpan obrolan Anda sebelumnya.",
+      "open": "Buka di Pesan"
     }
   }
 }

@@ -48,7 +48,7 @@ from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast
 from django.utils import timezone
 
-from plane.chat.models import Channel, Message, MessageReference, PendingMentionEmail
+from plane.chat.models import AgentPermissionRequest, Channel, Message, MessageReference, PendingMentionEmail
 from plane.chat.notifications import CHAT_MESSAGE_ENTITY
 from plane.db.models import FileAsset, Notification
 from plane.license.utils.instance_value import get_configuration_value
@@ -204,8 +204,24 @@ def _empty_batch(candidates, now):
         MessageReference.all_objects.filter(message_id__in=ids).delete()
         PendingMentionEmail.objects.filter(message_id__in=ids).delete()
         Message.all_objects.filter(pk__in=ids).update(
-            body_html="", body_json={}, body_stripped="", system_data=None, removed_at=now, updated_at=now
+            body_html="",
+            body_json={},
+            body_stripped="",
+            system_data=None,
+            agent_tool_calls=None,
+            removed_at=now,
+            updated_at=now,
         )
+    return len(ids)
+
+
+def _delete_permission_requests(cutoff):
+    """Delete up to `BATCH_SIZE` of the agent DM permission requests from before `cutoff`: they name tool calls."""
+    ids = list(
+        AgentPermissionRequest.all_objects.filter(created_at__lt=cutoff).values_list("id", flat=True)[:BATCH_SIZE]
+    )
+    if ids:
+        AgentPermissionRequest.all_objects.filter(pk__in=ids).delete()
     return len(ids)
 
 
@@ -227,6 +243,7 @@ def purge_expired_messages(cutoff, now):
         "replies": _run(_delete_batch, old.filter(parent__isnull=False)),
         "messages": _run(_delete_batch, old.filter(parent__isnull=True).exclude(_has_replies())),
         "emptied": _run(_empty_batch, old.filter(parent__isnull=True, removed_at__isnull=True), now),
+        "permission_requests": _run(_delete_permission_requests, cutoff),
     }
 
 

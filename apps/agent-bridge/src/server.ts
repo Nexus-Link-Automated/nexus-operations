@@ -15,6 +15,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 
 import { driveChannelSession, type ChannelSessionError, type ChannelSessionOutcome } from "./channel-session.ts";
 import type { BridgeConfig } from "./config.ts";
+import { DmSessions, type DmTurnRequest, type OpenedDmAgent } from "./dm-session.ts";
 import { connectionsRouter } from "./connections.ts";
 import {
   CHANNEL_MAX_PERMISSION_LEVEL,
@@ -48,6 +49,9 @@ export interface AgentBridgeOptions {
   readonly log?: Logger;
   /** How long a new connection has to send `initialize` (default 30 s). */
   readonly initializeTimeoutMs?: number;
+  /** Agent DM drafts: least time between two posts, and new text posted at once (defaults 500 ms, 2048). */
+  readonly dmDraftIntervalMs?: number;
+  readonly dmDraftChars?: number;
 }
 
 type Refusal = { readonly ok: false; readonly code: number; readonly reason: string };
@@ -95,6 +99,7 @@ export class AgentBridge {
   readonly #acp: AcpServer;
   readonly #sessions = new Set<LiveSession>();
   readonly #channelRuns = new Set<ChannelRun>();
+  readonly #dm: DmSessions;
   readonly #perUser = new Map<string, number>();
   readonly #initializeTimeoutMs: number;
   readonly #memberRunner: MemberRunner;
@@ -128,6 +133,19 @@ export class AgentBridge {
     this.#wss = new WebSocketServer({ noServer: true, maxPayload: config.maxMessageBytes, perMessageDeflate: false });
     const runnerClient = new RunnerLoginClient({ baseUrl: config.runnerHttpUrl, secret: config.runnerSecret });
     this.#memberRunner = options.memberRunner ?? runnerClient;
+    this.#dm = new DmSessions({
+      reporter: this.#api,
+      reserve: (userId) => {
+        const slot = this.#reserve(userId, 0);
+        return slot.ok ? slot : { ok: false };
+      },
+      openAgent: (request, signal) => this.#openDmAgent(request, signal),
+      log: this.#log,
+      idleTimeoutMs: config.dmIdleTimeoutMs,
+      clientVersion: config.version,
+      ...(options.dmDraftIntervalMs !== undefined ? { draftIntervalMs: options.dmDraftIntervalMs } : {}),
+      ...(options.dmDraftChars !== undefined ? { draftChars: options.dmDraftChars } : {}),
+    });
 
     this.app = express();
     this.app.disable("x-powered-by");
@@ -137,6 +155,7 @@ export class AgentBridge {
         version: config.version,
         connections: this.#sessions.size,
         channelSessions: this.#channelRuns.size,
+        dmSessions: this.#dm.heldCount,
         timestamp: new Date().toISOString(),
       });
     });
@@ -156,6 +175,10 @@ export class AgentBridge {
       internalRouter({
         secret: config.bridgeSecret,
         startChannelSession: (request) => this.#startChannelRun(request),
+        startDmTurn: (request) => (this.#shuttingDown ? "shutting_down" : this.#dm.start(request)),
+        answerDmPermission: (channelId, runId, requestId, optionId) =>
+          this.#dm.answerPermission(channelId, runId, requestId, optionId),
+        cancelDmTurn: (channelId, runId) => this.#dm.cancel(channelId, runId),
         log: this.#log,
       })
     );
@@ -181,6 +204,11 @@ export class AgentBridge {
     return this.#channelRuns.size;
   }
 
+  /** Agent DM sessions held open between turns. */
+  get dmSessionCount(): number {
+    return this.#dm.heldCount;
+  }
+
   async listen(port = this.#config.port, host = this.#config.host): Promise<AddressInfo> {
     await new Promise<void>((resolve, reject) => {
       this.server.once("error", reject);
@@ -204,7 +232,7 @@ export class AgentBridge {
     this.#sweep ??= sweepEndedMemberships({
       api: this.#api,
       runner: this.#memberRunner,
-      liveMembers: () => [...this.#sessions].map((session) => session.member),
+      liveMembers: () => [...[...this.#sessions].map((session) => session.member), ...this.#dm.heldMembers()],
       closeChats: (member) => this.#closeChats(member),
       log: this.#log,
       maxPerPass: this.#config.offboardMaxPerPass,
@@ -228,7 +256,8 @@ export class AgentBridge {
       (session) => session.member.workspaceId === member.workspaceId && session.member.userId === member.userId
     );
     for (const session of sessions) session.socket.close(CloseCode.forbidden, "Workspace membership ended");
-    await Promise.all(sessions.map((session) => session.finished));
+    // Agent DM sessions held between turns are theirs too.
+    await Promise.all([...sessions.map((session) => session.finished), this.#dm.closeMember(member)]);
   }
 
   /** Stop accepting connections, close the open ones (which revokes their tokens), then stop. */
@@ -244,6 +273,8 @@ export class AgentBridge {
     const drained = Promise.all([
       ...[...this.#sessions].map((session) => session.finished),
       ...[...this.#channelRuns].map((run) => run.finished),
+      // Running DM turns tell the API they were stopped; held sessions close and revoke their tokens.
+      this.#dm.close(),
     ]);
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([
@@ -344,7 +375,7 @@ export class AgentBridge {
    * are this one.
    */
   #reserve(userId: string, pending: number): { ok: true; release: () => void } | Refusal {
-    const open = this.#sessions.size + this.#pendingAdmissions - pending + this.#channelRuns.size;
+    const open = this.#sessions.size + this.#pendingAdmissions - pending + this.#channelRuns.size + this.#dm.slotCount;
     if (open >= this.#config.maxConnections) {
       return refuse(CloseCode.tooManyConnections, "The agent service is at capacity");
     }
@@ -533,6 +564,33 @@ export class AgentBridge {
       await this.#revoke(grant, log);
       log.info("agent-bridge: channel session ended", { durationMs: Date.now() - startedAt });
     }
+  }
+
+  /** Open the agent for an agent DM's held session, as the DM's person, at the DM's level. */
+  async #openDmAgent(
+    request: DmTurnRequest,
+    signal: AbortSignal
+  ): Promise<OpenedDmAgent | { ok: false; error: ChannelSessionError }> {
+    const opened = await this.#openAgent(
+      {
+        userId: request.userId,
+        workspaceSlug: request.workspaceSlug,
+        agentId: request.agentId,
+        level: request.permissionLevel,
+      },
+      signal
+    );
+    if (!opened.ok) return { ok: false, error: CHANNEL_ERRORS[opened.code] ?? "failed" };
+    const { grant, channel } = opened;
+    const log = withMeta(this.#grantLog(grant), { channelId: request.channelId });
+    return {
+      ok: true,
+      grant,
+      upstream: channel,
+      policy: this.#policyFor(grant),
+      log,
+      revoke: () => this.#revoke(grant, log),
+    };
   }
 
   #startSession(ws: WebSocket, admission: Admission): void {

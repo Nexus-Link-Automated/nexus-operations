@@ -19,6 +19,11 @@
       "new": "New message",
       "none": "No direct messages yet."
     },
+    "agent_dms": {
+      "title": "Agents",
+      "new": "Chat with an agent",
+      "none": "No agent chats yet."
+    },
     "channel": {
       "member_count": "{count, plural, one {# member} other {# members}}",
       "join": "Join",
@@ -179,7 +184,8 @@
     },
     "notification": {
       "mentioned_in_channel": "{name} mentioned you in #{channel}",
-      "mentioned_in_dm": "{name} mentioned you in a direct message"
+      "mentioned_in_dm": "{name} mentioned you in a direct message",
+      "replied_in_agent_dm": "{name} replied to you"
     },
     "errors": {
       "retry": "Try again",
@@ -197,6 +203,7 @@
       "rate_limited": "You're doing that too often. Wait a moment and try again.",
       "add_agent_failed": "Couldn't add the agent",
       "remove_agent_failed": "Couldn't remove the agent",
+      "open_agent_dm_failed": "Couldn't open the conversation with the agent",
       "load_members_failed": "Couldn't load the members",
       "add_members_failed": "Couldn't add people",
       "remove_member_failed": "Couldn't remove them from the channel",
@@ -272,10 +279,11 @@
           "work_item": "Create a work item from a message",
           "agent_session": "Agent sessions one person starts",
           "agent_channel": "Agent sessions for one agent in one channel",
-          "agent_post": "Replies one agent posts"
+          "agent_post": "Replies one agent posts",
+          "agent_dm_turn": "Turns one person starts in agent chats"
         },
         "agents_title": "Agents answering @mentions",
-        "agents_description": "Limits on agents that reply when they're mentioned in a channel. Set them with the CHAT_RATE_LIMIT_AGENT_* environment variables, and the time limit with CHAT_AGENT_REPLY_TIMEOUT_SECONDS, on the API.",
+        "agents_description": "Limits on agents that reply when they're mentioned in a channel. Set them with the CHAT_RATE_LIMIT_AGENT_* environment variables, and the time limit with CHAT_AGENT_REPLY_TIMEOUT_SECONDS, on the API. The time limit also applies to each turn in an agent chat.",
         "agent_timeout": "Time an agent may take to reply",
         "seconds": "{count, plural, one {# second} other {# seconds}}"
       }
@@ -292,7 +300,44 @@
         "failed": "Something went wrong while I was working on this, so I couldn't reply.",
         "empty": "I finished without anything to say. Try asking again with more detail.",
         "rate_limited": "I've been asked too often in a short time. Try again in a few minutes.",
-        "still_working": "I'm still working on the last request in this thread. Ask again once I've replied."
+        "still_working": "I'm still working on the last request in this thread. Ask again once I've replied.",
+        "stopped": "You stopped this reply."
+      }
+    },
+    "agent_picker": {
+      "title": "Chat with an agent",
+      "description": "Everything you send in the conversation goes to the agent, which works with your permissions. Only you can see it.",
+      "empty": "No agents are available in this workspace.",
+      "load_failed": "Couldn't load the agents."
+    },
+    "agent_dm": {
+      "intro_description": "Only you can see this conversation. Every message you send here goes to {name}, which works with your permissions.",
+      "level_label": "Permission level",
+      "level_default": "{name} (default)",
+      "stop": "Stop",
+      "writing": "Writing…",
+      "read_only": {
+        "agent_unavailable": "{name} has been turned off by an admin, so this conversation is read-only.",
+        "agent_removed": "This agent has been removed, so this conversation is read-only.",
+        "cannot_run_agents": "You can no longer use agents in this workspace, so this conversation is read-only."
+      },
+      "tool_calls": "Tools used",
+      "tool_status": {
+        "pending": "Waiting",
+        "in_progress": "Running",
+        "completed": "Done",
+        "failed": "Failed"
+      },
+      "permission": {
+        "title": "{name} needs your approval",
+        "untitled": "Use a tool",
+        "answer_failed": "Couldn't send your answer",
+        "expired": "This request is no longer waiting for an answer.",
+        "unavailable": "The agent service couldn't be reached. Try again."
+      },
+      "errors": {
+        "level_failed": "Couldn't change the permission level",
+        "stop_failed": "Couldn't stop the agent"
       }
     }
   }

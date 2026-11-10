@@ -19,6 +19,11 @@
       "new": "Nieuw bericht",
       "none": "Nog geen directe berichten."
     },
+    "agent_dms": {
+      "title": "Agents",
+      "new": "Chatten met een agent",
+      "none": "Nog geen chats met agents."
+    },
     "channel": {
       "member_count": "{count, plural, one {# lid} other {# leden}}",
       "join": "Deelnemen",
@@ -179,7 +184,8 @@
     },
     "notification": {
       "mentioned_in_channel": "{name} heeft u genoemd in #{channel}",
-      "mentioned_in_dm": "{name} heeft u genoemd in een direct bericht"
+      "mentioned_in_dm": "{name} heeft u genoemd in een direct bericht",
+      "replied_in_agent_dm": "{name} heeft je geantwoord"
     },
     "errors": {
       "retry": "Opnieuw proberen",
@@ -197,6 +203,7 @@
       "rate_limited": "Je doet dat te vaak. Wacht even en probeer het opnieuw.",
       "add_agent_failed": "De agent kon niet worden toegevoegd",
       "remove_agent_failed": "De agent kon niet worden verwijderd",
+      "open_agent_dm_failed": "Het gesprek met de agent kon niet worden geopend",
       "load_members_failed": "De leden konden niet worden geladen",
       "add_members_failed": "De personen konden niet worden toegevoegd",
       "remove_member_failed": "Verwijderen uit het kanaal is mislukt",
@@ -272,10 +279,11 @@
           "work_item": "Een werkitem maken van een bericht",
           "agent_session": "Agentsessies die één persoon start",
           "agent_channel": "Sessies van één agent in één kanaal",
-          "agent_post": "Antwoorden die één agent plaatst"
+          "agent_post": "Antwoorden die één agent plaatst",
+          "agent_dm_turn": "Beurten die één persoon start in chats met agents"
         },
         "agents_title": "Agents die op @vermeldingen reageren",
-        "agents_description": "Limieten voor agents die reageren wanneer ze in een kanaal worden vermeld. Stel ze in met de omgevingsvariabelen CHAT_RATE_LIMIT_AGENT_*, en de tijdslimiet met CHAT_AGENT_REPLY_TIMEOUT_SECONDS, op de API.",
+        "agents_description": "Limieten voor agents die reageren wanneer ze in een kanaal worden vermeld. Stel ze in met de omgevingsvariabelen CHAT_RATE_LIMIT_AGENT_*, en de tijdslimiet met CHAT_AGENT_REPLY_TIMEOUT_SECONDS, op de API. De tijdslimiet geldt ook voor elke beurt in een chat met een agent.",
         "agent_timeout": "Tijd die een agent heeft om te reageren",
         "seconds": "{count, plural, one {# seconde} other {# seconden}}"
       }
@@ -292,7 +300,44 @@
         "failed": "Er ging iets mis terwijl ik hieraan werkte, dus ik kon niet reageren.",
         "empty": "Ik ben klaar, maar heb niets te zeggen. Vraag het opnieuw met meer details.",
         "rate_limited": "Ik ben in korte tijd te vaak gevraagd. Probeer het over een paar minuten opnieuw.",
-        "still_working": "Ik werk nog aan het vorige verzoek in deze thread. Vraag het opnieuw zodra ik heb gereageerd."
+        "still_working": "Ik werk nog aan het vorige verzoek in deze thread. Vraag het opnieuw zodra ik heb gereageerd.",
+        "stopped": "Je hebt dit antwoord gestopt."
+      }
+    },
+    "agent_picker": {
+      "title": "Chatten met een agent",
+      "description": "Alles wat je in het gesprek stuurt, gaat naar de agent, die met jouw rechten werkt. Alleen jij kunt het zien.",
+      "empty": "Er zijn geen agents beschikbaar in deze werkruimte.",
+      "load_failed": "De agents konden niet worden geladen."
+    },
+    "agent_dm": {
+      "intro_description": "Alleen jij kunt dit gesprek zien. Elk bericht dat je hier stuurt, gaat naar {name}, die met jouw rechten werkt.",
+      "level_label": "Rechtenniveau",
+      "level_default": "{name} (standaard)",
+      "stop": "Stoppen",
+      "writing": "Schrijft…",
+      "read_only": {
+        "agent_unavailable": "{name} is door een beheerder uitgeschakeld, dus dit gesprek is alleen-lezen.",
+        "agent_removed": "Deze agent is verwijderd, dus dit gesprek is alleen-lezen.",
+        "cannot_run_agents": "Je kunt in deze werkruimte geen agents meer gebruiken, dus dit gesprek is alleen-lezen."
+      },
+      "tool_calls": "Gebruikte tools",
+      "tool_status": {
+        "pending": "Wacht",
+        "in_progress": "Bezig",
+        "completed": "Klaar",
+        "failed": "Mislukt"
+      },
+      "permission": {
+        "title": "{name} heeft je goedkeuring nodig",
+        "untitled": "Een tool gebruiken",
+        "answer_failed": "Je antwoord kon niet worden verzonden",
+        "expired": "Dit verzoek wacht niet meer op een antwoord.",
+        "unavailable": "De agentdienst was niet bereikbaar. Probeer het opnieuw."
+      },
+      "errors": {
+        "level_failed": "Het rechtenniveau kon niet worden gewijzigd",
+        "stop_failed": "De agent kon niet worden gestopt"
       }
     }
   }

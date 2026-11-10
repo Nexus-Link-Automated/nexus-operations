@@ -33,7 +33,7 @@ export type TNotificationChatMessage = {
   id: string;
   channel_id: string;
   channel_name: string | null;
-  channel_kind: "public" | "private" | "dm" | "group_dm";
+  channel_kind: "public" | "private" | "dm" | "group_dm" | "agent_dm";
   parent_id: string | null;
   preview: string;
   /**

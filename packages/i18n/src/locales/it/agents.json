@@ -400,6 +400,11 @@
         "disconnect_failed": "Impossibile disconnettere l'account.",
         "sign_in_lost": "L'accesso a {vendor} non è più valido. Accedere di nuovo."
       }
+    },
+    "moved_to_messages": {
+      "title": "Le chat con gli agenti sono ora in Messaggi",
+      "description": "Ogni agente ora ha la propria conversazione con te in Messaggi. Per ora questa pagina conserva le chat precedenti.",
+      "open": "Apri in Messaggi"
     }
   }
 }

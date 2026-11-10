@@ -10,7 +10,9 @@ browser ──HTTP /agents/connections/* ─▶     │      ──HTTP /auth/* 
                                             └─▶ API: /api/users/me/ (cookie), /api/internal/agent-sessions/,
                                                      /api/internal/agent-connections/ (shared secret)
 API worker ──HTTP POST /internal/channel-sessions (shared secret)──▶ agent-bridge ──▶ (same runner path)
-                                                         └─▶ API: /api/internal/chat/agent-replies/ (shared secret)
+API        ──HTTP POST /internal/dm-turns[/…] (shared secret)──────▶      │
+                                                         └─▶ API: /api/internal/chat/agent-replies/[draft/|permission/]
+                                                                  (shared secret)
 ```
 
 ## Endpoints
@@ -21,7 +23,8 @@ API worker ──HTTP POST /internal/channel-sessions (shared secret)──▶ a
   3. Per-user connection cap.
   4. `POST /api/internal/agent-sessions/` mints a short-lived, workspace-scoped token.
   5. Opens the runner connection.
-- `GET /agents/health`: liveness, the open connection count and the running channel sessions.
+- `GET /agents/health`: liveness, the open connection count, the running channel sessions and the held agent DM
+  sessions (`dmSessions`).
 - `<base>/connections/<provider>/…`: provider account sign-in (below).
 
 When the browser disconnects (or the session ends any other way), the runner connection is closed
@@ -104,6 +107,49 @@ permission_requests}` or `{run_id, status: "failed", error}`, `error` being `tim
   1 s and 5 s on network errors and 5xx; a 4xx is final.
 - Prompts, answers, tokens and provider env are never logged.
 
+## Agent DM turns (`POST /internal/dm-turns`)
+
+An agent DM in Nexus Messages is a conversation between one person and one agent. Every message the person sends
+there is a turn, which the API asks the bridge for. Unlike a channel session, the bridge **holds** the DM's ACP
+session between turns, and the person can answer the agent's permission prompts. Same mount, secret and
+`Cache-Control: no-store` as channel sessions; the code is `src/dm-session.ts`.
+
+- **Body**: `{run_id, channel_id, user_id, workspace_slug, agent_id, permission_level, prompt, primer, session_ref,
+timeout_ms}`. `prompt` is the new message(s) only; `primer` is the DM's recent history plus them, for a session
+  that starts from nothing; `session_ref` is the ACP session ID last reported for the DM (or null).
+- **Answer**: 202 at once; 409 while that DM has a turn running (one at a time); 429 at the per-user or bridge-wide
+  cap; 503 while shutting down; 400 if the body isn't valid.
+- **The held session**:
+  - Opened like a channel session (token minted for `user_id`, the DM's person; the runner starts the agent at the
+    DM's level, clamped; the same `PolicyProxy` and `SessionPolicy`), then `initialize`.
+  - If there is a `session_ref` and the agent advertises `loadSession`, `session/load` (whatever it replays is not the
+    answer) and the turn is prompted with `prompt`. Otherwise, or if loading fails, `session/new` and `primer`.
+  - The next turn of the same DM, for the same person and agent, reuses it while the token has the turn's time limit
+    (plus 30 s) left; a different level is set with `session/set_mode` first.
+  - It takes one per-user and one bridge-wide slot, shared with browser chats and channel sessions, from opening to
+    closing. It closes (runner connection closed, token revoked, slot freed) after `AGENT_BRIDGE_DM_IDLE_TIMEOUT_MS`
+    without a turn, when the token expires or the agent goes away, after a turn that didn't finish normally, and on
+    shutdown.
+- **A turn**:
+  - The agent's `agent_message_chunk` text is the reply, as in a channel session. Its tool calls are listed by
+    `toolCallId` with their title and status (pending, in_progress, completed, failed), never their input or output.
+  - Drafts go to `POST /api/internal/chat/agent-replies/draft/` `{run_id, text, tool_calls}`: the first change at once,
+    then at most every 500 ms, or at once when 2 KB of new text has piled up; one at a time.
+  - A permission prompt goes to `POST /api/internal/chat/agent-replies/permission/` `{run_id, request_id, title,
+options: [{option_id, name, kind}]}` and waits for the person's answer:
+    `POST /internal/dm-turns/<channel_id>/permissions/<request_id>` `{run_id, option_id}` (204; 404 once it is no
+    longer pending; 400 for an option it doesn't have). If the API won't ask (4xx), or the turn runs out of time, the
+    prompt gets its reject option, else `cancelled`.
+  - `POST /internal/dm-turns/<channel_id>/cancel` `{run_id}` (Stop) sends `session/cancel` and answers any waiting
+    prompt `cancelled` (202; 404 if that turn isn't running).
+  - A draft or prompt the API answers 404 or 409 (the agent may no longer post there) stops the turn.
+  - The time limit sends `session/cancel` and ends the turn as `timeout`.
+- **The outcome** goes to `POST /api/internal/chat/agent-replies/`, with the same retries as a channel session:
+  `{run_id, status: "ok", text, permission_requests: [], tool_calls, session_ref, stop_reason}` (`stop_reason`
+  `cancelled` after Stop) or `{run_id, status: "failed", error, text, tool_calls, session_ref}` with what was said so
+  far.
+- Prompts, replies, tokens and provider env are never logged.
+
 ## Provider sign-in (`<base>/connections/<provider>/…`)
 
 Workspace settings → AI providers uses these to connect a member's own ChatGPT or Google account.
@@ -185,6 +231,7 @@ A cross-origin upgrade is refused with HTTP 403 before any API call.
 | `AGENT_BRIDGE_MAX_CONNECTIONS_PER_USER` | `4`              |                                                                                       |
 | `AGENT_BRIDGE_MAX_CONNECTIONS`          | `500`            |                                                                                       |
 | `AGENT_BRIDGE_IDLE_TIMEOUT_MS`          | 15 min           |                                                                                       |
+| `AGENT_BRIDGE_DM_IDLE_TIMEOUT_MS`       | 10 min           | An agent DM's held session closes after this long without a turn                      |
 | `AGENT_BRIDGE_PING_INTERVAL_MS`         | 30 s             | WebSocket keepalive                                                                   |
 | `AGENT_BRIDGE_LOGIN_START_LIMIT`        | `10`             | Sign-in `start`s per user per window                                                  |
 | `AGENT_BRIDGE_LOGIN_START_WINDOW_MS`    | 10 min           |                                                                                       |
