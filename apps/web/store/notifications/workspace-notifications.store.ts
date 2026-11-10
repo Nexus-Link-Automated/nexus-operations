@@ -28,6 +28,10 @@ import { Notification } from "@/store/notifications/notification";
 import type { CoreRootStore } from "@/store/root.store";
 
 type TNotificationLoader = ENotificationLoader | undefined;
+
+/** A notification is snoozed only until its snooze time passes, as the API treats it. */
+export const isSnoozed = (snoozedTill: string | undefined | null): boolean =>
+  !!snoozedTill && new Date(snoozedTill).getTime() > Date.now();
 type TNotificationQueryParamType = ENotificationQueryParamType;
 
 export interface IWorkspaceNotificationStore {
@@ -134,14 +138,14 @@ export class WorkspaceNotificationStore implements IWorkspaceNotificationStore {
         if (!this.filters.archived && !this.filters.snoozed) {
           if (n.archived_at) {
             return false;
-          } else if (n.snoozed_till) {
+          } else if (isSnoozed(n.snoozed_till)) {
             return false;
           } else {
             return true;
           }
         } else {
           if (this.filters.snoozed) {
-            return n.snoozed_till ? true : false;
+            return isSnoozed(n.snoozed_till);
           } else if (this.filters.archived) {
             return n.archived_at ? true : false;
           } else {

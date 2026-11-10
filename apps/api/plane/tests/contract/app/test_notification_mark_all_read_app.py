@@ -118,8 +118,8 @@ class TestMarkAllRead:
     @pytest.mark.parametrize(
         "body, expected",
         [
-            ({}, {"plain", "snoozed_future", "subscribed", "assigned", "created"}),
-            ({"snoozed": True}, {"snoozed_future", "snoozed_past"}),
+            ({}, {"plain", "snoozed_past", "subscribed", "assigned", "created"}),
+            ({"snoozed": True}, {"snoozed_future"}),
             ({"archived": True}, {"archived", "archived_snoozed"}),
             ({"archived": True, "snoozed": True}, {"archived_snoozed"}),
             ({"type": "watching"}, {"subscribed"}),
