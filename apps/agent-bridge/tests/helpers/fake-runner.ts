@@ -41,6 +41,12 @@ export class FakeLoginRunner {
   storedAccount: Record<string, string> | undefined = { email: "ada@example.com" };
   /** Codes `complete` accepts. */
   goodCode = "good-code";
+  /** Who `GET /members` reports directories for; `POST /members/offboard` removes them. */
+  readonly memberDirs: { workspaceId: string; userId: string }[] = [];
+  /** Members offboarded, in order. */
+  readonly offboarded: { workspaceId: string; userId: string }[] = [];
+  /** Answer `/members*` with this status instead (e.g. 500). */
+  membersStatus: number | undefined;
   #server: Server | undefined;
   readonly #replay = new TicketReplayGuard();
 
@@ -86,6 +92,19 @@ export class FakeLoginRunner {
     const url = new URL(req.url ?? "/", "http://runner");
     const authorization = req.headers.authorization ?? "";
     const verified = verifySpawnTicket(authorization.replace(/^Bearer /, ""), RUNNER_SECRET);
+    if (url.pathname.startsWith("/members")) {
+      const purpose = url.pathname === "/members" ? "members" : "offboard";
+      if (!verified.ok || ticketPurpose(verified.ticket) !== purpose || !this.#replay.claim(verified.ticket)) {
+        return { status: 401, body: { error: "Unauthorized" } };
+      }
+      if (this.membersStatus) return { status: this.membersStatus, body: {} };
+      if (purpose === "members") return { status: 200, body: { members: this.memberDirs } };
+      const { workspaceId, userId } = verified.ticket;
+      this.offboarded.push({ workspaceId, userId });
+      const index = this.memberDirs.findIndex((dir) => dir.workspaceId === workspaceId && dir.userId === userId);
+      if (index !== -1) this.memberDirs.splice(index, 1);
+      return { status: 200, body: { status: "removed" } };
+    }
     if (!verified.ok || ticketPurpose(verified.ticket) !== "login" || !this.#replay.claim(verified.ticket)) {
       return { status: 401, body: { error: "Unauthorized" } };
     }

@@ -84,7 +84,10 @@ export function buildAgentEnv(input: AgentEnvInput): { env: Record<string, strin
   const env: Record<string, string> = {
     PATH: input.path,
     HOME: layout.home,
+    // Some tools read TMP or TEMP instead of TMPDIR; all three are the agent's private dir.
     TMPDIR: layout.tmp,
+    TMP: layout.tmp,
+    TEMP: layout.tmp,
     USER: user,
     LOGNAME: user,
     SHELL: input.shell,

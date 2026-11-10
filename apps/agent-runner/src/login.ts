@@ -9,7 +9,7 @@ import type { ChildProcess, SpawnOptions } from "node:child_process";
 
 import type { SpawnTicket } from "@plane/agent-runner-protocol";
 
-import { defaultKiller, defaultSpawner, type Killer, type Spawner } from "./agent-process.ts";
+import { defaultKiller, defaultSpawner, withPrivateUmask, type Killer, type Spawner } from "./agent-process.ts";
 import type { HelperCommand, LoginAdapterId } from "./bins.ts";
 import type { Logger } from "./logger.ts";
 import type { WorkspaceLayout } from "./workspace.ts";
@@ -199,7 +199,10 @@ class HelperProcess {
     };
     let child: ChildProcess;
     try {
-      child = this.#options.spawner(helper.command, [...helper.args, adapter, action], options);
+      const helperArgs = [...helper.args, adapter, action];
+      const [file, args] =
+        layout.uid === undefined ? [helper.command, helperArgs] : withPrivateUmask(helper.command, helperArgs);
+      child = this.#options.spawner(file, args, options);
     } catch (error) {
       log.error("agent-runner: login helper spawn failed", { error: (error as Error).message });
       this.#markExited(null, null);
@@ -329,7 +332,8 @@ export class LoginManager {
   readonly #timeouts: LoginTimeouts;
   readonly #byId = new Map<string, LoginSession>();
   readonly #active = new Map<string, LoginSession>();
-  readonly #running = new Set<HelperProcess>();
+  /** Running helpers → whose (`<workspace>/<user>`). */
+  readonly #running = new Map<HelperProcess, string>();
 
   constructor(options: LoginManagerOptions) {
     this.#options = options;
@@ -509,11 +513,23 @@ export class LoginManager {
       }
       for (const timer of session.timers) clearTimeout(timer);
     }
-    const helpers = [...this.#running];
+    const helpers = [...this.#running.keys()];
     for (const helper of helpers) helper.terminate("runner shutting down");
     await Promise.all(helpers.map((helper) => helper.exited));
     this.#byId.clear();
     this.#active.clear();
+  }
+
+  /** Stop every sign-in of one user in one workspace, whatever the adapter; resolves once their helpers are gone. */
+  async stopMember(workspaceId: string, userId: string, reason: string): Promise<void> {
+    for (const session of this.#byId.values()) {
+      if (session.workspaceId !== workspaceId || session.userId !== userId) continue;
+      this.#finish(session, { status: "failed", error: "The sign-in was stopped" }, reason);
+    }
+    const member = `${workspaceId}/${userId}`;
+    const helpers = [...this.#running].filter(([, owner]) => owner === member).map(([helper]) => helper);
+    for (const helper of helpers) helper.terminate(reason);
+    await Promise.all(helpers.map((helper) => helper.exited));
   }
 
   async #launch(
@@ -538,7 +554,7 @@ export class LoginManager {
       killer: this.#options.killer ?? defaultKiller,
       onEvent,
     });
-    this.#running.add(helper);
+    this.#running.set(helper, `${ticket.workspaceId}/${ticket.userId}`);
     void (async () => {
       await helper.exited;
       this.#running.delete(helper);

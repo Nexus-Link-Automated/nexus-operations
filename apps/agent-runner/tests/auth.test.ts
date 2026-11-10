@@ -143,6 +143,8 @@ describe("ChatGPT sign-in (codex)", () => {
         "SHELL",
         "TERM",
         "TMPDIR",
+        "TMP",
+        "TEMP",
         "USER",
       ].toSorted()
     );
@@ -306,12 +308,14 @@ describe("Google sign-in (gemini)", () => {
 describe("sign-in isolation", () => {
   it("runs the helper as the dir's uid in its own process group", async () => {
     const spawned: SpawnOptions[] = [];
+    const commands: [string, readonly string[]][] = [];
     const signalled: [number, string][] = [];
     await start(["--connect-after=100"], {
       isolation: "uid",
       chown: async () => undefined,
       spawner: (command, args, options) => {
         spawned.push(options);
+        commands.push([command, args]);
         const { uid: _uid, gid: _gid, ...rest } = options;
         return spawn(command, args, rest);
       },
@@ -325,6 +329,10 @@ describe("sign-in isolation", () => {
     expect(started.status).toBe(200);
     expect(spawned[0]).toMatchObject({ uid: 20_000, gid: 20_000, detached: true });
     expect(spawned[0]!.env).toMatchObject({ HOME: home(), USER: "plane-agent-20000" });
+    expect(commands[0]).toEqual([
+      "/bin/sh",
+      ["-c", 'umask 077 && exec "$@"', "sh", process.execPath, FIXTURE, "--connect-after=100", "codex", "start"],
+    ]);
     await waitUntil(async () => (await status(started.body.loginId)).body.status === "connected");
     // Once the helper is gone, the group is killed and the idle uid reaped.
     await waitUntil(() => signalled.some(([pid]) => pid === 900_001));

@@ -81,6 +81,15 @@ export interface AgentLimits {
 
 const PRLIMIT = "/usr/bin/prlimit";
 
+/**
+ * `file args…` started through `/bin/sh` with umask 077, which then execs it (same pid, same process
+ * group). Everything the process and its children create is then private to their uid unless they
+ * choose otherwise, including files in the places all agents share, such as `/tmp` and `/var/tmp`.
+ */
+export function withPrivateUmask(file: string, args: readonly string[]): [string, string[]] {
+  return ["/bin/sh", ["-c", 'umask 077 && exec "$@"', "sh", file, ...args]];
+}
+
 export interface AgentProcessOptions {
   readonly command: AgentCommand;
   readonly layout: WorkspaceLayout;
@@ -148,7 +157,7 @@ export class AgentProcess implements AgentConnector {
     // prlimit sets the limits on itself and then execs the agent, so the pid, process group and
     // stdio are the agent's own, and it can never raise them again.
     const { limits } = this.#options;
-    const [file, args] =
+    const [limited, limitedArgs] =
       limits && layout.uid !== undefined
         ? [
             PRLIMIT,
@@ -161,6 +170,7 @@ export class AgentProcess implements AgentConnector {
             ],
           ]
         : [command.command, command.args];
+    const [file, args] = layout.uid === undefined ? [limited, limitedArgs] : withPrivateUmask(limited, limitedArgs);
 
     let child: ChildProcess;
     try {

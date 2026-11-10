@@ -145,6 +145,8 @@ describe("browser → bridge → runner → plane-acp-echo", () => {
       pingIntervalMs: 30_000,
       loginStartLimit: 10,
       loginStartWindowMs: 60_000,
+      offboardIntervalMs: 60_000,
+      offboardMaxPerPass: 10,
     };
     const transport = new RecordingTransport(
       new RunnerTransport({ url: runnerUrl, secret: SECRET, maxMessageBytes: config.maxAgentMessageBytes })

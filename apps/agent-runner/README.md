@@ -54,6 +54,23 @@ reaches the runner.
   503 at capacity / shutting down / helper not installed, 504 the helper did not answer in time
   (`reason: "timeout"`).
 
+### Members (`/members`)
+
+When a workspace membership ends, the bridge removes that member's agent state here. Each request
+carries its own single-use ticket; neither kind can start an agent or a sign-in, and no other kind is
+accepted.
+
+| Endpoint                 | Ticket `purpose` | Answer                                                    |
+| ------------------------ | ---------------- | --------------------------------------------------------- |
+| `GET /members`           | `members`        | `{members: [{workspaceId, userId}]}`: everyone with a dir |
+| `POST /members/offboard` | `offboard`       | `{status: "removed"}`                                     |
+
+- `members` tickets name no one: their adapter, user and workspace claims are ignored.
+- `offboard` acts on the ticket's user in its workspace: it stops their agents and sign-ins (whatever
+  the adapter), kills anything still running as their uid, and deletes their cwd, `HOME` (stored
+  sign-ins included) and `TMPDIR`. Until it finishes, new agents for them get 409 and sign-ins fail.
+  It is idempotent. The uid stays reserved for them, so it is never handed to anyone else.
+
 The runner makes no access decisions: the bridge has already authenticated the user and checked
 membership, and the ticket carries its word. The runner only maps the adapter to a fixed bin
 (`node <@plane/acp-adapters>/dist/bin/<adapter>.mjs`), never to anything an admin or user typed.
@@ -78,12 +95,25 @@ Every dir the runner chowns sits in a root-owned parent, so an agent cannot swap
 
 - Each agent is spawned with `uid`/`gid` set and `detached` (its own process group).
 - Its env is built from nothing:
-  - `PATH`, `HOME`, `TMPDIR`, `USER`, `SHELL`, `LANG` and `PLANE_AGENT_DEFAULT_MODE`.
+  - `PATH`, `HOME`, `TMPDIR` (and `TMP`, `TEMP`, the same dir), `USER`, `SHELL`, `LANG` and
+    `PLANE_AGENT_DEFAULT_MODE`.
   - Plus the agent's env from the ticket, minus reserved names: loader and interpreter hooks
     (`LD_*`, `NODE_OPTIONS`, `BASH_ENV`, …) and the runner's own variables.
   - The adapters scrub credential-looking names again before anything the user drives sees them.
 
+- In `uid` isolation it starts with umask 077 (`/bin/sh` sets it and execs the agent), so what it
+  creates is private to its uid unless it changes the mode itself.
+
 The sign-in helper follows the same rules.
+
+### What agents share
+
+The runner drops all capabilities except the few it needs to switch uids, so it cannot give each agent
+its own mount or network namespace. Private temp space is what it can do: each agent's `TMPDIR`, `TMP`
+and `TEMP` point at its own dir, its umask keeps new files private, and the image (with the compose
+file's `/tmp` mount) makes `/tmp` and `/var/tmp` mode 1733, so agents can create files there but not
+list them. Still shared between all agents in the container: the network namespace, loopback included,
+`/dev/shm`, and the `/tmp` and `/var/tmp` directories themselves.
 
 ### Limits
 

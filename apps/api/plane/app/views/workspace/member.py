@@ -23,6 +23,7 @@ from plane.app.serializers import (
 )
 from plane.app.views.base import BaseAPIView
 from plane.db.models import Project, ProjectMember, WorkspaceMember, DraftIssue
+from plane.utils.agent_credentials import end_agent_access
 from plane.utils.cache import invalidate_cache
 
 from .. import BaseViewSet
@@ -172,7 +173,9 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         ).update(is_active=False, updated_at=timezone.now())
 
         workspace_member.is_active = False
-        workspace_member.save()
+        with transaction.atomic():
+            workspace_member.save()
+            end_agent_access([(workspace_member.workspace_id, workspace_member.member_id)])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @invalidate_cache(
@@ -214,7 +217,9 @@ class WorkSpaceMemberViewSet(BaseViewSet):
 
         # # Deactivate the user
         workspace_member.is_active = False
-        workspace_member.save()
+        with transaction.atomic():
+            workspace_member.save()
+            end_agent_access([(workspace_member.workspace_id, workspace_member.member_id)])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

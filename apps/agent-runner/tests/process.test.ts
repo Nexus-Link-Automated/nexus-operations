@@ -5,7 +5,7 @@
  */
 
 /* oxlint-disable no-await-in-loop -- polling */
-import { spawn, type SpawnOptions } from "node:child_process";
+import { spawn, spawnSync, type SpawnOptions } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import type { AnyMessage } from "@agentclientprotocol/sdk";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { AgentProcess, defaultKiller, reapUid, type Killer } from "../src/agent-process.ts";
+import { AgentProcess, defaultKiller, reapUid, withPrivateUmask, type Killer } from "../src/agent-process.ts";
 import { adapterBinPaths } from "../src/bins.ts";
 import { silentLogger } from "../src/logger.ts";
 import type { AgentRunner } from "../src/server.ts";
@@ -91,6 +91,12 @@ describe("AgentProcess cleanup", () => {
     await lifecycle.closed;
   });
 
+  it("starts a command with umask 077, passing its arguments through untouched", () => {
+    const [file, args] = withPrivateUmask("/bin/sh", ["-c", 'umask; printf "%s|" "$@"', "x", "a b", "$HOME", "*"]);
+    const result = spawnSync(file, args, { encoding: "utf8", env: { PATH: "/usr/bin:/bin" } });
+    expect(result.stdout).toBe("0077\na b|$HOME|*|");
+  });
+
   it("reaps a uid's leftover processes, and nothing else", async () => {
     const killed: [number, string][] = [];
     const kill: Killer = (pid, signal) => void killed.push([pid, signal]);
@@ -143,6 +149,8 @@ describe("uid isolation through the runner", () => {
       expect(options.env).toMatchObject({
         HOME: path.join(root, ".homes", WORKSPACE_ID, USER_ID),
         TMPDIR: path.join(root, ".tmp", WORKSPACE_ID, USER_ID),
+        TMP: path.join(root, ".tmp", WORKSPACE_ID, USER_ID),
+        TEMP: path.join(root, ".tmp", WORKSPACE_ID, USER_ID),
         USER: "plane-agent-20000",
         ANTHROPIC_API_KEY: "sk-ant-agent-key",
         PLANE_AGENT_DEFAULT_MODE: "ask_writes",

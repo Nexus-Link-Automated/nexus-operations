@@ -246,3 +246,4 @@ from .timezone.base import TimezoneEndpoint
 
 from .internal.agent_session import AgentSessionEndpoint
 from .internal.agent_connection import AgentConnectionAuthorizeEndpoint, AgentConnectionEndpoint
+from .internal.agent_offboarding import AgentOffboardingEndpoint

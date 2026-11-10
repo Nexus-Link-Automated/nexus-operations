@@ -5,7 +5,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { chmod, chown as fsChown, lstat, mkdir } from "node:fs/promises";
+import { chmod, chown as fsChown, lstat, mkdir, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 import type { IsolationMode } from "./config.ts";
@@ -54,6 +54,12 @@ export interface WorkspaceLayout {
 }
 
 export type Chown = (target: string, uid: number, gid: number) => Promise<void>;
+
+/** One member's directories on the volume: a user in a workspace. */
+export interface MemberDirs {
+  readonly workspaceId: string;
+  readonly userId: string;
+}
 
 export interface WorkspaceManagerOptions {
   readonly root: string;
@@ -113,9 +119,49 @@ export class WorkspaceManager {
     return path.join(this.#root, workspaceId, userId);
   }
 
-  async prepare(workspaceId: string, userId: string): Promise<WorkspaceLayout> {
+  /** Every member with a cwd, HOME or TMPDIR on the volume. */
+  async members(): Promise<MemberDirs[]> {
+    const found = new Map<string, MemberDirs>();
+    for (const base of [this.#root, path.join(this.#root, ".homes"), path.join(this.#root, ".tmp")]) {
+      // oxlint-disable-next-line no-await-in-loop -- a few directories, one at a time
+      for (const workspaceId of await subdirs(base)) {
+        // oxlint-disable-next-line no-await-in-loop -- one workspace at a time
+        for (const userId of await subdirs(path.join(base, workspaceId))) {
+          found.set(`${workspaceId}/${userId}`, { workspaceId, userId });
+        }
+      }
+    }
+    return [...found.values()];
+  }
+
+  /**
+   * Deletes a member's cwd, HOME (stored sign-ins included) and TMPDIR. Stop everything running
+   * for them first. Their uid stays reserved for them, so it is never handed to anyone else.
+   */
+  async remove(workspaceId: string, userId: string): Promise<void> {
+    const { cwd, home, tmp } = this.#paths(workspaceId, userId);
+    await Promise.all([cwd, home, tmp].map((dir) => rm(dir, { recursive: true, force: true })));
+  }
+
+  /** The member's uid if one was ever allocated (`uid` isolation), without allocating one. */
+  uidOf(workspaceId: string, userId: string): Promise<number | undefined> {
+    this.#paths(workspaceId, userId);
+    if (this.#isolation !== "uid") return Promise.resolve(undefined);
+    return this.#allocator.lookup(`${workspaceId}/${userId}`);
+  }
+
+  #paths(workspaceId: string, userId: string): { cwd: string; home: string; tmp: string } {
     // Ids become path segments: only canonical lowercase UUIDs, so nothing can traverse.
     if (!UUID.test(workspaceId) || !UUID.test(userId)) throw new Error("workspace and user ids must be UUIDs");
+    return {
+      cwd: this.cwdFor(workspaceId, userId),
+      home: path.join(this.#root, ".homes", workspaceId, userId),
+      tmp: path.join(this.#root, ".tmp", workspaceId, userId),
+    };
+  }
+
+  async prepare(workspaceId: string, userId: string): Promise<WorkspaceLayout> {
+    const { cwd, home, tmp } = this.#paths(workspaceId, userId);
     const rootReady = this.#rootReady ?? this.#prepareRoot();
     this.#rootReady = rootReady;
     try {
@@ -126,9 +172,6 @@ export class WorkspaceManager {
     }
 
     const owner = this.#isolation === "uid" ? await this.#allocator.uidFor(`${workspaceId}/${userId}`) : undefined;
-    const cwd = this.cwdFor(workspaceId, userId);
-    const home = path.join(this.#root, ".homes", workspaceId, userId);
-    const tmp = path.join(this.#root, ".tmp", workspaceId, userId);
     for (const parent of [path.dirname(cwd), path.dirname(home), path.dirname(tmp)]) {
       // oxlint-disable-next-line no-await-in-loop -- parents first, in order
       await this.#ensureDir(parent, 0o711);
@@ -160,4 +203,16 @@ export class WorkspaceManager {
     // mkdir's mode is filtered by the umask; set it exactly.
     if ((stat.mode & 0o777) !== mode) await chmod(dir, mode);
   }
+}
+
+/** The UUID-named subdirectories of `dir`; none when it does not exist. */
+async function subdirs(dir: string): Promise<string[]> {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  return entries.filter((entry) => entry.isDirectory() && UUID.test(entry.name)).map((entry) => entry.name);
 }

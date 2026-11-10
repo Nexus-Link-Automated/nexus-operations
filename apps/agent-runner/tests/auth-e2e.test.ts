@@ -92,6 +92,8 @@ describe("browser → bridge → runner → sign-in helper", () => {
       pingIntervalMs: 30_000,
       loginStartLimit: 10,
       loginStartWindowMs: 60_000,
+      offboardIntervalMs: 60_000,
+      offboardMaxPerPass: 10,
     };
     const unused: AgentTransport = {
       open: () => Promise.reject(new Error("no chats in this test")),

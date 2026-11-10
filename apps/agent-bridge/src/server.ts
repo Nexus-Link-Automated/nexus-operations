@@ -15,11 +15,12 @@ import { WebSocketServer, type WebSocket } from "ws";
 import type { BridgeConfig } from "./config.ts";
 import { connectionsRouter } from "./connections.ts";
 import { createLogger, withMeta, type Logger } from "./logger.ts";
+import { sweepEndedMemberships } from "./offboarding.ts";
 import { originAllowed } from "./origin.ts";
-import { createPlaneApi, PlaneApiError, type AgentSessionGrant, type PlaneApi } from "./plane-api.ts";
+import { createPlaneApi, PlaneApiError, type AgentSessionGrant, type MemberRef, type PlaneApi } from "./plane-api.ts";
 import { SessionPolicy } from "./policy.ts";
 import { CloseCode, PolicyProxy } from "./proxy.ts";
-import { RunnerLoginClient, type LoginRunner } from "./runner-login.ts";
+import { RunnerLoginClient, type LoginRunner, type MemberRunner } from "./runner-login.ts";
 import { RunnerTransport, type AgentChannel, type AgentTransport } from "./transport.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -33,6 +34,8 @@ export interface AgentBridgeOptions {
   readonly transport?: AgentTransport;
   /** The runner's sign-in endpoints; defaults to HTTP at `config.runnerHttpUrl`. */
   readonly loginRunner?: LoginRunner;
+  /** The runner's member endpoints; defaults to HTTP at `config.runnerHttpUrl`. */
+  readonly memberRunner?: MemberRunner;
   readonly log?: Logger;
   /** How long a new connection has to send `initialize` (default 30 s). */
   readonly initializeTimeoutMs?: number;
@@ -47,6 +50,7 @@ type Admission = {
 };
 
 interface LiveSession {
+  readonly member: MemberRef;
   readonly socket: WebSocket;
   readonly proxy: PolicyProxy;
   readonly finished: Promise<void>;
@@ -70,8 +74,12 @@ export class AgentBridge {
   readonly #sessions = new Set<LiveSession>();
   readonly #perUser = new Map<string, number>();
   readonly #initializeTimeoutMs: number;
+  readonly #memberRunner: MemberRunner;
   #pendingAdmissions = 0;
   #shuttingDown = false;
+  #sweep: Promise<MemberRef[]> | undefined;
+  #sweepTimer: ReturnType<typeof setTimeout> | undefined;
+  readonly #sweepAbort = new AbortController();
 
   constructor(options: AgentBridgeOptions) {
     const { config } = options;
@@ -95,6 +103,8 @@ export class AgentBridge {
       maxBufferedBytes: Math.max(64 * 1024 * 1024, config.maxMessageBytes * 4),
     });
     this.#wss = new WebSocketServer({ noServer: true, maxPayload: config.maxMessageBytes, perMessageDeflate: false });
+    const runnerClient = new RunnerLoginClient({ baseUrl: config.runnerHttpUrl, secret: config.runnerSecret });
+    this.#memberRunner = options.memberRunner ?? runnerClient;
 
     this.app = express();
     this.app.disable("x-powered-by");
@@ -110,8 +120,7 @@ export class AgentBridge {
       `${config.basePath}/connections`,
       connectionsRouter({
         api: this.#api,
-        runner:
-          options.loginRunner ?? new RunnerLoginClient({ baseUrl: config.runnerHttpUrl, secret: config.runnerSecret }),
+        runner: options.loginRunner ?? runnerClient,
         log: this.#log,
         allowedOrigins: config.allowedOrigins,
         startLimit: { max: config.loginStartLimit, windowMs: config.loginStartWindowMs },
@@ -144,13 +153,52 @@ export class AgentBridge {
     });
     const address = this.server.address() as AddressInfo;
     this.#log.info("agent-bridge: listening", { port: address.port, basePath: this.#config.basePath });
+    this.#scheduleSweep();
     return address;
+  }
+
+  /**
+   * Offboard members whose workspace membership has ended: close their chats and have the runner
+   * delete their agent state (see `sweepEndedMemberships`). Runs every `offboardIntervalMs`; a call
+   * while a pass is running joins it. Resolves with the members offboarded.
+   */
+  sweepEndedMemberships(): Promise<MemberRef[]> {
+    this.#sweep ??= sweepEndedMemberships({
+      api: this.#api,
+      runner: this.#memberRunner,
+      liveMembers: () => [...this.#sessions].map((session) => session.member),
+      closeChats: (member) => this.#closeChats(member),
+      log: this.#log,
+      maxPerPass: this.#config.offboardMaxPerPass,
+      signal: this.#sweepAbort.signal,
+    }).finally(() => {
+      this.#sweep = undefined;
+    });
+    return this.#sweep;
+  }
+
+  #scheduleSweep(): void {
+    if (this.#shuttingDown) return;
+    this.#sweepTimer = setTimeout(() => {
+      void this.sweepEndedMemberships().finally(() => this.#scheduleSweep());
+    }, this.#config.offboardIntervalMs);
+    this.#sweepTimer.unref();
+  }
+
+  async #closeChats(member: MemberRef): Promise<void> {
+    const sessions = [...this.#sessions].filter(
+      (session) => session.member.workspaceId === member.workspaceId && session.member.userId === member.userId
+    );
+    for (const session of sessions) session.socket.close(CloseCode.forbidden, "Workspace membership ended");
+    await Promise.all(sessions.map((session) => session.finished));
   }
 
   /** Stop accepting connections, close the open ones (which revokes their tokens), then stop. */
   async close(): Promise<void> {
     if (this.#shuttingDown) return;
     this.#shuttingDown = true;
+    clearTimeout(this.#sweepTimer);
+    this.#sweepAbort.abort();
     const httpClosed = new Promise<void>((resolve) => this.server.close(() => resolve()));
     for (const session of this.#sessions) session.socket.close(CloseCode.goingAway, "Server shutting down");
     const drained = Promise.all([...this.#sessions].map((session) => session.finished));
@@ -336,7 +384,12 @@ export class AgentBridge {
         durationMs: Date.now() - openedAt,
       });
     })();
-    const session: LiveSession = { socket: ws, proxy, finished };
+    const session: LiveSession = {
+      member: { workspaceId: grant.workspace.id, userId: grant.user.id },
+      socket: ws,
+      proxy,
+      finished,
+    };
     this.#sessions.add(session);
     void finished.finally(() => this.#sessions.delete(session));
     // Once the agent side closes, make sure the browser socket follows.

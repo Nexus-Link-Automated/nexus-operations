@@ -43,6 +43,10 @@ export class StubPlaneApi {
   readonly connections: { method: string; body: Record<string, string> }[] = [];
   /** Answer the agent-connections endpoints with this status instead (e.g. 500). */
   connectionsStatus: number | undefined;
+  /** `POST /api/internal/agent-offboarding/` member lists, in order. */
+  readonly offboardingChecks: { workspace_id: string; user_id: string }[][] = [];
+  /** Answer the agent-offboarding endpoint with this status instead (e.g. 500). */
+  offboardingStatus: number | undefined;
   mcpUrl = MCP_URL;
   expiresInMs = 2 * 60 * 60_000;
   #server: Server | undefined;
@@ -87,6 +91,20 @@ export class StubPlaneApi {
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk as Buffer);
     const url = new URL(req.url ?? "/", "http://api");
+    if (req.method === "POST" && url.pathname === "/api/internal/agent-offboarding/") {
+      if (req.headers["x-agent-bridge-secret"] !== BRIDGE_SECRET) {
+        return { status: 403, body: { detail: "Invalid agent bridge credentials." } };
+      }
+      if (this.offboardingStatus) return { status: this.offboardingStatus, body: {} };
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as {
+        members: { workspace_id: string; user_id: string }[];
+      };
+      this.offboardingChecks.push(body.members);
+      const ended = body.members.filter(
+        (member) => member.workspace_id !== WORKSPACE_ID || !this.members.has(member.user_id)
+      );
+      return { status: 200, body: { ended } };
+    }
     if (req.method === "GET" && url.pathname === "/api/users/me/") {
       const userId = this.users.get(String(req.headers.cookie ?? ""));
       return userId ? { status: 200, body: { id: userId, display_name: "Ada" } } : { status: 401, body: {} };

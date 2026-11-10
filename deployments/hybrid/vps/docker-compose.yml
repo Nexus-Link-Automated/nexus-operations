@@ -285,8 +285,9 @@ services:
       - agent_workspaces:/workspaces
     # Agents' own TMPDIR is under /workspaces, but /tmp would otherwise be unmetered space
     # on the container's disk. It counts against the memory limit, so keep it small.
+    # Mode 1733: agents can still create files in /tmp but cannot list it.
     tmpfs:
-      - /tmp:size=${AGENT_RUNNER_TMP_SIZE:-512m},mode=1777,exec
+      - /tmp:size=${AGENT_RUNNER_TMP_SIZE:-512m},mode=1733,exec
     user: "0:0"
     cap_drop: [ALL]
     # CHOWN/FOWNER/DAC_OVERRIDE: create and hand over per-user dirs; SETUID/SETGID:

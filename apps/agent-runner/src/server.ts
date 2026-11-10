@@ -92,6 +92,8 @@ export class AgentRunner {
   readonly #replay = new TicketReplayGuard();
   readonly #agents = new Set<RunningAgent>();
   readonly #uidLeases = new Map<number, number>();
+  /** Members (`<workspace>/<user>`) being offboarded → that work. Nothing new starts for them meanwhile. */
+  readonly #offboarding = new Map<string, Promise<void>>();
   readonly #logins: LoginManager;
   readonly #broker: CredentialBroker | undefined;
   #pending = 0;
@@ -143,7 +145,12 @@ export class AgentRunner {
     }
     this.#logins = new LoginManager({
       helper: loginHelper,
-      prepare: (workspaceId, userId) => this.workspaces.prepare(workspaceId, userId),
+      prepare: (workspaceId, userId) => {
+        if (this.#offboarding.has(memberKey(workspaceId, userId))) {
+          return Promise.reject(new Error("the member is being offboarded"));
+        }
+        return this.workspaces.prepare(workspaceId, userId);
+      },
       // The helper never needs provider keys: its env is the fixed base only.
       buildEnv: (layout, ticket) =>
         buildAgentEnv({
@@ -173,6 +180,7 @@ export class AgentRunner {
       });
     });
     this.#mountAuth();
+    this.#mountMembers();
     this.app.use((_req, res) => {
       res.status(404).json({ message: "Not Found" });
     });
@@ -258,6 +266,8 @@ export class AgentRunner {
       log.warn("agent-runner: at capacity");
       return rejectHttp(socket, 503, "Service Unavailable");
     }
+    const member = memberKey(ticket.workspaceId, ticket.userId);
+    if (this.#offboarding.has(member)) return rejectHttp(socket, 409, "Conflict");
 
     this.#pending += 1;
     let layout;
@@ -272,6 +282,8 @@ export class AgentRunner {
       socket.destroy();
       return;
     }
+    // Offboarding began while the dirs were prepared: it has already stopped this member's agents.
+    if (this.#offboarding.has(member)) return rejectHttp(socket, 409, "Conflict");
     if (overDiskLimit) return rejectHttp(socket, 507, "Insufficient Storage");
     const { env, dropped } = buildAgentEnv({
       agentEnv: ticket.env,
@@ -435,6 +447,77 @@ export class AgentRunner {
     this.app.use("/auth", auth);
   }
 
+  /**
+   * `/members`: what the bridge needs when a workspace membership ends. `GET /members` lists the
+   * members with directories here (a `members` ticket); `POST /members/offboard` stops the
+   * `offboard` ticket's member's agents and sign-ins, kills anything left running as their uid
+   * and deletes their directories. The bridge decides whose membership has ended.
+   */
+  #mountMembers(): void {
+    const members = express.Router();
+    members.get("/", (req, res) => {
+      void this.#withTicket(req, res, "members", async () => {
+        res.json({ members: await this.workspaces.members() });
+      });
+    });
+    members.post("/offboard", (req, res) => {
+      void this.#withTicket(req, res, "offboard", async (ticket, log) => {
+        await this.#offboard(ticket.workspaceId, ticket.userId, log);
+        res.json({ status: "removed" });
+      });
+    });
+    this.app.use("/members", members);
+  }
+
+  /** Verify the request's ticket of `purpose` (single use), then run `handle`. */
+  async #withTicket(
+    req: Request,
+    res: Response,
+    purpose: "members" | "offboard",
+    handle: (ticket: SpawnTicket, log: Logger) => Promise<void>
+  ): Promise<void> {
+    if (this.#shuttingDown) return void res.status(503).json({ error: "The agent runner is shutting down" });
+    const ticket = this.#verifyTicket(req.headers.authorization, purpose);
+    if (!ticket) return void res.status(401).json({ error: "Unauthorized" });
+    const log = withMeta(this.#log, { workspaceId: ticket.workspaceId, userId: ticket.userId, route: req.path });
+    try {
+      await handle(ticket, log);
+    } catch (error) {
+      log.error("agent-runner: members request failed", { error: (error as Error).message });
+      if (!res.headersSent) res.status(500).json({ error: "Internal Server Error" });
+    }
+  }
+
+  /** Remove one member's agent state. Concurrent calls for the same member share the work. */
+  #offboard(workspaceId: string, userId: string, log: Logger): Promise<void> {
+    const key = memberKey(workspaceId, userId);
+    const inFlight = this.#offboarding.get(key);
+    if (inFlight) return inFlight;
+    const work = (async () => {
+      const reason = "workspace membership ended";
+      const agents = [...this.#agents].filter(
+        (agent) => agent.ticket.workspaceId === workspaceId && agent.ticket.userId === userId
+      );
+      for (const agent of agents) agent.process.terminate(reason);
+      await Promise.all([
+        ...agents.map((agent) => agent.process.exited),
+        this.#logins.stopMember(workspaceId, userId, reason),
+      ]);
+      const uid = await this.workspaces.uidOf(workspaceId, userId);
+      if (uid !== undefined) {
+        await reapUid(uid, this.#listProcesses, this.#kill, () => !this.#uidLeases.has(uid));
+      }
+      await this.workspaces.remove(workspaceId, userId);
+      log.info("agent-runner: member offboarded", { agents: agents.length, uid });
+    })();
+    this.#offboarding.set(key, work);
+    void work.then(
+      () => this.#offboarding.delete(key),
+      () => this.#offboarding.delete(key)
+    );
+    return work;
+  }
+
   /** Verify the request's `login` ticket (single use), then run `handle`. */
   async #withLoginTicket(
     req: Request,
@@ -500,6 +583,10 @@ export class AgentRunner {
       log.error("agent-runner: reaping failed", { uid, error: (error as Error).message });
     }
   }
+}
+
+function memberKey(workspaceId: string, userId: string): string {
+  return `${workspaceId}/${userId}`;
 }
 
 /** Body-parser failures on `/auth/*` → `{error}`. */

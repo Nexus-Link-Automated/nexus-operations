@@ -4,9 +4,10 @@
  * See the LICENSE file for details.
  */
 
-import { signSpawnTicket } from "@plane/agent-runner-protocol";
+import { signSpawnTicket, type SpawnClaims } from "@plane/agent-runner-protocol";
 
 import { trimTrailingSlashes } from "./origin.ts";
+import type { MemberRef } from "./plane-api.ts";
 
 /** Whose sign-in, for which adapter: what a `login` ticket claims. */
 export interface LoginTarget {
@@ -39,6 +40,14 @@ export interface LoginRunner {
   account(target: LoginTarget, signal?: AbortSignal): Promise<RunnerReply>;
 }
 
+/** The runner's member endpoints (`/members`), for when a workspace membership ends. */
+export interface MemberRunner {
+  /** Every member with directories on the runner. */
+  members(signal?: AbortSignal): Promise<MemberRef[]>;
+  /** Stop the member's agents and sign-ins and delete their directories. Idempotent. */
+  offboard(member: MemberRef, signal?: AbortSignal): Promise<void>;
+}
+
 export interface RunnerLoginClientOptions {
   /** Runner HTTP origin, e.g. `http://agent-runner:3410`. */
   readonly baseUrl: string;
@@ -49,8 +58,8 @@ export interface RunnerLoginClientOptions {
   readonly fetch?: typeof fetch;
 }
 
-/** `LoginRunner` over HTTP. The ticket goes in `Authorization` and is never logged. */
-export class RunnerLoginClient implements LoginRunner {
+/** `LoginRunner` and `MemberRunner` over HTTP. The ticket goes in `Authorization` and is never logged. */
+export class RunnerLoginClient implements LoginRunner, MemberRunner {
   readonly #base: string;
   readonly #secret: string;
   readonly #timeoutMs: number;
@@ -83,24 +92,46 @@ export class RunnerLoginClient implements LoginRunner {
     return this.#call(target, "GET", "/auth/account", undefined, signal);
   }
 
-  async #call(
+  async members(signal?: AbortSignal): Promise<MemberRef[]> {
+    // A members ticket names no one; the runner ignores these claims.
+    const reply = await this.#request(memberClaims(NO_ONE, "members"), "GET", "/members", undefined, signal);
+    if (reply.status !== 200 || !Array.isArray(reply.body.members)) {
+      throw new RunnerUnavailableError(`agent runner answered ${reply.status} to GET /members`);
+    }
+    return (reply.body.members as unknown[]).filter(isMemberRef);
+  }
+
+  async offboard(member: MemberRef, signal?: AbortSignal): Promise<void> {
+    const reply = await this.#request(memberClaims(member, "offboard"), "POST", "/members/offboard", undefined, signal);
+    if (reply.status !== 200) throw new RunnerUnavailableError(`agent runner answered ${reply.status} to offboard`);
+  }
+
+  #call(
     target: LoginTarget,
     method: "GET" | "POST",
     path: string,
     body: unknown,
     signal?: AbortSignal
   ): Promise<RunnerReply> {
-    const ticket = signSpawnTicket(
-      {
-        adapter: target.adapter,
-        env: {},
-        userId: target.userId,
-        workspaceId: target.workspaceId,
-        initialMode: "ask_all",
-        purpose: "login",
-      },
-      this.#secret
-    );
+    const claims: SpawnClaims = {
+      adapter: target.adapter,
+      env: {},
+      userId: target.userId,
+      workspaceId: target.workspaceId,
+      initialMode: "ask_all",
+      purpose: "login",
+    };
+    return this.#request(claims, method, path, body, signal);
+  }
+
+  async #request(
+    claims: SpawnClaims,
+    method: "GET" | "POST",
+    path: string,
+    body: unknown,
+    signal?: AbortSignal
+  ): Promise<RunnerReply> {
+    const ticket = signSpawnTicket(claims, this.#secret);
     const timeout = AbortSignal.timeout(this.#timeoutMs);
     let response: Response;
     try {
@@ -128,4 +159,27 @@ export class RunnerLoginClient implements LoginRunner {
     const record = typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : {};
     return { status: response.status, body: record as Record<string, unknown> };
   }
+}
+
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+const NO_ONE: MemberRef = { workspaceId: NIL_UUID, userId: NIL_UUID };
+
+/** Member tickets start nothing, so their adapter and mode are placeholders. */
+function memberClaims(member: MemberRef, purpose: "members" | "offboard"): SpawnClaims {
+  return {
+    adapter: "none",
+    env: {},
+    userId: member.userId,
+    workspaceId: member.workspaceId,
+    initialMode: "ask_all",
+    purpose,
+  };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function isMemberRef(value: unknown): value is MemberRef {
+  if (typeof value !== "object" || value === null) return false;
+  const { workspaceId, userId } = value as Record<string, unknown>;
+  return typeof workspaceId === "string" && UUID.test(workspaceId) && typeof userId === "string" && UUID.test(userId);
 }

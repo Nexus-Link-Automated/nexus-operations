@@ -48,6 +48,8 @@ const schema = z.object({
   AGENT_BRIDGE_PING_INTERVAL_MS: positiveInt(30_000),
   AGENT_BRIDGE_LOGIN_START_LIMIT: positiveInt(10),
   AGENT_BRIDGE_LOGIN_START_WINDOW_MS: positiveInt(10 * 60_000),
+  AGENT_BRIDGE_OFFBOARD_INTERVAL_MS: positiveInt(60_000),
+  AGENT_BRIDGE_OFFBOARD_MAX_PER_PASS: positiveInt(10),
 });
 
 /**
@@ -98,6 +100,10 @@ export interface BridgeConfig {
   /** Sign-in starts allowed per user per window (`<base>/connections/<provider>/start`). */
   readonly loginStartLimit: number;
   readonly loginStartWindowMs: number;
+  /** How often to look for ended workspace memberships whose agent state must go. */
+  readonly offboardIntervalMs: number;
+  /** Refuse an offboarding pass that would remove more members than this. */
+  readonly offboardMaxPerPass: number;
 }
 
 export function loadBridgeConfig(env: NodeJS.ProcessEnv = process.env): BridgeConfig {
@@ -130,5 +136,7 @@ export function loadBridgeConfig(env: NodeJS.ProcessEnv = process.env): BridgeCo
     pingIntervalMs: e.AGENT_BRIDGE_PING_INTERVAL_MS,
     loginStartLimit: e.AGENT_BRIDGE_LOGIN_START_LIMIT,
     loginStartWindowMs: e.AGENT_BRIDGE_LOGIN_START_WINDOW_MS,
+    offboardIntervalMs: e.AGENT_BRIDGE_OFFBOARD_INTERVAL_MS,
+    offboardMaxPerPass: e.AGENT_BRIDGE_OFFBOARD_MAX_PER_PASS,
   };
 }
