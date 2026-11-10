@@ -47,30 +47,21 @@ class LLMProvider:
 
 class OpenAIProvider(LLMProvider):
     name = "OpenAI"
-    models = ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4o", "o1-mini", "o1-preview"]
+    models = ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "gpt-5-mini", "gpt-5"]
     default_model = "gpt-4o-mini"
 
 
 class AnthropicProvider(LLMProvider):
     name = "Anthropic"
-    models = [
-        "claude-3-5-sonnet-20240620",
-        "claude-3-haiku-20240307",
-        "claude-3-opus-20240229",
-        "claude-3-sonnet-20240229",
-        "claude-2.1",
-        "claude-2",
-        "claude-instant-1.2",
-        "claude-instant-1",
-    ]
-    default_model = "claude-3-sonnet-20240229"
+    models = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
+    default_model = "claude-opus-5-5"
     base_url = "https://api.anthropic.com/v1/"
 
 
 class GeminiProvider(LLMProvider):
     name = "Gemini"
-    models = ["gemini-pro", "gemini-1.5-pro-latest", "gemini-pro-vision"]
-    default_model = "gemini-pro"
+    models = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"]
+    default_model = "gemini-2.5-flash"
     base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 
@@ -112,18 +103,15 @@ def get_llm_config() -> Tuple[str | None, str | None, str | None]:
         log_exception(ValueError(f"Missing API key for provider: {provider.name}"))
         return None, None, None
 
-    # If no model specified, use provider's default
-    if not model:
+    # No model, or one listed for a different provider (such as the instance's OpenAI default left
+    # in place after switching provider): use this provider's default.
+    if not model or any(model in other.models for other in SUPPORTED_PROVIDERS.values() if other is not provider):
         model = provider.default_model
 
-    # Validate model is supported by provider
+    # The lists name current models for the admin's reference. Providers release new models often,
+    # so any other name is passed through and the provider decides whether it exists.
     if model not in provider.models:
-        log_exception(
-            ValueError(
-                f"Model {model} not supported by {provider.name}. Supported models: {', '.join(provider.models)}"
-            )
-        )
-        return None, None, None
+        logger.info("LLM model %s is not in the %s list; sending it as configured", model, provider.name)
 
     return api_key, model, provider_key
 
