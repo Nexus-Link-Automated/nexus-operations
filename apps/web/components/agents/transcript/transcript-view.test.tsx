@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { applySessionUpdate, createTranscript } from "@plane/acp-client";
 import type { PendingPermission, TranscriptState } from "@plane/acp-client";
@@ -87,5 +87,34 @@ describe("TranscriptView", () => {
     rerender(view(state, [permission]));
 
     expect(await screen.findByRole("group", { name: "Allow this action?" })).toBeTruthy();
+  });
+
+  describe("while a tool call is waiting for approval", () => {
+    const longInput = `${"x".repeat(5000)}END_OF_INPUT`;
+    const longTitle = "Run: a command with a long title that must not be cut off";
+    const pending = apply([{ ...TOOL_CALL, title: longTitle, rawInput: { command: longInput } } as TUpdate]);
+    const permission: PendingPermission = {
+      id: "perm-1",
+      sessionId: "s1",
+      toolCall: { toolCallId: "t1", title: longTitle },
+      options: [{ optionId: "allow_once", name: "Allow once", kind: "allow_once" }],
+    };
+
+    it("shows the details, the whole input and the whole title", async () => {
+      render(view(pending, [permission]));
+
+      expect(await screen.findByText(/END_OF_INPUT/)).toBeTruthy();
+      expect(screen.getByText(longTitle).className).not.toContain("truncate");
+    });
+
+    it("collapses and shortens them again once it is answered", async () => {
+      const { rerender } = render(view(pending, [permission]));
+      await screen.findByText(/END_OF_INPUT/);
+
+      rerender(view(pending));
+
+      await waitFor(() => expect(screen.queryByText(/x{100}/)).toBeNull());
+      expect(screen.getByText(longTitle).className).toContain("truncate");
+    });
   });
 });
