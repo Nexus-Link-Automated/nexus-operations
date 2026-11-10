@@ -147,7 +147,7 @@ const defaultSessionFactory: TAgentChatSessionFactory = async ({ agentId, worksp
 
 /**
  * The in-app agent chat. One chat (one ACP connection) at a time: the bridge caps open chats per
- * user, so switching agents or leaving the page closes the previous one.
+ * user, so switching agents, leaving the workspace or signing out closes the previous one.
  *
  * The protocol work lives in `@plane/acp-client`'s `AgentChatSession`; this store mirrors its
  * snapshots into MobX and turns its errors into UI state.

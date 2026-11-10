@@ -99,7 +99,7 @@ type Props = { workspaceSlug: string };
 export const AgentChatRoot = observer(function AgentChatRoot({ workspaceSlug }: Props) {
   const { t } = useTranslation();
   const store = useAgentChat();
-  const { fetchAgents, openChat, closeChat } = store;
+  const { fetchAgents, openChat } = store;
   const {
     error: agentsError,
     isLoading,
@@ -116,9 +116,6 @@ export const AgentChatRoot = observer(function AgentChatRoot({ workspaceSlug }: 
     const initial = pickInitialAgent(agents, recallAgent(workspaceSlug)) ?? firstAgentId;
     void openChat(workspaceSlug, initial);
   }, [agents, firstAgentId, chatAgentId, workspaceSlug, openChat]);
-
-  // Leaving the page closes the socket: the bridge caps open chats per member.
-  useEffect(() => () => closeChat(), [closeChat]);
 
   if (isLoading && !agents) {
     return (
