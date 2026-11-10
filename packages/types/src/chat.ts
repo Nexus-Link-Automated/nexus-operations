@@ -10,6 +10,7 @@
  * truth; these types follow them.
  */
 
+import type { TAgentAdapter, TAgentPermissionLevel } from "./agent";
 import type { TFileSignedURLResponse } from "./file";
 import type { TIssuePriorities } from "./issues";
 import type { TStateGroups } from "./state";
@@ -80,6 +81,16 @@ export type TChatWorkItemLink = {
 /** What an automatic message announces. */
 export type TChatSystemEvent = "work_item_state";
 
+/** An agent from the registry, as a message from it shows it. */
+export type TChatAgentDetails = {
+  id: string;
+  slug: string;
+  name: string;
+  adapter: TAgentAdapter;
+  /** Disabled in the registry for now. */
+  is_available: boolean;
+};
+
 /**
  * A message, or a removed message's tombstone (empty body, `removed_at` set). Exactly one of `sender`,
  * `sender_agent` and `system_event` is set; an automatic message (`system_event`) has no sender and can't be edited.
@@ -89,7 +100,10 @@ export type TChatMessage = {
   workspace: string;
   channel: string;
   sender: string | null;
+  /** The agent's slug, for a message an agent sent. */
   sender_agent: string | null;
+  /** That agent as the registry has it now; null once it is deleted from the registry (show "Removed agent"). */
+  sender_agent_details: TChatAgentDetails | null;
   system_event: TChatSystemEvent | null;
   body_html: string;
   body_json: Record<string, unknown>;
@@ -197,6 +211,8 @@ export type TChatMe = {
   is_workspace_admin: boolean;
   can_create_channels: boolean;
   can_open_dms: boolean;
+  /** Admins and members, in a channel they administer (any channel, for a workspace admin). Never guests. */
+  can_add_agents: boolean;
 };
 
 export type TChatChannelMember = {
@@ -217,6 +233,33 @@ export type TChatGuestPermission = {
   created_by: string | null;
   updated_at: string;
   updated_by: string | null;
+};
+
+/**
+ * An agent from the registry that is a member of a public or private channel (`agents/`). DMs never have agents. In a
+ * private channel an agent can read what is said there.
+ */
+export type TChatChannelAgent = {
+  id: string;
+  channel: string;
+  /** The agent's registry ID. */
+  agent: string;
+  slug: string;
+  name: string;
+  description: string;
+  adapter: TAgentAdapter;
+  /** The level it works at here: as chosen when it was added, at most the registry's maximum. */
+  permission_level: TAgentPermissionLevel;
+  /** False while the registry has it disabled: listed, but nothing reaches it. */
+  is_available: boolean;
+  added_by: string | null;
+  added_at: string;
+};
+
+/** Adding an agent: its registry ID, and a level up to its maximum (its default if left out). */
+export type TChatChannelAgentAdd = {
+  agent_id: string;
+  permission_level?: TAgentPermissionLevel;
 };
 
 export type TChatEventType =
@@ -243,6 +286,8 @@ export type TChatEvent = {
   parent_id?: string;
   /** `member.*`, `read.updated`: the person it is about. */
   user_id?: string;
+  /** `member.*` about an agent instead of a person: the agent's registry ID. */
+  agent_id?: string;
   /** Who made the change, when someone did. */
   actor_id?: string;
   at: string;

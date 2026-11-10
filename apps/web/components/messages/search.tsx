@@ -27,8 +27,8 @@ import { useMember } from "@/hooks/store/use-member";
 import { CHAT_SEARCH_MAX_LENGTH, CHAT_SEARCH_MIN_LENGTH } from "@/store/chat.store";
 import type { TChatSearchFilters } from "@/store/chat.store";
 // local imports
-import { channelDisplayName, chatMessagePermalink, localDay } from "./helpers";
-import { MemberAvatar } from "./member-avatar";
+import { channelDisplayName, chatMessagePermalink, chatSender, chatSenderName, localDay } from "./helpers";
+import { ChatAgentAvatar, ChatAgentTag, MemberAvatar } from "./member-avatar";
 
 /** Typing pauses this long before a search is sent. */
 export const CHAT_SEARCH_DEBOUNCE_MS = 300;
@@ -275,11 +275,8 @@ const ChatSearchResultRow = observer(function ChatSearchResultRow({ workspaceSlu
     (id) => getUserDetails(id)?.display_name,
     t("messages.unknown_member")
   );
-  const sender = message.system_event
-    ? t("messages.message.automatic_sender")
-    : message.sender
-      ? getUserDetails(message.sender)?.display_name || t("messages.unknown_member")
-      : (message.sender_agent ?? t("messages.unknown_member"));
+  const sender = chatSender(message);
+  const senderName = chatSenderName(message, (id) => getUserDetails(id)?.display_name, t);
   const when =
     localDay(message.created_at) === localDay(new Date().toISOString())
       ? renderFormattedTime(message.created_at, "12-hour")
@@ -297,7 +294,11 @@ const ChatSearchResultRow = observer(function ChatSearchResultRow({ workspaceSlu
       className="flex gap-3 px-4 py-2 hover:bg-layer-transparent-hover focus-visible:bg-layer-transparent-hover"
     >
       <div className="flex w-8 flex-shrink-0 justify-center pt-0.5">
-        <MemberAvatar userId={message.sender} size="md" />
+        {sender.kind === "agent" ? (
+          <ChatAgentAvatar adapter={sender.adapter} size="md" />
+        ) : (
+          <MemberAvatar userId={message.sender} size="md" />
+        )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 items-center gap-1 text-caption-md-regular text-tertiary">
@@ -311,7 +312,8 @@ const ChatSearchResultRow = observer(function ChatSearchResultRow({ workspaceSlu
           {message.parent && <span className="flex-shrink-0">· {t("messages.search.in_thread")}</span>}
         </div>
         <div className="flex items-baseline gap-2">
-          <span className="truncate text-body-sm-semibold text-primary">{sender}</span>
+          <span className="truncate text-body-sm-semibold text-primary">{senderName}</span>
+          {sender.kind === "agent" && <ChatAgentTag />}
           <time dateTime={message.created_at} className="flex-shrink-0 text-caption-sm-regular text-tertiary">
             {when}
           </time>

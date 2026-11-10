@@ -33,8 +33,23 @@
     "members": {
       "open": "Miembros",
       "title": "Miembros",
-      "description": "Personas en #{name}.",
+      "description": "Quién está en #{name}.",
+      "load_failed": "No se pudieron cargar los miembros.",
+      "agents": "Agentes",
+      "people": "Personas",
       "admin": "Administrador",
+      "add_agent": "Añadir un agente",
+      "add": "Añadir agente",
+      "no_agents": "No hay agentes en este canal.",
+      "unavailable": "No disponible",
+      "remove_agent": "Quitar a {name}",
+      "agents_inert": "Los agentes de un canal aún no participan en las conversaciones.",
+      "agents_load_failed": "No se pudieron cargar los agentes que puedes añadir.",
+      "no_available_agents": "No hay más agentes disponibles. Un administrador de la instancia puede añadir agentes.",
+      "choose_agent": "Agente",
+      "permission_level": "Nivel de permisos",
+      "private_notice": "Este canal es privado. {name} podrá leer sus mensajes, que ahora solo ven las personas que están en él.",
+      "public_notice": "{name} podrá leer los mensajes de este canal.",
       "remove": "Quitar a {name}",
       "add_title": "Añadir personas",
       "search": "Buscar personas",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "El elemento de trabajo se creó, pero no se pudo vincular a este mensaje.",
       "update_channel_failed": "No se pudo guardar la configuración del canal",
       "rate_limited": "Estás haciendo eso demasiado a menudo. Espera un momento y vuelve a intentarlo.",
+      "add_agent_failed": "No se pudo añadir el agente",
+      "remove_agent_failed": "No se pudo quitar el agente",
       "load_members_failed": "No se pudieron cargar los miembros",
       "add_members_failed": "No se pudo añadir a las personas",
       "remove_member_failed": "No se pudo quitar del canal",
@@ -255,6 +272,10 @@
           "work_item": "Crear un elemento de trabajo a partir de un mensaje"
         }
       }
+    },
+    "agent": {
+      "tag": "Agente",
+      "removed": "Agente eliminado"
     }
   }
 }

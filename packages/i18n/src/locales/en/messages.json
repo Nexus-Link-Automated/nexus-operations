@@ -33,8 +33,23 @@
     "members": {
       "open": "Members",
       "title": "Members",
-      "description": "People in #{name}.",
+      "description": "Who is in #{name}.",
+      "load_failed": "Couldn't load the members.",
+      "agents": "Agents",
+      "people": "People",
       "admin": "Admin",
+      "add_agent": "Add an agent",
+      "add": "Add agent",
+      "no_agents": "No agents in this channel.",
+      "unavailable": "Unavailable",
+      "remove_agent": "Remove {name}",
+      "agents_inert": "Agents in a channel don't take part in conversations yet.",
+      "agents_load_failed": "Couldn't load the agents you can add.",
+      "no_available_agents": "No more agents are available. An instance admin can add agents.",
+      "choose_agent": "Agent",
+      "permission_level": "Permission level",
+      "private_notice": "This channel is private. {name} will be able to read its messages, which only the people in it can see now.",
+      "public_notice": "{name} will be able to read this channel's messages.",
       "remove": "Remove {name}",
       "add_title": "Add people",
       "search": "Search people",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "The work item was created, but it couldn't be linked to this message.",
       "update_channel_failed": "Couldn't save the channel settings",
       "rate_limited": "You're doing that too often. Wait a moment and try again.",
+      "add_agent_failed": "Couldn't add the agent",
+      "remove_agent_failed": "Couldn't remove the agent",
       "load_members_failed": "Couldn't load the members",
       "add_members_failed": "Couldn't add people",
       "remove_member_failed": "Couldn't remove them from the channel",
@@ -255,6 +272,10 @@
           "work_item": "Create a work item from a message"
         }
       }
+    },
+    "agent": {
+      "tag": "Agent",
+      "removed": "Removed agent"
     }
   }
 }

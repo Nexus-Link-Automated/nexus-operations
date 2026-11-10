@@ -34,7 +34,22 @@
       "open": "成員",
       "title": "成員",
       "description": "#{name} 中的成員。",
+      "load_failed": "無法載入成員。",
+      "agents": "代理",
+      "people": "人員",
       "admin": "管理員",
+      "add_agent": "新增代理",
+      "add": "新增代理",
+      "no_agents": "此頻道中沒有代理。",
+      "unavailable": "無法使用",
+      "remove_agent": "移除 {name}",
+      "agents_inert": "頻道中的代理目前還不會參與對話。",
+      "agents_load_failed": "無法載入可新增的代理。",
+      "no_available_agents": "沒有更多可用的代理。執行個體管理員可以新增代理。",
+      "choose_agent": "代理",
+      "permission_level": "權限等級",
+      "private_notice": "這是私人頻道。{name} 將能夠閱讀其中的訊息，而這些訊息目前只有頻道中的人看得到。",
+      "public_notice": "{name} 將能夠閱讀此頻道的訊息。",
       "remove": "移除 {name}",
       "add_title": "新增成員",
       "search": "搜尋成員",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "工作事項已建立，但無法連結至此訊息。",
       "update_channel_failed": "無法儲存頻道設定",
       "rate_limited": "操作過於頻繁。請稍候再試。",
+      "add_agent_failed": "無法新增代理",
+      "remove_agent_failed": "無法移除代理",
       "load_members_failed": "無法載入成員",
       "add_members_failed": "無法新增成員",
       "remove_member_failed": "無法從頻道中移除",
@@ -255,6 +272,10 @@
           "work_item": "從訊息建立工作項目"
         }
       }
+    },
+    "agent": {
+      "tag": "代理",
+      "removed": "已移除的代理"
     }
   }
 }

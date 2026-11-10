@@ -33,8 +33,23 @@
     "members": {
       "open": "Üyeler",
       "title": "Üyeler",
-      "description": "#{name} kanalındaki kişiler.",
+      "description": "#{name} kanalında kimler var.",
+      "load_failed": "Üyeler yüklenemedi.",
+      "agents": "Ajanlar",
+      "people": "Kişiler",
       "admin": "Yönetici",
+      "add_agent": "Ajan ekle",
+      "add": "Ajanı ekle",
+      "no_agents": "Bu kanalda ajan yok.",
+      "unavailable": "Kullanılamıyor",
+      "remove_agent": "{name} kaldır",
+      "agents_inert": "Kanaldaki ajanlar henüz konuşmalara katılmıyor.",
+      "agents_load_failed": "Ekleyebileceğiniz ajanlar yüklenemedi.",
+      "no_available_agents": "Başka kullanılabilir ajan yok. Bir örnek yöneticisi ajan ekleyebilir.",
+      "choose_agent": "Ajan",
+      "permission_level": "İzin düzeyi",
+      "private_notice": "Bu kanal özel. {name}, şu anda yalnızca kanaldaki kişilerin görebildiği mesajlarını okuyabilecek.",
+      "public_notice": "{name} bu kanalın mesajlarını okuyabilecek.",
       "remove": "{name} kişisini çıkar",
       "add_title": "Kişi ekle",
       "search": "Kişi arayın",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "İş öğesi oluşturuldu ancak bu mesaja bağlanamadı.",
       "update_channel_failed": "Kanal ayarları kaydedilemedi",
       "rate_limited": "Bunu çok sık yapıyorsunuz. Biraz bekleyip tekrar deneyin.",
+      "add_agent_failed": "Ajan eklenemedi",
+      "remove_agent_failed": "Ajan kaldırılamadı",
       "load_members_failed": "Üyeler yüklenemedi",
       "add_members_failed": "Kişiler eklenemedi",
       "remove_member_failed": "Kanaldan çıkarılamadı",
@@ -255,6 +272,10 @@
           "work_item": "Mesajdan iş öğesi oluşturma"
         }
       }
+    },
+    "agent": {
+      "tag": "Ajan",
+      "removed": "Kaldırılmış ajan"
     }
   }
 }

@@ -33,8 +33,23 @@
     "members": {
       "open": "Membri",
       "title": "Membri",
-      "description": "Persoane din #{name}.",
+      "description": "Cine este în #{name}.",
+      "load_failed": "Membrii nu au putut fi încărcați.",
+      "agents": "Agenți",
+      "people": "Persoane",
       "admin": "Administrator",
+      "add_agent": "Adaugă un agent",
+      "add": "Adaugă agentul",
+      "no_agents": "Nu există agenți în acest canal.",
+      "unavailable": "Indisponibil",
+      "remove_agent": "Elimină {name}",
+      "agents_inert": "Agenții dintr-un canal nu participă încă la conversații.",
+      "agents_load_failed": "Agenții pe care îi poți adăuga nu au putut fi încărcați.",
+      "no_available_agents": "Nu mai sunt agenți disponibili. Un administrator al instanței poate adăuga agenți.",
+      "choose_agent": "Agent",
+      "permission_level": "Nivel de permisiune",
+      "private_notice": "Acest canal este privat. {name} va putea citi mesajele lui, pe care acum le văd doar persoanele din canal.",
+      "public_notice": "{name} va putea citi mesajele acestui canal.",
       "remove": "Eliminați pe {name}",
       "add_title": "Adăugați persoane",
       "search": "Căutați persoane",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "Activitatea a fost creată, dar nu a putut fi asociată acestui mesaj.",
       "update_channel_failed": "Setările canalului nu au putut fi salvate",
       "rate_limited": "Faceți asta prea des. Așteptați puțin și încercați din nou.",
+      "add_agent_failed": "Agentul nu a putut fi adăugat",
+      "remove_agent_failed": "Agentul nu a putut fi eliminat",
       "load_members_failed": "Membrii nu au putut fi încărcați",
       "add_members_failed": "Persoanele nu au putut fi adăugate",
       "remove_member_failed": "Eliminarea din canal nu a reușit",
@@ -255,6 +272,10 @@
           "work_item": "Crearea unui element de lucru dintr-un mesaj"
         }
       }
+    },
+    "agent": {
+      "tag": "Agent",
+      "removed": "Agent eliminat"
     }
   }
 }

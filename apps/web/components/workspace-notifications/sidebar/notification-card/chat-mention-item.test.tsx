@@ -105,6 +105,24 @@ describe("a chat mention in the inbox", () => {
     expect(mocks.markRead).not.toHaveBeenCalled();
   });
 
+  it("names and shows the agent that mentioned them, which has no user", () => {
+    mocks.notification = notification({
+      triggered_by_details: null,
+      data: { chat_message: chatMessage({ sender_agent: { slug: "release", name: "Release bot", adapter: "codex" } }) },
+    });
+    render(<NotificationItem workspaceSlug="acme" notificationId="n1" />);
+    expect(screen.getByRole("img", { name: "Release bot" })).toBeTruthy();
+  });
+
+  it("calls an agent the registry no longer has a removed agent", () => {
+    mocks.notification = notification({
+      triggered_by_details: null,
+      data: { chat_message: chatMessage({ sender_agent: { slug: "gone", name: null, adapter: null } }) },
+    });
+    render(<NotificationItem workspaceSlug="acme" notificationId="n1" />);
+    expect(screen.getByRole("img", { name: "Removed agent" })).toBeTruthy();
+  });
+
   it("leaves work item notifications to the existing card", () => {
     mocks.notification = notification({
       entity_name: "issue",

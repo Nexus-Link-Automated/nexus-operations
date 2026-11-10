@@ -33,8 +33,23 @@
     "members": {
       "open": "멤버",
       "title": "멤버",
-      "description": "#{name}의 멤버입니다.",
+      "description": "#{name}에 있는 사람과 에이전트입니다.",
+      "load_failed": "멤버를 불러오지 못했습니다.",
+      "agents": "에이전트",
+      "people": "사람",
       "admin": "관리자",
+      "add_agent": "에이전트 추가",
+      "add": "에이전트 추가",
+      "no_agents": "이 채널에는 에이전트가 없습니다.",
+      "unavailable": "사용할 수 없음",
+      "remove_agent": "{name} 제거",
+      "agents_inert": "채널의 에이전트는 아직 대화에 참여하지 않습니다.",
+      "agents_load_failed": "추가할 수 있는 에이전트를 불러오지 못했습니다.",
+      "no_available_agents": "추가할 수 있는 에이전트가 더 없습니다. 인스턴스 관리자가 에이전트를 추가할 수 있습니다.",
+      "choose_agent": "에이전트",
+      "permission_level": "권한 수준",
+      "private_notice": "이 채널은 비공개입니다. {name}은(는) 지금은 채널 멤버만 볼 수 있는 이 채널의 메시지를 읽을 수 있게 됩니다.",
+      "public_notice": "{name}은(는) 이 채널의 메시지를 읽을 수 있게 됩니다.",
       "remove": "{name} 내보내기",
       "add_title": "사람 추가",
       "search": "사람 검색",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "작업 항목이 생성되었지만 이 메시지에 연결하지 못했습니다.",
       "update_channel_failed": "채널 설정을 저장할 수 없습니다",
       "rate_limited": "이 작업을 너무 자주 하고 있습니다. 잠시 후 다시 시도하세요.",
+      "add_agent_failed": "에이전트를 추가하지 못했습니다",
+      "remove_agent_failed": "에이전트를 제거하지 못했습니다",
       "load_members_failed": "멤버를 불러오지 못했습니다",
       "add_members_failed": "사람을 추가하지 못했습니다",
       "remove_member_failed": "채널에서 내보내지 못했습니다",
@@ -255,6 +272,10 @@
           "work_item": "메시지에서 작업 항목 만들기"
         }
       }
+    },
+    "agent": {
+      "tag": "에이전트",
+      "removed": "삭제된 에이전트"
     }
   }
 }

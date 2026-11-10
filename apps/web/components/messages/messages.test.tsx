@@ -10,7 +10,15 @@ import { runInAction } from "mobx";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { ChatService } from "@plane/services";
-import type { TChatChannel, TChatEvent, TChatMessage, TChatSearchQuery, TChatSearchResult } from "@plane/types";
+import type {
+  TChatChannel,
+  TChatChannelAgent,
+  TChatEvent,
+  TChatMessage,
+  TChatSearchQuery,
+  TChatSearchResult,
+  TWorkspaceAgent,
+} from "@plane/types";
 import { ChatStore } from "@/store/chat.store";
 import type { TChatStoreService, TChatStoreSocket } from "@/store/chat.store";
 
@@ -186,6 +194,7 @@ const message = (id: string, sender: string, text: string, minute: number, extra
     channel: "c-general",
     sender,
     sender_agent: null,
+    sender_agent_details: null,
     system_event: null,
     body_html: `<p>${text}</p>`,
     body_json: {},
@@ -250,6 +259,7 @@ async function started(store: ChatStore, channels: TChatChannel[]) {
       is_workspace_admin: false,
       can_create_channels: true,
       can_open_dms: true,
+      can_add_agents: true,
     };
     store.channelMap = Object.fromEntries(channels.map((c) => [c.id, c]));
     store.channelsLoaded = true;
@@ -1128,28 +1138,28 @@ describe("ChannelMembersDialog", () => {
 
   afterEach(() => vi.restoreAllMocks());
 
-  const openMembers = async (overrides: Partial<TChatChannel>) => {
-    const { store } = makeStore({ markRead: async () => secret(overrides) });
+  const openMembers = async (overrides: Partial<TChatChannel>, service: Partial<TChatStoreService>) => {
+    const { store } = makeStore({ markRead: async () => secret(overrides), listAgents: async () => [], ...service });
     mocks.chat = store;
     await started(store, [secret(overrides)]);
     render(<ChatChannelView workspaceSlug="acme" channelId="c-secret" />);
     await userEvent.click(await screen.findByRole("button", { name: "Members" }));
     const dialog = await screen.findByRole("dialog");
-    await within(dialog).findByRole("list", { name: "Members" });
+    await within(dialog).findByRole("list", { name: "People" });
     return dialog;
   };
   // Each row starts with its avatar's fallback initial.
   const listed = (dialog: HTMLElement) =>
-    within(within(dialog).getByRole("list", { name: "Members" }))
+    within(within(dialog).getByRole("list", { name: "People" }))
       .getAllByRole("listitem")
       .map((item) => item.textContent);
 
   it("lists who is in a private channel, and adds people from the workspace", async () => {
-    vi.spyOn(ChatService.prototype, "listMembers")
-      .mockResolvedValueOnce([channelMember(ME), channelMember(ADA, "admin")])
-      .mockResolvedValueOnce([channelMember(ME), channelMember(ADA, "admin"), channelMember(BOB)]);
-    const addMembers = vi.spyOn(ChatService.prototype, "addMembers").mockResolvedValue([channelMember(BOB)]);
-    const dialog = await openMembers({});
+    const addMembers = vi.fn<TChatStoreService["addMembers"]>(async () => [channelMember(BOB)]);
+    const dialog = await openMembers(
+      {},
+      { listMembers: async () => [channelMember(ME), channelMember(ADA, "admin")], addMembers }
+    );
 
     expect(listed(dialog)).toEqual(["MMe (You)", "AAdaAdmin"]);
     // A plain member can add people, but not remove them.
@@ -1162,11 +1172,11 @@ describe("ChannelMembersDialog", () => {
   });
 
   it("lets a channel admin remove someone else", async () => {
-    vi.spyOn(ChatService.prototype, "listMembers")
-      .mockResolvedValueOnce([channelMember(ME, "admin"), channelMember(ADA)])
-      .mockResolvedValueOnce([channelMember(ME, "admin")]);
-    const removeMember = vi.spyOn(ChatService.prototype, "removeMember").mockResolvedValue(undefined);
-    const dialog = await openMembers({ my_role: "admin" });
+    const removeMember = vi.fn<TChatStoreService["removeMember"]>(async () => undefined);
+    const dialog = await openMembers(
+      { my_role: "admin" },
+      { listMembers: async () => [channelMember(ME, "admin"), channelMember(ADA)], removeMember }
+    );
 
     // Leaving is the header's job, not this list's.
     const remove = within(dialog).getAllByRole("button", { name: /^Remove/ });
@@ -1177,8 +1187,10 @@ describe("ChannelMembersDialog", () => {
   });
 
   it("only lists the members of an archived channel", async () => {
-    vi.spyOn(ChatService.prototype, "listMembers").mockResolvedValue([channelMember(ME, "admin"), channelMember(ADA)]);
-    const dialog = await openMembers({ my_role: "admin", archived_at: "2026-01-02T00:00:00Z" });
+    const dialog = await openMembers(
+      { my_role: "admin", archived_at: "2026-01-02T00:00:00Z" },
+      { listMembers: async () => [channelMember(ME, "admin"), channelMember(ADA)] }
+    );
     expect(within(dialog).queryByRole("button", { name: /^Remove/ })).toBeNull();
     expect(within(dialog).queryByRole("button", { name: "Add" })).toBeNull();
     expect(within(dialog).queryByRole("checkbox")).toBeNull();
@@ -1186,10 +1198,10 @@ describe("ChannelMembersDialog", () => {
 
   it("says so when the members can't be loaded, and tries again", async () => {
     const listMembers = vi
-      .spyOn(ChatService.prototype, "listMembers")
+      .fn<TChatStoreService["listMembers"]>()
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce([channelMember(ME)]);
-    const { store } = makeStore({ markRead: async () => secret() });
+    const { store } = makeStore({ markRead: async () => secret(), listMembers, listAgents: async () => [] });
     mocks.chat = store;
     await started(store, [secret()]);
     render(<ChatChannelView workspaceSlug="acme" channelId="c-secret" />);
@@ -1197,7 +1209,7 @@ describe("ChannelMembersDialog", () => {
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText("Couldn't load the members")).toBeTruthy();
     await userEvent.click(within(dialog).getByRole("button", { name: "Try again" }));
-    expect(await within(dialog).findByRole("list", { name: "Members" })).toBeTruthy();
+    expect(await within(dialog).findByRole("list", { name: "People" })).toBeTruthy();
     expect(listMembers).toHaveBeenCalledTimes(2);
   });
 });
@@ -1693,5 +1705,272 @@ describe("search", () => {
     await userEvent.type(box(), "s{Enter}");
     expect(store.activeThread).toBeNull();
     expect(results()).toBeTruthy();
+  });
+});
+
+describe("agents", () => {
+  const releaseBot = { id: "agent-release", slug: "release", name: "Release bot", adapter: "codex" as const };
+  const fromAgent = (id: string, text: string, minute: number, details: typeof releaseBot | null = releaseBot) =>
+    message(id, null as unknown as string, text, minute, {
+      sender: null,
+      sender_agent: "release",
+      sender_agent_details: details && { ...details, is_available: true },
+    });
+
+  describe("as senders", () => {
+    async function list(messages: TChatMessage[]) {
+      const { store } = makeStore({
+        listMessages: async () => ({ results: messages, has_more: false }),
+        markRead: async () => channel({}),
+      });
+      mocks.chat = store;
+      await started(store, [channel({})]);
+      await store.openChannel("c-general");
+      inRouter(<ChatMessageList workspaceSlug="acme" channelId="c-general" intro={null} />);
+      return within(await screen.findByRole("log", { name: "Messages" })).findAllByRole("article");
+    }
+
+    it("shows the agent's name and tag, never an unknown member", async () => {
+      const [first, second] = await list([fromAgent("m1", "deploy finished", 0), fromAgent("m2", "all green", 1)]);
+      expect(within(first!).getByText("Release bot")).toBeTruthy();
+      expect(within(first!).getByText("Agent")).toBeTruthy();
+      // One agent's messages in a row are one block, under one name.
+      expect(within(second!).queryByText("Release bot")).toBeNull();
+      expect(screen.queryByText("Unknown member")).toBeNull();
+    });
+
+    it("calls an agent the registry deleted a removed agent", async () => {
+      const [row] = await list([fromAgent("m1", "deploy finished", 0, null)]);
+      expect(within(row!).getByText("Removed agent")).toBeTruthy();
+      expect(within(row!).getByText("Agent")).toBeTruthy();
+    });
+
+    it("names the agent in search results", async () => {
+      const found = fromAgent("m1", "we deploy today", 1);
+      const { store } = makeStore({
+        searchMessages: async () => ({
+          results: [
+            {
+              message: found,
+              channel: {
+                id: "c-general",
+                kind: "public",
+                name: "general",
+                archived_at: null,
+                is_member: true,
+                dm_member_ids: [],
+              },
+              snippet: [{ text: "deploy", match: true }],
+            },
+          ],
+          has_more: false,
+        }),
+      });
+      mocks.chat = store;
+      await started(store, [channel({})]);
+      inRouter(<MessagesRoot workspaceSlug="acme" channelId={undefined} />);
+      await userEvent.type(screen.getByRole("searchbox", { name: "Search messages" }), "deploy{Enter}");
+      const [result] = await within(await screen.findByRole("complementary", { name: "Search results" })).findAllByRole(
+        "link"
+      );
+      expect(result!.textContent).toContain("Release bot");
+      expect(result!.textContent).toContain("Agent");
+    });
+  });
+
+  describe("as channel members", () => {
+    const seat = (agent: string, extra: Partial<TChatChannelAgent> = {}): TChatChannelAgent => ({
+      id: `seat-${agent}`,
+      channel: "c-general",
+      agent,
+      slug: agent,
+      name: `${agent} bot`,
+      description: "",
+      adapter: "claude",
+      permission_level: "ask_writes",
+      is_available: true,
+      added_by: ME,
+      added_at: "2026-01-01T00:00:00Z",
+      ...extra,
+    });
+    const registry: TWorkspaceAgent[] = [
+      {
+        id: "review",
+        name: "Reviewer",
+        slug: "review",
+        description: "Reviews pull requests",
+        adapter: "claude",
+        default_permission_level: "ask_all",
+        max_permission_level: "ask_writes",
+        credential_source: "instance",
+      },
+      {
+        id: "triage",
+        name: "Triage",
+        slug: "triage",
+        description: "",
+        adapter: "codex",
+        default_permission_level: "ask_all",
+        max_permission_level: "yolo",
+        credential_source: "instance",
+      },
+    ];
+
+    async function view(
+      channelOverrides: Partial<TChatChannel> = {},
+      agents: TChatChannelAgent[] = [seat("triage", { name: "Triage", is_available: false })],
+      service: Partial<TChatStoreService> = {}
+    ) {
+      let held = agents;
+      const addAgent = vi.fn(
+        async (_slug: string, _channel: string, data: { agent_id: string; permission_level?: string }) => {
+          const added = seat(data.agent_id, {
+            name: registry.find((a) => a.id === data.agent_id)!.name,
+            permission_level: data.permission_level as TChatChannelAgent["permission_level"],
+          });
+          held = [...held, added];
+          return added;
+        }
+      );
+      const removeAgent = vi.fn(async (_slug: string, _channel: string, agentId: string) => {
+        held = held.filter((a) => a.agent !== agentId);
+      });
+      const { store } = makeStore({
+        listMessages: async () => ({ results: [], has_more: false }),
+        markRead: async () => channel(channelOverrides),
+        listMembers: async () => [
+          { id: "m1", channel: "c-general", user: ME, role: "admin", created_at: "2026-01-01T00:00:00Z" },
+          { id: "m2", channel: "c-general", user: ADA, role: "member", created_at: "2026-01-01T00:00:00Z" },
+        ],
+        listAgents: async () => held,
+        listAvailableAgents: async () => registry,
+        addAgent,
+        removeAgent,
+        ...service,
+      });
+      mocks.chat = store;
+      await started(store, [channel(channelOverrides)]);
+      render(<ChatChannelView workspaceSlug="acme" channelId="c-general" />);
+      await userEvent.click(await screen.findByRole("button", { name: "Members" }));
+      const dialog = await screen.findByRole("dialog");
+      await within(dialog).findByText("Ada");
+      return { store, dialog, addAgent, removeAgent };
+    }
+
+    it("lists agents tagged, an unavailable one marked, and the people", async () => {
+      const { dialog } = await view({ my_role: "member" });
+      const agents = within(dialog).getByRole("region", { name: "Agents" });
+      expect(within(agents).getByText("Triage")).toBeTruthy();
+      expect(within(agents).getByText("Agent")).toBeTruthy();
+      expect(within(agents).getByText("Unavailable")).toBeTruthy();
+      expect(within(agents).getByText("Ask before changes")).toBeTruthy();
+      const people = within(dialog).getByRole("region", { name: "People" });
+      expect(within(people).getByText("Me")).toBeTruthy();
+      expect(within(people).getByText("Admin")).toBeTruthy();
+    });
+
+    it("gives a member who isn't a channel admin no add or remove", async () => {
+      const { dialog } = await view({ my_role: "member" });
+      expect(within(dialog).queryByRole("button", { name: "Add an agent" })).toBeNull();
+      expect(within(dialog).queryByRole("button", { name: byTemplate("Remove") })).toBeNull();
+    });
+
+    it("lets a channel admin remove an agent", async () => {
+      const { dialog, removeAgent } = await view({ my_role: "admin" });
+      const agents = within(dialog).getByRole("region", { name: "Agents" });
+      await userEvent.click(within(agents).getByRole("button", { name: byTemplate("Remove") }));
+      expect(removeAgent).toHaveBeenCalledWith("acme", "c-general", "triage");
+      await vi.waitFor(() => expect(within(dialog).queryByText("Triage")).toBeNull());
+      expect(within(dialog).getByText("No agents in this channel.")).toBeTruthy();
+    });
+
+    it("lets a guest made channel admin remove one, but not add one", async () => {
+      const { dialog, store } = await view({ my_role: "admin" });
+      runInAction(() => (store.me = { ...store.me!, can_add_agents: false }));
+      await vi.waitFor(() => expect(within(dialog).queryByRole("button", { name: "Add an agent" })).toBeNull());
+      const agents = within(dialog).getByRole("region", { name: "Agents" });
+      expect(within(agents).getByRole("button", { name: byTemplate("Remove") })).toBeTruthy();
+    });
+
+    it("adds an agent to a private channel, saying plainly it will read the channel", async () => {
+      const { dialog, addAgent } = await view({ my_role: "admin", kind: "private" }, []);
+      await userEvent.click(within(dialog).getByRole("button", { name: "Add an agent" }));
+      const form = await within(dialog).findByRole("form", { name: "Add an agent" });
+      // Only the registry's enabled agents are offered.
+      await userEvent.click(await within(form).findByRole("radio", { name: byTemplate("Reviewer") }));
+      expect(within(form).getByText(byTemplate("This channel is private."))).toBeTruthy();
+      // Levels up to the registry's maximum for it, its default chosen.
+      const levels = within(form).getByRole("radiogroup", { name: "Permission level" });
+      const options = within(levels).getAllByRole("radio");
+      expect(options.map((option) => option.getAttribute("aria-checked"))).toEqual(["true", "false"]);
+      await userEvent.click(within(levels).getByRole("radio", { name: byTemplate("Ask before changes") }));
+      await userEvent.click(within(form).getByRole("button", { name: "Add agent" }));
+      expect(addAgent).toHaveBeenCalledWith("acme", "c-general", {
+        agent_id: "review",
+        permission_level: "ask_writes",
+      });
+      await vi.waitFor(() => expect(within(dialog).queryByRole("form")).toBeNull());
+      expect(within(dialog).getByText("Reviewer")).toBeTruthy();
+    });
+
+    it("leaves out agents already in the channel, and says less in a public one", async () => {
+      const { dialog } = await view({ my_role: "admin" }, [seat("review", { name: "Reviewer" })]);
+      await userEvent.click(within(dialog).getByRole("button", { name: "Add an agent" }));
+      const form = await within(dialog).findByRole("form", { name: "Add an agent" });
+      const choices = await within(form).findAllByRole("radio");
+      expect(choices).toHaveLength(1);
+      await userEvent.click(choices[0]!);
+      expect(within(form).getByText(byTemplate("will be able to read this channel's messages."))).toBeTruthy();
+      expect(within(form).queryByText(byTemplate("This channel is private."))).toBeNull();
+    });
+
+    it("shows why the API refused to add one", async () => {
+      const { ChatServiceError } = await import("@plane/services");
+      const { dialog } = await view({ my_role: "admin" }, [], {
+        addAgent: () =>
+          Promise.reject(new ChatServiceError(400, { error: "This agent isn't available in this workspace." })),
+      });
+      await userEvent.click(within(dialog).getByRole("button", { name: "Add an agent" }));
+      const form = await within(dialog).findByRole("form", { name: "Add an agent" });
+      await userEvent.click(await within(form).findByRole("radio", { name: byTemplate("Triage") }));
+      await userEvent.click(within(form).getByRole("button", { name: "Add agent" }));
+      expect((await within(form).findByRole("alert")).textContent).toBe(
+        "This agent isn't available in this workspace."
+      );
+    });
+
+    it("offers no changes in an archived channel", async () => {
+      const { dialog } = await view({ my_role: "admin", archived_at: "2026-01-02T00:00:00Z" });
+      expect(within(dialog).queryByRole("button", { name: "Add an agent" })).toBeNull();
+      expect(within(dialog).queryByRole("button", { name: byTemplate("Remove") })).toBeNull();
+    });
+
+    it("keeps the list current while it's open, and lets it go when it closes", async () => {
+      let current: TChatChannelAgent[] = [];
+      const { store, dialog } = await view({ my_role: "member" }, [], { listAgents: async () => current });
+      expect(await within(dialog).findByText("No agents in this channel.")).toBeTruthy();
+      current = [seat("review", { name: "Reviewer" })];
+      act(() => {
+        (store as unknown as { handleEvent: (event: TChatEvent) => void }).handleEvent({
+          type: "member.added",
+          workspace_id: "ws-1",
+          channel_id: "c-general",
+          agent_id: "review",
+          at: "t",
+        });
+      });
+      expect(await within(dialog).findByText("Reviewer")).toBeTruthy();
+      await userEvent.click(screen.getByRole("button", { name: "Done" }));
+      await vi.waitFor(() => expect(store.channelAgents["c-general"]).toBeUndefined());
+    });
+
+    it("isn't offered in a DM", async () => {
+      const { store } = makeStore({ listMessages: async () => ({ results: [], has_more: false }) });
+      mocks.chat = store;
+      await started(store, [channel({ id: "dm-1", kind: "dm", name: "", dm_member_ids: [ADA, ME] })]);
+      render(<ChatChannelView workspaceSlug="acme" channelId="dm-1" />);
+      await screen.findAllByText("Ada");
+      expect(screen.queryByRole("button", { name: "Members" })).toBeNull();
+    });
   });
 });
