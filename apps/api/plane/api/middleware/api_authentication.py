@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
+# Python imports
+from datetime import timedelta
+
 # Django imports
 from django.utils import timezone
 from django.db.models import Q
@@ -15,6 +18,7 @@ from plane.db.models import APIToken
 
 WORKSPACE_SCOPE_DENIED_MESSAGE = "This API token is scoped to a different workspace."
 WORKSPACE_SCOPE_ENDPOINT_DENIED_MESSAGE = "This API token is scoped to a workspace and cannot access this endpoint."
+LAST_USED_WRITE_INTERVAL = timedelta(minutes=1)
 
 
 class APIKeyAuthentication(authentication.BaseAuthentication):
@@ -58,7 +62,11 @@ class APIKeyAuthentication(authentication.BaseAuthentication):
         return (api_token.user, api_token.token)
 
     def mark_used(self, api_token):
-        api_token.last_used = timezone.now()
+        # Skip the write while the stored time is recent, so busy tokens do not write on every request.
+        now = timezone.now()
+        if api_token.last_used is not None and now - api_token.last_used < LAST_USED_WRITE_INTERVAL:
+            return
+        api_token.last_used = now
         api_token.save(update_fields=["last_used"])
 
     def enforce_workspace_scope(self, request, api_token):

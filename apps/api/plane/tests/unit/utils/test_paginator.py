@@ -13,6 +13,7 @@ from plane.utils.paginator import (
     Cursor,
     CursorResult,
     GroupedOffsetPaginator,
+    OffsetPaginator,
     SubGroupedOffsetPaginator,
 )
 
@@ -240,3 +241,33 @@ class TestGroupedPageSize:
             seen += [r["id"] for r in rows]
         assert len(set(seen)) == 6
         assert not result.next.has_results
+
+
+@pytest.mark.unit
+@pytest.mark.django_db
+class TestOffsetPaginatorTotalCount:
+    """The total comes from a COUNT query, never from loading the count queryset's rows."""
+
+    @pytest.fixture
+    def issues(self, workspace):
+        project = Project.objects.create(name="Count", identifier="CNT", workspace=workspace)
+        state = State.objects.create(name="Todo", project=project, workspace=workspace)
+        for i in range(3):
+            Issue.objects.create(name=f"issue-{i}", state=state, project=project, workspace=workspace)
+        return Issue.issue_objects.filter(project=project)
+
+    def test_total_count_queryset_is_counted_not_loaded(self, issues):
+        total_count_queryset = issues.all()
+        paginator = OffsetPaginator(queryset=issues, order_by="-created_at", total_count_queryset=total_count_queryset)
+
+        result = paginator.get_result(limit=2)
+
+        assert result.hits == 3
+        assert result.max_hits == 2
+        # Truth-testing a queryset fills its result cache with every matching row.
+        assert total_count_queryset._result_cache is None
+
+    def test_empty_total_count_queryset_is_used(self, issues):
+        paginator = OffsetPaginator(queryset=issues, order_by="-created_at", total_count_queryset=issues.none())
+
+        assert paginator.get_result(limit=2).hits == 0
