@@ -50,7 +50,7 @@ from plane.nexus.models import (
     WorkItemRelationDefinition,
     WorkItemWorkLog,
 )
-from plane.nexus.pql import PQLError, apply_pql, pql_fields
+from plane.nexus.pql import PQLError, apply_pql, hide_unasked_work_items, pql_fields
 from plane.nexus.serializers.work_item import IssuePageSerializer, WorkItemWorkLogSerializer, related_work_items
 from plane.utils.host import base_host
 from plane.utils.order_queryset import order_issue_queryset
@@ -103,13 +103,7 @@ def visible_work_items(user, slug: str, referenced: set[str]):
         project__deleted_at__isnull=True,
         id__in=Issue.objects.filter(visible_issue_q(user)).values("id"),
     )
-    if "isDraft" not in referenced:
-        queryset = queryset.exclude(is_draft=True)
-    if "isArchived" not in referenced:
-        queryset = queryset.exclude(archived_at__isnull=False)
-    if "isIntake" not in referenced:
-        queryset = queryset.exclude(state__group="triage")
-    return queryset
+    return hide_unasked_work_items(queryset, referenced)
 
 
 def _filtered_work_items(request, slug):

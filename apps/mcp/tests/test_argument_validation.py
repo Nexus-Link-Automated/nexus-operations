@@ -18,7 +18,7 @@ import os
 
 import pytest
 
-from plane_mcp.middleware import ValidateActionArguments
+from plane_mcp.middleware import ValidateActionArguments, malformed_id_error
 from plane_mcp.tools.registry import action_arguments
 
 os.environ.setdefault("PLANE_API_KEY", "test")
@@ -239,3 +239,65 @@ def test_is_draft_is_not_offered():
     """A draft created here could never be read back or published on CE."""
     answer = _call("workitem", {"action": "create", "project_id": "p", "name": "x", "is_draft": True})
     assert "is_draft" in answer and "plane.invalid" not in answer, answer
+
+
+# --- ids that reach URL paths ---------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["../other", "a/b", "a?b=1", "a#b", "a%2Fb", "a\\b", "a b", "a.b", "a\n", "..", {"id": "x"}],
+)
+def test_an_id_that_is_not_one_path_segment_is_refused(bad):
+    message = malformed_id_error({"project_id": bad})
+    assert message and "project_id" in message
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"project_id": "4f8c1a2e-0000-4000-8000-000000000000"},
+        {"workitem_identifier": "ENG-42"},
+        {"workitem_identifier": "ÇŞ-42"},
+        {"option_id": 7},
+        {"project_id": ""},
+        {"remove_ids": "a,b"},
+        {"remove_ids": ["a", "b"]},
+    ],
+)
+def test_real_ids_pass(arguments):
+    assert malformed_id_error(arguments) is None
+
+
+@pytest.mark.parametrize("value", ["a,../b", '["a", "../b"]', ["a", "b/c"]])
+def test_every_id_in_a_list_is_checked(value):
+    assert "remove_ids" in malformed_id_error({"remove_ids": value})
+
+
+def test_free_text_named_like_an_id_is_left_alone():
+    assert malformed_id_error({"external_id": "https://tracker.example/x/1?y=2", "name": "a/b"}) is None
+
+
+def test_the_identifier_is_checked_as_a_whole():
+    assert "workitem_identifier" in malformed_id_error({"workitem_identifier": "../x-1"})
+
+
+def test_a_server_refuses_a_malformed_id_before_the_tool_runs(monkeypatch):
+    """Through FastMCP, because the point is that no tool body gets to build a URL."""
+    from fastmcp import Client, FastMCP
+
+    from plane_mcp.server import _configured
+    from plane_mcp.tools import cycle as cycle_module
+
+    def no_client():
+        raise AssertionError("reached the tool body with a malformed id")
+
+    monkeypatch.setattr(cycle_module, "get_plane_client_context", no_client)
+    mcp = _configured(FastMCP("test"))
+
+    async def call():
+        async with Client(mcp) as client:
+            return await client.call_tool("cycle", {"action": "delete", "project_id": "p", "cycle_id": "c/archive"})
+
+    result = asyncio.new_event_loop().run_until_complete(call())
+    assert "cycle_id is not a valid id" in result.content[0].text

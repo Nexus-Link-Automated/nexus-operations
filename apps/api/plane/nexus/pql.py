@@ -687,6 +687,33 @@ def pql_fields(pql: str | None) -> set[str]:
     return names
 
 
+def hide_unasked_work_items(queryset: QuerySet, referenced: set[str]) -> QuerySet:
+    """Leave out drafts, archived and intake work items, except the kinds the query asks about."""
+    if "isDraft" not in referenced:
+        queryset = queryset.exclude(is_draft=True)
+    if "isArchived" not in referenced:
+        queryset = queryset.exclude(archived_at__isnull=False)
+    if "isIntake" not in referenced:
+        queryset = queryset.exclude(state__group="triage")
+    return queryset
+
+
+def issues_for_pql(pql: str | None) -> QuerySet:
+    """Issue.issue_objects, widened to the work items this query asks about.
+
+    The default manager hides drafts, archived and triage items, so a list built on
+    it found nothing for isDraft, isArchived or isIntake. An invalid query keeps the
+    default scope; apply_pql reports the error.
+    """
+    from plane.db.models import Issue
+
+    try:
+        referenced = pql_fields(pql)
+    except PQLError:
+        referenced = set()
+    return hide_unasked_work_items(Issue.objects.exclude(project__archived_at__isnull=False), referenced)
+
+
 # --------------------------------------------------------------------------- custom properties
 
 _custom_property_filter: Callable[..., Q] | None = None

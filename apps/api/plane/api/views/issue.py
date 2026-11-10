@@ -42,7 +42,7 @@ from drf_spectacular.utils import (
 )
 
 # Module imports
-from plane.nexus.pql import PQLError, apply_pql, pql_statement_timeout
+from plane.nexus.pql import PQLError, apply_pql, issues_for_pql, pql_statement_timeout
 from plane.api.serializers import (
     IssueAttachmentSerializer,
     IssueActivitySerializer,
@@ -340,9 +340,10 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
     serializer_class = IssueSerializer
     use_read_replica = True
 
-    def get_queryset(self):
+    def get_queryset(self, scope=None):
         return (
-            Issue.issue_objects.annotate(
+            (Issue.issue_objects if scope is None else scope)
+            .annotate(
                 sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
@@ -435,8 +436,10 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
             default="-created_at",
         )
 
+        pql = request.GET.get("pql")
+
         issue_queryset = (
-            self.get_queryset()
+            self.get_queryset(scope=issues_for_pql(pql))
             .annotate(
                 cycle_id=Subquery(
                     CycleIssue.objects.filter(issue=OuterRef("id"), deleted_at__isnull=True).values("cycle_id")[:1]
@@ -459,14 +462,13 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
             )
         )
 
-        total_issue_queryset = Issue.issue_objects.filter(project_id=project_id, workspace__slug=slug)
+        total_issue_queryset = issues_for_pql(pql).filter(project_id=project_id, workspace__slug=slug)
 
         if restricted_guest:
             issue_queryset = issue_queryset.filter(created_by=request.user)
             total_issue_queryset = total_issue_queryset.filter(created_by=request.user)
 
         try:
-            pql = request.GET.get("pql")
             issue_queryset = apply_pql(issue_queryset, pql, user=request.user, workspace_slug=slug)
             total_issue_queryset = apply_pql(total_issue_queryset, pql, user=request.user, workspace_slug=slug)
         except PQLError as exc:

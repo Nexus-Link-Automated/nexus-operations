@@ -13,9 +13,11 @@ import sys
 
 import httpx
 import pytest
+from fastmcp import FastMCP
+from starlette.testclient import TestClient
 
 from plane_mcp.auth import plane_header_auth_provider as header_auth
-from plane_mcp.auth.plane_header_auth_provider import PlaneHeaderAuthProvider
+from plane_mcp.auth.plane_header_auth_provider import HeaderAuthError, PlaneHeaderAuthProvider
 from plane_mcp.client import MissingBaseURLError, plane_base_url
 
 
@@ -128,3 +130,70 @@ def test_cache_is_per_token_and_holds_no_token(plane):
     fake.status = 401
     assert not _validate(provider, "tok-b")
     assert all("tok" not in key for key in provider._valid_until)
+
+
+@pytest.mark.parametrize("status", [500, 502, 503, 504])
+def test_an_upstream_failure_is_not_an_invalid_token(plane, status):
+    plane(status)
+    with pytest.raises(HeaderAuthError) as caught:
+        _validate(PlaneHeaderAuthProvider())
+    assert caught.value.status_code == 503
+
+
+def test_an_unreachable_plane_is_not_an_invalid_token(plane):
+    fake = plane(200)
+
+    async def refuse(url, headers):
+        raise httpx.ConnectError("connection refused")
+
+    fake.get = refuse
+    with pytest.raises(HeaderAuthError) as caught:
+        _validate(PlaneHeaderAuthProvider())
+    assert caught.value.status_code == 503
+
+
+def test_outage_is_not_cached_as_valid(plane):
+    fake = plane(503)
+    provider = PlaneHeaderAuthProvider()
+    with pytest.raises(HeaderAuthError):
+        _validate(provider)
+    fake.status = 200
+    assert _validate(provider)
+
+
+@pytest.fixture
+def http(plane):
+    """The real HTTP stack, so the status a client receives is what is tested."""
+
+    def post(status: int, headers: dict[str, str]):
+        plane(status)
+        mcp = FastMCP("t", auth=PlaneHeaderAuthProvider(required_scopes=["read", "write"]))
+        client = TestClient(mcp.http_app(path="/mcp", stateless_http=True), raise_server_exceptions=False)
+        return client.post(
+            "/mcp",
+            headers={"Authorization": "Bearer tok", **headers},
+            json={"jsonrpc": "2.0", "method": "initialize", "id": 1},
+        )
+
+    return post
+
+
+@pytest.mark.parametrize(
+    ("upstream", "headers", "expected"),
+    [
+        (500, {"X-Workspace-Slug": "acme"}, 503),
+        (401, {"X-Workspace-Slug": "acme"}, 401),
+        (200, {}, 400),
+        (200, {"X-Workspace-Slug": "../other"}, 400),
+    ],
+)
+def test_the_status_the_client_receives(http, upstream, headers, expected):
+    response = http(upstream, headers)
+    assert response.status_code == expected, response.text
+    if expected != 401:
+        assert response.json()["error"]
+
+
+def test_a_valid_request_gets_past_authentication(http):
+    with_headers = {"X-Workspace-Slug": "acme", "Accept": "application/json, text/event-stream"}
+    assert http(200, with_headers).status_code not in (400, 401, 503)
