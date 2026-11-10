@@ -19,6 +19,11 @@
       "new": "Yeni mesaj",
       "none": "Henüz doğrudan mesaj yok."
     },
+    "agent_dms": {
+      "title": "Ajanlar",
+      "new": "Bir ajanla sohbet et",
+      "none": "Henüz ajan sohbeti yok."
+    },
     "channel": {
       "member_count": "{count, plural, one {# üye} other {# üye}}",
       "join": "Katıl",
@@ -179,7 +184,8 @@
     },
     "notification": {
       "mentioned_in_channel": "{name}, #{channel} kanalında sizden bahsetti",
-      "mentioned_in_dm": "{name}, doğrudan mesajda sizden bahsetti"
+      "mentioned_in_dm": "{name}, doğrudan mesajda sizden bahsetti",
+      "replied_in_agent_dm": "{name} size yanıt verdi"
     },
     "errors": {
       "retry": "Tekrar deneyin",
@@ -197,6 +203,7 @@
       "rate_limited": "Bunu çok sık yapıyorsunuz. Biraz bekleyip tekrar deneyin.",
       "add_agent_failed": "Ajan eklenemedi",
       "remove_agent_failed": "Ajan kaldırılamadı",
+      "open_agent_dm_failed": "Ajanla sohbet açılamadı",
       "load_members_failed": "Üyeler yüklenemedi",
       "add_members_failed": "Kişiler eklenemedi",
       "remove_member_failed": "Kanaldan çıkarılamadı",
@@ -272,10 +279,11 @@
           "work_item": "Mesajdan iş öğesi oluşturma",
           "agent_session": "Bir kişinin başlattığı ajan oturumları",
           "agent_channel": "Bir kanalda bir ajanın oturumları",
-          "agent_post": "Bir ajanın gönderdiği yanıtlar"
+          "agent_post": "Bir ajanın gönderdiği yanıtlar",
+          "agent_dm_turn": "Bir kişinin ajan sohbetlerinde başlattığı turlar"
         },
         "agents_title": "@bahsetmelere yanıt veren ajanlar",
-        "agents_description": "Bir kanalda bahsedildiklerinde yanıt veren ajanlar için sınırlar. Bunları API'de CHAT_RATE_LIMIT_AGENT_* ortam değişkenleriyle, süre sınırını ise CHAT_AGENT_REPLY_TIMEOUT_SECONDS ile ayarlayın.",
+        "agents_description": "Bir kanalda bahsedildiklerinde yanıt veren ajanlar için sınırlar. Bunları API'de CHAT_RATE_LIMIT_AGENT_* ortam değişkenleriyle, süre sınırını ise CHAT_AGENT_REPLY_TIMEOUT_SECONDS ile ayarlayın. Süre sınırı, bir ajan sohbetindeki her tur için de geçerlidir.",
         "agent_timeout": "Bir ajanın yanıt vermek için sahip olduğu süre",
         "seconds": "{count, plural, one {# saniye} other {# saniye}}"
       }
@@ -292,7 +300,44 @@
         "failed": "Bunun üzerinde çalışırken bir şeyler ters gitti, bu yüzden yanıt veremedim.",
         "empty": "Bitirdim ama söyleyecek bir şeyim yok. Daha ayrıntılı olarak tekrar sormayı deneyin.",
         "rate_limited": "Kısa sürede çok sık soruldum. Birkaç dakika sonra tekrar deneyin.",
-        "still_working": "Bu konudaki son istek üzerinde hâlâ çalışıyorum. Yanıt verdikten sonra tekrar sorun."
+        "still_working": "Bu konudaki son istek üzerinde hâlâ çalışıyorum. Yanıt verdikten sonra tekrar sorun.",
+        "stopped": "Bu yanıtı durdurdunuz."
+      }
+    },
+    "agent_picker": {
+      "title": "Bir ajanla sohbet et",
+      "description": "Sohbette gönderdiğiniz her şey, sizin izinlerinizle çalışan ajana gider. Sohbeti yalnızca siz görebilirsiniz.",
+      "empty": "Bu çalışma alanında kullanılabilir ajan yok.",
+      "load_failed": "Ajanlar yüklenemedi."
+    },
+    "agent_dm": {
+      "intro_description": "Bu sohbeti yalnızca siz görebilirsiniz. Buraya gönderdiğiniz her mesaj, sizin izinlerinizle çalışan {name} ajanına gider.",
+      "level_label": "İzin düzeyi",
+      "level_default": "{name} (varsayılan)",
+      "stop": "Durdur",
+      "writing": "Yazıyor…",
+      "read_only": {
+        "agent_unavailable": "{name} bir yönetici tarafından kapatıldı, bu yüzden bu sohbet salt okunur.",
+        "agent_removed": "Bu ajan kaldırıldı, bu yüzden bu sohbet salt okunur.",
+        "cannot_run_agents": "Bu çalışma alanında artık ajan kullanamazsınız, bu yüzden bu sohbet salt okunur."
+      },
+      "tool_calls": "Kullanılan araçlar",
+      "tool_status": {
+        "pending": "Bekliyor",
+        "in_progress": "Çalışıyor",
+        "completed": "Tamamlandı",
+        "failed": "Başarısız"
+      },
+      "permission": {
+        "title": "{name} onayınızı bekliyor",
+        "untitled": "Bir araç kullanma",
+        "answer_failed": "Yanıtınız gönderilemedi",
+        "expired": "Bu istek artık yanıt beklemiyor.",
+        "unavailable": "Ajan hizmetine ulaşılamadı. Tekrar deneyin."
+      },
+      "errors": {
+        "level_failed": "İzin düzeyi değiştirilemedi",
+        "stop_failed": "Ajan durdurulamadı"
       }
     }
   }

@@ -60,7 +60,8 @@ export const SidebarUserMenu = observer(function SidebarUserMenu() {
     {
       key: "agents",
       labelTranslationKey: "agents.title",
-      href: `/${workspaceSlug.toString()}/agents/`,
+      // The member's conversation with their last agent, in Messages.
+      href: `/${workspaceSlug.toString()}/messages/?agent=last`,
       access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
       Icon: AiStarFourOutline,
     },

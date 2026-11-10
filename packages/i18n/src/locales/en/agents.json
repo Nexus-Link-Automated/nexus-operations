@@ -400,6 +400,11 @@
         "disconnect_failed": "The account could not be disconnected.",
         "sign_in_lost": "Your {vendor} sign-in is no longer valid. Sign in again."
       }
+    },
+    "moved_to_messages": {
+      "title": "Agent chats have moved to Messages",
+      "description": "Each agent now has its own conversation with you in Messages. This page keeps your earlier chats for now.",
+      "open": "Open in Messages"
     }
   }
 }

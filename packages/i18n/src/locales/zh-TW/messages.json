@@ -19,6 +19,11 @@
       "new": "新訊息",
       "none": "尚無私訊。"
     },
+    "agent_dms": {
+      "title": "代理程式",
+      "new": "與代理程式聊天",
+      "none": "尚無與代理程式的聊天。"
+    },
     "channel": {
       "member_count": "{count, plural, one {# 位成員} other {# 位成員}}",
       "join": "加入",
@@ -179,7 +184,8 @@
     },
     "notification": {
       "mentioned_in_channel": "{name} 在 #{channel} 中提及了您",
-      "mentioned_in_dm": "{name} 在私人訊息中提及了您"
+      "mentioned_in_dm": "{name} 在私人訊息中提及了您",
+      "replied_in_agent_dm": "{name} 回覆了你"
     },
     "errors": {
       "retry": "再試一次",
@@ -197,6 +203,7 @@
       "rate_limited": "操作過於頻繁。請稍候再試。",
       "add_agent_failed": "無法新增代理",
       "remove_agent_failed": "無法移除代理",
+      "open_agent_dm_failed": "無法開啟與代理程式的對話",
       "load_members_failed": "無法載入成員",
       "add_members_failed": "無法新增成員",
       "remove_member_failed": "無法從頻道中移除",
@@ -272,10 +279,11 @@
           "work_item": "從訊息建立工作項目",
           "agent_session": "一個人啟動的代理工作階段",
           "agent_channel": "一個代理在一個頻道中的工作階段",
-          "agent_post": "一個代理發布的回覆"
+          "agent_post": "一個代理發布的回覆",
+          "agent_dm_turn": "一個人在代理聊天中發起的輪次"
         },
         "agents_title": "回覆 @提及 的代理",
-        "agents_description": "對在頻道中被提及時進行回覆的代理的限制。在 API 上使用環境變數 CHAT_RATE_LIMIT_AGENT_* 設定，時間限制使用 CHAT_AGENT_REPLY_TIMEOUT_SECONDS 設定。",
+        "agents_description": "對在頻道中被提及時進行回覆的代理的限制。在 API 上使用環境變數 CHAT_RATE_LIMIT_AGENT_* 設定，時間限制使用 CHAT_AGENT_REPLY_TIMEOUT_SECONDS 設定。時間限制同樣適用於代理聊天中的每一輪。",
         "agent_timeout": "代理回覆的時間限制",
         "seconds": "{count, plural, other {# 秒}}"
       }
@@ -292,7 +300,44 @@
         "failed": "處理這個請求時發生問題，所以我無法回覆。",
         "empty": "我已完成，但沒有可回覆的內容。請提供更多細節後再問一次。",
         "rate_limited": "短時間內請求我的次數太多。請幾分鐘後再試。",
-        "still_working": "我仍在處理此討論串中的上一個請求。請在我回覆後再問。"
+        "still_working": "我仍在處理此討論串中的上一個請求。請在我回覆後再問。",
+        "stopped": "你已停止此回覆。"
+      }
+    },
+    "agent_picker": {
+      "title": "與代理程式聊天",
+      "description": "你在對話中傳送的所有內容都會送給代理程式，它以你的權限運作。只有你看得到這段對話。",
+      "empty": "此工作區沒有可用的代理程式。",
+      "load_failed": "無法載入代理程式。"
+    },
+    "agent_dm": {
+      "intro_description": "只有你看得到這段對話。你在這裡傳送的每則訊息都會送給 {name}，它以你的權限運作。",
+      "level_label": "權限等級",
+      "level_default": "{name}（預設）",
+      "stop": "停止",
+      "writing": "正在撰寫…",
+      "read_only": {
+        "agent_unavailable": "{name} 已被管理員停用，因此這段對話為唯讀。",
+        "agent_removed": "此代理程式已被移除，因此這段對話為唯讀。",
+        "cannot_run_agents": "你已無法在此工作區使用代理程式，因此這段對話為唯讀。"
+      },
+      "tool_calls": "使用的工具",
+      "tool_status": {
+        "pending": "等待中",
+        "in_progress": "執行中",
+        "completed": "已完成",
+        "failed": "失敗"
+      },
+      "permission": {
+        "title": "{name} 需要你的核准",
+        "untitled": "使用工具",
+        "answer_failed": "無法傳送你的回答",
+        "expired": "此請求已不再等待回答。",
+        "unavailable": "無法連線到代理程式服務，請再試一次。"
+      },
+      "errors": {
+        "level_failed": "無法變更權限等級",
+        "stop_failed": "無法停止代理程式"
       }
     }
   }

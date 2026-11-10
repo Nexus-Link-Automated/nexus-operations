@@ -12,7 +12,7 @@ import { parseRate } from "./helpers";
 
 const LIMITS: TInstanceChatRateLimitName[] = ["send", "edit", "upload", "channel", "search", "read", "work_item"];
 /** The limits on agents answering @mentions. */
-const AGENT_LIMITS: TInstanceChatRateLimitName[] = ["agent_session", "agent_channel", "agent_post"];
+const AGENT_LIMITS: TInstanceChatRateLimitName[] = ["agent_session", "agent_channel", "agent_post", "agent_dm_turn"];
 
 type Props = {
   limits: TInstanceChatSettings["rate_limits"];

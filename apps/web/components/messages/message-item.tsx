@@ -31,6 +31,7 @@ import { useWorkspace } from "@/hooks/store/use-workspace";
 // store
 import type { TChatPendingMessage } from "@/store/chat.store";
 // local imports
+import { ChatAgentToolCalls } from "./agent-dm";
 import { ChatAgentResponding } from "./agent-responding";
 import { ChatMessageAttachments, ChatPendingAttachments } from "./attachments";
 import { chatSender, chatSenderName, isChatRateLimited } from "./helpers";
@@ -129,14 +130,16 @@ export const ChatMessageItem = observer(function ChatMessageItem({
 
   const channel = channelMap[message.channel];
   // The API refuses both once the user has left or the channel is archived.
-  const canChange = !!channel?.is_member && !channel.archived_at;
+  // A read-only agent DM takes no edits either.
+  const canChange = !!channel?.is_member && !channel.archived_at && !channel.agent_dm?.read_only_reason;
   const mine = !!message.sender && message.sender === userId;
   const removed = !!message.removed_at;
   // Posted by Nexus, not typed by anyone: no sender to show, and nothing to edit or turn into a work item.
   const automatic = !!message.system_event;
   const sender = chatSender(message);
-  // Anyone can reply to a message in the channel, an automatic one included. Threads are one level deep.
-  const canReply = canChange && !removed && !inThread && !message.parent;
+  // Anyone can reply to a message in the channel, an automatic one included. Threads are one level deep. In an agent
+  // DM only top-level messages go to the agent, so threads aren't offered there.
+  const canReply = canChange && !removed && !inThread && !message.parent && channel?.kind !== "agent_dm";
   const name = chatSenderName(message, (id) => getUserDetails(id)?.display_name, t);
   const time = renderFormattedTime(message.created_at, "12-hour");
 
@@ -291,6 +294,13 @@ export const ChatMessageItem = observer(function ChatMessageItem({
             <ChatMessageBody id={`chat-message-${message.id}`} html={message.body_html} />
           )
         )}
+        {!removed && message.agent_streaming && (
+          <span role="status" className="flex items-center gap-1.5 text-caption-sm-regular text-tertiary">
+            <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-accent-primary" />
+            {t("messages.agent_dm.writing")}
+          </span>
+        )}
+        {!removed && <ChatAgentToolCalls calls={message.agent_tool_calls} />}
         {!removed && <ChatMessageAttachments message={message} />}
         {!removed && <ChatWorkItemCards references={message.references} workspaceSlug={workspaceSlug} />}
         {!removed && !editing && message.edited_at && (
@@ -300,7 +310,7 @@ export const ChatMessageItem = observer(function ChatMessageItem({
         {!inThread && <ChatThreadSummary message={message} />}
         {!inThread && !message.parent && <ChatAgentResponding threadId={message.id} className="mt-1" />}
       </div>
-      {canChange && !removed && !editing && (canReply || !automatic) && (
+      {canChange && !removed && !editing && !message.agent_streaming && (canReply || !automatic) && (
         <MessageActions
           message={message}
           workspaceSlug={workspaceSlug}

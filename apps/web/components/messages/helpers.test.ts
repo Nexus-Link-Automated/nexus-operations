@@ -30,6 +30,8 @@ const message = (id: string, sender: string | null, at: Date, removed = false): 
   sender_agent_details: null,
   system_event: null,
   agent_notice: null,
+  agent_streaming: false,
+  agent_tool_calls: null,
   body_html: "<p>x</p>",
   body_json: {},
   body_stripped: "x",
@@ -187,6 +189,15 @@ describe("channelDisplayName", () => {
   it("names a DM after the other people, and falls back for someone unknown", () => {
     const dm = { kind: "group_dm" as const, name: "", dm_member_ids: ["ada", "me", "bob", "zed"] };
     expect(channelDisplayName(dm, "me", getName, "Unknown")).toBe("Ada, Bob, Unknown");
+  });
+
+  it("names an agent DM after its agent, or a removed agent once the registry deleted it", () => {
+    const agent = { id: "a1", slug: "maia", name: "Maia", adapter: "claude" as const, is_available: true };
+    const dm = { kind: "agent_dm" as const, name: "", dm_member_ids: ["me"] };
+    expect(channelDisplayName({ ...dm, agent_dm: { agent } }, "me", getName, "Unknown", "Removed agent")).toBe("Maia");
+    expect(channelDisplayName({ ...dm, agent_dm: { agent: null } }, "me", getName, "Unknown", "Removed agent")).toBe(
+      "Removed agent"
+    );
   });
 });
 

@@ -19,6 +19,11 @@
       "new": "Tin nhắn mới",
       "none": "Chưa có tin nhắn trực tiếp nào."
     },
+    "agent_dms": {
+      "title": "Tác tử",
+      "new": "Trò chuyện với tác tử",
+      "none": "Chưa có cuộc trò chuyện nào với tác tử."
+    },
     "channel": {
       "member_count": "{count, plural, one {# thành viên} other {# thành viên}}",
       "join": "Tham gia",
@@ -179,7 +184,8 @@
     },
     "notification": {
       "mentioned_in_channel": "{name} đã nhắc đến bạn trong #{channel}",
-      "mentioned_in_dm": "{name} đã nhắc đến bạn trong một tin nhắn trực tiếp"
+      "mentioned_in_dm": "{name} đã nhắc đến bạn trong một tin nhắn trực tiếp",
+      "replied_in_agent_dm": "{name} đã trả lời bạn"
     },
     "errors": {
       "retry": "Thử lại",
@@ -197,6 +203,7 @@
       "rate_limited": "Bạn thực hiện thao tác này quá thường xuyên. Hãy đợi một chút rồi thử lại.",
       "add_agent_failed": "Không thể thêm tác nhân",
       "remove_agent_failed": "Không thể xóa tác nhân",
+      "open_agent_dm_failed": "Không thể mở cuộc trò chuyện với tác tử",
       "load_members_failed": "Không thể tải danh sách thành viên",
       "add_members_failed": "Không thể thêm người",
       "remove_member_failed": "Không thể xóa khỏi kênh",
@@ -272,10 +279,11 @@
           "work_item": "Tạo mục công việc từ tin nhắn",
           "agent_session": "Phiên tác nhân do một người bắt đầu",
           "agent_channel": "Phiên của một tác nhân trong một kênh",
-          "agent_post": "Câu trả lời một tác nhân đăng"
+          "agent_post": "Câu trả lời một tác nhân đăng",
+          "agent_dm_turn": "Lượt một người bắt đầu trong các cuộc trò chuyện với tác nhân"
         },
         "agents_title": "Tác nhân trả lời @lượt nhắc",
-        "agents_description": "Giới hạn cho các tác nhân trả lời khi được nhắc đến trong một kênh. Đặt chúng bằng các biến môi trường CHAT_RATE_LIMIT_AGENT_*, và giới hạn thời gian bằng CHAT_AGENT_REPLY_TIMEOUT_SECONDS, trên API.",
+        "agents_description": "Giới hạn cho các tác nhân trả lời khi được nhắc đến trong một kênh. Đặt chúng bằng các biến môi trường CHAT_RATE_LIMIT_AGENT_*, và giới hạn thời gian bằng CHAT_AGENT_REPLY_TIMEOUT_SECONDS, trên API. Giới hạn thời gian cũng áp dụng cho mỗi lượt trong cuộc trò chuyện với tác nhân.",
         "agent_timeout": "Thời gian một tác nhân có để trả lời",
         "seconds": "{count, plural, other {# giây}}"
       }
@@ -292,7 +300,44 @@
         "failed": "Đã xảy ra sự cố khi tôi xử lý việc này nên tôi không thể trả lời.",
         "empty": "Tôi đã xong nhưng không có gì để nói. Hãy thử hỏi lại với nhiều chi tiết hơn.",
         "rate_limited": "Tôi được yêu cầu quá thường xuyên trong thời gian ngắn. Hãy thử lại sau vài phút.",
-        "still_working": "Tôi vẫn đang xử lý yêu cầu trước trong chuỗi này. Hãy hỏi lại sau khi tôi đã trả lời."
+        "still_working": "Tôi vẫn đang xử lý yêu cầu trước trong chuỗi này. Hãy hỏi lại sau khi tôi đã trả lời.",
+        "stopped": "Bạn đã dừng câu trả lời này."
+      }
+    },
+    "agent_picker": {
+      "title": "Trò chuyện với tác tử",
+      "description": "Mọi thứ bạn gửi trong cuộc trò chuyện đều đến tác tử, tác tử làm việc với quyền của bạn. Chỉ bạn mới thấy được.",
+      "empty": "Không có tác tử nào khả dụng trong không gian làm việc này.",
+      "load_failed": "Không thể tải danh sách tác tử."
+    },
+    "agent_dm": {
+      "intro_description": "Chỉ bạn mới thấy cuộc trò chuyện này. Mọi tin nhắn bạn gửi ở đây đều đến {name}, tác tử làm việc với quyền của bạn.",
+      "level_label": "Mức quyền",
+      "level_default": "{name} (mặc định)",
+      "stop": "Dừng",
+      "writing": "Đang viết…",
+      "read_only": {
+        "agent_unavailable": "{name} đã bị quản trị viên tắt, nên cuộc trò chuyện này chỉ đọc.",
+        "agent_removed": "Tác tử này đã bị gỡ bỏ, nên cuộc trò chuyện này chỉ đọc.",
+        "cannot_run_agents": "Bạn không còn dùng được tác tử trong không gian làm việc này, nên cuộc trò chuyện này chỉ đọc."
+      },
+      "tool_calls": "Công cụ đã dùng",
+      "tool_status": {
+        "pending": "Đang chờ",
+        "in_progress": "Đang chạy",
+        "completed": "Xong",
+        "failed": "Thất bại"
+      },
+      "permission": {
+        "title": "{name} cần bạn phê duyệt",
+        "untitled": "Sử dụng một công cụ",
+        "answer_failed": "Không thể gửi câu trả lời của bạn",
+        "expired": "Yêu cầu này không còn chờ câu trả lời.",
+        "unavailable": "Không thể kết nối tới dịch vụ tác tử. Hãy thử lại."
+      },
+      "errors": {
+        "level_failed": "Không thể thay đổi mức quyền",
+        "stop_failed": "Không thể dừng tác tử"
       }
     }
   }

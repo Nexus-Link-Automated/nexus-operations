@@ -17,11 +17,12 @@ import { cn } from "@plane/utils";
 import { useChat } from "@/hooks/store/use-chat";
 import { useMember } from "@/hooks/store/use-member";
 // local imports
+import { AgentPickerDialog } from "./agent-picker-dialog";
 import { BrowseChannelsDialog } from "./browse-channels-dialog";
 import { CreateChannelDialog } from "./create-channel-dialog";
 import { GuestDmAccessDialog } from "./guest-dm-access-dialog";
 import { channelDisplayName, otherMemberIds } from "./helpers";
-import { MemberAvatar } from "./member-avatar";
+import { ChatAgentAvatar, MemberAvatar } from "./member-avatar";
 import { NewDirectMessageDialog } from "./new-dm-dialog";
 import { ChatSearchBox } from "./search";
 import { ChatUnreadCount } from "./unread-badge";
@@ -35,8 +36,9 @@ type Props = {
 
 export const ChannelSidebar = observer(function ChannelSidebar({ workspaceSlug, activeChannelId, onSearch }: Props) {
   const { t } = useTranslation();
-  const { joinedChannels, directMessages, me, channelsLoaded } = useChat();
-  const [dialog, setDialog] = useState<"create" | "browse" | "dm" | "guests" | null>(null);
+  const { joinedChannels, directMessages, agentDms, me, channelsLoaded } = useChat();
+  const [dialog, setDialog] = useState<"create" | "browse" | "dm" | "guests" | "agent" | null>(null);
+  const canOpenAgentDms = !!me?.can_open_agent_dms;
 
   return (
     <nav
@@ -118,10 +120,40 @@ export const ChannelSidebar = observer(function ChannelSidebar({ workspaceSlug, 
         ))}
       </Section>
 
+      {(canOpenAgentDms || agentDms.length > 0) && (
+        <Section
+          title={t("messages.agent_dms.title")}
+          actions={
+            canOpenAgentDms && (
+              <IconButton
+                variant="ghost"
+                size="sm"
+                icon={<AddOutline />}
+                aria-label={t("messages.agent_dms.new")}
+                onClick={() => setDialog("agent")}
+              />
+            )
+          }
+        >
+          {channelsLoaded && agentDms.length === 0 && (
+            <p className="px-4 py-1 text-caption-md-regular text-tertiary">{t("messages.agent_dms.none")}</p>
+          )}
+          {agentDms.map((channel) => (
+            <ChannelRow
+              key={channel.id}
+              channel={channel}
+              workspaceSlug={workspaceSlug}
+              active={channel.id === activeChannelId}
+            />
+          ))}
+        </Section>
+      )}
+
       {dialog === "create" && <CreateChannelDialog workspaceSlug={workspaceSlug} onClose={() => setDialog(null)} />}
       {dialog === "browse" && <BrowseChannelsDialog workspaceSlug={workspaceSlug} onClose={() => setDialog(null)} />}
       {dialog === "dm" && <NewDirectMessageDialog workspaceSlug={workspaceSlug} onClose={() => setDialog(null)} />}
       {dialog === "guests" && <GuestDmAccessDialog workspaceSlug={workspaceSlug} onClose={() => setDialog(null)} />}
+      {dialog === "agent" && <AgentPickerDialog workspaceSlug={workspaceSlug} onClose={() => setDialog(null)} />}
     </nav>
   );
 });
@@ -153,7 +185,8 @@ export const ChannelRow = observer(function ChannelRow({ channel, workspaceSlug,
     channel,
     userId,
     (id) => getUserDetails(id)?.display_name,
-    t("messages.unknown_member")
+    t("messages.unknown_member"),
+    t("messages.agent.removed")
   );
   const unread = channel.is_member ? channel.unread_count : 0;
   const isDm = channel.kind === "dm" || channel.kind === "group_dm";
@@ -171,7 +204,9 @@ export const ChannelRow = observer(function ChannelRow({ channel, workspaceSlug,
         }
       )}
     >
-      {isDm ? (
+      {channel.kind === "agent_dm" ? (
+        <ChatAgentAvatar adapter={channel.agent_dm?.agent?.adapter ?? null} size="sm" />
+      ) : isDm ? (
         <MemberAvatar userId={firstOther} size="sm" />
       ) : channel.kind === "private" ? (
         <LockOutline className="size-4 flex-shrink-0 text-tertiary" aria-hidden />

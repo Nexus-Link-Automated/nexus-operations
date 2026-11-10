@@ -400,6 +400,11 @@
         "disconnect_failed": "無法中斷帳號連線。",
         "sign_in_lost": "您的 {vendor} 登入已失效，請重新登入。"
       }
+    },
+    "moved_to_messages": {
+      "title": "與代理程式的聊天已移至訊息",
+      "description": "現在每個代理程式都在訊息中與你有各自的對話。此頁面暫時保留你先前的聊天。",
+      "open": "在訊息中開啟"
     }
   }
 }

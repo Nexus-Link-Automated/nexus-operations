@@ -10,6 +10,8 @@ import { action, computed, makeObservable, observable, runInAction } from "mobx"
 import { ChatService, ChatServiceError, ChatSocket } from "@plane/services";
 import type { TChatSocketClosedReason, TChatSocketHandlers, TChatSocketStatus } from "@plane/services";
 import type {
+  TAgentPermissionLevel,
+  TChatAgentPermissionRequest,
   TChatChannel,
   TChatChannelAgent,
   TChatChannelAgentAdd,
@@ -69,6 +71,11 @@ export type TChatStoreService = Pick<
   | "addAgent"
   | "removeAgent"
   | "listAvailableAgents"
+  | "openAgentDm"
+  | "setAgentDmLevel"
+  | "stopAgentTurn"
+  | "listAgentPermissions"
+  | "answerAgentPermission"
 >;
 
 /** The socket calls the store makes. `ChatSocket` in the app; a fake in tests. */
@@ -228,10 +235,12 @@ export interface IChatStore {
   channelAgents: Record<string, TChatChannelAgent[]>;
   availableAgents: TWorkspaceAgent[] | null;
   respondingAgents: Record<string, TChatRespondingAgent[]>;
+  agentPermissions: Record<string, TChatAgentPermissionRequest[]>;
   // computed
   joinedChannels: TChatChannel[];
   browsableChannels: TChatChannel[];
   directMessages: TChatChannel[];
+  agentDms: TChatChannel[];
   totalUnread: number;
   activeChannel: TChatChannel | undefined;
   // helpers
@@ -247,6 +256,7 @@ export interface IChatStore {
   getRespondingAgents: (threadId: string) => TChatRespondingAgent[];
   getMentionableAgents: (channelId: string) => TChatChannelAgent[];
   getAgentName: (agentId: string) => string | undefined;
+  getAgentPermissions: (channelId: string) => TChatAgentPermissionRequest[];
   // actions
   start: (workspaceSlug: string, userId: string) => Promise<void>;
   stop: () => void;
@@ -292,6 +302,11 @@ export interface IChatStore {
   fetchAvailableAgents: () => Promise<void>;
   addChannelAgent: (channelId: string, data: TChatChannelAgentAdd) => Promise<TChatChannelAgent>;
   removeChannelAgent: (channelId: string, agentId: string) => Promise<void>;
+  openAgentDm: (agentId: string) => Promise<TChatChannel>;
+  setAgentDmLevel: (channelId: string, level: TAgentPermissionLevel) => Promise<TChatChannel>;
+  stopAgentTurn: (channelId: string) => Promise<void>;
+  fetchAgentPermissions: (channelId: string) => Promise<void>;
+  answerAgentPermission: (channelId: string, requestId: string, optionId: string) => Promise<void>;
   reconnect: () => void;
   noteActivity: () => void;
 }
@@ -313,6 +328,9 @@ export interface IChatStore {
  *   about an agent names it with `agent_id` and no `user_id`; it changes nothing else.
  * - `agent.responding` shows an agent as working on a mention in the thread its reply goes in, until
  *   `agent.responded`, or the agent's time limit (plus a minute) if that event never comes.
+ * - An agent DM (one person and one agent) streams the agent's reply as a draft message updated by `message.updated`.
+ *   Its unread count is the API's, re-read on `agent.responding` / `agent.responded`, so a draft isn't counted.
+ *   The tool calls waiting for the person's approval are held while the DM is open, re-read on `agent.permission_*`.
  * - Thread replies stay out of the channel's list and out of its unread count, like the API's. The open thread holds
  *   its replies the way a channel holds its messages, and is caught up the same way. A reply's event re-reads its
  *   parent, whose summary (`reply_count`, `last_reply_at`) changed; after a reconnect, only the parents on the
@@ -347,6 +365,8 @@ export class ChatStore implements IChatStore {
   availableAgents: TWorkspaceAgent[] | null = null;
   /** By the thread the agents' replies go in (its first message). */
   respondingAgents: Record<string, TChatRespondingAgent[]> = {};
+  /** By agent DM, while it is open: the tool calls waiting for its person's approval. */
+  agentPermissions: Record<string, TChatAgentPermissionRequest[]> = {};
 
   private readonly service: TChatStoreService;
   private readonly createSocket: TChatSocketFactory;
@@ -375,6 +395,7 @@ export class ChatStore implements IChatStore {
   private readonly agentLoads = new Map<string, { again: boolean; promise: Promise<void> }>();
   /** Channels whose people and agents something shows, from `fetchChannelMembers` until `forgetChannelMembers`. */
   private readonly shownMembers = new Set<string>();
+  private readonly permissionLoads = new Map<string, { again: boolean; promise: Promise<void> }>();
   /** How many things show each channel's agents through `watchChannelAgents`. */
   private readonly agentWatchers = new Map<string, number>();
   /** Clears a responding agent whose `agent.responded` never came. */
@@ -410,10 +431,12 @@ export class ChatStore implements IChatStore {
       channelAgents: observable,
       availableAgents: observable.ref,
       respondingAgents: observable,
+      agentPermissions: observable,
       // computed
       joinedChannels: computed,
       browsableChannels: computed,
       directMessages: computed,
+      agentDms: computed,
       totalUnread: computed,
       activeChannel: computed,
       // actions, bound so components can destructure them from useChat()
@@ -457,6 +480,11 @@ export class ChatStore implements IChatStore {
       fetchAvailableAgents: action.bound,
       addChannelAgent: action.bound,
       removeChannelAgent: action.bound,
+      openAgentDm: action.bound,
+      setAgentDmLevel: action.bound,
+      stopAgentTurn: action.bound,
+      fetchAgentPermissions: action.bound,
+      answerAgentPermission: action.bound,
       reconnect: action.bound,
       noteActivity: action.bound,
       upsertChannel: action,
@@ -496,6 +524,13 @@ export class ChatStore implements IChatStore {
       Object.values(this.channelMap).filter(
         (channel) => (channel.kind === "dm" || channel.kind === "group_dm") && !channel.archived_at
       )
+    );
+  }
+
+  /** Direct conversations with agents, most recent activity first. */
+  get agentDms(): TChatChannel[] {
+    return byNewestActivity(
+      Object.values(this.channelMap).filter((channel) => channel.kind === "agent_dm" && !channel.archived_at)
     );
   }
 
@@ -550,6 +585,9 @@ export class ChatStore implements IChatStore {
     if (channel.kind !== "public" && channel.kind !== "private") return [];
     return (this.channelAgents[channelId] ?? []).filter((agent) => agent.is_available);
   };
+
+  /** The tool calls waiting for approval in an open agent DM. */
+  getAgentPermissions = (channelId: string): TChatAgentPermissionRequest[] => this.agentPermissions[channelId] ?? [];
 
   /** What the registry calls an agent, if any list the store holds has it. */
   getAgentName = (agentId: string): string | undefined => {
@@ -625,6 +663,8 @@ export class ChatStore implements IChatStore {
     this.channelAgents = {};
     this.availableAgents = null;
     this.respondingAgents = {};
+    this.agentPermissions = {};
+    this.permissionLoads.clear();
     for (const timer of this.respondingTimers.values()) clearTimeout(timer);
     this.respondingTimers.clear();
     this.agentWatchers.clear();
@@ -734,6 +774,7 @@ export class ChatStore implements IChatStore {
     delete this.pendingMessages[channelId];
     delete this.channelMembers[channelId];
     delete this.channelAgents[channelId];
+    delete this.agentPermissions[channelId];
     this.catchUpCursors.delete(channelId);
   }
 
@@ -809,6 +850,7 @@ export class ChatStore implements IChatStore {
     if (!channel.is_member && channel.kind === "public" && this.activeChannelId === channelId) {
       this.socket?.subscribe(channelId);
     }
+    if (channel.kind === "agent_dm") void this.fetchAgentPermissions(channelId).catch(() => undefined);
     if (!this.channelMessages[channelId]?.loaded) await this.loadNewestMessages(channelId);
     if (this.isViewing(channelId)) await this.markRead(channelId);
   }
@@ -820,6 +862,7 @@ export class ChatStore implements IChatStore {
     this.activeChannelId = null;
     // A channel opens at its newest messages.
     this.isAtNewest = true;
+    delete this.agentPermissions[channelId];
     const channel = this.channelMap[channelId];
     if (channel && !channel.is_member) {
       this.socket?.unsubscribe(channelId);
@@ -1002,11 +1045,74 @@ export class ChatStore implements IChatStore {
     });
   }
 
+  // agent DMs
+
+  /** Open the user's direct conversation with an agent, creating it if needed. */
+  async openAgentDm(agentId: string): Promise<TChatChannel> {
+    const slug = this.requireSlug();
+    const commit = this.guard();
+    const channel = await this.service.openAgentDm(slug, agentId);
+    commit(() => this.upsertChannel(channel));
+    return channel;
+  }
+
+  /** The level the agent works at in this DM, up to its maximum. */
+  async setAgentDmLevel(channelId: string, level: TAgentPermissionLevel): Promise<TChatChannel> {
+    const slug = this.requireSlug();
+    const commit = this.guard();
+    const channel = await this.service.setAgentDmLevel(slug, channelId, level);
+    commit(() => this.upsertChannel(channel));
+    return channel;
+  }
+
+  /** Stop the agent's running turn. Nothing running any more (409) is fine: the channel is re-read either way. */
+  async stopAgentTurn(channelId: string): Promise<void> {
+    const slug = this.requireSlug();
+    try {
+      await this.service.stopAgentTurn(slug, channelId);
+    } catch (error) {
+      if (!(error instanceof ChatServiceError && error.status === 409)) throw error;
+    }
+    await this.refreshChannel(channelId);
+  }
+
+  /** Re-read the tool calls waiting for approval in an open agent DM. */
+  fetchAgentPermissions(channelId: string): Promise<void> {
+    return this.coalesce(this.permissionLoads, channelId, async () => {
+      const slug = this.requireSlug();
+      const commit = this.guard();
+      const requests = await this.service.listAgentPermissions(slug, channelId);
+      commit(() => {
+        if (this.activeChannelId === channelId) this.agentPermissions[channelId] = requests;
+      });
+    });
+  }
+
+  /**
+   * Answer a permission prompt. It leaves the list at once; if the API says it is no longer pending (409), it is gone
+   * anyway, so the error is still thrown for the caller to say so, after the list is re-read.
+   */
+  async answerAgentPermission(channelId: string, requestId: string, optionId: string): Promise<void> {
+    const slug = this.requireSlug();
+    const commit = this.guard();
+    try {
+      await this.service.answerAgentPermission(slug, channelId, requestId, optionId);
+      commit(() => {
+        const held = this.agentPermissions[channelId];
+        if (held) this.agentPermissions[channelId] = held.filter((request) => request.id !== requestId);
+      });
+    } catch (error) {
+      void this.fetchAgentPermissions(channelId).catch(() => undefined);
+      throw error;
+    }
+  }
+
   /** Re-read whatever member lists are shown, after events may have been missed. */
   private refreshShownMembers(): Promise<unknown> {
     return Promise.all([
       ...Object.keys(this.channelMembers).map((id) => this.fetchChannelMembers(id).catch(() => undefined)),
       ...Object.keys(this.channelAgents).map((id) => this.loadChannelAgents(id).catch(() => undefined)),
+      ...Object.keys(this.agentPermissions).map((id) => this.fetchAgentPermissions(id).catch(() => undefined)),
     ]);
   }
 
@@ -1609,7 +1715,8 @@ export class ChatStore implements IChatStore {
         channel.last_message_at = event.at;
         const mine = event.actor_id !== undefined && event.actor_id === this.userId;
         const viewing = this.isViewing(channelId);
-        if (channel.is_member && !mine && !viewing) channel.unread_count += 1;
+        // An agent's draft isn't unread until it is finished; the API's count comes with `agent.responded`.
+        if (channel.is_member && !mine && !viewing && channel.kind !== "agent_dm") channel.unread_count += 1;
         if (event.message_id && !this.messageMap[event.message_id]) {
           void this.receiveMessage(channelId, event.message_id, viewing);
         } else if (viewing) {
@@ -1638,6 +1745,8 @@ export class ChatStore implements IChatStore {
         // An agent (a gateway too old to pass `agent_id` on sends neither ID): only the channel's agents changed.
         if (event.agent_id !== undefined || event.user_id === undefined) {
           if (this.channelAgents[channelId]) void this.loadChannelAgents(channelId).catch(() => undefined);
+          // An agent DM's agent was disabled, enabled again or deleted: whether it is read-only changed.
+          if (this.channelMap[channelId]?.kind === "agent_dm") void this.refreshChannel(channelId);
           return;
         }
         // My own: the channel appears, goes, or my role changed. Someone else's: the member count changed.
@@ -1648,8 +1757,21 @@ export class ChatStore implements IChatStore {
         // Read in another tab.
         if (known) void this.refreshChannel(channelId);
         return;
+      case "agent.permission_requested":
+      case "agent.permission_resolved":
+        if (this.agentPermissions[channelId] || this.activeChannelId === channelId) {
+          void this.fetchAgentPermissions(channelId).catch(() => undefined);
+        }
+        return;
       case "agent.responding":
       case "agent.responded": {
+        if (this.channelMap[channelId]?.kind === "agent_dm") {
+          // Whether the agent is working, and the unread count once its reply is finished, are the API's.
+          void this.refreshChannel(channelId).then(() =>
+            event.type === "agent.responded" && this.isViewing(channelId) ? this.markRead(channelId) : undefined
+          );
+          return;
+        }
         const { parent_id: threadId, agent_id: agentId, message_id: messageId } = event;
         if (!threadId || !agentId || !messageId) return;
         if (event.type === "agent.responding") this.noteResponding({ channelId, agentId, messageId }, threadId);

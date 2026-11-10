@@ -4,7 +4,9 @@
  * See the LICENSE file for details.
  */
 
+import { useState } from "react";
 import { observer } from "mobx-react";
+import { useParams } from "next/navigation";
 // plane imports
 import { Button } from "@makeplane/propel/components/button";
 import { AiStarFourOutline, PlusCircleOutline } from "@makeplane/propel/icons";
@@ -13,13 +15,26 @@ import { Header } from "@plane/blocks/layout";
 import { useTranslation } from "@plane/i18n";
 // components
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
+import { useOpenAgentDm } from "@/components/messages/use-open-agent-dm";
 // hooks
 import { useAgentChat } from "@/hooks/store/use-agent-chat";
 
 export const WorkspaceAgentsHeader = observer(function WorkspaceAgentsHeader() {
   const { t } = useTranslation();
-  const { snapshot, startNewSession } = useAgentChat();
-  const canStartNew = snapshot?.status === "ready" && !snapshot.prompting;
+  const { workspaceSlug } = useParams();
+  const slug = workspaceSlug?.toString() ?? "";
+  const { agentId, workspaceSlug: chatWorkspace } = useAgentChat();
+  const openAgentDm = useOpenAgentDm(slug);
+  const [opening, setOpening] = useState(false);
+  // A new chat now opens the agent's conversation in Messages; this page keeps the earlier chats.
+  const startNewChat = async () => {
+    setOpening(true);
+    try {
+      await openAgentDm(chatWorkspace === slug ? (agentId ?? undefined) : undefined);
+    } finally {
+      setOpening(false);
+    }
+  };
 
   return (
     <Header>
@@ -38,15 +53,15 @@ export const WorkspaceAgentsHeader = observer(function WorkspaceAgentsHeader() {
         </div>
       </Header.LeftItem>
       <Header.RightItem>
-        {snapshot && (
+        {slug && (
           <Button
             variant="ghost"
             size="md"
             stretch="auto"
             icon={<PlusCircleOutline />}
             label={t("agents.sessions.new")}
-            disabled={!canStartNew}
-            onClick={() => void startNewSession()}
+            loading={opening}
+            onClick={() => void startNewChat()}
           />
         )}
       </Header.RightItem>

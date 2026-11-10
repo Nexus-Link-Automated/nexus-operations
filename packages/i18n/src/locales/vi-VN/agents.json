@@ -400,6 +400,11 @@
         "disconnect_failed": "Không thể ngắt kết nối tài khoản.",
         "sign_in_lost": "Phiên đăng nhập {vendor} của bạn không còn hợp lệ. Hãy đăng nhập lại."
       }
+    },
+    "moved_to_messages": {
+      "title": "Trò chuyện với tác tử đã chuyển sang Tin nhắn",
+      "description": "Giờ mỗi tác tử có cuộc trò chuyện riêng với bạn trong Tin nhắn. Trang này tạm thời vẫn giữ các cuộc trò chuyện trước đây của bạn.",
+      "open": "Mở trong Tin nhắn"
     }
   }
 }

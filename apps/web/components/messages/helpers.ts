@@ -5,7 +5,7 @@
  */
 
 import { ChatServiceError } from "@plane/services";
-import type { TAgentAdapter, TChatChannel, TChatMessage } from "@plane/types";
+import type { TAgentAdapter, TChatAgentDm, TChatChannel, TChatMessage } from "@plane/types";
 
 /** Messages by one sender closer together than this are shown as one block, under one name. */
 const MESSAGE_GROUP_WINDOW_MS = 5 * 60_000;
@@ -98,15 +98,21 @@ export function otherMemberIds(channel: Pick<TChatChannel, "dm_member_ids">, cur
 }
 
 /**
- * What to call a channel: its name, or for a DM the other people's names. `getName` returns undefined for someone
- * the member store doesn't know (yet), who is shown as `unknown`.
+ * What to call a channel: its name, for a DM the other people's names, and for an agent DM the agent's (`removedAgent`
+ * once the registry has deleted it). `getName` returns undefined for someone the member store doesn't know (yet), who
+ * is shown as `unknown`.
  */
 export function channelDisplayName(
-  channel: Pick<TChatChannel, "kind" | "name" | "dm_member_ids">,
+  channel: Pick<TChatChannel, "kind" | "name" | "dm_member_ids"> & { agent_dm?: Pick<TChatAgentDm, "agent"> | null },
   currentUserId: string | null,
   getName: (userId: string) => string | undefined,
-  unknown: string
+  unknown: string,
+  removedAgent: string = unknown
 ): string {
+  if (channel.kind === "agent_dm") {
+    if (!channel.agent_dm) return unknown;
+    return channel.agent_dm.agent?.name ?? removedAgent;
+  }
   if (channel.kind !== "dm" && channel.kind !== "group_dm") return channel.name;
   const names = otherMemberIds(channel, currentUserId).map((id) => getName(id) || unknown);
   return names.length ? names.join(", ") : unknown;

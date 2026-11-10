@@ -19,6 +19,11 @@
       "new": "Nová zpráva",
       "none": "Zatím žádné přímé zprávy."
     },
+    "agent_dms": {
+      "title": "Agenti",
+      "new": "Chatovat s agentem",
+      "none": "Zatím žádné chaty s agenty."
+    },
     "channel": {
       "member_count": "{count, plural, one {# člen} few {# členové} many {# člena} other {# členů}}",
       "join": "Připojit se",
@@ -179,7 +184,8 @@
     },
     "notification": {
       "mentioned_in_channel": "{name} vás zmiňuje v #{channel}",
-      "mentioned_in_dm": "{name} vás zmiňuje v přímé zprávě"
+      "mentioned_in_dm": "{name} vás zmiňuje v přímé zprávě",
+      "replied_in_agent_dm": "{name} vám odpověděl"
     },
     "errors": {
       "retry": "Zkusit znovu",
@@ -197,6 +203,7 @@
       "rate_limited": "Děláte to příliš často. Chvíli počkejte a zkuste to znovu.",
       "add_agent_failed": "Agenta se nepodařilo přidat",
       "remove_agent_failed": "Agenta se nepodařilo odebrat",
+      "open_agent_dm_failed": "Konverzaci s agentem se nepodařilo otevřít",
       "load_members_failed": "Členy se nepodařilo načíst",
       "add_members_failed": "Lidi se nepodařilo přidat",
       "remove_member_failed": "Z kanálu se nepodařilo odebrat",
@@ -272,10 +279,11 @@
           "work_item": "Vytvořit pracovní položku ze zprávy",
           "agent_session": "Relace agentů, které spustí jeden člověk",
           "agent_channel": "Relace jednoho agenta v jednom kanálu",
-          "agent_post": "Odpovědi, které zveřejní jeden agent"
+          "agent_post": "Odpovědi, které zveřejní jeden agent",
+          "agent_dm_turn": "Kola, která jeden člověk spustí v chatech s agenty"
         },
         "agents_title": "Agenti odpovídající na @zmínky",
-        "agents_description": "Limity pro agenty, kteří odpovídají, když jsou zmíněni v kanálu. Nastavte je proměnnými prostředí CHAT_RATE_LIMIT_AGENT_* a časový limit pomocí CHAT_AGENT_REPLY_TIMEOUT_SECONDS v API.",
+        "agents_description": "Limity pro agenty, kteří odpovídají, když jsou zmíněni v kanálu. Nastavte je proměnnými prostředí CHAT_RATE_LIMIT_AGENT_* a časový limit pomocí CHAT_AGENT_REPLY_TIMEOUT_SECONDS v API. Časový limit platí i pro každé kolo v chatu s agentem.",
         "agent_timeout": "Čas, který má agent na odpověď",
         "seconds": "{count, plural, one {# sekunda} few {# sekundy} many {# sekundy} other {# sekund}}"
       }
@@ -292,7 +300,44 @@
         "failed": "Při práci na tomto se něco pokazilo, takže jsem nemohl odpovědět.",
         "empty": "Skončil jsem, aniž bych měl co říct. Zkuste se zeptat znovu a podrobněji.",
         "rate_limited": "V krátké době se mě ptáte příliš často. Zkuste to za pár minut.",
-        "still_working": "Pořád pracuji na posledním požadavku v tomto vlákně. Zeptejte se znovu, až odpovím."
+        "still_working": "Pořád pracuji na posledním požadavku v tomto vlákně. Zeptejte se znovu, až odpovím.",
+        "stopped": "Tuto odpověď jste zastavili."
+      }
+    },
+    "agent_picker": {
+      "title": "Chatovat s agentem",
+      "description": "Vše, co v konverzaci pošlete, jde agentovi, který pracuje s vašimi oprávněními. Vidíte ji jen vy.",
+      "empty": "V tomto pracovním prostoru nejsou k dispozici žádní agenti.",
+      "load_failed": "Agenty se nepodařilo načíst."
+    },
+    "agent_dm": {
+      "intro_description": "Tuto konverzaci vidíte jen vy. Každá zpráva, kterou sem pošlete, jde agentovi {name}, který pracuje s vašimi oprávněními.",
+      "level_label": "Úroveň oprávnění",
+      "level_default": "{name} (výchozí)",
+      "stop": "Zastavit",
+      "writing": "Píše…",
+      "read_only": {
+        "agent_unavailable": "Správce agenta {name} vypnul, takže tato konverzace je jen pro čtení.",
+        "agent_removed": "Tento agent byl odebrán, takže tato konverzace je jen pro čtení.",
+        "cannot_run_agents": "V tomto pracovním prostoru už nemůžete používat agenty, takže tato konverzace je jen pro čtení."
+      },
+      "tool_calls": "Použité nástroje",
+      "tool_status": {
+        "pending": "Čeká",
+        "in_progress": "Probíhá",
+        "completed": "Hotovo",
+        "failed": "Selhalo"
+      },
+      "permission": {
+        "title": "{name} potřebuje váš souhlas",
+        "untitled": "Použít nástroj",
+        "answer_failed": "Vaši odpověď se nepodařilo odeslat",
+        "expired": "Tento požadavek už na odpověď nečeká.",
+        "unavailable": "Službu agentů se nepodařilo zastihnout. Zkuste to znovu."
+      },
+      "errors": {
+        "level_failed": "Úroveň oprávnění se nepodařilo změnit",
+        "stop_failed": "Agenta se nepodařilo zastavit"
       }
     }
   }

@@ -400,6 +400,11 @@
         "disconnect_failed": "Impossible de déconnecter le compte.",
         "sign_in_lost": "Votre connexion à {vendor} n’est plus valide. Reconnectez-vous."
       }
+    },
+    "moved_to_messages": {
+      "title": "Les discussions avec les agents sont désormais dans Messages",
+      "description": "Chaque agent a maintenant sa propre conversation avec vous dans Messages. Cette page conserve vos anciennes discussions pour le moment.",
+      "open": "Ouvrir dans Messages"
     }
   }
 }

@@ -6,6 +6,8 @@
 
 import { API_BASE_URL } from "@plane/constants";
 import type {
+  TAgentPermissionLevel,
+  TChatAgentPermissionRequest,
   TChatAttachmentUploadSlot,
   TChatChannel,
   TChatChannelAgent,
@@ -122,6 +124,46 @@ export class ChatService extends APIService {
   /** Open the DM (one other person) or group DM (several) with exactly these people, creating it if needed. */
   async openDm(workspaceSlug: string, memberIds: string[]): Promise<TChatChannel> {
     return this.call(this.post(`${this.base(workspaceSlug)}/dms/`, { member_ids: memberIds }));
+  }
+
+  /** Open the caller's direct conversation with an agent from the registry, creating it if needed. Never for guests. */
+  async openAgentDm(workspaceSlug: string, agentId: string): Promise<TChatChannel> {
+    return this.call(this.post(`${this.base(workspaceSlug)}/agent-dms/`, { agent_id: agentId }));
+  }
+
+  /** The level the agent works at in this agent DM, up to the registry's maximum. */
+  async setAgentDmLevel(
+    workspaceSlug: string,
+    channelId: string,
+    permissionLevel: TAgentPermissionLevel
+  ): Promise<TChatChannel> {
+    return this.call(
+      this.patch(`${this.channel(workspaceSlug, channelId)}/agent-dm/`, { permission_level: permissionLevel })
+    );
+  }
+
+  /** Stop the agent's running turn in this agent DM. */
+  async stopAgentTurn(workspaceSlug: string, channelId: string): Promise<void> {
+    await this.call(this.post(`${this.channel(workspaceSlug, channelId)}/agent-dm/stop/`, {}));
+  }
+
+  /** The tool calls in this agent DM waiting for the caller's approval. */
+  async listAgentPermissions(workspaceSlug: string, channelId: string): Promise<TChatAgentPermissionRequest[]> {
+    return this.call(this.get(`${this.channel(workspaceSlug, channelId)}/agent-dm/permissions/`));
+  }
+
+  /** Answer a pending permission prompt with one of its options. */
+  async answerAgentPermission(
+    workspaceSlug: string,
+    channelId: string,
+    requestId: string,
+    optionId: string
+  ): Promise<void> {
+    await this.call(
+      this.post(`${this.channel(workspaceSlug, channelId)}/agent-dm/permissions/${encodeURIComponent(requestId)}/`, {
+        option_id: optionId,
+      })
+    );
   }
 
   async joinChannel(workspaceSlug: string, channelId: string): Promise<TChatChannel> {

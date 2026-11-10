@@ -19,6 +19,11 @@
       "new": "新しいメッセージ",
       "none": "まだダイレクトメッセージはありません。"
     },
+    "agent_dms": {
+      "title": "エージェント",
+      "new": "エージェントとチャット",
+      "none": "エージェントとのチャットはまだありません。"
+    },
     "channel": {
       "member_count": "{count, plural, one {メンバー #人} other {メンバー #人}}",
       "join": "参加",
@@ -179,7 +184,8 @@
     },
     "notification": {
       "mentioned_in_channel": "{name}さんが #{channel} であなたをメンションしました",
-      "mentioned_in_dm": "{name}さんがダイレクトメッセージであなたをメンションしました"
+      "mentioned_in_dm": "{name}さんがダイレクトメッセージであなたをメンションしました",
+      "replied_in_agent_dm": "{name} があなたに返信しました"
     },
     "errors": {
       "retry": "もう一度試す",
@@ -197,6 +203,7 @@
       "rate_limited": "操作の回数が多すぎます。少し待ってからもう一度お試しください。",
       "add_agent_failed": "エージェントを追加できませんでした",
       "remove_agent_failed": "エージェントを削除できませんでした",
+      "open_agent_dm_failed": "エージェントとの会話を開けませんでした",
       "load_members_failed": "メンバーを読み込めませんでした",
       "add_members_failed": "メンバーを追加できませんでした",
       "remove_member_failed": "チャンネルから削除できませんでした",
@@ -272,10 +279,11 @@
           "work_item": "メッセージからワークアイテムを作成",
           "agent_session": "1 人が開始するエージェントセッション",
           "agent_channel": "1 つのチャンネルでの 1 つのエージェントのセッション",
-          "agent_post": "1 つのエージェントが投稿する返信"
+          "agent_post": "1 つのエージェントが投稿する返信",
+          "agent_dm_turn": "1 人がエージェントとのチャットで開始するターン"
         },
         "agents_title": "@メンションに応答するエージェント",
-        "agents_description": "チャンネルでメンションされたときに返信するエージェントの制限です。API の環境変数 CHAT_RATE_LIMIT_AGENT_* で設定し、制限時間は CHAT_AGENT_REPLY_TIMEOUT_SECONDS で設定します。",
+        "agents_description": "チャンネルでメンションされたときに返信するエージェントの制限です。API の環境変数 CHAT_RATE_LIMIT_AGENT_* で設定し、制限時間は CHAT_AGENT_REPLY_TIMEOUT_SECONDS で設定します。制限時間はエージェントとのチャットの各ターンにも適用されます。",
         "agent_timeout": "エージェントが返信にかけられる時間",
         "seconds": "{count, plural, other {# 秒}}"
       }
@@ -292,7 +300,44 @@
         "failed": "作業中に問題が発生したため、返信できませんでした。",
         "empty": "完了しましたが、お伝えできる内容がありませんでした。詳しく書いてもう一度質問してください。",
         "rate_limited": "短時間に依頼が多すぎます。数分後にもう一度お試しください。",
-        "still_working": "このスレッドの前の依頼にまだ取り組んでいます。返信した後にもう一度依頼してください。"
+        "still_working": "このスレッドの前の依頼にまだ取り組んでいます。返信した後にもう一度依頼してください。",
+        "stopped": "この返信を停止しました。"
+      }
+    },
+    "agent_picker": {
+      "title": "エージェントとチャット",
+      "description": "この会話で送信した内容はすべてエージェントに届き、エージェントはあなたの権限で動作します。会話はあなただけに表示されます。",
+      "empty": "このワークスペースで利用できるエージェントはありません。",
+      "load_failed": "エージェントを読み込めませんでした。"
+    },
+    "agent_dm": {
+      "intro_description": "この会話はあなただけに表示されます。ここで送信したメッセージはすべて {name} に届き、{name} はあなたの権限で動作します。",
+      "level_label": "権限レベル",
+      "level_default": "{name}（既定）",
+      "stop": "停止",
+      "writing": "作成中…",
+      "read_only": {
+        "agent_unavailable": "{name} は管理者によって無効にされたため、この会話は読み取り専用です。",
+        "agent_removed": "このエージェントは削除されたため、この会話は読み取り専用です。",
+        "cannot_run_agents": "このワークスペースではエージェントを使用できなくなったため、この会話は読み取り専用です。"
+      },
+      "tool_calls": "使用したツール",
+      "tool_status": {
+        "pending": "待機中",
+        "in_progress": "実行中",
+        "completed": "完了",
+        "failed": "失敗"
+      },
+      "permission": {
+        "title": "{name} があなたの承認を求めています",
+        "untitled": "ツールの使用",
+        "answer_failed": "回答を送信できませんでした",
+        "expired": "このリクエストはもう回答を待っていません。",
+        "unavailable": "エージェントサービスに接続できませんでした。もう一度お試しください。"
+      },
+      "errors": {
+        "level_failed": "権限レベルを変更できませんでした",
+        "stop_failed": "エージェントを停止できませんでした"
       }
     }
   }

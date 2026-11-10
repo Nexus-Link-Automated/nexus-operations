@@ -10,6 +10,7 @@ import { Navigate } from "react-router";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 // components
+import { AgentChatMovedBanner } from "@/components/agents/messages-banner";
 import { AgentChatRoot } from "@/components/agents/root";
 import { PageHead } from "@/components/core/page-title";
 // hooks
@@ -32,7 +33,16 @@ const WorkspaceAgentsPage = observer(function WorkspaceAgentsPage() {
   return (
     <>
       <PageHead title={t("agents.title")} />
-      <div className="relative h-full w-full overflow-hidden">{slug && <AgentChatRoot workspaceSlug={slug} />}</div>
+      <div className="flex h-full w-full flex-col overflow-hidden">
+        {slug && (
+          <div className="flex-shrink-0 px-4 pt-3">
+            <AgentChatMovedBanner workspaceSlug={slug} />
+          </div>
+        )}
+        <div className="relative min-h-0 w-full flex-1 overflow-hidden">
+          {slug && <AgentChatRoot workspaceSlug={slug} />}
+        </div>
+      </div>
     </>
   );
 });

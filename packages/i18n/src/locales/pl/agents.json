@@ -400,6 +400,11 @@
         "disconnect_failed": "Nie udało się odłączyć konta.",
         "sign_in_lost": "Logowanie do {vendor} nie jest już ważne. Zaloguj się ponownie."
       }
+    },
+    "moved_to_messages": {
+      "title": "Rozmowy z agentami są teraz w Wiadomościach",
+      "description": "Każdy agent ma teraz własną rozmowę z Tobą w Wiadomościach. Na razie ta strona przechowuje Twoje wcześniejsze rozmowy.",
+      "open": "Otwórz w Wiadomościach"
     }
   }
 }

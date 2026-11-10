@@ -246,9 +246,10 @@ export const WORKSPACE_SIDEBAR_STATIC_NAVIGATION_ITEMS: Record<string, IWorkspac
   agents: {
     key: "agents",
     labelTranslationKey: "agents.title",
-    href: `/agents/`,
+    // Opens the member's conversation with their last agent in Messages; the old chat page stays at /agents/.
+    href: `/messages/?agent=last`,
     access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
-    highlight: (pathname: string, url: string) => pathname.includes(url),
+    highlight: (pathname: string) => /\/agents(\/|$)/.test(pathname),
   },
   inbox: {
     key: "inbox",
