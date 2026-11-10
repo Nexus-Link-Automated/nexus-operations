@@ -33,7 +33,13 @@ those with directories on the runner (`GET /members`) and those with a chat open
 (and removes any credentials and tokens still stored for them). For each of those, the bridge closes
 their open chats (close code 4403) and calls the runner's `POST /members/offboard`, which stops their
 agents and sign-ins and deletes their directories. A step that fails is logged and retried on the
-next pass. Removing a member, a member leaving and deactivating an account also delete the member's
+next pass.
+
+Before removing anything the bridge checks the API's answer. A pass that would offboard more than
+`AGENT_BRIDGE_OFFBOARD_MAX_PER_PASS` members, or every member it knows about when there are two or
+more, is refused and logged as an error, and nothing is removed. That is the answer an API connected
+to the wrong or an empty database would give. To let a real large removal through, raise the limit
+for one pass. Removing a member, a member leaving and deactivating an account also delete the member's
 credentials and revoke their tokens in the API at once.
 
 ## Policy
@@ -152,6 +158,7 @@ A cross-origin upgrade is refused with HTTP 403 before any API call.
 | `AGENT_BRIDGE_LOGIN_START_LIMIT`        | `10`             | Sign-in `start`s per user per window                                                  |
 | `AGENT_BRIDGE_LOGIN_START_WINDOW_MS`    | 10 min           |                                                                                       |
 | `AGENT_BRIDGE_OFFBOARD_INTERVAL_MS`     | 60 s             | How often ended memberships are looked for (above)                                    |
+| `AGENT_BRIDGE_OFFBOARD_MAX_PER_PASS`    | `10`             | A pass that would offboard more members than this is refused (above)                  |
 | `LOG_LEVEL`, `APP_VERSION`              |                  | Structured JSON logs via `@plane/logger`. Tokens, env and cookies are never logged    |
 
 ## Transports

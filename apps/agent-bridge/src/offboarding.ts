@@ -16,6 +16,8 @@ export interface OffboardingSweepInput {
   /** Close the member's open chats; resolves once they are closed. */
   readonly closeChats: (member: MemberRef) => Promise<void>;
   readonly log: Logger;
+  /** Refuse a pass that would offboard more members than this. */
+  readonly maxPerPass: number;
   readonly signal?: AbortSignal;
 }
 
@@ -26,7 +28,12 @@ const keyOf = (member: MemberRef) => `${member.workspaceId}/${member.userId}`;
  * state for no longer have an active membership, then close their chats and have the runner stop
  * and delete everything of theirs. The API decides; the runner's directory listing is what makes
  * memberships that ended while the bridge was down (or before this existed) get cleaned up too.
- * Failures are logged and left for the next pass. Returns the members offboarded.
+ * Failures are logged and left for the next pass.
+ *
+ * The API's answer is checked before anything is removed. A pass that would offboard more than
+ * `maxPerPass` members, or every member known here when there are two or more, is refused and
+ * logged: that is what an API pointed at the wrong or an empty database answers, and acting on it
+ * would delete everyone's agent state. Returns the members offboarded.
  */
 export async function sweepEndedMemberships(input: OffboardingSweepInput): Promise<MemberRef[]> {
   const { api, runner, log, signal } = input;
@@ -39,29 +46,41 @@ export async function sweepEndedMemberships(input: OffboardingSweepInput): Promi
   for (const member of input.liveMembers()) known.set(keyOf(member), member);
 
   const all = [...known.values()];
-  const offboarded: MemberRef[] = [];
+  const ended = new Map<string, MemberRef>();
   for (let start = 0; start < all.length; start += MAX_OFFBOARDING_BATCH) {
-    if (signal?.aborted) break;
-    let ended: MemberRef[];
+    if (signal?.aborted) return [];
     try {
       // oxlint-disable-next-line no-await-in-loop -- one batch at a time
-      ended = await api.endedMemberships(all.slice(start, start + MAX_OFFBOARDING_BATCH), signal);
+      for (const member of await api.endedMemberships(all.slice(start, start + MAX_OFFBOARDING_BATCH), signal)) {
+        // Only members this pass asked about can be offboarded.
+        if (known.has(keyOf(member))) ended.set(keyOf(member), member);
+      }
     } catch (error) {
       log.error("agent-bridge: could not check memberships", { error: (error as Error).message });
-      break;
+      return [];
     }
-    for (const member of ended) {
-      if (signal?.aborted) break;
-      try {
-        // oxlint-disable-next-line no-await-in-loop -- one member at a time
-        await input.closeChats(member);
-        // oxlint-disable-next-line no-await-in-loop -- one member at a time
-        await runner.offboard(member, signal);
-        offboarded.push(member);
-        log.info("agent-bridge: offboarded a member whose workspace membership ended", { ...member });
-      } catch (error) {
-        log.error("agent-bridge: could not offboard a member", { ...member, error: (error as Error).message });
-      }
+  }
+  if (ended.size > input.maxPerPass || (ended.size >= 2 && ended.size === known.size)) {
+    log.error("agent-bridge: refused to offboard members; the API reported too many ended memberships", {
+      ended: ended.size,
+      known: known.size,
+      maxPerPass: input.maxPerPass,
+    });
+    return [];
+  }
+
+  const offboarded: MemberRef[] = [];
+  for (const member of ended.values()) {
+    if (signal?.aborted) break;
+    try {
+      // oxlint-disable-next-line no-await-in-loop -- one member at a time
+      await input.closeChats(member);
+      // oxlint-disable-next-line no-await-in-loop -- one member at a time
+      await runner.offboard(member, signal);
+      offboarded.push(member);
+      log.info("agent-bridge: offboarded a member whose workspace membership ended", { ...member });
+    } catch (error) {
+      log.error("agent-bridge: could not offboard a member", { ...member, error: (error as Error).message });
     }
   }
   return offboarded;

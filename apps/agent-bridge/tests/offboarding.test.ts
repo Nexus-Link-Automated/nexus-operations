@@ -90,6 +90,31 @@ describe("offboarding ended memberships", () => {
     expect(harness.log.lines.some((line) => line.message === "agent-bridge: could not check memberships")).toBe(true);
   });
 
+  it("refuses a pass that would offboard every known member", async () => {
+    harness = await startHarness();
+    harness.api.members.clear();
+    harness.runner.memberDirs.push(mine, removed);
+
+    expect(await harness.bridge.sweepEndedMemberships()).toEqual([]);
+    expect(harness.runner.offboarded).toEqual([]);
+    expect(harness.runner.memberDirs).toEqual([mine, removed]);
+    expect(
+      harness.log.lines.some(
+        (line) =>
+          line.message === "agent-bridge: refused to offboard members; the API reported too many ended memberships"
+      )
+    ).toBe(true);
+  });
+
+  it("refuses a pass that would offboard more than offboardMaxPerPass members", async () => {
+    harness = await startHarness({ config: { offboardMaxPerPass: 1 } });
+    harness.runner.memberDirs.push(mine, removed, elsewhere);
+
+    expect(await harness.bridge.sweepEndedMemberships()).toEqual([]);
+    expect(harness.runner.offboarded).toEqual([]);
+    expect(harness.runner.memberDirs).toEqual([mine, removed, elsewhere]);
+  });
+
   it("sweeps on its own every offboardIntervalMs", async () => {
     harness = await startHarness({ config: { offboardIntervalMs: 50 } });
     harness.runner.memberDirs.push(removed);

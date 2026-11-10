@@ -169,6 +169,7 @@ export class AgentBridge {
       liveMembers: () => [...this.#sessions].map((session) => session.member),
       closeChats: (member) => this.#closeChats(member),
       log: this.#log,
+      maxPerPass: this.#config.offboardMaxPerPass,
       signal: this.#sweepAbort.signal,
     }).finally(() => {
       this.#sweep = undefined;
