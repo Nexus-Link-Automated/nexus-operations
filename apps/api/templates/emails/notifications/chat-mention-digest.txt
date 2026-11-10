@@ -1,0 +1,10 @@
+{% autoescape off %}{% if total == 1 %}You have an unread mention{% else %}You have {{ total }} unread mentions{% endif %}
+{% for mention in mentions %}
+{{ mention.sender }} mentioned you in {{ mention.place }} ({{ mention.workspace }}){% if mention.preview %}
+"{{ mention.preview }}"{% endif %}
+Open message: {{ mention.url }}
+{% endfor %}{% if more %}
+And {{ more }} more. You'll find them all in your inbox.
+{% endif %}
+This email was sent to {{ receiver_email }} because {% if total == 1 %}this mention was{% else %}these mentions were{% endif %} still unread. To stop these emails, turn off Mentions in your notification settings: {{ settings_url }}
+{% endautoescape %}

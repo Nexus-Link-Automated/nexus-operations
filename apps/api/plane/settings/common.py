@@ -177,6 +177,14 @@ if _agent_ttl_raw.isdecimal() and 0 < int(_agent_ttl_raw) <= 7 * 24 * 60:
 elif _agent_ttl_raw:
     _logger.warning("AGENT_SESSION_TOKEN_TTL_MINUTES: ignoring invalid value %r", _agent_ttl_raw)
 
+# Nexus Messages: how long an @mention stays unread before it is emailed in a digest (`plane.chat.digest`).
+_mention_delay_raw = os.environ.get("CHAT_MENTION_EMAIL_DELAY_MINUTES", "").strip()
+CHAT_MENTION_EMAIL_DELAY_MINUTES = 30
+if _mention_delay_raw.isdecimal() and 0 < int(_mention_delay_raw) <= 7 * 24 * 60:
+    CHAT_MENTION_EMAIL_DELAY_MINUTES = int(_mention_delay_raw)
+elif _mention_delay_raw:
+    _logger.warning("CHAT_MENTION_EMAIL_DELAY_MINUTES: ignoring invalid value %r", _mention_delay_raw)
+
 # Per-statement limit, in milliseconds, for requests that carry a PQL query (PQL can
 # force unindexed scans). 0 turns it off. Scoped to those requests, not the database:
 # stock views and Celery have legitimately long queries.
@@ -411,6 +419,8 @@ CELERY_IMPORTS = (
     "plane.bgtasks.issue_description_version_sync",
     # chat posts for work item state changes
     "plane.chat.project_feed",
+    # chat email digest of unread mentions
+    "plane.chat.digest",
 )
 
 FILE_SIZE_LIMIT = int(os.environ.get("FILE_SIZE_LIMIT", 5242880))

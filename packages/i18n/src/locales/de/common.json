@@ -117,7 +117,7 @@
   "comments": "Kommentare",
   "comments_description": "Benachrichtigen Sie mich, wenn jemand einen Kommentar zu einem Arbeitselement hinzufügt.",
   "mentions": "Erwähnungen",
-  "mentions_description": "Benachrichtigen Sie mich nur, wenn mich jemand in einem Kommentar oder in einer Beschreibung erwähnt.",
+  "mentions_description": "Benachrichtigen Sie mich nur, wenn mich jemand in einem Kommentar, einer Beschreibung oder einer Nachricht erwähnt.",
   "old_password": "Altes Passwort",
   "general_settings": "Allgemeine Einstellungen",
   "sign_out": "Abmelden",

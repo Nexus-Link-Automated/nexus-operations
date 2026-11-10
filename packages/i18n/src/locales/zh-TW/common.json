@@ -117,7 +117,7 @@
   "comments": "留言",
   "comments_description": "當有人在工作事項上留下留言時通知我",
   "mentions": "提及",
-  "mentions_description": "僅在有人在留言或描述中提及我時通知我",
+  "mentions_description": "僅在有人在留言、描述或訊息中提及我時通知我",
   "old_password": "舊密碼",
   "general_settings": "一般設定",
   "sign_out": "登出",

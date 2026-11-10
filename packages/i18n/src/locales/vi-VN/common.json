@@ -117,7 +117,7 @@
   "comments": "Bình luận",
   "comments_description": "Thông báo cho tôi khi ai đó bình luận về mục công việc",
   "mentions": "Đề cập",
-  "mentions_description": "Chỉ thông báo cho tôi khi ai đó đề cập đến tôi trong bình luận hoặc mô tả",
+  "mentions_description": "Chỉ thông báo cho tôi khi ai đó đề cập đến tôi trong bình luận, mô tả hoặc tin nhắn",
   "old_password": "Mật khẩu cũ",
   "general_settings": "Cài đặt chung",
   "sign_out": "Đăng xuất",

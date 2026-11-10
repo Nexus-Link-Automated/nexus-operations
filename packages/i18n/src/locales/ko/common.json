@@ -117,7 +117,7 @@
   "comments": "댓글",
   "comments_description": "작업 항목에 누군가 댓글을 남길 때 알림을 받습니다",
   "mentions": "멘션",
-  "mentions_description": "댓글이나 설명에서 누군가 나를 멘션할 때만 알림을 받습니다",
+  "mentions_description": "댓글, 설명 또는 메시지에서 누군가 나를 멘션할 때만 알림을 받습니다",
   "old_password": "기존 비밀번호",
   "general_settings": "일반 설정",
   "sign_out": "로그아웃",

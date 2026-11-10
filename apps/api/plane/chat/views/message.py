@@ -23,7 +23,7 @@ from plane.chat.attachments import attachments_for, claim_attachments, has_attac
 from plane.chat.events import EventType, message_event, publish_on_commit
 from plane.chat.exceptions import BadRequest, Conflict, Forbidden, NotFound
 from plane.chat.models import ChannelKind, Message, MessageReference
-from plane.chat.notifications import notify_mentions, refresh_mention_previews
+from plane.chat.notifications import message_url, notify_mentions, refresh_mention_previews
 from plane.chat.pagination import paginate_messages
 from plane.chat.references import references_for, sync_references, visible_work_item
 from plane.chat.permissions import is_channel_admin, require_channel_member, require_not_archived
@@ -193,8 +193,7 @@ class MessageWorkItemEndpoint(ChatBaseEndpoint):
         key = f"{issue.project.identifier}-{issue.sequence_id}"
         # The thread the message is in: its own, or for a reply its parent's. The link opens a reply in it.
         thread = message.parent or message
-        permalink = f"{base_host(request=request, is_app=True).rstrip('/')}/{slug}/messages/{channel.id}"
-        permalink += f"?message={thread.id}&reply={message.id}" if message.parent_id else f"?message={message.id}"
+        permalink = message_url(base_host(request=request, is_app=True), slug, message)
         # A private conversation's name doesn't belong on a work item that other people can read.
         link_title = (
             f"Message in #{channel.name}" if channel.kind == ChannelKind.PUBLIC else "Message in Nexus Messages"

@@ -10,6 +10,8 @@ exists. A channel set to "Nothing" gets no entry.
 
 The entry is a snapshot, so what the inbox lists is checked when it is read: an entry
 disappears once its message is removed or its receiver can no longer see the channel.
+
+Each entry is also queued for the email digest of mentions left unread (`plane.chat.digest`).
 """
 
 import uuid
@@ -18,7 +20,7 @@ from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 
 from plane.bgtasks.notification_task import get_new_comment_mentions
-from plane.chat.models import ChannelKind, ChannelMember, ChannelNotificationLevel, Message
+from plane.chat.models import ChannelKind, ChannelMember, ChannelNotificationLevel, Message, PendingMentionEmail
 from plane.chat.permissions import can_browse_public_channels
 from plane.db.models import Notification, WorkspaceMember
 from plane.utils.exception_logger import log_exception
@@ -86,6 +88,14 @@ def _data(message):
     }
 
 
+def message_url(base_url, workspace_slug, message):
+    """The link that opens `message` in the app: in its channel, or for a reply in its thread, highlighted."""
+    url = f"{base_url.rstrip('/')}/{workspace_slug}/messages/{message.channel_id}"
+    if message.parent_id:
+        return f"{url}?message={message.parent_id}&reply={message.id}"
+    return f"{url}?message={message.id}"
+
+
 def _notify(message, previous_html):
     mentioned = _user_ids(get_new_comment_mentions(message.body_html, previous_html))
     if not mentioned:
@@ -94,7 +104,7 @@ def _notify(message, previous_html):
     actor_name = message.sender.display_name if message.sender else message.sender_agent
     title = f"{actor_name} mentioned you in a message"
     data = _data(message)
-    Notification.objects.bulk_create(
+    entries = Notification.objects.bulk_create(
         [
             Notification(
                 workspace_id=message.workspace_id,
@@ -107,6 +117,13 @@ def _notify(message, previous_html):
                 data=data,
             )
             for receiver_id in _recipients(message, mentioned - already_notified)
+        ],
+        batch_size=100,
+    )
+    PendingMentionEmail.objects.bulk_create(
+        [
+            PendingMentionEmail(notification_id=entry.id, receiver_id=entry.receiver_id, message_id=message.id)
+            for entry in entries
         ],
         batch_size=100,
     )
