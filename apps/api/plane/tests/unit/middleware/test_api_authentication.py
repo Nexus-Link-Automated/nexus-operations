@@ -12,10 +12,13 @@ Covers the access-control guarantees of the external API key authentication:
   a previously generated API key)
 """
 
+from datetime import timedelta
+
 import pytest
+from django.utils import timezone
 from rest_framework.exceptions import AuthenticationFailed
 
-from plane.api.middleware.api_authentication import APIKeyAuthentication
+from plane.api.middleware.api_authentication import LAST_USED_WRITE_INTERVAL, APIKeyAuthentication
 from plane.db.models import APIToken
 
 
@@ -44,6 +47,42 @@ class TestAPIKeyAuthentication:
 
         with pytest.raises(AuthenticationFailed):
             APIKeyAuthentication().validate_api_token(token.token)
+
+
+@pytest.mark.unit
+class TestAPIKeyLastUsed:
+    """``last_used`` is written at most about once a minute per token."""
+
+    @pytest.mark.django_db
+    def test_first_use_is_recorded(self, create_user):
+        token = APIToken.objects.create(user=create_user, token="first-use-token")
+
+        APIKeyAuthentication().validate_api_token(token.token)
+
+        token.refresh_from_db()
+        assert token.last_used is not None
+
+    @pytest.mark.django_db
+    def test_recent_use_is_not_rewritten(self, create_user, django_assert_num_queries):
+        recent = timezone.now() - timedelta(seconds=10)
+        token = APIToken.objects.create(user=create_user, token="recent-use-token", last_used=recent)
+
+        # Only the token lookup; no UPDATE.
+        with django_assert_num_queries(1):
+            APIKeyAuthentication().validate_api_token(token.token)
+
+        token.refresh_from_db()
+        assert token.last_used == recent
+
+    @pytest.mark.django_db
+    def test_stale_use_is_refreshed(self, create_user):
+        stale = timezone.now() - LAST_USED_WRITE_INTERVAL - timedelta(seconds=1)
+        token = APIToken.objects.create(user=create_user, token="stale-use-token", last_used=stale)
+
+        APIKeyAuthentication().validate_api_token(token.token)
+
+        token.refresh_from_db()
+        assert token.last_used > stale
 
 
 @pytest.mark.unit
