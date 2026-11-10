@@ -210,7 +210,7 @@ const agent = (id: string, name: string) => ({
 describe("ChatComposer agent mentions", () => {
   it("lists the channel's agents the user may mention, tagged, before the people", () => {
     const getMentionableAgents = vi.fn(() => [agent("maia", "Maia"), agent("scout", "Scout")]);
-    mocks.chat = { uploadAttachment: vi.fn(), deleteAttachment: vi.fn(), getMentionableAgents };
+    mocks.chat = { ...mocks.chat, getMentionableAgents };
     renderComposer();
     const [section] = mocks.editorProps.extraMentionSections!("ma") as {
       key: string;
@@ -233,7 +233,7 @@ describe("ChatComposer agent mentions", () => {
   });
 
   it("lists none when there are none to mention (a guest, a DM, a channel without agents)", () => {
-    mocks.chat = { uploadAttachment: vi.fn(), deleteAttachment: vi.fn(), getMentionableAgents: () => [] };
+    mocks.chat = { ...mocks.chat, getMentionableAgents: () => [] };
     renderComposer();
     expect(mocks.editorProps.extraMentionSections!("ma")).toEqual([]);
   });
