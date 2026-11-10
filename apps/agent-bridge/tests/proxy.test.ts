@@ -110,6 +110,21 @@ describe("permission-level cap", () => {
     expect(modes).toEqual(["ask_writes", "ask_writes", "ask_all"]);
   });
 
+  it("clamps the mode a session/load asks for, as it does for session/new", async () => {
+    const { client, agent } = await ready({
+      agent: { default_permission_level: "ask_all", max_permission_level: "ask_writes" },
+    });
+    const load = (meta?: Record<string, unknown>) =>
+      client.request("session/load", { sessionId: "s", cwd: "/", mcpServers: [], ...(meta ? { _meta: meta } : {}) });
+    await load({ "plane/initialModeId": "yolo" });
+    await load({ "plane/initialModeId": "ask_all" });
+    await load();
+    const modes = agent.received
+      .filter((m) => m.method === "session/load")
+      .map((m) => (m.params!._meta as Record<string, unknown>)["plane/initialModeId"]);
+    expect(modes).toEqual(["ask_writes", "ask_all", "ask_all"]);
+  });
+
   it("rejects set_mode above the maximum without forwarding it", async () => {
     const { client, agent } = await ready({ agent: { max_permission_level: "ask_writes" } });
     const above = await client.request("session/set_mode", { sessionId: "fake-session-1", modeId: "yolo" });

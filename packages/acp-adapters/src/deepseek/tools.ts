@@ -52,6 +52,8 @@ const MAX_GLOB_RESULTS = 500;
 const MAX_GREP_MATCHES = 200;
 const DEFAULT_BASH_TIMEOUT_MS = 120_000;
 const MAX_BASH_TIMEOUT_MS = 600_000;
+/** After a command's shell has gone, how long to keep reading output that is still in flight. */
+const OUTPUT_DRAIN_MS = 200;
 const FETCH_TIMEOUT_MS = 30_000;
 const SKIP_DIRS = /(^|\/)(node_modules|\.git)(\/|$)/;
 
@@ -72,6 +74,24 @@ function fileLocation(input: JsonObject, cwd: string): ToolCallLocation[] {
 
 const fileTarget = (input: JsonObject): FileTarget[] => [{ path: stringValue(input.path) }];
 
+/**
+ * Process groups of the commands still running. Each is outside the agent's own group, so the
+ * runner's signal to that group no longer reaches them when the agent is stopped.
+ */
+const runningGroups = new Set<number>();
+
+function killGroup(group: number): void {
+  try {
+    process.kill(-group, "SIGKILL");
+  } catch {
+    // The whole group has already exited.
+  }
+}
+
+process.on("exit", () => {
+  for (const group of runningGroups) killGroup(group);
+});
+
 const bash: BuiltinTool = {
   name: "bash",
   description:
@@ -89,33 +109,70 @@ const bash: BuiltinTool = {
   },
   category: () => "execute",
   title: (input) => `Run: ${stringValue(input.command).slice(0, 120)}`,
-  run: (input, { cwd, env, signal }) =>
-    new Promise<ToolResult>((resolve) => {
-      const command = stringValue(input.command);
-      if (!command) {
-        resolve({ text: "command is required", isError: true });
-        return;
-      }
-      const timeout = Math.min(numberValue(input.timeout_ms) ?? DEFAULT_BASH_TIMEOUT_MS, MAX_BASH_TIMEOUT_MS);
-      const child = spawn("bash", ["-c", command], {
-        cwd,
-        env,
-        signal,
-        timeout,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+  async run(input, { cwd, env, signal }) {
+    const command = stringValue(input.command);
+    if (!command) return { text: "command is required", isError: true };
+    if (signal.aborted) return { text: "cancelled", isError: true };
+    const requested = numberValue(input.timeout_ms);
+    const timeout = Math.min(requested && requested > 0 ? requested : DEFAULT_BASH_TIMEOUT_MS, MAX_BASH_TIMEOUT_MS);
+    return new Promise<ToolResult>((resolve) => {
+      // Its own process group, so a timeout or cancel reaches everything the command started.
+      const child = spawn("bash", ["-c", command], { cwd, env, detached: true, stdio: ["ignore", "pipe", "pipe"] });
+      const group = child.pid;
+      if (group !== undefined) runningGroups.add(group);
+
       let output = "";
+      let stopped: string | undefined;
+      let exited: { code: number | null; killedBy: NodeJS.Signals | null } | undefined;
+      let draining = false;
+
+      // Runs again when "close" follows a report made after the drain; every step is a no-op then.
+      const cleanUp = () => {
+        clearTimeout(timer);
+        signal.removeEventListener("abort", onAbort);
+        if (group !== undefined) runningGroups.delete(group);
+        child.stdout.destroy();
+        child.stderr.destroy();
+      };
+      const finish = (result: ToolResult) => {
+        cleanUp();
+        resolve(result);
+      };
+      const report = () => {
+        const status = stopped ?? (exited?.killedBy ? `killed by ${exited.killedBy}` : `exit code ${exited?.code}`);
+        finish({ text: truncate(`${status}\n${output}`), isError: stopped !== undefined || exited?.code !== 0 });
+      };
+      // A process that left the group can hold the pipes open for as long as it runs, so "close" may never come.
+      const drainThenReport = () => {
+        if (draining) return;
+        draining = true;
+        clearTimeout(timer);
+        // oxlint-disable-next-line promise/no-multiple-resolved -- schedules a report, which resolves once
+        timer = setTimeout(report, OUTPUT_DRAIN_MS);
+      };
+      const stop = (reason: string) => {
+        if (stopped || exited) return;
+        stopped = reason;
+        if (group !== undefined) killGroup(group);
+        drainThenReport();
+      };
+      const onAbort = () => stop("cancelled");
+      let timer = setTimeout(() => stop(`timed out after ${timeout} ms`), timeout);
+      signal.addEventListener("abort", onAbort, { once: true });
+
       const append = (chunk: Buffer) => {
         if (output.length < MAX_OUTPUT_CHARS * 2) output += chunk.toString("utf8");
       };
       child.stdout.on("data", append);
       child.stderr.on("data", append);
-      child.on("error", (error) => resolve({ text: `failed to run: ${error.message}`, isError: true }));
-      child.on("close", (code, killedBy) => {
-        const status = killedBy ? `killed by ${killedBy}` : `exit code ${code}`;
-        resolve({ text: truncate(`${status}\n${output}`), isError: code !== 0 });
+      child.on("error", (error) => finish({ text: `failed to run: ${error.message}`, isError: true }));
+      child.on("exit", (code, killedBy) => {
+        exited = { code, killedBy };
+        drainThenReport();
       });
-    }),
+      child.on("close", report);
+    });
+  },
 };
 
 const read: BuiltinTool = {

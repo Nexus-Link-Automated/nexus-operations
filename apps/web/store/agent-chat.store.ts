@@ -147,7 +147,7 @@ const defaultSessionFactory: TAgentChatSessionFactory = async ({ agentId, worksp
 
 /**
  * The in-app agent chat. One chat (one ACP connection) at a time: the bridge caps open chats per
- * user, so switching agents or leaving the page closes the previous one.
+ * user, so switching agents, leaving the workspace or signing out closes the previous one.
  *
  * The protocol work lives in `@plane/acp-client`'s `AgentChatSession`; this store mirrors its
  * snapshots into MobX and turns its errors into UI state.
@@ -227,13 +227,14 @@ export class AgentChatStore implements IAgentChatStore {
   }
 
   get isConnecting(): boolean {
-    if (this.opening) return true;
+    if (this.opening || this.snapshot?.loading) return true;
     const status = this.snapshot?.status;
     return status === "connecting" || status === "reconnecting";
   }
 
   get canPrompt(): boolean {
-    return this.snapshot?.status === "ready" && !!this.snapshot.sessionId && !this.snapshot.prompting;
+    const snapshot = this.snapshot;
+    return snapshot?.status === "ready" && !!snapshot.sessionId && !snapshot.prompting && !snapshot.loading;
   }
 
   get supportsLoad(): boolean {
@@ -260,6 +261,12 @@ export class AgentChatStore implements IAgentChatStore {
     const reported = this.session?.choices ?? {};
     if (reported.initialModel || !this.workspaceSlug || !this.agentId) return reported;
     return toSessionChoices(this.choices.recall(this.workspaceSlug, this.agentId));
+  }
+
+  /** Keeps the permission level, model and effort the user picked when the chat moves to another session. */
+  private sameChoices(): LoadSessionOptions {
+    const modeId = this.snapshot?.transcript.modes?.currentModeId;
+    return { ...this.currentChoices(), ...(modeId ? { initialModeId: modeId } : {}) };
   }
 
   /** Remember the current model and effort for this agent, so its next chat starts on them. */
@@ -322,7 +329,12 @@ export class AgentChatStore implements IAgentChatStore {
       this.session = session;
       this.unsubscribe = session.subscribe((snapshot) => {
         runInAction(() => {
-          if (this.session === session) this.snapshot = snapshot;
+          if (this.session !== session) return;
+          // A reconnect the session started by itself has no caller to report its failure to.
+          if (snapshot.reconnectError && snapshot.reconnectError !== this.snapshot?.reconnectError) {
+            this.setError(snapshot.reconnectError, "reconnect");
+          }
+          this.snapshot = snapshot;
         });
       });
       this.snapshot = session.snapshot;
@@ -355,10 +367,10 @@ export class AgentChatStore implements IAgentChatStore {
     const session = this.session;
     if (!session) return;
     this.error = null;
-    // Keep the permission level, model and effort the user picked for this chat.
-    const modeId = this.snapshot?.transcript.modes?.currentModeId;
     try {
-      await session.newSession({ ...this.currentChoices(), ...(modeId ? { initialModeId: modeId } : {}) });
+      // The way forward from a chat that could not be resumed, whose connection is gone.
+      if (this.snapshot?.status === "closed") await session.connect();
+      await session.newSession(this.sameChoices());
       if (session.supportsList) void this.fetchSessions();
     } catch (error) {
       this.setError(error, "new_session");
@@ -370,7 +382,7 @@ export class AgentChatStore implements IAgentChatStore {
     if (!session) return;
     this.error = null;
     try {
-      await session.loadSession(sessionId, this.currentChoices());
+      await session.loadSession(sessionId, this.sameChoices());
     } catch (error) {
       this.setError(error, "load_session");
     }

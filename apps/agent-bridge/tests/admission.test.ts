@@ -4,6 +4,8 @@
  * See the LICENSE file for details.
  */
 
+import { connect } from "node:net";
+
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createPlaneApi } from "../src/plane-api.ts";
@@ -132,6 +134,40 @@ describe("admission", () => {
     expect(await client.closed()).toBe(CloseCode.agentUnavailable);
     await waitUntil(() => harness!.api.revoked.length === 1);
     expect(harness.api.revoked).toEqual([harness.api.minted[0]!.tokenId]);
+  });
+
+  it("gives back the slot and the token when the WebSocket handshake fails after admission", async () => {
+    harness = await startHarness({ config: { maxConnectionsPerUser: 1 } });
+    const { hostname, port } = new URL(harness.baseUrl);
+    const socket = connect(Number(port), hostname);
+    const response = new Promise<string>((resolve) => {
+      let received = "";
+      socket.on("data", (chunk) => (received += chunk.toString("utf8")));
+      socket.on("close", () => resolve(received));
+    });
+    socket.write(
+      [
+        `GET /agents/acp?agent=${AGENT_ID}&workspace=${WORKSPACE_SLUG} HTTP/1.1`,
+        `Host: ${hostname}:${port}`,
+        "Connection: Upgrade",
+        "Upgrade: websocket",
+        "Sec-WebSocket-Version: 13",
+        "Sec-WebSocket-Key: not-a-valid-key",
+        `Cookie: ${USER_COOKIE}`,
+        `Origin: ${ORIGIN}`,
+        "\r\n",
+      ].join("\r\n")
+    );
+
+    expect(await response).toContain("400");
+    expect(harness.api.minted).toHaveLength(1);
+    await waitUntil(() => harness!.api.revoked.length === 1);
+    expect(harness.api.revoked).toEqual([harness.api.minted[0]!.tokenId]);
+    expect(harness.transport.agents[0]!.closed).toBe(true);
+    expect(harness.log.text()).toContain("websocket handshake failed");
+    // The only slot this member has is free again.
+    const client = await harness.open();
+    expect((await initialize(client)).result).toBeDefined();
   });
 
   it("never logs the token, the agent env or the cookie", async () => {

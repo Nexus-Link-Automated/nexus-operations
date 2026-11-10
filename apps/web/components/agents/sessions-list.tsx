@@ -18,7 +18,7 @@ export const AgentSessionsList = observer(function AgentSessionsList() {
   const { t } = useTranslation();
   const { sessions, sessionsLoading, supportsLoad, snapshot, fetchSessions, loadSession } = useAgentChat();
   const currentId = snapshot?.sessionId;
-  const disabled = snapshot?.status !== "ready" || !!snapshot?.prompting;
+  const disabled = snapshot?.status !== "ready" || !!snapshot?.prompting || !!snapshot?.loading;
 
   return (
     <section aria-labelledby="agent-sessions-title" className="flex min-h-0 flex-col gap-2">

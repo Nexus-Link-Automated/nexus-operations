@@ -198,7 +198,14 @@ export class AgentBridge {
       return;
     }
 
+    // `ws` answers a handshake it rejects by itself and never runs the callback, and the admission
+    // would then be held for good. The callback runs synchronously, before the socket can close.
+    const abandon = () => {
+      if (admission.ok) this.#discard(admission, "websocket handshake failed");
+    };
+    socket.once("close", abandon);
     this.#wss.handleUpgrade(req, socket, head, (ws) => {
+      socket.off("close", abandon);
       // `ws` reports a bad frame as an `error` event, which ends the process if nothing listens. This
       // listener has to stay for the socket's whole life: the SDK drops its own when a session closes.
       ws.on("error", (error) => this.#log.warn("agent-bridge: websocket error", { error: error.message }));

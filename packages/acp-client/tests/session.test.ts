@@ -276,17 +276,28 @@ describe("AgentChatSession: modes and models", () => {
     await waitFor(session, (snapshot) => snapshot.status === "reconnecting");
     await waitFor(session, (snapshot) => snapshot.status === "ready");
     expect(fake.log.loadRequests.at(-1)?._meta).toEqual({
+      "plane/initialModeId": "ask_writes",
       "plane/initialModel": "smart",
       "plane/initialEffort": "high",
     });
     expect(effortOption(session.snapshot.transcript)?.currentValue).toBe("high");
 
-    // A failed load empties the transcript, but not the choices a new chat starts on.
+    // A failed load leaves the chat, and the choices a new chat starts on.
     await expect(session.loadSession("missing")).rejects.toBeInstanceOf(AgentRequestError);
-    expect(modelOption(session.snapshot.transcript)).toBeUndefined();
+    expect(modelOption(session.snapshot.transcript)?.currentValue).toBe("smart");
     expect(session.choices).toEqual({ initialModel: "smart", initialEffort: "high" });
     await session.newSession(session.choices);
     expect(effortOption(session.snapshot.transcript)?.currentValue).toBe("high");
+  });
+
+  it("keeps the chosen permission level across a reconnect", async () => {
+    const { session, fake, current } = await ready();
+    await session.setMode("ask_all");
+    current().closeWith(AgentCloseCode.sessionExpired);
+    await waitFor(session, (snapshot) => snapshot.status === "reconnecting");
+    await waitFor(session, (snapshot) => snapshot.status === "ready");
+    expect(fake.log.loadRequests.at(-1)?._meta?.["plane/initialModeId"]).toBe("ask_all");
+    expect(session.snapshot.transcript.modes?.currentModeId).toBe("ask_all");
   });
 
   it("starts a session on the requested model and effort, and keeps them across a reconnect", async () => {
@@ -332,6 +343,46 @@ describe("AgentChatSession: close codes and reconnects", () => {
     ]);
     // The resumed session keeps working.
     expect(await session.prompt("again")).toBe("end_turn");
+  });
+
+  it("keeps the chat when a load fails, and goes on working", async () => {
+    const { session } = await ready();
+    const sessionId = session.snapshot.sessionId;
+    await session.prompt("hello");
+    const before = summary(session.snapshot.transcript.items);
+    const seen: AgentChatSnapshot[] = [];
+    session.subscribe((snapshot) => seen.push(snapshot));
+
+    await expect(session.loadSession("missing")).rejects.toBeInstanceOf(AgentRequestError);
+
+    for (const snapshot of seen) expect(summary(snapshot.transcript.items)).toEqual(before);
+    expect(session.snapshot.sessionId).toBe(sessionId);
+    expect(session.snapshot.loading).toBe(false);
+    expect(await session.prompt("again")).toBe("end_turn");
+  });
+
+  it("keeps the transcript through a failed automatic reconnect, reports it and can retry", async () => {
+    const { session, fake, transports, current } = await ready();
+    const sessionId = session.snapshot.sessionId!;
+    await session.prompt("hello");
+    const before = summary(session.snapshot.transcript.items);
+    const stored = fake.sessions.get(sessionId)!;
+    fake.sessions.delete(sessionId);
+
+    current().closeWith(AgentCloseCode.sessionExpired);
+    await waitFor(session, (snapshot) => snapshot.status === "closed" && snapshot.reconnectError !== null);
+
+    expect(session.snapshot.reconnectError).toBeInstanceOf(AgentRequestError);
+    expect(session.snapshot.sessionId).toBe(sessionId);
+    expect(summary(session.snapshot.transcript.items)).toEqual(before);
+    // The second socket does not stay open behind a chat that shows as closed.
+    await transports[1]!.closed;
+
+    fake.sessions.set(sessionId, stored);
+    expect(await session.reconnect()).toEqual({ resumed: true });
+    expect(session.snapshot.status).toBe("ready");
+    expect(session.snapshot.reconnectError).toBeNull();
+    expect(summary(session.snapshot.transcript.items)).toEqual(before);
   });
 
   it("fails an in-flight turn on 4410, then resumes", async () => {
@@ -473,10 +524,11 @@ describe("AgentChatSession: coalesced snapshots", () => {
 
     await session.loadSession(sessionId);
 
-    // The reset, then the finished replay.
+    // The load starting, then the finished replay.
     expect(snapshots).toHaveLength(2);
-    expect(snapshots[0]!.transcript.items).toEqual([]);
+    expect(snapshots[0]!.loading).toBe(true);
     expect(summary(snapshots[1]!.transcript.items)).toEqual(before);
+    expect(snapshots[1]!.loading).toBe(false);
   });
 
   it("records a model reported by a streamed update before the update is published", async () => {

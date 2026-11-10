@@ -55,7 +55,8 @@ export const KhaiaWidget = observer(function KhaiaWidget({ workspaceSlug }: Prop
   useSWR(canUseAgents ? `WORKSPACE_AGENTS_${workspaceSlug}` : null, () => fetchAgents(workspaceSlug));
 
   const agents = store.getWorkspaceAgents(workspaceSlug);
-  const hidden = !canUseAgents || isAgentsPage(pathname, workspaceSlug) || !agents?.length;
+  const onAgentsPage = isAgentsPage(pathname, workspaceSlug);
+  const hidden = !canUseAgents || onAgentsPage || !agents?.length;
   const hasChat = store.workspaceSlug === workspaceSlug && !!store.agentId;
   const items = store.workspaceSlug === workspaceSlug ? (store.snapshot?.transcript.items.length ?? 0) : 0;
   const waitingOnPermission = !!store.snapshot?.permissions.length;
@@ -63,11 +64,11 @@ export const KhaiaWidget = observer(function KhaiaWidget({ workspaceSlug }: Prop
   // Replies that arrive while minimized light a dot on the bubble, as does a pending permission prompt.
   const [seenItems, setSeenItems] = useState(items);
   useEffect(() => {
-    if (open && !hidden) setSeenItems(items);
-  }, [open, hidden, items]);
+    if (onAgentsPage || (open && !hidden)) setSeenItems(items);
+  }, [onAgentsPage, open, hidden, items]);
   const unread = !open && hasChat && (items > seenItems || waitingOnPermission);
 
-  // Open a chat the first time the window opens, or again after the full page closed it.
+  // Open a chat the first time the window opens, unless the full page already did.
   useEffect(() => {
     if (!open || hidden || hasChat || !agents?.length) return;
     const initial = pickInitialAgent(agents, recallAgent(workspaceSlug));
@@ -80,7 +81,8 @@ export const KhaiaWidget = observer(function KhaiaWidget({ workspaceSlug }: Prop
     launcherRef.current?.focus();
   }, [open]);
 
-  // Leaving the workspace ends its chat: the bridge caps open chats per member.
+  // Only this widget ends the chat, as it outlives the full page: leaving the workspace closes
+  // the socket, since the bridge caps open chats per member. Signing out closes it in the root store.
   useEffect(
     () => () => {
       if (store.workspaceSlug === workspaceSlug) closeChat();

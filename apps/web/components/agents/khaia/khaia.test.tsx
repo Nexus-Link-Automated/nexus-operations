@@ -6,13 +6,14 @@
 
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useNavigate } from "react-router";
 import { SWRConfig } from "swr";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentChatSession } from "@plane/acp-client";
-import { createFakeAgent, memoryTransport } from "@plane/acp-client/testing";
+import { AgentChatSession, AgentCloseCode } from "@plane/acp-client";
+import { createFakeAgent, memoryTransport, type MemoryTransport } from "@plane/acp-client/testing";
 import type { TWorkspaceAgent } from "@plane/types";
 import { AgentChatStore } from "@/store/agent-chat.store";
+import { AgentChatRoot } from "../root";
 import { isAgentsPage, KhaiaWidget } from "./root";
 
 const AGENTS: TWorkspaceAgent[] = [
@@ -64,14 +65,21 @@ function setup(agents: TWorkspaceAgent[] = AGENTS) {
   const fake = createFakeAgent({ maxMode: "ask_writes" });
   const targets: { agentId: string; workspaceSlug: string }[] = [];
   const list = vi.fn(async () => agents);
+  const transports: MemoryTransport[] = [];
   store = new AgentChatStore({
     agentService: { list },
     createSession: (target) => {
       targets.push(target);
-      return new AgentChatSession({ transport: () => memoryTransport(fake.app()) });
+      return new AgentChatSession({
+        transport: () => {
+          const transport = memoryTransport(fake.app());
+          transports.push(transport);
+          return transport;
+        },
+      });
     },
   });
-  return { targets, list };
+  return { targets, list, fake, transports };
 }
 
 function renderWidget(path = "/acme/projects/") {
@@ -89,6 +97,112 @@ beforeEach(() => {
   canUseAgents = true;
 });
 afterEach(() => store?.closeChat());
+
+let navigate: (to: string) => void = () => undefined;
+function Navigation() {
+  navigate = useNavigate();
+  return null;
+}
+
+describe("chat lifecycle", () => {
+  function renderWithNavigation(path: string, workspaceSlug = "acme") {
+    const tree = (slug: string) => (
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <MemoryRouter initialEntries={[path]}>
+          <Navigation />
+          <KhaiaWidget workspaceSlug={slug} />
+        </MemoryRouter>
+      </SWRConfig>
+    );
+    const view = render(tree(workspaceSlug));
+    return {
+      ...view,
+      go: (to: string) => act(() => navigate(to)),
+      switchTo: (slug: string) => view.rerender(tree(slug)),
+    };
+  }
+
+  it("keeps the chat when the full page is left", async () => {
+    setup();
+    const { unmount } = render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <MemoryRouter initialEntries={["/acme/agents/"]}>
+          <AgentChatRoot workspaceSlug="acme" />
+        </MemoryRouter>
+      </SWRConfig>
+    );
+    await waitFor(() => expect(store.snapshot?.status).toBe("ready"));
+    const sessionId = store.snapshot?.sessionId;
+    expect(sessionId).toBeTruthy();
+
+    unmount();
+
+    expect(store.snapshot?.status).toBe("ready");
+    expect(store.snapshot?.sessionId).toBe(sessionId);
+    expect(store.agentId).toBe("agent-1");
+  });
+
+  it("keeps the conversation and offers a retry or a new chat when it cannot be resumed", async () => {
+    const { fake, transports } = setup();
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <MemoryRouter initialEntries={["/acme/agents/"]}>
+          <AgentChatRoot workspaceSlug="acme" />
+        </MemoryRouter>
+      </SWRConfig>
+    );
+    await waitFor(() => expect(store.snapshot?.status).toBe("ready"));
+    await act(() => store.sendPrompt("hello"));
+    const sessionId = store.snapshot!.sessionId!;
+    fake.sessions.delete(sessionId);
+
+    act(() => transports.at(-1)!.closeWith(AgentCloseCode.sessionExpired));
+
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(store.snapshot?.transcript.items.length).toBeGreaterThan(0);
+    await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+    await waitFor(() => expect(store.snapshot?.status).toBe("ready"));
+    expect(store.snapshot?.sessionId).not.toBe(sessionId);
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+
+  it("closes the chat when the widget leaves its workspace", async () => {
+    setup();
+    await store.openChat("acme", "agent-1");
+    const { unmount } = renderWidget();
+    await waitFor(() => expect(store.getWorkspaceAgents("acme")).toEqual(AGENTS));
+    expect(store.snapshot).not.toBeNull();
+
+    unmount();
+
+    expect(store.snapshot).toBeNull();
+  });
+
+  it("closes the chat when the workspace changes under the widget", async () => {
+    setup();
+    await store.openChat("acme", "agent-1");
+    const { switchTo } = renderWithNavigation("/acme/projects/");
+    await waitFor(() => expect(store.getWorkspaceAgents("acme")).toEqual(AGENTS));
+
+    switchTo("other");
+
+    expect(store.snapshot).toBeNull();
+    expect(store.agentId).toBeNull();
+  });
+
+  it("does not flag replies already seen on the full page as new", async () => {
+    setup();
+    await store.openChat("acme", "agent-1");
+    await store.sendPrompt("hello");
+    const { go } = renderWithNavigation("/acme/agents/");
+    await waitFor(() => expect(store.getWorkspaceAgents("acme")).toEqual(AGENTS));
+
+    go("/acme/projects/");
+
+    expect(await screen.findByRole("button", { name: OPEN })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: UNREAD })).toBeNull();
+  });
+});
 
 describe("isAgentsPage", () => {
   it("matches the full chat page of the same workspace only", () => {
