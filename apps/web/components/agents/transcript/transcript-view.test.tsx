@@ -8,6 +8,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { applySessionUpdate, createTranscript } from "@plane/acp-client";
 import type { PendingPermission, TranscriptState } from "@plane/acp-client";
+import { fireEvent } from "@testing-library/react";
 import { formatJson } from "../helpers";
 import { TranscriptView } from "./transcript-view";
 
@@ -39,6 +40,8 @@ const TOOL_CALL: TUpdate = {
   status: "pending",
   rawInput: { command: "ls" },
 };
+
+const box = (top: number, height: number) => ({ top, bottom: top + height }) as DOMRect;
 
 const apply = (updates: TUpdate[], from = createTranscript()): TranscriptState =>
   updates.reduce(applySessionUpdate, from);
@@ -72,6 +75,54 @@ describe("TranscriptView", () => {
     expect(screen.getByText("Second")).toBeTruthy();
     expect(markdownRenders.mock.calls).toEqual([["Second"]]);
     expect(formatJson).not.toHaveBeenCalled();
+  });
+
+  describe("an approval prompt out of view", () => {
+    const permission: PendingPermission = {
+      id: "perm-1",
+      sessionId: "s1",
+      toolCall: { toolCallId: "t1", title: "Run ls" },
+      options: [{ optionId: "allow_once", name: "Allow once", kind: "allow_once" }],
+    };
+    // The transcript shows 0-300px; the prompt sits wherever `promptTop` says.
+    let promptTop = 0;
+    beforeEach(() => {
+      const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+      rect.mockImplementation(function (this: HTMLElement) {
+        return this.matches("[data-permission-prompt]") ? box(promptTop, 80) : box(0, 300);
+      });
+      return () => rect.mockRestore();
+    });
+    const banner = () => screen.queryByRole("button", { name: /Approval needed/ });
+
+    it("gets a banner that jumps to it, until it is in view", () => {
+      promptTop = 900;
+      render(view(apply([TOOL_CALL]), [permission]));
+      // jsdom does not scroll.
+      const prompt = screen.getByRole("group", { name: "Allow this action?" });
+      const scrollIntoView = vi.fn();
+      prompt.scrollIntoView = scrollIntoView;
+
+      fireEvent.click(banner()!);
+      expect(scrollIntoView).toHaveBeenCalledOnce();
+      expect(document.activeElement).toBe(prompt);
+
+      promptTop = 100;
+      fireEvent.scroll(screen.getByRole("log"));
+      expect(banner()).toBeNull();
+    });
+
+    it("gets no banner while it is in view, or once it is answered", () => {
+      promptTop = 100;
+      const { rerender } = render(view(apply([TOOL_CALL]), [permission]));
+      expect(banner()).toBeNull();
+
+      promptTop = -200;
+      fireEvent.scroll(screen.getByRole("log"));
+      expect(banner()).toBeTruthy();
+      rerender(view(apply([TOOL_CALL])));
+      expect(banner()).toBeNull();
+    });
   });
 
   it("re-renders a tool card when its permission prompt arrives", async () => {

@@ -70,6 +70,8 @@
       "thinking": "Đang suy nghĩ",
       "thought": "Suy nghĩ",
       "attachment": "Tệp đính kèm",
+      "approval_needed": "Cần phê duyệt",
+      "go_to_approval": "Đi tới yêu cầu",
       "turn_end": {
         "cancelled": "Đã dừng.",
         "max_tokens": "Tác nhân đã đạt giới hạn đầu ra.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "Mở {name}",
       "unread": "Mở {name} (hoạt động mới)",
+      "approval_needed": "Mở {name} (cần phê duyệt)",
+      "needs_approval": "{name} đang chờ bạn phê duyệt",
       "minimize": "Thu nhỏ",
       "open_page": "Mở toàn trang",
       "greeting": "Xin chào, tôi là {name}",

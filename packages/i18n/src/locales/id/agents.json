@@ -70,6 +70,8 @@
       "thinking": "Sedang berpikir",
       "thought": "Pemikiran",
       "attachment": "Lampiran",
+      "approval_needed": "Perlu persetujuan",
+      "go_to_approval": "Buka permintaan",
       "turn_end": {
         "cancelled": "Dihentikan.",
         "max_tokens": "Agen telah mencapai batas output.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "Buka {name}",
       "unread": "Buka {name} (aktivitas baru)",
+      "approval_needed": "Buka {name} (perlu persetujuan)",
+      "needs_approval": "{name} memerlukan persetujuan Anda",
       "minimize": "Perkecil",
       "open_page": "Buka dalam satu halaman penuh",
       "greeting": "Halo, saya {name}",

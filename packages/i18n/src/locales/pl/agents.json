@@ -70,6 +70,8 @@
       "thinking": "Myślenie",
       "thought": "Przemyślenia",
       "attachment": "Załącznik",
+      "approval_needed": "Wymagana zgoda",
+      "go_to_approval": "Przejdź do prośby",
       "turn_end": {
         "cancelled": "Zatrzymano.",
         "max_tokens": "Agent osiągnął limit danych wyjściowych.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "Otwórz {name}",
       "unread": "Otwórz {name} (nowa aktywność)",
+      "approval_needed": "Otwórz {name} (wymagana zgoda)",
+      "needs_approval": "{name} czeka na zgodę",
       "minimize": "Minimalizuj",
       "open_page": "Otwórz na całej stronie",
       "greeting": "Dzień dobry, jestem {name}",

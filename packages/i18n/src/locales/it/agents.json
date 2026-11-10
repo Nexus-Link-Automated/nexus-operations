@@ -70,6 +70,8 @@
       "thinking": "Ragionamento in corso",
       "thought": "Ragionamento",
       "attachment": "Allegato",
+      "approval_needed": "Approvazione necessaria",
+      "go_to_approval": "Vai alla richiesta",
       "turn_end": {
         "cancelled": "Interrotto.",
         "max_tokens": "L'agente ha raggiunto il limite di output.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "Apri {name}",
       "unread": "Apri {name} (nuova attività)",
+      "approval_needed": "Apri {name} (approvazione necessaria)",
+      "needs_approval": "{name} attende la Sua approvazione",
       "minimize": "Riduci a icona",
       "open_page": "Apri a pagina intera",
       "greeting": "Buongiorno, sono {name}",

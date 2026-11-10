@@ -70,6 +70,8 @@
       "thinking": "思考中",
       "thought": "思考過程",
       "attachment": "附件",
+      "approval_needed": "需要核准",
+      "go_to_approval": "前往要求",
       "turn_end": {
         "cancelled": "已停止。",
         "max_tokens": "代理已達到輸出上限。",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "開啟 {name}",
       "unread": "開啟 {name}（有新動態）",
+      "approval_needed": "開啟 {name}（需要核准）",
+      "needs_approval": "{name} 正在等待您的核准",
       "minimize": "最小化",
       "open_page": "在完整頁面中開啟",
       "greeting": "您好，我是 {name}",

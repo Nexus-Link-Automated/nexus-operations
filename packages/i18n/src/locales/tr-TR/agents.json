@@ -70,6 +70,8 @@
       "thinking": "Düşünüyor",
       "thought": "Düşünce",
       "attachment": "Ek",
+      "approval_needed": "Onay gerekiyor",
+      "go_to_approval": "İsteğe git",
       "turn_end": {
         "cancelled": "Durduruldu.",
         "max_tokens": "Ajan çıktı sınırına ulaştı.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "{name} sohbetini aç",
       "unread": "{name} sohbetini aç (yeni etkinlik)",
+      "approval_needed": "{name} sohbetini aç (onay gerekiyor)",
+      "needs_approval": "{name} onayınızı bekliyor",
       "minimize": "Küçült",
       "open_page": "Tam sayfada aç",
       "greeting": "Merhaba, ben {name}",
