@@ -2,18 +2,16 @@
 
 Improvements found in a code review of the Plane base code at commit `618d0eb746`. A second reviewer checked each one against the code. The ones with the most impact have their own pull requests, so this file lists the rest.
 
-Line numbers refer to that commit, so they may have moved.
+Line numbers refer to that commit, so they may have moved. An improvement is removed from this list once its pull request is open; the current fix pull requests are #74 to #82, #84 to #88 and #90 to #92.
 
 The "Nexus additions" section covers the code this fork adds on top of Plane, reviewed separately and re-checked by reading the code at `preview` `74111238e`. Its five highest-impact improvements have their own pull requests, #40 to #44.
 
-## Worth doing (13)
+## Worth doing (10)
 
 | Impact | Effort | Where | Improvement | Suggested fix |
 |---|---|---|---|---|
 | Low | S | `apps/api/plane/space/views/issue.py:846` | A public work item whose description has stored binary editor data can fail to load, and the public page does not need that data. | Remove `description_binary` from the `.values()` list. |
-| Low | S | `apps/api/plane/api/middleware/api_authentication.py:41-42` | Every API request, including reads, performs a database write to update the key's last-used time. | Write only when the stored value is more than about a minute old. |
 | Low | S | `packages/editor/src/extensions/headings-list.ts:58-62` | Every cursor movement in the page editor triggers unnecessary document-wide work, which can slow large pages when the outline or info panel is open. | Return early from `appendTransaction` unless a transaction changed the document. |
-| Low | S | `apps/api/plane/db/models/issue.py:196 and :564` | Creating a work item gets slower as a project's issue count grows, because the next number is found without a matching index. | Add `Index(fields=["project", "sequence"])`, built concurrently on large installs. |
 | Low | S | `apps/api/plane/utils/content_validator.py:231` | Saving rich text does extra parsing work only to build a log message, which adds delay on large documents. | Run the diff only when `clean_html != html_content`. |
 | Low | S | `apps/web/components/modules/module-card-item.tsx:163-181` (+3 more) | The same module can show "8/10" on its card and 100% in the list when it has cancelled items. | Add a shared progress-scope helper in packages/utils and use it at each site. |
 | Low | S | `apps/web/components/workspace/sidebar/favorites/favorite-folder.tsx:254-258` | Removing a favorites folder immediately removes every favorite inside it without warning. | Confirm when the folder has children or move those children to the root. |
@@ -21,31 +19,23 @@ The "Nexus additions" section covers the code this fork adds on top of Plane, re
 | Low | S | `apps/web/components/core/activity.tsx:101-103` | Opening a profile activity feed with several label changes sends one identical workspace-labels request per label row. | Use one SWR key for the fetch, which dedupes in-flight calls and captures errors. |
 | Low | S | `apps/web/Dockerfile.web:2 and :81` | Rebuilding the same commit can pull in different base images and an unversioned build plugin, so builds are not reproducible. | Pin the `caddy-ratelimit` and `supervisor` versions now, and digest-pin base images only with Dependabot or Renovate keeping them current. |
 | Low | S | `docker-compose.yml:110 and :132` | The bundled Postgres and RabbitMQ images are behind on patch releases and miss later security and bug fixes. | Move to the latest 15.x Postgres and 3.13.x RabbitMQ in all four compose files after checking the release notes for reindex steps. |
-| Low | S | `.dockerignore:3 and :49-52` | After running the setup script, local env files containing secrets are copied into the builder stage and local build cache of root-context image builds. | Add `**/.env` and `**/.env.*` with `!**/.env.example`. |
 | Low | S | `deployments/cli/community/docker-compose.yml:125` | The API, worker, beat and migrator containers receive a DNS provider token that only the proxy needs. | Remove `*proxy-env` from those services and pass `FILE_SIZE_LIMIT` on its own. |
 
-## Worth doing: Nexus additions (18)
+## Worth doing: Nexus additions (11)
 
 | Impact | Effort | Where | Improvement | Suggested fix |
 |---|---|---|---|---|
-| Medium | L | `apps/web/components/messages/message-item.tsx:43`, `message-list.tsx:173` (open Messages PR stack) | Every body mounts a complete TipTap/ProseMirror editor, even read-only, and the list has no virtualization or eviction, so memory and render cost grow as people scroll back. | Render read-only bodies as sanitized HTML and virtualize the list. |
 | Low | M | `apps/chat-gateway/src/connection.ts:125,315`, `apps/api/plane/chat/views/base.py:29` (open Messages PR stack) | Each open socket re-reads the full live and archived channel lists every 60 seconds with no jitter, and those are the most expensive chat queries. | Add jitter and a lightweight membership-only endpoint. |
 | Low | S | `apps/web/store/chat.store.ts:785,812,859` (open Messages PR stack) | Each viewed message costs a message fetch, a read update and a channel refetch triggered by the user's own read event. A reconnect also reloads every loaded channel at once. | Skip the refetch for the tab's own read and cap catch-up concurrency. |
 | Low | S | `apps/mcp/plane_mcp/auth/plane_header_auth_provider.py:47-66` | Only accepted tokens are cached, and each uncached check builds a new HTTP client. | Share the MCP auth client and cache failed tokens briefly. |
-| Low | S | `apps/web/components/agents/transcript/transcript-view.tsx:35-38`, `apps/web/components/agents/khaia/root.tsx:58` | An approval that arrives off-screen has no banner, and when minimized the only signal is the same dot used for ordinary replies. | Add a persistent "approval needed" banner that jumps to the request. |
-| Low | S | `h2` and several other elements are unstyled | Tables appear as literal text, and | `apps/web/components/ui/markdown-to-component.tsx:70-78`. Add `remark-gfm` and the missing mappings. |
-| Low | S | `packages/acp-adapters/src/claude/index.ts:413,420`, `packages/acp-adapters/src/deepseek/index.ts:225` | It surfaces as a plain turn error, so the link to fix the credential does not appear. | Map provider auth failures to `RequestError.authRequired`. |
 | Low | L | `session/load`, so the agent loses its context after a disconnect or idle close | They do not implement | `packages/acp-adapters/src/codex/index.ts:114`, `packages/acp-adapters/src/deepseek/index.ts:99`. Use Codex thread resume and stored DeepSeek history. |
 | Low | S | `apps/agent-runner/src/server.ts:239-242`, `apps/agent-bridge/src/server.ts:273-277` | It currently appears as a generic "agent unavailable" close. | Detect the 503 and close with a capacity reason. |
 | Low | S | `apps/web/app/(all)/[workspaceSlug]/(projects)/messages/page.tsx:21` (open Messages PR stack) | Unread counts appear only in the sidebar, and there are no desktop notifications. | Reflect the total in `document.title`, then consider optional notifications. |
-| Low | S | `apps/web/components/messages/root.tsx:37`, `composer.tsx:56` (open Messages PR stack) | The composer remounts per channel and loses unsent text. | Keep drafts per channel in the store. |
 | Low | S | `apps/mcp/plane_mcp/pql_reference.py:52,101,200,282`, `apps/api/plane/nexus/pql.py:59,945,996` | It says 5 conditions where the parser allows 10, and documents a teamspace field and function the parser rejects. | Render the limit from one shared value. |
 | Low | S | `apps/mcp/plane_mcp/tools/cycle.py:174-175`, `apps/mcp/plane_mcp/tools/initiative.py:146-148` | They are typed as strings, so an array fails validation and costs a round trip. | Use a string-or-list type. |
 | Low | S | `apps/mcp/plane_mcp/__main__.py:41`, `apps/mcp/plane_mcp/auth/plane_header_auth_provider.py:99-107` | In header-auth mode, logs identify the workspace but not the user. | Add the user id to the claims. |
 | Low | S | `wheel`, and compose sets no capability drop or limits | The base image floats, the final install fetches unpinned `setuptools` and | `apps/mcp/Dockerfile:2,31`, `apps/mcp/pyproject.toml:39`. |
-| Low | S | `deployments/hybrid/vps/docker-compose.yml` | `api`, `worker`, `beat-worker`, `live`, `mcp`, `gateway` and `plane-minio` have none, and other services cannot wait on them being healthy. | Add healthchecks in the hybrid compose file. |
 | Low | S | `apps/agent-bridge/Dockerfile.agent-bridge`, `apps/mcp/Dockerfile` | The Node and Python images use floating tags. | Pin base images by digest. |
-| Low | S | `deployments/hybrid/vps/docker-compose.yml` | This adds defence in depth behind the internal network. | Require a password on Valkey in the hybrid compose file. |
 
 ## Reviewed and not recommended for now (20)
 
