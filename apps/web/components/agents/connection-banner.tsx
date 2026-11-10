@@ -53,12 +53,14 @@ type ErrorBannerProps = {
   /** Display name of the refused permission level, for `mode_not_allowed`. */
   modeLabel?: string;
   onRetry?: () => void;
+  /** Offered next to retry when the chat could not be resumed. */
+  onNewChat?: () => void;
   /** The agent could not sign in: link to where keys and sign-ins are added. */
   onManageProviders?: () => void;
   onDismiss: () => void;
 };
 
-function ErrorBanner({ error, modeLabel, onRetry, onManageProviders, onDismiss }: ErrorBannerProps) {
+function ErrorBanner({ error, modeLabel, onRetry, onNewChat, onManageProviders, onDismiss }: ErrorBannerProps) {
   const { t } = useTranslation();
   const detail = chatErrorDetail(error);
   let action;
@@ -73,7 +75,14 @@ function ErrorBanner({ error, modeLabel, onRetry, onManageProviders, onDismiss }
       />
     );
   } else if (onRetry) {
-    action = <Button variant="secondary" size="sm" stretch="auto" label={t("agents.errors.retry")} onClick={onRetry} />;
+    action = (
+      <>
+        <Button variant="secondary" size="sm" stretch="auto" label={t("agents.errors.retry")} onClick={onRetry} />
+        {onNewChat && (
+          <Button variant="secondary" size="sm" stretch="auto" label={t("agents.sessions.new")} onClick={onNewChat} />
+        )}
+      </>
+    );
   }
   return (
     <Banner
@@ -140,6 +149,7 @@ export const AgentChatStatusBanner = observer(function AgentChatStatusBanner() {
       error={error}
       onDismiss={clearError}
       {...(onManageProviders ? { onManageProviders } : onRetry ? { onRetry } : {})}
+      {...(error.action === "reconnect" ? { onNewChat: () => void startNewSession() } : {})}
     />
   );
 });

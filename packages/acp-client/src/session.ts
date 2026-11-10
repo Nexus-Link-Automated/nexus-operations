@@ -62,6 +62,10 @@ export interface AgentChatSnapshot {
   readonly prompting: boolean;
   /** How the last connection ended, until the next one is ready. */
   readonly close: CloseInfo | null;
+  /** A `session/load` is in flight; the transcript still shows what was open before it. */
+  readonly loading: boolean;
+  /** Why the last automatic reconnect failed. Nothing else reports it: no caller awaits that reconnect. */
+  readonly reconnectError: Error | null;
 }
 
 export interface AgentChatSessionOptions {
@@ -170,6 +174,9 @@ export class AgentChatSession {
   #choices: LoadSessionOptions = {};
   #prompting = false;
   #close: CloseInfo | null = null;
+  #reconnectError: Error | null = null;
+  /** The `session/load` in flight and the transcript its replay is building, out of sight until it succeeds. */
+  #load: { readonly sessionId: string; transcript: TranscriptState } | undefined;
   /** Updates for a session whose `session/new` response has not arrived yet. */
   #buffered: SessionNotification[] | undefined;
   #snapshot: AgentChatSnapshot;
@@ -225,6 +232,7 @@ export class AgentChatSession {
   async #open(): Promise<InitializeResponse> {
     if (this.#disposed) throw new AgentDisconnectedError(this.#close);
     this.#dropConnection();
+    this.#reconnectError = null;
     const generation = ++this.#generation;
     if (this.#status !== "reconnecting") this.#status = "connecting";
     this.#emit();
@@ -285,6 +293,8 @@ export class AgentChatSession {
         ...startMeta(options),
       });
       this.#cancelPermissions();
+      // A load still in flight must not replace this session when it lands.
+      this.#load = undefined;
       this.#sessionId = result.sessionId;
       // The old prompt's `finally` only clears this while its own session is current.
       this.#prompting = false;
@@ -303,14 +313,16 @@ export class AgentChatSession {
     }
   }
 
-  /** Resume a conversation. The agent replays its history as `session/update`s. */
+  /**
+   * Resume a conversation. The agent replays its history as `session/update`s. The open chat is
+   * replaced only once the load succeeds, so one that fails leaves it as it was.
+   */
   async loadSession(sessionId: string, options: LoadSessionOptions = {}): Promise<void> {
     const link = this.#requireLink();
     const { connection } = link;
     if (!this.supportsLoad) throw new AgentRequestError(-32601, "This agent cannot resume sessions");
-    this.#cancelPermissions();
-    this.#sessionId = sessionId;
-    this.#transcript = createTranscript();
+    const load = { sessionId, transcript: createTranscript() };
+    this.#load = load;
     this.#emit();
     try {
       const result = await connection.agent.request("session/load", {
@@ -319,12 +331,18 @@ export class AgentChatSession {
         mcpServers: [],
         ...startMeta(options),
       });
-      if (this.#sessionId === sessionId) {
-        this.#transcript = applySessionSetup(this.#transcript, result);
-        this.#emit();
+      if (this.#load === load) {
+        this.#cancelPermissions();
+        this.#sessionId = sessionId;
+        this.#transcript = applySessionSetup(load.transcript, result);
       }
     } catch (error) {
       throw await this.#failure(error, link);
+    } finally {
+      if (this.#load === load) {
+        this.#load = undefined;
+        this.#emit();
+      }
     }
   }
 
@@ -447,8 +465,10 @@ export class AgentChatSession {
     const modeId = this.#transcript.modes?.currentModeId;
     const choices = this.#choices;
     this.#status = "reconnecting";
+    let connection: ClientConnection | undefined;
     try {
       await this.#open();
+      connection = this.#connection;
       let resumed = false;
       if (sessionId && this.supportsLoad) {
         await this.loadSession(sessionId, { ...choices, ...(modeId ? { initialModeId: modeId } : {}) });
@@ -464,7 +484,10 @@ export class AgentChatSession {
       this.#emit();
       return { resumed };
     } catch (error) {
-      if (this.#status === "reconnecting") {
+      // A load the agent refused leaves the new socket open, holding one of the member's chat slots.
+      // A different connection here belongs to a newer attempt, which is left to finish.
+      if (this.#status === "reconnecting" && this.#connection === connection) {
+        this.#dropConnection();
         this.#status = "closed";
         this.#emit();
       }
@@ -533,8 +556,11 @@ export class AgentChatSession {
     ) {
       this.#status = "reconnecting";
       this.#emit();
-      // reconnect() leaves the status at "closed" (with the new close code) when it fails.
-      this.reconnect().catch(() => {});
+      // reconnect() leaves the status at "closed" when it fails; the UI offers a way forward from here.
+      this.reconnect().catch((error: unknown) => {
+        this.#reconnectError = error instanceof Error ? error : new Error(String(error));
+        this.#emit();
+      });
       return;
     }
     this.#status = "closed";
@@ -542,6 +568,10 @@ export class AgentChatSession {
   }
 
   #onUpdate(notification: SessionNotification): void {
+    if (notification.sessionId === this.#load?.sessionId) {
+      this.#load.transcript = applySessionUpdate(this.#load.transcript, notification.update);
+      return;
+    }
     if (notification.sessionId !== this.#sessionId) {
       this.#buffered?.push(notification);
       return;
@@ -599,12 +629,14 @@ export class AgentChatSession {
       permissions: [...this.#permissions.values()].map((entry) => entry.pending),
       prompting: this.#prompting,
       close: this.#close,
+      loading: this.#load !== undefined,
+      reconnectError: this.#reconnectError,
     };
   }
 
   #trackChoices(): void {
     const model = modelOption(this.#transcript)?.currentValue;
-    // A transcript without a model option is one being reset (a load in flight): keep the last choices.
+    // A transcript without a model option says nothing about the model: keep the last choices.
     if (typeof model === "string") {
       const effort = effortOption(this.#transcript)?.currentValue;
       this.#choices = { initialModel: model, ...(typeof effort === "string" ? { initialEffort: effort } : {}) };

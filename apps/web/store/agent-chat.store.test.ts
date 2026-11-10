@@ -246,6 +246,40 @@ describe("AgentChatStore", () => {
     expect(texts(store)).toEqual(["user:hello", "thought", "agent:hello"]);
   });
 
+  it("reports a failed automatic reload, keeps the chat and can start a new one on the same level", async () => {
+    const { store, current, fake } = await openReady();
+    const sessionId = store.snapshot!.sessionId!;
+    await store.sendPrompt("hello");
+    await store.setPermissionLevel("ask_all");
+    fake.sessions.delete(sessionId);
+
+    current().closeWith(AgentCloseCode.sessionExpired);
+    await when(() => store.snapshot?.status === "reconnecting");
+    await when(() => store.snapshot?.status === "closed" && store.error !== null);
+
+    expect(store.error).toMatchObject({ kind: "request", action: "reconnect" });
+    expect(texts(store)).toEqual(["user:hello", "thought", "agent:hello"]);
+    expect(store.canPrompt).toBe(false);
+
+    await store.startNewSession();
+
+    expect(store.error).toBeNull();
+    expect(store.snapshot?.status).toBe("ready");
+    expect(store.snapshot?.sessionId).not.toBe(sessionId);
+    expect(fake.log.newSession.at(-1)?._meta?.["plane/initialModeId"]).toBe("ask_all");
+  });
+
+  it("keeps the open chat when an earlier one fails to load", async () => {
+    const { store } = await openReady();
+    const sessionId = store.snapshot!.sessionId;
+    await store.sendPrompt("hello");
+    await store.loadSession("missing");
+    expect(store.error).toMatchObject({ action: "load_session" });
+    expect(store.snapshot?.sessionId).toBe(sessionId);
+    expect(texts(store)).toEqual(["user:hello", "thought", "agent:hello"]);
+    expect(store.canPrompt).toBe(true);
+  });
+
   it("reconnects by hand after an idle timeout", async () => {
     const { store, current } = await openReady();
     current().closeWith(AgentCloseCode.idleTimeout);

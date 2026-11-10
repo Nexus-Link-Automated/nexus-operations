@@ -227,13 +227,14 @@ export class AgentChatStore implements IAgentChatStore {
   }
 
   get isConnecting(): boolean {
-    if (this.opening) return true;
+    if (this.opening || this.snapshot?.loading) return true;
     const status = this.snapshot?.status;
     return status === "connecting" || status === "reconnecting";
   }
 
   get canPrompt(): boolean {
-    return this.snapshot?.status === "ready" && !!this.snapshot.sessionId && !this.snapshot.prompting;
+    const snapshot = this.snapshot;
+    return snapshot?.status === "ready" && !!snapshot.sessionId && !snapshot.prompting && !snapshot.loading;
   }
 
   get supportsLoad(): boolean {
@@ -328,7 +329,12 @@ export class AgentChatStore implements IAgentChatStore {
       this.session = session;
       this.unsubscribe = session.subscribe((snapshot) => {
         runInAction(() => {
-          if (this.session === session) this.snapshot = snapshot;
+          if (this.session !== session) return;
+          // A reconnect the session started by itself has no caller to report its failure to.
+          if (snapshot.reconnectError && snapshot.reconnectError !== this.snapshot?.reconnectError) {
+            this.setError(snapshot.reconnectError, "reconnect");
+          }
+          this.snapshot = snapshot;
         });
       });
       this.snapshot = session.snapshot;
@@ -362,6 +368,8 @@ export class AgentChatStore implements IAgentChatStore {
     if (!session) return;
     this.error = null;
     try {
+      // The way forward from a chat that could not be resumed, whose connection is gone.
+      if (this.snapshot?.status === "closed") await session.connect();
       await session.newSession(this.sameChoices());
       if (session.supportsList) void this.fetchSessions();
     } catch (error) {
