@@ -9,7 +9,7 @@ import { useCallback } from "react";
 import { Avatar } from "@makeplane/propel/components/avatar";
 import type { TMentionSection, TMentionSuggestion } from "@plane/editor";
 // plane types
-import type { TSearchEntities, TSearchEntityRequestPayload, TSearchResponse, TUserSearchResponse } from "@plane/types";
+import type { TSearchEntityRequestPayload, TSearchResponse, TUserSearchResponse } from "@plane/types";
 // helpers
 import { getFileURL } from "@plane/utils";
 // plane web hooks
@@ -40,7 +40,7 @@ export const useEditorMention = (args: TArgs) => {
           throw new Error("No response found");
         }
         Object.keys(res).map((key) => {
-          const responseKey = key as TSearchEntities;
+          const responseKey = key as keyof TSearchResponse;
           const response = res[responseKey];
           if (responseKey === "user_mention" && response && response.length > 0) {
             const items: TMentionSuggestion[] = (response as TUserSearchResponse[]).map((user) => ({
