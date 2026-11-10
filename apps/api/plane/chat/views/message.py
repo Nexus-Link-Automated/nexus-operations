@@ -19,6 +19,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 
+from plane.chat.agent_replies import queue_agent_replies
 from plane.chat.agents import agents_by_slug
 from plane.chat.attachments import attachments_for, claim_attachments, has_attachments
 from plane.chat.events import EventType, message_event, publish_on_commit
@@ -97,6 +98,8 @@ class MessageEndpoint(ChatBaseEndpoint):
         sync_references(message)
         publish_on_commit(message_event(EventType.MESSAGE_CREATED, message))
         notify_mentions(message)
+        # New messages only: editing a mention in never sets an agent off.
+        queue_agent_replies(message)
         return Response(_payload(message.id, request.user), status=status.HTTP_201_CREATED)
 
 

@@ -43,13 +43,13 @@
       "no_agents": "V tomto kanálu nejsou žádní agenti.",
       "unavailable": "Nedostupný",
       "remove_agent": "Odebrat {name}",
-      "agents_inert": "Agenti v kanálu se zatím neúčastní konverzací.",
       "agents_load_failed": "Agenty, které můžete přidat, se nepodařilo načíst.",
       "no_available_agents": "Další agenti nejsou k dispozici. Agenty může přidat správce instance.",
       "choose_agent": "Agent",
       "permission_level": "Úroveň oprávnění",
       "private_notice": "Tento kanál je soukromý. {name} bude moci číst jeho zprávy, které nyní vidí jen lidé v něm.",
       "public_notice": "{name} bude moci číst zprávy tohoto kanálu.",
+      "agents_how": "Zmiňte agenta pomocí @ a zeptejte se ho na něco. Odpoví ve vlákně s oprávněními v Plane toho, kdo se ptal. Hosté se agentů ptát nemohou.",
       "remove": "Odebrat {name}",
       "add_title": "Přidat lidi",
       "search": "Hledat lidi",
@@ -269,13 +269,31 @@
           "channel": "Vytvořit kanál nebo otevřít přímou zprávu",
           "search": "Hledat ve zprávách",
           "read": "Označit jako přečtené",
-          "work_item": "Vytvořit pracovní položku ze zprávy"
-        }
+          "work_item": "Vytvořit pracovní položku ze zprávy",
+          "agent_session": "Relace agentů, které spustí jeden člověk",
+          "agent_channel": "Relace jednoho agenta v jednom kanálu",
+          "agent_post": "Odpovědi, které zveřejní jeden agent"
+        },
+        "agents_title": "Agenti odpovídající na @zmínky",
+        "agents_description": "Limity pro agenty, kteří odpovídají, když jsou zmíněni v kanálu. Nastavte je proměnnými prostředí CHAT_RATE_LIMIT_AGENT_* a časový limit pomocí CHAT_AGENT_REPLY_TIMEOUT_SECONDS v API.",
+        "agent_timeout": "Čas, který má agent na odpověď",
+        "seconds": "{count, plural, one {# sekunda} few {# sekundy} many {# sekundy} other {# sekund}}"
       }
     },
     "agent": {
       "tag": "Agent",
-      "removed": "Odebraný agent"
+      "removed": "Odebraný agent",
+      "responding": "{name} odpovídá…",
+      "mention_section": "Agenti",
+      "notice": {
+        "timeout": "Došel mi čas dřív, než jsem to dokončil, tak jsem přestal.",
+        "unavailable": "Teď nemohu odpovědět: služba agentů není dostupná. Zkuste to později.",
+        "credentials": "Nemohu odpovědět: nemám funkční přihlašovací údaje pro svého poskytovatele AI. Správce je může nastavit v nastavení poskytovatelů AI pracovního prostoru.",
+        "failed": "Při práci na tomto se něco pokazilo, takže jsem nemohl odpovědět.",
+        "empty": "Skončil jsem, aniž bych měl co říct. Zkuste se zeptat znovu a podrobněji.",
+        "rate_limited": "V krátké době se mě ptáte příliš často. Zkuste to za pár minut.",
+        "still_working": "Pořád pracuji na posledním požadavku v tomto vlákně. Zeptejte se znovu, až odpovím."
+      }
     }
   }
 }

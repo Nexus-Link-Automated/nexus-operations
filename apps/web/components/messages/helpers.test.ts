@@ -29,6 +29,7 @@ const message = (id: string, sender: string | null, at: Date, removed = false): 
   sender_agent: null,
   sender_agent_details: null,
   system_event: null,
+  agent_notice: null,
   body_html: "<p>x</p>",
   body_json: {},
   body_stripped: "x",

@@ -61,6 +61,8 @@ class FakeChatServer {
   registry: TWorkspaceAgent[] = [];
   /** What removing an agent throws instead, if set. */
   removeAgentFailure: ChatServiceError | undefined;
+  /** What `me` says: a guest may not mention agents. */
+  canMentionAgents = true;
   private clock = 0;
   private ids = 0;
 
@@ -88,6 +90,7 @@ class FakeChatServer {
       sender_agent: null,
       sender_agent_details: null,
       system_event: null,
+      agent_notice: null,
       body_html: `<p>${text}</p>`,
       body_json: {},
       body_stripped: text,
@@ -240,6 +243,8 @@ class FakeChatServer {
           can_create_channels: true,
           can_open_dms: true,
           can_add_agents: true,
+          can_mention_agents: this.canMentionAgents,
+          agent_reply_timeout_seconds: 300,
         };
       },
       listChannels: async () => {
@@ -1873,5 +1878,137 @@ describe("ChatStore channel members and agents", () => {
     expect(store.availableAgents).toBeNull();
     expect(store.channelAgents).toEqual({});
     expect(store.channelMembers).toEqual({});
+  });
+});
+
+describe("ChatStore agents answering mentions", () => {
+  const agentEvent = (
+    type: "agent.responding" | "agent.responded",
+    agentId: string,
+    messageId: string,
+    threadId = messageId
+  ): TChatEvent => ({
+    type,
+    workspace_id: WORKSPACE_ID,
+    channel_id: "c-general",
+    message_id: messageId,
+    parent_id: threadId,
+    agent_id: agentId,
+    at: "t",
+  });
+
+  it("keeps a channel's agents while they are watched, whatever the members dialog does", async () => {
+    const { store, server } = await setup((s) => s.agents.set("c-general", [channelAgent("c-general", "bot")]));
+    const release = store.watchChannelAgents("c-general");
+    await settle();
+    expect(server.calls).toEqual(["listAgents c-general"]);
+    // The members dialog opens and closes meanwhile.
+    await store.fetchChannelAgents("c-general");
+    store.forgetChannelMembers("c-general");
+    expect(store.channelAgents["c-general"]!.map((a) => a.agent)).toEqual(["bot"]);
+    const second = store.watchChannelAgents("c-general");
+    release();
+    release();
+    expect(store.channelAgents["c-general"]).toBeDefined();
+    second();
+    expect(store.channelAgents["c-general"]).toBeUndefined();
+  });
+
+  it("keeps re-reading watched agents after the members dialog closes", async () => {
+    const { store, server, socket } = await setup();
+    store.watchChannelAgents("c-general");
+    await store.fetchChannelAgents("c-general");
+    store.forgetChannelMembers("c-general");
+    server.calls = [];
+    server.agents.set("c-general", [channelAgent("c-general", "bot")]);
+    socket.emit({
+      type: "member.added",
+      workspace_id: WORKSPACE_ID,
+      channel_id: "c-general",
+      agent_id: "bot",
+      at: "t",
+    });
+    await settle();
+    expect(server.calls).toEqual(["listAgents c-general"]);
+    expect(store.channelAgents["c-general"]!.map((a) => a.agent)).toEqual(["bot"]);
+  });
+
+  it("offers the channel's available agents to mention, to a member who may run agents", async () => {
+    const { store } = await setup((s) => {
+      s.agents.set("c-general", [
+        channelAgent("c-general", "bot"),
+        { ...channelAgent("c-general", "off"), is_available: false },
+      ]);
+      s.agents.set("c-open", [channelAgent("c-open", "bot")]);
+    });
+    store.watchChannelAgents("c-general");
+    store.watchChannelAgents("c-open");
+    await settle();
+    expect(store.getMentionableAgents("c-general").map((a) => a.agent)).toEqual(["bot"]);
+    // Not in a channel the user hasn't joined, even though it has agents.
+    expect(store.getMentionableAgents("c-open")).toEqual([]);
+    expect(store.getAgentName("off")).toBe("Agent off");
+    expect(store.getAgentName("nobody")).toBeUndefined();
+  });
+
+  it("offers no agents to someone who may not run them", async () => {
+    const { store } = await setup((s) => {
+      s.canMentionAgents = false;
+      s.agents.set("c-general", [channelAgent("c-general", "bot")]);
+    });
+    store.watchChannelAgents("c-general");
+    await settle();
+    expect(store.getMentionableAgents("c-general")).toEqual([]);
+    // Their mentions are still named.
+    expect(store.getAgentName("bot")).toBe("Agent bot");
+  });
+
+  it("offers no agents in an archived channel", async () => {
+    const { store, server, socket } = await setup((s) => s.agents.set("c-general", [channelAgent("c-general", "bot")]));
+    store.watchChannelAgents("c-general");
+    await settle();
+    server.channels.get("c-general")!.archived = true;
+    socket.emit({ type: "channel.archived", workspace_id: WORKSPACE_ID, channel_id: "c-general", at: "t" });
+    await settle();
+    expect(store.getMentionableAgents("c-general")).toEqual([]);
+  });
+
+  it("shows an agent as responding in the thread until it has responded", async () => {
+    const { store, socket } = await setup();
+    socket.emit(agentEvent("agent.responding", "bot", "m1"));
+    socket.emit(agentEvent("agent.responding", "bot", "m1"));
+    socket.emit(agentEvent("agent.responding", "helper", "m2", "m1"));
+    expect(store.getRespondingAgents("m1")).toEqual([
+      { channelId: "c-general", agentId: "bot", messageId: "m1" },
+      { channelId: "c-general", agentId: "helper", messageId: "m2" },
+    ]);
+    socket.emit(agentEvent("agent.responded", "bot", "m1"));
+    expect(store.getRespondingAgents("m1").map((a) => a.agentId)).toEqual(["helper"]);
+    socket.emit(agentEvent("agent.responded", "helper", "m2", "m1"));
+    expect(store.getRespondingAgents("m1")).toEqual([]);
+    expect(store.respondingAgents).toEqual({});
+  });
+
+  it("stops showing an agent as responding once its time is up, if no event says so", async () => {
+    const { store, socket } = await setup();
+    vi.useFakeTimers();
+    try {
+      socket.emit(agentEvent("agent.responding", "bot", "m1"));
+      vi.advanceTimersByTime(300_000);
+      expect(store.getRespondingAgents("m1")).toHaveLength(1);
+      vi.advanceTimersByTime(60_001);
+      expect(store.getRespondingAgents("m1")).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores an agent event without the IDs it needs, and forgets them all on stop", async () => {
+    const { store, socket } = await setup();
+    socket.emit({ ...agentEvent("agent.responding", "bot", "m1"), parent_id: undefined });
+    expect(store.respondingAgents).toEqual({});
+    socket.emit(agentEvent("agent.responding", "bot", "m1"));
+    store.stop();
+    expect(store.respondingAgents).toEqual({});
   });
 });

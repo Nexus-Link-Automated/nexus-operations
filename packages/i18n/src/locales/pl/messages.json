@@ -43,13 +43,13 @@
       "no_agents": "W tym kanale nie ma agentów.",
       "unavailable": "Niedostępny",
       "remove_agent": "Usuń {name}",
-      "agents_inert": "Agenci w kanale nie biorą jeszcze udziału w rozmowach.",
       "agents_load_failed": "Nie udało się wczytać agentów, których możesz dodać.",
       "no_available_agents": "Nie ma więcej dostępnych agentów. Administrator instancji może dodać agentów.",
       "choose_agent": "Agent",
       "permission_level": "Poziom uprawnień",
       "private_notice": "Ten kanał jest prywatny. {name} będzie mógł czytać jego wiadomości, które teraz widzą tylko osoby w kanale.",
       "public_notice": "{name} będzie mógł czytać wiadomości z tego kanału.",
+      "agents_how": "Wspomnij agenta za pomocą @, aby o coś go zapytać. Odpowiada w wątku, z uprawnieniami w Plane osoby, która zapytała. Goście nie mogą pytać agentów.",
       "remove": "Usuń {name}",
       "add_title": "Dodaj osoby",
       "search": "Szukaj osób",
@@ -269,13 +269,31 @@
           "channel": "Utworzenie kanału lub otwarcie wiadomości bezpośredniej",
           "search": "Wyszukiwanie wiadomości",
           "read": "Oznaczenie jako przeczytane",
-          "work_item": "Utworzenie elementu pracy z wiadomości"
-        }
+          "work_item": "Utworzenie elementu pracy z wiadomości",
+          "agent_session": "Sesje agentów uruchamiane przez jedną osobę",
+          "agent_channel": "Sesje jednego agenta w jednym kanale",
+          "agent_post": "Odpowiedzi publikowane przez jednego agenta"
+        },
+        "agents_title": "Agenci odpowiadający na @wzmianki",
+        "agents_description": "Limity dla agentów, którzy odpowiadają, gdy zostaną wspomniani w kanale. Ustaw je zmiennymi środowiskowymi CHAT_RATE_LIMIT_AGENT_*, a limit czasu – zmienną CHAT_AGENT_REPLY_TIMEOUT_SECONDS, w API.",
+        "agent_timeout": "Czas, jaki agent ma na odpowiedź",
+        "seconds": "{count, plural, one {# sekunda} few {# sekundy} many {# sekund} other {# sekundy}}"
       }
     },
     "agent": {
       "tag": "Agent",
-      "removed": "Usunięty agent"
+      "removed": "Usunięty agent",
+      "responding": "{name} odpowiada…",
+      "mention_section": "Agenci",
+      "notice": {
+        "timeout": "Skończył mi się czas, zanim skończyłem, więc przerwałem.",
+        "unavailable": "Nie mogę teraz odpowiedzieć: usługa agentów jest niedostępna. Spróbuj ponownie później.",
+        "credentials": "Nie mogę odpowiedzieć: nie mam działających danych uwierzytelniających do mojego dostawcy AI. Administrator może je skonfigurować w ustawieniach dostawców AI obszaru roboczego.",
+        "failed": "Coś poszło nie tak podczas pracy nad tym, więc nie mogłem odpowiedzieć.",
+        "empty": "Skończyłem, ale nie mam nic do powiedzenia. Zapytaj ponownie, podając więcej szczegółów.",
+        "rate_limited": "W krótkim czasie proszono mnie zbyt często. Spróbuj ponownie za kilka minut.",
+        "still_working": "Nadal pracuję nad poprzednią prośbą w tym wątku. Zapytaj ponownie, gdy odpowiem."
+      }
     }
   }
 }

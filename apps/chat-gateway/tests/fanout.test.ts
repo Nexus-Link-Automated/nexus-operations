@@ -198,6 +198,21 @@ for (const kind of ["memory", "redis"] as const) {
       expect(eventsOf(ben)).toEqual([]);
     });
 
+    it("tells a private channel's members, and only them, that an agent is responding", async () => {
+      const team = h.api.addChannel({ kind: "private", members: [ADA.id] });
+      const general = h.api.addChannel({ members: [ADA.id, BEN.id] });
+      const ada = await h.open(ADA.cookie);
+      const ben = await h.open(BEN.cookie);
+      const ids = { channel_id: team, message_id: randomUUID(), agent_id: randomUUID() };
+      const responding = chatEvent("agent.responding", { ...ids, parent_id: ids.message_id });
+      const responded = chatEvent("agent.responded", { ...ids, parent_id: ids.message_id });
+      await h.publish(responding);
+      await h.publish(responded);
+      await h.barrier(general, ada, ben);
+      expect(eventsOf(ada)).toEqual([responding, responded]);
+      expect(eventsOf(ben)).toEqual([]);
+    });
+
     it("keeps an archived channel in the feed, so unarchiving it reaches its members", async () => {
       const dormant = h.api.addChannel({ members: [ADA.id], archived: true });
       const ada = await h.open(ADA.cookie);

@@ -49,7 +49,10 @@ function InstanceMessagesPage(_props: Route.ComponentProps) {
           {/* Keyed on the saved value, so the form starts again from it after a save. */}
           <MessageRetentionForm key={settings.retention_days} settings={settings} onSave={saveRetention} />
           <MessageExportSection expiryHours={settings.export_expiry_hours} />
-          <MessageRateLimits limits={settings.rate_limits} />
+          <MessageRateLimits
+            limits={settings.rate_limits}
+            agentReplyTimeoutSeconds={settings.agent_reply_timeout_seconds}
+          />
         </div>
       )}
     </PageWrapper>

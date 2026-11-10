@@ -9,11 +9,20 @@ import type { AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
 
 import { AcpServer } from "@agentclientprotocol/sdk/experimental/server";
+import { clampPermissionLevel, type PermissionLevel } from "@plane/agent-runner-protocol";
 import express, { type Express } from "express";
 import { WebSocketServer, type WebSocket } from "ws";
 
+import { driveChannelSession, type ChannelSessionError, type ChannelSessionOutcome } from "./channel-session.ts";
 import type { BridgeConfig } from "./config.ts";
 import { connectionsRouter } from "./connections.ts";
+import {
+  CHANNEL_MAX_PERMISSION_LEVEL,
+  INTERNAL_PATH,
+  internalRouter,
+  type ChannelSessionAdmission,
+  type ChannelSessionRequest,
+} from "./internal.ts";
 import { createLogger, withMeta, type Logger } from "./logger.ts";
 import { sweepEndedMemberships } from "./offboarding.ts";
 import { originAllowed } from "./origin.ts";
@@ -56,6 +65,19 @@ interface LiveSession {
   readonly finished: Promise<void>;
 }
 
+/** A headless session for a mention in Nexus Messages. */
+interface ChannelRun {
+  readonly abort: AbortController;
+  readonly finished: Promise<void>;
+}
+
+/** What a refusal while opening an agent means for a channel session. */
+const CHANNEL_ERRORS: Partial<Record<number, ChannelSessionError>> = {
+  [CloseCode.tooManyConnections]: "busy",
+  [CloseCode.agentUnavailable]: "unavailable",
+  [CloseCode.internalError]: "unavailable",
+};
+
 /**
  * The agent bridge: `GET <base>/acp?agent=<id>&workspace=<slug>` upgrades to an ACP WebSocket for
  * one chat, after authenticating the browser's cookie with the API and minting an agent-session
@@ -72,6 +94,7 @@ export class AgentBridge {
   readonly #wss: WebSocketServer;
   readonly #acp: AcpServer;
   readonly #sessions = new Set<LiveSession>();
+  readonly #channelRuns = new Set<ChannelRun>();
   readonly #perUser = new Map<string, number>();
   readonly #initializeTimeoutMs: number;
   readonly #memberRunner: MemberRunner;
@@ -113,6 +136,7 @@ export class AgentBridge {
         status: this.#shuttingDown ? "SHUTTING_DOWN" : "OK",
         version: config.version,
         connections: this.#sessions.size,
+        channelSessions: this.#channelRuns.size,
         timestamp: new Date().toISOString(),
       });
     });
@@ -124,6 +148,15 @@ export class AgentBridge {
         log: this.#log,
         allowedOrigins: config.allowedOrigins,
         startLimit: { max: config.loginStartLimit, windowMs: config.loginStartWindowMs },
+      })
+    );
+    // Outside the base path: the reverse proxy forwards only the base path, so this stays internal.
+    this.app.use(
+      INTERNAL_PATH,
+      internalRouter({
+        secret: config.bridgeSecret,
+        startChannelSession: (request) => this.#startChannelRun(request),
+        log: this.#log,
       })
     );
     this.app.use((_req, res) => {
@@ -141,6 +174,11 @@ export class AgentBridge {
 
   get connectionCount(): number {
     return this.#sessions.size;
+  }
+
+  /** Headless sessions for mentions in Nexus Messages still running. */
+  get channelSessionCount(): number {
+    return this.#channelRuns.size;
   }
 
   async listen(port = this.#config.port, host = this.#config.host): Promise<AddressInfo> {
@@ -201,7 +239,12 @@ export class AgentBridge {
     this.#sweepAbort.abort();
     const httpClosed = new Promise<void>((resolve) => this.server.close(() => resolve()));
     for (const session of this.#sessions) session.socket.close(CloseCode.goingAway, "Server shutting down");
-    const drained = Promise.all([...this.#sessions].map((session) => session.finished));
+    // A channel session that is stopped tells the API, which posts a note in its thread.
+    for (const run of this.#channelRuns) run.abort.abort();
+    const drained = Promise.all([
+      ...[...this.#sessions].map((session) => session.finished),
+      ...[...this.#channelRuns].map((run) => run.finished),
+    ]);
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([
       drained,
@@ -284,7 +327,25 @@ export class AgentBridge {
       return refuse(CloseCode.internalError, "Authentication is unavailable");
     }
 
-    if (this.#sessions.size + this.#pendingAdmissions > this.#config.maxConnections) {
+    // This admission is one of those under way.
+    const slot = this.#reserve(userId, 1);
+    if (!slot.ok) return slot;
+    const admission = await this.#openAgent({ userId, workspaceSlug, agentId }, signal);
+    if (!admission.ok) {
+      slot.release();
+      return admission;
+    }
+    return { ...admission, release: slot.release };
+  }
+
+  /**
+   * Count a session against the caps: the bridge's (browser sockets, admissions under way and
+   * channel sessions together) and the user's. `pending` is how many of the admissions under way
+   * are this one.
+   */
+  #reserve(userId: string, pending: number): { ok: true; release: () => void } | Refusal {
+    const open = this.#sessions.size + this.#pendingAdmissions - pending + this.#channelRuns.size;
+    if (open >= this.#config.maxConnections) {
       return refuse(CloseCode.tooManyConnections, "The agent service is at capacity");
     }
     const held = this.#perUser.get(userId) ?? 0;
@@ -300,12 +361,29 @@ export class AgentBridge {
       if (count > 0) this.#perUser.set(userId, count);
       else this.#perUser.delete(userId);
     };
+    return { ok: true, release };
+  }
 
+  /**
+   * Mint the agent-session token for the user and open the agent on the runner. `level` (a channel
+   * session's) replaces the registry default as the starting level, clamped to the maximum.
+   * `maxLevel` lowers that maximum for this session, so the agent can't switch above it either.
+   */
+  async #openAgent(
+    input: {
+      userId: string;
+      workspaceSlug: string;
+      agentId: string;
+      level?: PermissionLevel;
+      maxLevel?: PermissionLevel;
+    },
+    signal: AbortSignal
+  ): Promise<Omit<Admission, "release"> | Refusal> {
+    const { userId, workspaceSlug, agentId } = input;
     let grant: AgentSessionGrant;
     try {
       grant = await this.#api.createAgentSession({ userId, workspaceSlug, agentId }, signal);
     } catch (error) {
-      release();
       const status = error instanceof PlaneApiError ? error.status : 0;
       if (error instanceof PlaneApiError && error.isBridgeCredentialError) {
         this.#log.error("agent-bridge: the API rejected AGENT_BRIDGE_SECRET; check it matches the API's", { status });
@@ -316,6 +394,21 @@ export class AgentBridge {
       if (status === 404) return refuse(CloseCode.agentNotFound, "Agent not found or disabled");
       this.#log.error("agent-bridge: could not start an agent session", { status, error: (error as Error).message });
       return refuse(CloseCode.internalError, "Could not start the agent session");
+    }
+    if (input.maxLevel) {
+      const maxPermissionLevel = clampPermissionLevel(grant.agent.maxPermissionLevel, input.maxLevel);
+      grant = {
+        ...grant,
+        agent: {
+          ...grant.agent,
+          maxPermissionLevel,
+          defaultPermissionLevel: clampPermissionLevel(grant.agent.defaultPermissionLevel, maxPermissionLevel),
+        },
+      };
+    }
+    if (input.level) {
+      const start = clampPermissionLevel(input.level, grant.agent.maxPermissionLevel);
+      grant = { ...grant, agent: { ...grant.agent, defaultPermissionLevel: start } };
     }
 
     const log = withMeta(this.#log, {
@@ -329,12 +422,11 @@ export class AgentBridge {
     try {
       channel = await this.#transport.open(grant, signal);
     } catch (error) {
-      release();
       void this.#revoke(grant, log);
       log.error("agent-bridge: agent runner unavailable", { error: (error as Error).message });
       return refuse(CloseCode.agentUnavailable, "The agent is unavailable");
     }
-    return { ok: true, grant, channel, release };
+    return { ok: true, grant, channel };
   }
 
   #discard(admission: Admission, reason: string): void {
@@ -344,17 +436,9 @@ export class AgentBridge {
     this.#log.info("agent-bridge: admission discarded", { reason });
   }
 
-  #startSession(ws: WebSocket, admission: Admission): void {
-    const { grant, channel, release } = admission;
-    const log = withMeta(this.#log, {
-      sessionRef: grant.tokenId,
-      userId: grant.user.id,
-      workspaceSlug: grant.workspace.slug,
-      agentId: grant.agent.id,
-      adapter: grant.agent.adapter,
-    });
+  #policyFor(grant: AgentSessionGrant): SessionPolicy {
     const mcpUrl = this.#config.planeMcpUrl || grant.mcp.url;
-    const policy = new SessionPolicy({
+    return new SessionPolicy({
       cwd: `${this.#config.workspacesRoot}/${grant.workspace.id}/${grant.user.id}`.replace(/^\/\//, "/"),
       defaultLevel: grant.agent.defaultPermissionLevel,
       maxLevel: grant.agent.maxPermissionLevel,
@@ -363,6 +447,98 @@ export class AgentBridge {
         ? { url: mcpUrl, token: grant.token, workspaceSlug: grant.mcp.workspaceSlug || grant.workspace.slug }
         : undefined,
     });
+  }
+
+  #grantLog(grant: AgentSessionGrant): Logger {
+    return withMeta(this.#log, {
+      sessionRef: grant.tokenId,
+      userId: grant.user.id,
+      workspaceSlug: grant.workspace.slug,
+      agentId: grant.agent.id,
+      adapter: grant.agent.adapter,
+    });
+  }
+
+  /**
+   * `POST /internal/channel-sessions`: take a session on for a mention in Nexus Messages, under the
+   * same caps as browser sessions, and run it after answering. Its outcome goes to the API.
+   */
+  #startChannelRun(request: ChannelSessionRequest): ChannelSessionAdmission {
+    if (this.#shuttingDown) return "shutting_down";
+    const slot = this.#reserve(request.userId, 0);
+    if (!slot.ok) {
+      this.#log.warn("agent-bridge: refused a channel session", { reason: slot.reason, userId: request.userId });
+      return "busy";
+    }
+    const abort = new AbortController();
+    const finished = (async () => {
+      let outcome: ChannelSessionOutcome;
+      try {
+        outcome = await this.#runChannelSession(request, abort.signal);
+      } catch (error) {
+        this.#log.error("agent-bridge: channel session crashed", { error: (error as Error).message });
+        outcome = { status: "failed", error: "failed" };
+      } finally {
+        slot.release();
+      }
+      try {
+        await this.#api.reportChannelReply(
+          request.runId,
+          outcome.status === "ok"
+            ? { status: "ok", text: outcome.text, permissionRequests: outcome.permissionRequests }
+            : { status: "failed", error: outcome.error }
+        );
+      } catch (error) {
+        const status = error instanceof PlaneApiError ? error.status : 0;
+        this.#log.warn("agent-bridge: the API did not take a channel reply", { runId: request.runId, status });
+      }
+    })();
+    const run: ChannelRun = { abort, finished };
+    this.#channelRuns.add(run);
+    void finished.finally(() => this.#channelRuns.delete(run));
+    return "accepted";
+  }
+
+  async #runChannelSession(request: ChannelSessionRequest, signal: AbortSignal): Promise<ChannelSessionOutcome> {
+    const opened = await this.#openAgent(
+      {
+        userId: request.userId,
+        workspaceSlug: request.workspaceSlug,
+        agentId: request.agentId,
+        level: request.permissionLevel,
+        maxLevel: CHANNEL_MAX_PERMISSION_LEVEL,
+      },
+      signal
+    );
+    if (!opened.ok) return { status: "failed", error: CHANNEL_ERRORS[opened.code] ?? "failed" };
+    const { grant, channel } = opened;
+    const log = withMeta(this.#grantLog(grant), { runId: request.runId });
+    const startedAt = Date.now();
+    log.info("agent-bridge: channel session started");
+    try {
+      return await driveChannelSession({
+        upstream: channel,
+        policy: this.#policyFor(grant),
+        level: grant.agent.defaultPermissionLevel,
+        prompt: request.prompt,
+        timeoutMs: request.timeoutMs,
+        idleTimeoutMs: this.#config.idleTimeoutMs,
+        expiresAt: grant.expiresAt,
+        signal,
+        log,
+        clientVersion: this.#config.version,
+      });
+    } finally {
+      channel.close();
+      await this.#revoke(grant, log);
+      log.info("agent-bridge: channel session ended", { durationMs: Date.now() - startedAt });
+    }
+  }
+
+  #startSession(ws: WebSocket, admission: Admission): void {
+    const { grant, channel, release } = admission;
+    const log = this.#grantLog(grant);
+    const policy = this.#policyFor(grant);
     const proxy = new PolicyProxy({
       policy,
       upstream: channel,

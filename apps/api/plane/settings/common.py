@@ -46,7 +46,7 @@ if SECRET_KEY in _INSECURE_SECRET_KEYS:
         "This makes your installation vulnerable to session forgery, CSRF bypass, and "
         "password-reset token forging. Set a unique SECRET_KEY before deploying to production. "
         "Generate one with: "
-        "python3 -c \"from django.utils.crypto import get_random_secret_key; print(get_random_secret_key())\""
+        'python3 -c "from django.utils.crypto import get_random_secret_key; print(get_random_secret_key())"'
     )
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -76,9 +76,7 @@ for _cidr in _webhook_allowed_ips_raw.split(","):
 # Example: "silo,silo.namespace.svc.cluster.local,internal-api.lan"
 _webhook_allowed_hosts_raw = os.environ.get("WEBHOOK_ALLOWED_HOSTS", "")
 WEBHOOK_ALLOWED_HOSTS = [
-    _host.strip().rstrip(".").lower()
-    for _host in _webhook_allowed_hosts_raw.split(",")
-    if _host.strip()
+    _host.strip().rstrip(".").lower() for _host in _webhook_allowed_hosts_raw.split(",") if _host.strip()
 ]
 
 # Webhook disallowed domains — comma-separated hostnames. Webhooks targeting
@@ -87,9 +85,7 @@ WEBHOOK_ALLOWED_HOSTS = [
 # for self-hosted deployments; set to e.g. "plane.so" to block specific domains.
 _webhook_disallowed_domains_raw = os.environ.get("WEBHOOK_DISALLOWED_DOMAINS", "")
 WEBHOOK_DISALLOWED_DOMAINS = [
-    _d.strip().rstrip(".").lower()
-    for _d in _webhook_disallowed_domains_raw.split(",")
-    if _d.strip()
+    _d.strip().rstrip(".").lower() for _d in _webhook_disallowed_domains_raw.split(",") if _d.strip()
 ]
 
 # Allowed Hosts
@@ -204,6 +200,13 @@ _CHAT_RATE_LIMIT_DEFAULTS = {
     "read": "120/minute",
     # Linking a work item created from a message.
     "work_item": "20/minute,200/hour",
+    # Agent sessions one person starts by @mentioning agents (`plane.chat.agent_replies`).
+    "agent_session": "5/minute,60/hour",
+    # Agent sessions started for one agent in one channel, whoever mentions it.
+    "agent_channel": "10/minute,120/hour",
+    # Messages one agent posts in reply to mentions in one workspace, across its channels. Repeated "still working"
+    # and "asked too often" notes are limited separately (one a minute per thread).
+    "agent_post": "120/hour",
 }
 
 
@@ -220,6 +223,18 @@ def _chat_rate_limits(environ):
 
 
 CHAT_RATE_LIMITS = _chat_rate_limits(os.environ)
+
+# Nexus Messages: agents @mentioned in a channel reply through the agent bridge (`plane.chat.agent_replies`). The
+# worker reaches the bridge's internal address with AGENT_BRIDGE_SECRET; empty turns agent replies off (a mention then
+# gets a note saying the agent can't reply).
+AGENT_BRIDGE_INTERNAL_URL = os.environ.get("AGENT_BRIDGE_INTERNAL_URL", "").strip().rstrip("/")
+# How long an agent may work on one mention before the bridge stops it and a note says it ran out of time.
+_agent_reply_timeout_raw = os.environ.get("CHAT_AGENT_REPLY_TIMEOUT_SECONDS", "").strip()
+CHAT_AGENT_REPLY_TIMEOUT_SECONDS = 300
+if _agent_reply_timeout_raw.isdecimal() and 30 <= int(_agent_reply_timeout_raw) <= 3600:
+    CHAT_AGENT_REPLY_TIMEOUT_SECONDS = int(_agent_reply_timeout_raw)
+elif _agent_reply_timeout_raw:
+    _logger.warning("CHAT_AGENT_REPLY_TIMEOUT_SECONDS: ignoring invalid value %r", _agent_reply_timeout_raw)
 
 # Nexus Messages exports from God mode (`plane.chat.export`): how long an archive can be downloaded before it is
 # deleted from storage.
@@ -464,6 +479,8 @@ CELERY_IMPORTS = (
     "plane.bgtasks.issue_description_version_sync",
     # chat posts for work item state changes
     "plane.chat.project_feed",
+    # chat agents answering @mentions
+    "plane.chat.agent_replies",
     # chat email digest of unread mentions
     "plane.chat.digest",
     # chat message retention and the files it leaves behind

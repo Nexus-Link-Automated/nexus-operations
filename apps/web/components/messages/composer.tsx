@@ -11,7 +11,7 @@ import { useDropzone } from "react-dropzone";
 // plane imports
 import { IconButton } from "@makeplane/propel/components/icon-button";
 import { AttachOutline, SendOutline } from "@makeplane/propel/icons";
-import type { EditorRefApi } from "@plane/editor";
+import type { EditorRefApi, TMentionSection } from "@plane/editor";
 import { useTranslation } from "@plane/i18n";
 import { cn, isCommentEmpty } from "@plane/utils";
 // components
@@ -24,6 +24,7 @@ import { useFileSize } from "@/hooks/use-file-size";
 import type { TChatOutgoingMessage } from "@/store/chat.store";
 // local imports
 import { ChatComposerAttachmentList, useChatComposerAttachments } from "./composer-attachments";
+import { ChatAgentAvatar } from "./member-avatar";
 
 export type TChatComposerBody = TChatOutgoingMessage & { body_json: Record<string, unknown> };
 
@@ -41,11 +42,17 @@ const noUploads = async (): Promise<string> => {
   throw new Error("Files are attached to a message, not embedded in it");
 };
 
+/** How many agents the mention list shows at most. */
+const MAX_AGENT_SUGGESTIONS = 5;
+
 /**
  * The message box: Plane's lite rich-text editor with @mentions. Enter sends, Shift+Enter adds a line. The editor
  * clears at once; the store shows the message as pending until the API has it, with a retry if it fails. Unsent
  * text is kept in the store per channel, so it is still there after switching away and back. Files upload as soon
  * as they are added, and sending waits for all of them.
+ *
+ * The mention list also offers the channel's agents, tagged, to someone who may run agents: mentioning one asks it to
+ * reply in the thread.
  */
 export const ChatComposer = observer(function ChatComposer({
   workspaceSlug,
@@ -56,8 +63,8 @@ export const ChatComposer = observer(function ChatComposer({
 }: Props) {
   const { t } = useTranslation();
   const { getWorkspaceBySlug } = useWorkspace();
+  const { getMentionableAgents, getDraft, setDraft } = useChat();
   const workspaceId = getWorkspaceBySlug(workspaceSlug)?.id ?? "";
-  const { getDraft, setDraft } = useChat();
   const editorRef = useRef<EditorRefApi>(null);
   // A thread's reply box keeps its own unsent text, apart from the channel's.
   const draftKey = parentId ? `${channelId}/${parentId}` : channelId;
@@ -85,6 +92,26 @@ export const ChatComposer = observer(function ChatComposer({
   const latestSend = useRef(send);
   latestSend.current = send;
   const handleEnter = useCallback(() => latestSend.current(), []);
+
+  // Read when the list opens: the editor keeps the first callback it was given.
+  const agentSections = (query: string): TMentionSection[] => {
+    const needle = query.trim().toLowerCase();
+    const items = getMentionableAgents(channelId)
+      .filter((agent) => !needle || agent.name.toLowerCase().includes(needle) || agent.slug.includes(needle))
+      .slice(0, MAX_AGENT_SUGGESTIONS)
+      .map((agent) => ({
+        id: agent.agent,
+        entity_identifier: agent.agent,
+        entity_name: "agent_mention" as const,
+        title: agent.name,
+        subTitle: t("messages.agent.tag"),
+        icon: <ChatAgentAvatar adapter={agent.adapter} size="xs" />,
+      }));
+    return items.length > 0 ? [{ key: "agents", title: t("messages.agent.mention_section"), items }] : [];
+  };
+  const latestAgentSections = useRef(agentSections);
+  latestAgentSections.current = agentSections;
+  const extraMentionSections = useCallback((query: string) => latestAgentSections.current(query), []);
 
   const { getRootProps, getInputProps, open, isDragActive } = useDropzone({
     onDrop: attachments.addFiles,
@@ -135,6 +162,7 @@ export const ChatComposer = observer(function ChatComposer({
               setDraft(draftKey, empty ? "" : html);
             }}
             onEnterKeyPress={handleEnter}
+            extraMentionSections={extraMentionSections}
             uploadFile={noUploads}
             duplicateFile={noUploads}
             disabledExtensions={["image"]}

@@ -17,6 +17,7 @@ import type { TChatChannel } from "@plane/types";
 // hooks
 import { useChat } from "@/hooks/store/use-chat";
 // local imports
+import { ChatAgentResponding } from "./agent-responding";
 import type { TChatComposerBody } from "./composer";
 import { ChatComposer } from "./composer";
 import { ChatMessageItem } from "./message-item";
@@ -120,6 +121,7 @@ export const ChatThreadPanel = observer(function ChatThreadPanel({ workspaceSlug
           <Spinner />
         </div>
       )}
+      {parent && <ChatAgentResponding threadId={parentId} className="flex-shrink-0 px-4 pb-2" />}
       {canReply && parent && (
         <div className="flex-shrink-0 px-4 pb-4">
           <ChatComposer

@@ -342,6 +342,7 @@ All of these are in `.env`. `generate-env.sh` writes them, and `generate-env.sh 
 | `AGENT_BRIDGE_SECRET`                   | api, agent-bridge          | The bridge sends it as `X-Agent-Bridge-Secret` to the internal agent-session endpoint. If it is empty, the API disables that endpoint.       |
 | `AGENT_RUNNER_SECRET`                   | agent-bridge, agent-runner | Signs the bridge's single-use spawn tickets. 32 or more characters.                                                                          |
 | `AGENT_SESSION_TOKEN_TTL_MINUTES`       | api                        | Lifetime of each chat's token (default 120). When it expires, the chat closes with 4410, and the browser reconnects and reloads the session. |
+| `CHAT_AGENT_REPLY_TIMEOUT_SECONDS`      | api, worker                | How long an agent @mentioned in Messages may work before it is stopped and says so in the thread (default 300, 30 to 3600).                  |
 | `AGENT_RUNNER_CPUS`, `_MEMORY`, `_PIDS` | agent-runner               | Container limits shared by all running agents (defaults 2, `3g`, 1024).                                                                      |
 | `AGENT_RUNNER_NPROC_LIMIT`              | agent-runner               | Processes and threads each uid may own (default 256).                                                                                        |
 | `AGENT_RUNNER_FILE_SIZE_LIMIT_BYTES`    | agent-runner               | Largest file an agent can create (default 4 GiB).                                                                                            |
@@ -354,6 +355,7 @@ The compose file sets the rest:
 - `AGENT_RUNNER_ISOLATION=uid`.
 - `AGENT_RUNNER_ENABLE_ECHO=false`.
 - `PLANE_MCP_URL=http://mcp:8211/mcp`, set on the api and the bridge.
+- `AGENT_BRIDGE_INTERNAL_URL=http://agent-bridge:3400`, set on the api and the workers: where the worker starts the session of an agent @mentioned in Messages (`POST /internal/channel-sessions`, with `AGENT_BRIDGE_SECRET`). The gateway forwards only `/agents` to the bridge, so that route can't be reached from outside.
 - `CORS_ALLOWED_ORIGINS=https://$APP_DOMAIN`, set on the bridge.
 
 The web image is built with `VITE_AGENT_BRIDGE_BASE_URL` empty, meaning the page's own origin, and with `VITE_AGENT_BRIDGE_BASE_PATH=/agents`. Keep it that way: the bridge authenticates with the browser's session cookie and refuses other origins, so the chat must stay on the same site as the app.

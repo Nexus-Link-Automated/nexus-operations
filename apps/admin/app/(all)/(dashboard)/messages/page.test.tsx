@@ -44,7 +44,13 @@ const SETTINGS: TInstanceChatSettings = {
   min_retention_days: 30,
   max_retention_days: 36500,
   export_expiry_hours: 24,
-  rate_limits: { send: ["30/minute", "500/hour"], read: ["120/minute"] },
+  rate_limits: {
+    send: ["30/minute", "500/hour"],
+    read: ["120/minute"],
+    agent_session: ["60/hour"],
+    agent_post: ["120/hour"],
+  },
+  agent_reply_timeout_seconds: 300,
 };
 
 const READY: TMessageExport = {
@@ -165,5 +171,15 @@ describe("rate limits", () => {
     expect(screen.getByText("Send a message or reply")).toBeTruthy();
     expect(screen.getByText("Mark as read")).toBeTruthy();
     expect(screen.queryByText("Search messages")).toBeNull();
+  });
+
+  it("shows the limits on agents answering mentions, and their time limit", async () => {
+    renderPage();
+    expect(await screen.findByText("Agents answering @mentions")).toBeTruthy();
+    expect(screen.getByText("Agent sessions one person starts")).toBeTruthy();
+    expect(screen.getByText("Replies one agent posts")).toBeTruthy();
+    expect(screen.queryByText("Agent sessions for one agent in one channel")).toBeNull();
+    expect(screen.getByText("Time an agent may take to reply")).toBeTruthy();
+    expect(screen.getByText("{count, plural, one {# second} other {# seconds}}")).toBeTruthy();
   });
 });

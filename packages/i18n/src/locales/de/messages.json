@@ -43,13 +43,13 @@
       "no_agents": "Keine Agenten in diesem Kanal.",
       "unavailable": "Nicht verfügbar",
       "remove_agent": "{name} entfernen",
-      "agents_inert": "Agenten in einem Kanal nehmen noch nicht an Unterhaltungen teil.",
       "agents_load_failed": "Die Agenten, die Sie hinzufügen können, konnten nicht geladen werden.",
       "no_available_agents": "Keine weiteren Agenten verfügbar. Ein Instanz-Admin kann Agenten hinzufügen.",
       "choose_agent": "Agent",
       "permission_level": "Berechtigungsstufe",
       "private_notice": "Dieser Kanal ist privat. {name} kann seine Nachrichten lesen, die jetzt nur die Personen darin sehen.",
       "public_notice": "{name} kann die Nachrichten dieses Kanals lesen.",
+      "agents_how": "Erwähnen Sie einen Agenten mit @, um ihn etwas zu fragen. Er antwortet im Thread, mit den Plane-Berechtigungen der Person, die gefragt hat. Gäste können keine Agenten fragen.",
       "remove": "{name} entfernen",
       "add_title": "Personen hinzufügen",
       "search": "Personen suchen",
@@ -269,13 +269,31 @@
           "channel": "Kanal erstellen oder Direktnachricht öffnen",
           "search": "Nachrichten durchsuchen",
           "read": "Als gelesen markieren",
-          "work_item": "Arbeitselement aus einer Nachricht erstellen"
-        }
+          "work_item": "Arbeitselement aus einer Nachricht erstellen",
+          "agent_session": "Agentensitzungen, die eine Person startet",
+          "agent_channel": "Agentensitzungen eines Agenten in einem Kanal",
+          "agent_post": "Antworten, die ein Agent postet"
+        },
+        "agents_title": "Agenten, die auf @Erwähnungen antworten",
+        "agents_description": "Limits für Agenten, die antworten, wenn sie in einem Kanal erwähnt werden. Legen Sie sie mit den Umgebungsvariablen CHAT_RATE_LIMIT_AGENT_* und das Zeitlimit mit CHAT_AGENT_REPLY_TIMEOUT_SECONDS in der API fest.",
+        "agent_timeout": "Zeit, die ein Agent für eine Antwort hat",
+        "seconds": "{count, plural, one {# Sekunde} other {# Sekunden}}"
       }
     },
     "agent": {
       "tag": "Agent",
-      "removed": "Entfernter Agent"
+      "removed": "Entfernter Agent",
+      "responding": "{name} antwortet…",
+      "mention_section": "Agenten",
+      "notice": {
+        "timeout": "Mir ist die Zeit ausgegangen, bevor ich fertig war, deshalb habe ich aufgehört.",
+        "unavailable": "Ich kann gerade nicht antworten: Der Agentendienst ist nicht verfügbar. Versuchen Sie es später erneut.",
+        "credentials": "Ich kann nicht antworten: Mir fehlen funktionierende Zugangsdaten für meinen KI-Anbieter. Ein Admin kann sie in den KI-Anbieter-Einstellungen des Workspace einrichten.",
+        "failed": "Bei der Arbeit daran ist etwas schiefgegangen, deshalb konnte ich nicht antworten.",
+        "empty": "Ich bin fertig, habe aber nichts zu sagen. Fragen Sie noch einmal mit mehr Details.",
+        "rate_limited": "Ich wurde in kurzer Zeit zu oft gefragt. Versuchen Sie es in ein paar Minuten erneut.",
+        "still_working": "Ich arbeite noch an der letzten Anfrage in diesem Thread. Fragen Sie erneut, sobald ich geantwortet habe."
+      }
     }
   }
 }

@@ -9,6 +9,7 @@ from plane.app.views import (
     AgentConnectionEndpoint,
     AgentOffboardingEndpoint,
     AgentSessionEndpoint,
+    ChatAgentReplyEndpoint,
 )
 
 # Service-to-service endpoints. Not for browsers: guarded by a shared secret.
@@ -37,5 +38,10 @@ urlpatterns = [
         "internal/agent-offboarding/",
         AgentOffboardingEndpoint.as_view(),
         name="internal-agent-offboarding",
+    ),
+    path(
+        "internal/chat/agent-replies/",
+        ChatAgentReplyEndpoint.as_view(),
+        name="internal-chat-agent-replies",
     ),
 ]

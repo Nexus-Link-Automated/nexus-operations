@@ -43,13 +43,13 @@
       "no_agents": "Kênh này không có tác nhân nào.",
       "unavailable": "Không khả dụng",
       "remove_agent": "Xóa {name}",
-      "agents_inert": "Tác nhân trong kênh chưa tham gia vào các cuộc trò chuyện.",
       "agents_load_failed": "Không thể tải các tác nhân bạn có thể thêm.",
       "no_available_agents": "Không còn tác nhân nào khả dụng. Quản trị viên phiên bản có thể thêm tác nhân.",
       "choose_agent": "Tác nhân",
       "permission_level": "Mức quyền",
       "private_notice": "Kênh này là kênh riêng tư. {name} sẽ có thể đọc tin nhắn của kênh, mà hiện chỉ những người trong kênh mới xem được.",
       "public_notice": "{name} sẽ có thể đọc tin nhắn của kênh này.",
+      "agents_how": "Nhắc đến một tác nhân bằng @ để hỏi điều gì đó. Tác nhân trả lời trong chuỗi, với quyền Plane của người đã hỏi. Khách không thể hỏi tác nhân.",
       "remove": "Xóa {name}",
       "add_title": "Thêm người",
       "search": "Tìm người",
@@ -269,13 +269,31 @@
           "channel": "Tạo kênh hoặc mở tin nhắn trực tiếp",
           "search": "Tìm kiếm tin nhắn",
           "read": "Đánh dấu là đã đọc",
-          "work_item": "Tạo mục công việc từ tin nhắn"
-        }
+          "work_item": "Tạo mục công việc từ tin nhắn",
+          "agent_session": "Phiên tác nhân do một người bắt đầu",
+          "agent_channel": "Phiên của một tác nhân trong một kênh",
+          "agent_post": "Câu trả lời một tác nhân đăng"
+        },
+        "agents_title": "Tác nhân trả lời @lượt nhắc",
+        "agents_description": "Giới hạn cho các tác nhân trả lời khi được nhắc đến trong một kênh. Đặt chúng bằng các biến môi trường CHAT_RATE_LIMIT_AGENT_*, và giới hạn thời gian bằng CHAT_AGENT_REPLY_TIMEOUT_SECONDS, trên API.",
+        "agent_timeout": "Thời gian một tác nhân có để trả lời",
+        "seconds": "{count, plural, other {# giây}}"
       }
     },
     "agent": {
       "tag": "Tác nhân",
-      "removed": "Tác nhân đã bị xóa"
+      "removed": "Tác nhân đã bị xóa",
+      "responding": "{name} đang trả lời…",
+      "mention_section": "Tác nhân",
+      "notice": {
+        "timeout": "Tôi đã hết thời gian trước khi hoàn thành nên đã dừng lại.",
+        "unavailable": "Hiện tôi không thể trả lời: dịch vụ tác nhân không khả dụng. Hãy thử lại sau.",
+        "credentials": "Tôi không thể trả lời: tôi không có thông tin xác thực hợp lệ cho nhà cung cấp AI của mình. Quản trị viên có thể thiết lập trong phần cài đặt nhà cung cấp AI của không gian làm việc.",
+        "failed": "Đã xảy ra sự cố khi tôi xử lý việc này nên tôi không thể trả lời.",
+        "empty": "Tôi đã xong nhưng không có gì để nói. Hãy thử hỏi lại với nhiều chi tiết hơn.",
+        "rate_limited": "Tôi được yêu cầu quá thường xuyên trong thời gian ngắn. Hãy thử lại sau vài phút.",
+        "still_working": "Tôi vẫn đang xử lý yêu cầu trước trong chuỗi này. Hãy hỏi lại sau khi tôi đã trả lời."
+      }
     }
   }
 }

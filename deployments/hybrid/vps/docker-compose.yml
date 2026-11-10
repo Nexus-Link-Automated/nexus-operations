@@ -56,6 +56,10 @@ x-app-env: &app-env
   AGENT_BRIDGE_SECRET: ${AGENT_BRIDGE_SECRET:?run generate-env.sh}
   PLANE_MCP_URL: http://mcp:8211/mcp
   AGENT_SESSION_TOKEN_TTL_MINUTES: ${AGENT_SESSION_TOKEN_TTL_MINUTES:-120}
+  # Agents @mentioned in Messages: the worker starts their sessions at the bridge's internal route (on the app
+  # network only; the gateway forwards just /agents), and they reply through the API's internal endpoint.
+  AGENT_BRIDGE_INTERNAL_URL: http://agent-bridge:3400
+  CHAT_AGENT_REPLY_TIMEOUT_SECONDS: ${CHAT_AGENT_REPLY_TIMEOUT_SECONDS:-300}
   # Minutes an @mention in Messages stays unread before it is emailed in a digest.
   CHAT_MENTION_EMAIL_DELAY_MINUTES: ${CHAT_MENTION_EMAIL_DELAY_MINUTES:-30}
   # Per-person limits on Messages writes and searches, e.g. "30/minute,500/hour". Empty keeps the default.
@@ -66,6 +70,9 @@ x-app-env: &app-env
   CHAT_RATE_LIMIT_SEARCH: ${CHAT_RATE_LIMIT_SEARCH:-}
   CHAT_RATE_LIMIT_READ: ${CHAT_RATE_LIMIT_READ:-}
   CHAT_RATE_LIMIT_WORK_ITEM: ${CHAT_RATE_LIMIT_WORK_ITEM:-}
+  CHAT_RATE_LIMIT_AGENT_SESSION: ${CHAT_RATE_LIMIT_AGENT_SESSION:-}
+  CHAT_RATE_LIMIT_AGENT_CHANNEL: ${CHAT_RATE_LIMIT_AGENT_CHANNEL:-}
+  CHAT_RATE_LIMIT_AGENT_POST: ${CHAT_RATE_LIMIT_AGENT_POST:-}
   # Hours a Messages export from God mode can be downloaded before it is deleted.
   CHAT_EXPORT_EXPIRY_HOURS: ${CHAT_EXPORT_EXPIRY_HOURS:-24}
 
@@ -234,7 +241,9 @@ services:
   # ACP policy proxy for the in-app agent chat (apps/agent-bridge). The browser opens
   # wss://$APP_DOMAIN/agents/acp with its session cookie; the bridge checks the cookie
   # with the API, mints a short-lived workspace-scoped token, and relays to the runner.
-  # It runs no agents itself.
+  # It runs no agents itself. The worker also asks it (POST /internal/channel-sessions,
+  # with AGENT_BRIDGE_SECRET) to run agents @mentioned in Messages; that route is outside
+  # /agents, so the gateway never forwards it.
   agent-bridge:
     image: ${IMAGE_REGISTRY}/plane-agent-bridge:${APP_RELEASE}
     restart: always

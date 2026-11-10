@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { runInAction } from "mobx";
 import { MemoryRouter } from "react-router";
@@ -196,6 +196,7 @@ const message = (id: string, sender: string, text: string, minute: number, extra
     sender_agent: null,
     sender_agent_details: null,
     system_event: null,
+    agent_notice: null,
     body_html: `<p>${text}</p>`,
     body_json: {},
     body_stripped: text,
@@ -260,6 +261,8 @@ async function started(store: ChatStore, channels: TChatChannel[]) {
       can_create_channels: true,
       can_open_dms: true,
       can_add_agents: true,
+      can_mention_agents: true,
+      agent_reply_timeout_seconds: 300,
     };
     store.channelMap = Object.fromEntries(channels.map((c) => [c.id, c]));
     store.channelsLoaded = true;
@@ -1913,6 +1916,17 @@ describe("agents", () => {
       expect(within(dialog).getByText("Reviewer")).toBeTruthy();
     });
 
+    it("never offers more than asking for writes in a channel, whatever the registry allows", async () => {
+      const { dialog } = await view({ my_role: "admin" }, []);
+      await userEvent.click(within(dialog).getByRole("button", { name: "Add an agent" }));
+      const form = await within(dialog).findByRole("form", { name: "Add an agent" });
+      // Triage's registry maximum is "never ask".
+      await userEvent.click(await within(form).findByRole("radio", { name: byTemplate("Triage") }));
+      const levels = within(form).getByRole("radiogroup", { name: "Permission level" });
+      expect(within(levels).getAllByRole("radio")).toHaveLength(2);
+      expect(within(levels).queryByRole("radio", { name: byTemplate("Never ask") })).toBeNull();
+    });
+
     it("leaves out agents already in the channel, and says less in a public one", async () => {
       const { dialog } = await view({ my_role: "admin" }, [seat("review", { name: "Reviewer" })]);
       await userEvent.click(within(dialog).getByRole("button", { name: "Add an agent" }));
@@ -1961,7 +1975,18 @@ describe("agents", () => {
       });
       expect(await within(dialog).findByText("Reviewer")).toBeTruthy();
       await userEvent.click(screen.getByRole("button", { name: "Done" }));
-      await vi.waitFor(() => expect(store.channelAgents["c-general"]).toBeUndefined());
+      await vi.waitFor(() => expect(store.channelMembers["c-general"]).toBeUndefined());
+      // The channel itself still shows its agents (for mentions) until it closes.
+      expect(store.channelAgents["c-general"]).toBeDefined();
+      cleanup();
+      expect(store.channelAgents["c-general"]).toBeUndefined();
+    });
+
+    it("says what mentioning an agent does", async () => {
+      const { dialog } = await view({ my_role: "member" });
+      const agents = within(dialog).getByRole("region", { name: "Agents" });
+      expect(within(agents).getByText(byTemplate("Mention an agent with @ to ask it something."))).toBeTruthy();
+      expect(within(dialog).queryByText(byTemplate("don't take part in conversations"))).toBeNull();
     });
 
     it("isn't offered in a DM", async () => {
@@ -1972,5 +1997,89 @@ describe("agents", () => {
       await screen.findAllByText("Ada");
       expect(screen.queryByRole("button", { name: "Members" })).toBeNull();
     });
+  });
+});
+
+describe("agents answering mentions", () => {
+  const maia = { id: "agent-maia", slug: "maia", name: "Maia", adapter: "claude" as const };
+  const seat: TChatChannelAgent = {
+    id: "seat-maia",
+    channel: "c-general",
+    agent: maia.id,
+    slug: maia.slug,
+    name: maia.name,
+    description: "",
+    adapter: "claude",
+    permission_level: "ask_writes",
+    is_available: true,
+    added_by: ME,
+    added_at: "2026-01-01T00:00:00Z",
+  };
+  const fromMaia = (id: string, text: string, minute: number, extra: Partial<TChatMessage> = {}) =>
+    message(id, null as unknown as string, text, minute, {
+      sender: null,
+      sender_agent: maia.slug,
+      sender_agent_details: { ...maia, is_available: true },
+      ...extra,
+    });
+  const agentEvent = (type: "agent.responding" | "agent.responded", messageId: string): TChatEvent => ({
+    type,
+    workspace_id: "ws-1",
+    channel_id: "c-general",
+    message_id: messageId,
+    parent_id: messageId,
+    agent_id: maia.id,
+    at: "t",
+  });
+
+  async function view(top: TChatMessage[], replies: TChatMessage[] = []) {
+    const { store } = makeStore({
+      listMessages: async () => ({ results: top, has_more: false }),
+      listReplies: async () => ({ results: replies, has_more: false }),
+      getMessage: async (_slug, _channel, id) => [...top, ...replies].find((m) => m.id === id)!,
+      markRead: async () => channel({}),
+      listAgents: async () => [seat],
+    });
+    mocks.chat = store;
+    await started(store, [channel({})]);
+    inRouter(<MessagesRoot workspaceSlug="acme" channelId="c-general" />);
+    await within(await screen.findByRole("log", { name: "Messages" })).findAllByRole("article");
+    await vi.waitFor(() => expect(store.channelAgents["c-general"]).toEqual([seat]));
+    const emit = (event: TChatEvent) =>
+      act(() => (store as unknown as { handleEvent: (e: TChatEvent) => void }).handleEvent(event));
+    return { store, emit };
+  }
+
+  it("shows the agent responding under the message that mentioned it, until it has", async () => {
+    const { emit } = await view([message("m1", ADA, "hey maia", 0)]);
+    const [row] = within(screen.getByRole("log", { name: "Messages" })).getAllByRole("article");
+    emit(agentEvent("agent.responding", "m1"));
+    const status = await within(row!).findByRole("status");
+    expect(status.textContent).toContain("is responding");
+    emit(agentEvent("agent.responded", "m1"));
+    await vi.waitFor(() => expect(within(row!).queryByRole("status")).toBeNull());
+  });
+
+  it("shows it in the open thread too", async () => {
+    const { store, emit } = await view(
+      [message("p1", ADA, "the question", 0, { reply_count: 1 })],
+      [message("r1", ME, "any news?", 1, { parent: "p1" })]
+    );
+    await act(() => store.openThread("c-general", "p1"));
+    const thread = await screen.findByRole("complementary", { name: "Thread" });
+    emit(agentEvent("agent.responding", "p1"));
+    expect((await within(thread).findByRole("status")).textContent).toContain("is responding");
+  });
+
+  it("shows a note an agent posted instead of an answer in the reader's words, not its English body", async () => {
+    await view([
+      fromMaia("m1", "I ran out of time (English body)", 0, { agent_notice: "timeout" }),
+      fromMaia("m2", "Two items are left.", 1),
+    ]);
+    const [note, answer] = within(screen.getByRole("log", { name: "Messages" })).getAllByRole("article");
+    expect(within(note!).getByRole("note").textContent).toBe("I ran out of time before I could finish, so I stopped.");
+    expect(within(note!).queryByText(byTemplate("English body"))).toBeNull();
+    expect(within(answer!).queryByRole("note")).toBeNull();
+    expect(within(answer!).getByText("Two items are left.")).toBeTruthy();
   });
 });
