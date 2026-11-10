@@ -1477,7 +1477,7 @@ describe("threads", () => {
 });
 
 describe("search", () => {
-  const general = {
+  const general: TChatSearchResult["channel"] = {
     id: "c-general",
     kind: "public",
     name: "general",
