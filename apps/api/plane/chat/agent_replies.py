@@ -81,6 +81,10 @@ MAX_PERMISSION_TITLE_CHARS = 200
 BRIDGE_REQUEST_TIMEOUT = 10
 # A run outlives its timeout by this much, for the bridge to post what happened.
 RUN_GRACE_SECONDS = 60
+# A "still working" or "asked too often" note goes in a thread at most once in this long, per agent: asking again and
+# again then neither fills the thread nor spends the agent's posting budget.
+NOTE_INTERVAL_SECONDS = 60
+_REPEATABLE_NOTES = (AgentNotice.STILL_WORKING, AgentNotice.RATE_LIMITED)
 
 WORK_ITEM_UPDATES = "Work item updates"
 SOMEONE = "Someone"
@@ -174,10 +178,12 @@ def queue_agent_replies(message):
     if message.sender_id is None or not mentioned_agent_ids(message.body_html):
         return
     message_id = str(message.id)
+    # The agents mentioned now: an edit made before the worker runs mustn't set off others.
+    agent_ids = [str(agent_id) for agent_id in mentioned_agent_ids(message.body_html)]
 
     def enqueue():
         try:
-            respond_to_mentions.delay(message_id)
+            respond_to_mentions.delay(message_id, agent_ids)
         except Exception as error:
             # The message is saved; a broker outage must not fail the request that sent it.
             log_exception(error)
@@ -367,15 +373,15 @@ def start_run(message, channel_agent):
     lock = thread_lock_key(agent.id, root_id)
     # Before the limits, so asking again while it works costs nothing.
     if cache.get(lock) is not None:
-        post_reply(message, agent.id, notice=AgentNotice.STILL_WORKING)
+        _note(message, agent.id, AgentNotice.STILL_WORKING)
         return None
     if not allow("agent_session", message.sender_id) or not allow("agent_channel", f"{agent.id}:{message.channel_id}"):
-        post_reply(message, agent.id, notice=AgentNotice.RATE_LIMITED)
+        _note(message, agent.id, AgentNotice.RATE_LIMITED)
         return None
 
     run_id = uuid.uuid4().hex
     if not cache.add(lock, run_id, _run_ttl()):
-        post_reply(message, agent.id, notice=AgentNotice.STILL_WORKING)
+        _note(message, agent.id, AgentNotice.STILL_WORKING)
         return None
     # Kept a little longer than the lock, for `expire_run` to find it.
     cache.set(
@@ -385,16 +391,20 @@ def start_run(message, channel_agent):
     )
     publish_on_commit(agent_reply_event(EventType.AGENT_RESPONDING, message, agent.id))
 
-    prompt = build_prompt(message, agent.id)
-    if prompt is None:
-        finish_run(run_id, None)
-        return None
     try:
+        prompt = build_prompt(message, agent.id)
+        if prompt is None:
+            finish_run(run_id, None)
+            return None
         _start_bridge_session(run_id, message, channel_agent, prompt)
     except BridgeUnavailable as error:
         log_exception(error, warning=True)
         finish_run(run_id, {"status": "failed", "error": "unavailable"})
         return None
+    except Exception:
+        # Say so and free the thread now, rather than leave it held with no note until the run would have timed out.
+        finish_run(run_id, {"status": "failed", "error": "failed"})
+        raise
     try:
         expire_run.apply_async((run_id,), countdown=_run_ttl())
     except Exception as error:
@@ -413,14 +423,21 @@ def expire_run(run_id):
 
 
 @shared_task
-def respond_to_mentions(message_id):
-    """Start a session for each agent a new message mentions, if the message may set agents off."""
+def respond_to_mentions(message_id, agent_ids=None):
+    """Start a session for each agent a new message mentions, if the message may set agents off.
+
+    `agent_ids`: the agents it mentioned when it was sent. Only those that it still mentions are set off, so an edit
+    made before this runs can take a mention back but not add one.
+    """
     message = Message.objects.filter(pk=message_id).select_related("channel", "workspace").first()
     if message is None or message.removed_at is not None:
         return
     if not channel_is_open(message.channel) or not can_set_off_agents(message):
         return
+    sent_with = None if agent_ids is None else {str(agent_id) for agent_id in agent_ids}
     for agent_id in mentioned_agent_ids(message.body_html):
+        if sent_with is not None and str(agent_id) not in sent_with:
+            continue
         channel_agent = live_channel_agent(message.channel_id, agent_id)
         if channel_agent is None:
             continue
@@ -451,6 +468,9 @@ def finish_run(run_id, outcome):
     try:
         if message is None or outcome is None:
             return None, "gone"
+        if outcome.get("status") == "ok" and not can_set_off_agents(message):
+            # Worked out with the asker's rights, who has since left the channel or lost them: not for the channel.
+            return None, "asker_gone"
         if outcome.get("status") == "ok":
             return post_reply(
                 message,
@@ -506,6 +526,13 @@ def reply_html(asker_id, text="", permission_requests=(), notice=None):
     return f"<p>{mention.strip()}</p>{html}"
 
 
+def _note(message, agent_id, notice):
+    """Post a repeatable note (`_REPEATABLE_NOTES`) unless the thread got the same one from this agent just now."""
+    key = f"chat:agent-note:{agent_id}:{message.parent_id or message.id}:{notice}"
+    if cache.add(key, 1, NOTE_INTERVAL_SECONDS):
+        post_reply(message, agent_id, notice=notice)
+
+
 def refusal_reason(message, agent_id):
     """Why the agent may not post in reply to `message` now (None if it may)."""
     if message.removed_at is not None:
@@ -528,7 +555,9 @@ def post_reply(message, agent_id, text="", permission_requests=(), notice=None):
     channel_agent = live_channel_agent(message.channel_id, agent_id)
     if notice is None and not (text or "").strip() and not permission_requests:
         notice = AgentNotice.EMPTY
-    if not allow("agent_post", channel_agent.agent_id):
+    # Per agent and workspace, so one workspace can't use up an agent every workspace shares. Repeatable notes are
+    # limited by `_note` instead.
+    if notice not in _REPEATABLE_NOTES and not allow("agent_post", f"{channel_agent.agent_id}:{message.workspace_id}"):
         return None, "rate_limited"
     with transaction.atomic():
         reply = Message.objects.create(

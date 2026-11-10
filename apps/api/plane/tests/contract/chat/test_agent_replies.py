@@ -8,6 +8,7 @@ The agent bridge is replaced by a stub of its internal endpoint; the bridge's ow
 """
 
 import json
+import time
 from unittest import mock
 from uuid import uuid4
 
@@ -28,6 +29,7 @@ from plane.chat.agent_replies import (
     start_run,
     thread_lock_key,
 )
+from plane.chat.markdown import markdown_to_html
 from plane.chat.models import AgentNotice, ChannelAgent, ChannelKind, ChannelMember, Message
 from plane.chat.notifications import CHAT_MESSAGE_ENTITY
 from plane.db.models import Notification
@@ -172,7 +174,7 @@ class TestTrigger:
                     url(f"channels/{channel.id}/messages/"), {"body_html": f"<p>{mention(agent)} hi</p>"}, format="json"
                 )
         assert response.status_code == 201, response.data
-        delay.assert_called_once_with(str(response.data["id"]))
+        delay.assert_called_once_with(str(response.data["id"]), [str(agent.id)])
 
     def test_a_reply_queues_the_worker_too(self, member, channel, agent, url, send, django_capture_on_commit_callbacks):
         root = send(channel, member.user)
@@ -183,7 +185,7 @@ class TestTrigger:
                     {"body_html": f"<p>{mention(agent)} hi</p>", "parent_id": str(root.id)},
                     format="json",
                 )
-        delay.assert_called_once_with(str(response.data["id"]))
+        delay.assert_called_once_with(str(response.data["id"]), [str(agent.id)])
 
     def test_editing_a_mention_in_starts_nothing(
         self, member, channel, agent, url, send, django_capture_on_commit_callbacks
@@ -198,6 +200,20 @@ class TestTrigger:
                 )
         assert response.status_code == 200
         assert not delay.called
+
+    def test_an_edit_before_the_worker_runs_can_take_a_mention_back_but_not_add_one(
+        self, ask, bridge, make_agent, channel, agent
+    ):
+        other = make_agent(name="Other")
+        seat(channel, other)
+        message = ask()
+        sent_with = [str(agent.id)]
+        Message.objects.filter(pk=message.pk).update(body_html=f"<p>{mention(other)} instead</p>")
+        respond_to_mentions(str(message.id), sent_with)
+        assert bridge.calls == []
+        Message.objects.filter(pk=message.pk).update(body_html=f"<p>{mention(agent)} {mention(other)} both</p>")
+        respond_to_mentions(str(message.id), sent_with)
+        assert [run["agent_id"] for run in bridge.runs] == [str(agent.id)]
 
     def test_a_broker_outage_does_not_fail_the_send(
         self, member, channel, agent, url, django_capture_on_commit_callbacks
@@ -227,12 +243,17 @@ class TestTrigger:
         assert cache.get(thread_lock_key(agent.id, message.id)) == run["run_id"]
 
     def test_the_level_is_the_channels_clamped_to_the_registry(self, ask, bridge, agent, channel):
+        ChannelAgent.objects.filter(channel=channel, agent=agent).update(permission_level="ask_writes")
+        AgentDefinition.objects.filter(pk=agent.pk).update(max_permission_level="ask_all")
+        respond_to_mentions(str(ask().id))
+        assert bridge.runs[0]["permission_level"] == "ask_all"
+
+    def test_a_channel_agent_never_works_without_asking_for_writes(self, ask, bridge, agent, channel):
+        # Nobody can answer its prompts in a channel, and other members' messages are in what it reads.
+        AgentDefinition.objects.filter(pk=agent.pk).update(max_permission_level="yolo")
         ChannelAgent.objects.filter(channel=channel, agent=agent).update(permission_level="yolo")
         respond_to_mentions(str(ask().id))
         assert bridge.runs[0]["permission_level"] == "ask_writes"
-        AgentDefinition.objects.filter(pk=agent.pk).update(max_permission_level="yolo")
-        respond_to_mentions(str(ask().id))
-        assert bridge.runs[1]["permission_level"] == "yolo"
 
     def test_a_workspace_admin_in_the_channel_can_set_it_off(self, ask, bridge, admin, channel):
         ChannelMember.objects.create(channel=channel, user=admin.user)
@@ -541,6 +562,14 @@ class TestReplyEndpoint:
         response = self._refused(api_client, run, lambda m: m.remove())
         assert response.data["error"] == "message_removed"
 
+    def test_not_posted_once_the_asker_has_left_the_channel(self, api_client, run, member):
+        # Worked out with their rights: not for a channel they are no longer in.
+        message, run_id = run
+        ChannelMember.objects.filter(channel=message.channel, user=member.user).delete()
+        response = internal(api_client, {"run_id": run_id, "status": "ok", "text": "your private items: ..."})
+        assert response.status_code == 409 and response.data["error"] == "asker_gone"
+        assert replies_in(message) == []
+
     def test_a_refusal_still_frees_the_thread(self, api_client, run, agent):
         message, run_id = run
         message.remove()
@@ -731,6 +760,19 @@ class TestLimits:
         assert response.status_code == 429
         assert replies_in(second) == []
 
+    def test_asking_again_and_again_posts_one_note_a_minute_and_spends_no_reply_budget(
+        self, settings, api_client, ask, bridge
+    ):
+        settings.CHAT_RATE_LIMITS = {**settings.CHAT_RATE_LIMITS, "agent_post": "1/hour"}
+        first = ask()
+        respond_to_mentions(str(first.id))
+        for _ in range(5):
+            respond_to_mentions(str(ask("again?", parent=first).id))
+        assert [reply.agent_notice for reply in replies_in(first)] == [AgentNotice.STILL_WORKING]
+        # The answer itself still has its budget.
+        response = internal(api_client, {"run_id": bridge.runs[0]["run_id"], "status": "ok", "text": "done"})
+        assert response.status_code == 201
+
     def test_the_lock_expires_with_the_timeout(self, ask, bridge, agent, settings):
         settings.CHAT_AGENT_REPLY_TIMEOUT_SECONDS = 30
         message = ask()
@@ -785,6 +827,14 @@ class TestBridgeFailures:
         internal(api_client, {"run_id": run_id, "status": "ok", "text": "done"})
         agent_replies.expire_run(run_id)
         assert [reply.agent_notice for reply in replies_in(message)] == [None]
+
+    def test_an_error_while_starting_frees_the_thread_and_says_so(self, ask, bridge, agent):
+        message = ask()
+        with mock.patch.object(agent_replies, "build_prompt", side_effect=RuntimeError("database went away")):
+            respond_to_mentions(str(message.id))
+        assert bridge.calls == []
+        assert [reply.agent_notice for reply in replies_in(message)] == [AgentNotice.FAILED]
+        assert cache.get(thread_lock_key(agent.id, message.id)) is None
 
     def test_no_expiry_for_a_run_that_never_started(self, ask, bridge, expiry):
         bridge.status = 503
@@ -842,3 +892,36 @@ class TestEvents:
         message.remove()
         internal(api_client, {"run_id": bridge.runs[-1]["run_id"], "status": "ok", "text": "hi"})
         assert [event["type"] for event in published.events] == ["agent.responding", "agent.responded"]
+
+
+@pytest.mark.unit
+class TestMarkdownTakesLinearTime:
+    """An agent's text is converted on every reply: no input it can write may hold a worker for long."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "# a" + " " * 11_990 + "b",
+            "`" * 12_000,
+            "`a" * 6_000,
+            "[&" * 6_000,
+            " *&" * 4_000,
+            "**a" * 4_000,
+            "~~a" * 4_000,
+            "a http://" * 1_300,
+        ],
+    )
+    def test_worst_cases_are_quick(self, text):
+        started = time.monotonic()
+        markdown_to_html(text, agent_replies.MAX_REPLY_CHARS)
+        assert time.monotonic() - started < 1
+
+    def test_headings_lose_only_closing_hashes(self):
+        assert markdown_to_html("# Title ##", 100) == "<p><strong>Title</strong></p>"
+        assert markdown_to_html("# C#", 100) == "<p><strong>C#</strong></p>"
+
+    def test_a_code_span_closes_on_as_many_backticks(self):
+        assert markdown_to_html("use `a ``b`` c` and ``x`y``", 100) == (
+            "<p>use <code>a ``b`` c</code> and <code>x`y</code></p>"
+        )
+        assert markdown_to_html("one ` stays", 100) == "<p>one ` stays</p>"

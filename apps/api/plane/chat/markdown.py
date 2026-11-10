@@ -24,15 +24,18 @@ _HOLD_START, _HOLD_END = "", ""
 _HOLD = re.compile(f"{_HOLD_START}(\\d+){_HOLD_END}")
 
 _FENCE = re.compile(r"^\s{0,3}(```|~~~)")
-_HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
+# The closing `#`s are taken off in `_heading_text`: a pattern for them backtracks badly on long runs of spaces.
+_HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(.*)$")
 _BULLET = re.compile(r"^\s{0,3}[-*+]\s+(.*)$")
 _NUMBERED = re.compile(r"^\s{0,3}\d{1,9}[.)]\s+(.*)$")
 _QUOTE = re.compile(r"^\s{0,3}&gt;\s?(.*)$")
 _RULE = re.compile(r"^\s{0,3}([-*_])(\s*\1){2,}\s*$")
 
-_CODE_SPAN = re.compile(r"(`+)(.+?)\1")
-# [text](url) after escaping: the URL may not contain spaces or a closing parenthesis.
-_LINK = re.compile(r"\[([^\]\n]+)\]\(\s*([^\s)]+)\s*\)")
+# Code spans are found by `_code_spans`, run by run: a backreference pattern takes cubic time on long runs.
+_BACKTICKS = re.compile(r"`+")
+# [text](url) after escaping: the URL may not contain spaces or a closing parenthesis, nor the text brackets (which
+# also keeps each try at a match short).
+_LINK = re.compile(r"\[([^\[\]\n]+)\]\(\s*([^\s)]+)\s*\)")
 # <https://...> after escaping.
 _AUTOLINK = re.compile(r"&lt;((?:https?://|mailto:)[^\s&]+(?:&amp;[^\s&]+)*)&gt;")
 _BARE_URL = re.compile(r"(?<![\w/])(https?://[^\s<]+[^\s<.,;:!?)\]'\"])")
@@ -41,6 +44,9 @@ _ITALIC = re.compile(r"(?<![\w*])([*_])(?=\S)(.+?)(?<=\S)\1(?![\w*])")
 _STRIKE = re.compile(r"~~(?=\S)(.+?)(?<=\S)~~")
 
 _SAFE_SCHEMES = ("http://", "https://", "mailto:")
+# Emphasis and bare URLs are matched only in lines up to this long (after escaping). Their patterns take time growing
+# with the square of the line's length when nothing closes them, and an agent's text is not to be trusted with that.
+MAX_INLINE_CHARS = 4_000
 
 
 def _link(href, text):
@@ -52,6 +58,39 @@ def _safe_href(escaped_url):
     return escaped_url.lower().startswith(_SAFE_SCHEMES)
 
 
+def _code_spans(text, hold):
+    """`text` with each code span held: a run of backticks up to the next run of exactly as many (as in CommonMark)."""
+    runs = list(_BACKTICKS.finditer(text))
+    # For each run, the next run of the same length, found in one pass from the end.
+    closing, last_of_length = [None] * len(runs), {}
+    for index in range(len(runs) - 1, -1, -1):
+        length = len(runs[index].group())
+        closing[index] = last_of_length.get(length)
+        last_of_length[length] = index
+    out, position, index = [], 0, 0
+    while index < len(runs):
+        close = closing[index]
+        if close is None:
+            index += 1
+            continue
+        opening, ending = runs[index], runs[close]
+        out.append(text[position : opening.start()])
+        out.append(hold(f"<code>{text[opening.end() : ending.start()].strip()}</code>"))
+        position = ending.end()
+        index = close + 1
+    out.append(text[position:])
+    return "".join(out)
+
+
+def _heading_text(text):
+    """A heading's text without its closing `#`s, which need a space before them (`C#` keeps its `#`)."""
+    text = text.rstrip()
+    without = text.rstrip("#")
+    if without != text and (not without or without[-1] in " \t"):
+        return without.rstrip()
+    return text
+
+
 def _inline(text):
     """One line or paragraph of escaped text with its inline Markdown converted."""
     held = []
@@ -60,16 +99,17 @@ def _inline(text):
         held.append(html)
         return f"{_HOLD_START}{len(held) - 1}{_HOLD_END}"
 
-    text = _CODE_SPAN.sub(lambda m: hold(f"<code>{m.group(2).strip()}</code>"), text)
+    text = _code_spans(text, hold)
     text = _LINK.sub(
         lambda m: hold(_link(m.group(2), m.group(1))) if _safe_href(m.group(2)) else m.group(1),
         text,
     )
     text = _AUTOLINK.sub(lambda m: hold(_link(m.group(1), m.group(1))), text)
-    text = _BARE_URL.sub(lambda m: hold(_link(m.group(1), m.group(1))), text)
-    text = _BOLD.sub(r"<strong>\2</strong>", text)
-    text = _ITALIC.sub(r"<em>\2</em>", text)
-    text = _STRIKE.sub(r"<s>\1</s>", text)
+    if len(text) <= MAX_INLINE_CHARS:
+        text = _BARE_URL.sub(lambda m: hold(_link(m.group(1), m.group(1))), text)
+        text = _BOLD.sub(r"<strong>\2</strong>", text)
+        text = _ITALIC.sub(r"<em>\2</em>", text)
+        text = _STRIKE.sub(r"<s>\1</s>", text)
     # Held items can hold others (a link's text with code in it), so restore until none are left.
     while _HOLD.search(text):
         text = _HOLD.sub(lambda m: held[int(m.group(1))], text)
@@ -105,7 +145,7 @@ def _blocks(lines):
             continue
         heading = _HEADING.match(line)
         if heading:
-            out.append(f"<p><strong>{_inline(heading.group(1))}</strong></p>")
+            out.append(f"<p><strong>{_inline(_heading_text(heading.group(1)))}</strong></p>")
             i += 1
             continue
         if _QUOTE.match(line):
