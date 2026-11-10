@@ -74,8 +74,13 @@ gateway forwards exactly these fields and no others: `type`, `workspace_id`, `ch
 where permissions are enforced. A `member.*` event about an agent carries `agent_id` and no `user_id`, so it goes
 to the channel's followers and changes no one's own access.
 
+`agent.responding` and `agent.responded` say that an agent @mentioned in the channel has started, and stopped,
+working on a reply: `message_id` is the mention, `parent_id` the thread the reply goes in, `agent_id` the agent.
+They go to the channel's followers like any channel event. The reply itself is a `message.created` before
+`agent.responded`.
+
 Types: `message.created|updated|removed`, `channel.created|updated|archived|unarchived`,
-`member.added|removed|updated`, `read.updated`, `access.revoked`.
+`member.added|removed|updated`, `read.updated`, `access.revoked`, `agent.responding|responded`.
 
 ### Who gets an event
 

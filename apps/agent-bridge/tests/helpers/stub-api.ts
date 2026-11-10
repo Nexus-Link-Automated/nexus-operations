@@ -47,6 +47,10 @@ export class StubPlaneApi {
   readonly offboardingChecks: { workspace_id: string; user_id: string }[][] = [];
   /** Answer the agent-offboarding endpoint with this status instead (e.g. 500). */
   offboardingStatus: number | undefined;
+  /** `POST /api/internal/chat/agent-replies/` bodies, in order. */
+  readonly replies: Record<string, unknown>[] = [];
+  /** Answer agent-replies with these statuses first, one per request (e.g. 503, then the default 201). */
+  readonly replyStatuses: number[] = [];
   mcpUrl = MCP_URL;
   expiresInMs = 2 * 60 * 60_000;
   #server: Server | undefined;
@@ -138,6 +142,15 @@ export class StubPlaneApi {
         return { status: 204 };
       }
       return { status: 405, body: {} };
+    }
+    if (url.pathname === "/api/internal/chat/agent-replies/") {
+      if (req.headers["x-agent-bridge-secret"] !== BRIDGE_SECRET) {
+        return { status: 403, body: { detail: "Invalid agent bridge credentials." } };
+      }
+      const status = this.replyStatuses.shift() ?? 201;
+      if (status === 201)
+        this.replies.push(JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>);
+      return { status, body: {} };
     }
     if (url.pathname.startsWith("/api/internal/agent-sessions/")) {
       if (req.headers["x-agent-bridge-secret"] !== BRIDGE_SECRET) {

@@ -78,6 +78,11 @@ export interface MemberRef {
 /** Most members one `endedMemberships` request may carry (`MAX_OFFBOARDING_MEMBERS` in the API). */
 export const MAX_OFFBOARDING_BATCH = 500;
 
+/** What an agent said about a mention in Nexus Messages, for `POST /api/internal/chat/agent-replies/`. */
+export type ChannelReply =
+  | { readonly status: "ok"; readonly text: string; readonly permissionRequests: readonly string[] }
+  | { readonly status: "failed"; readonly error: string };
+
 /** Account sign-in methods (personal only), as the API names them. */
 export type AccountMethod = "chatgpt" | "google_account";
 
@@ -109,6 +114,12 @@ export interface PlaneApi {
    * API also removes their stored credentials and agent-session tokens.
    */
   endedMemberships(members: readonly MemberRef[], signal?: AbortSignal): Promise<MemberRef[]>;
+
+  /**
+   * Hand the API what came of a channel session it asked for (`runId`), to post in the thread. Retried on
+   * network errors and 5xx; a 4xx (unknown run, the agent may no longer post, too many posts) is final.
+   */
+  reportChannelReply(runId: string, reply: ChannelReply): Promise<void>;
 }
 
 const level = z.enum(PERMISSION_LEVELS);
@@ -146,6 +157,8 @@ export interface PlaneApiOptions {
   readonly bridgeSecret: string;
   readonly timeoutMs?: number;
   readonly fetch?: typeof fetch;
+  /** Waits between attempts to report a channel reply (default 1 s, then 5 s). */
+  readonly reportRetryDelaysMs?: readonly number[];
 }
 
 export function createPlaneApi(options: PlaneApiOptions): PlaneApi {
@@ -286,6 +299,34 @@ export function createPlaneApi(options: PlaneApiOptions): PlaneApi {
         signal
       );
       if (!response.ok) throw await errorFor(response, "agent-connections upsert");
+    },
+
+    async reportChannelReply(runId, reply) {
+      const body =
+        reply.status === "ok"
+          ? { run_id: runId, status: "ok", text: reply.text, permission_requests: reply.permissionRequests }
+          : { run_id: runId, status: "failed", error: reply.error };
+      const delays = options.reportRetryDelaysMs ?? [1_000, 5_000];
+      let lastError: PlaneApiError | undefined;
+      for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+        if (attempt > 0) {
+          // oxlint-disable-next-line no-await-in-loop -- sequential retry
+          await new Promise((resolve) => setTimeout(resolve, delays[attempt - 1]));
+        }
+        // oxlint-disable-next-line no-await-in-loop -- sequential retry
+        const response = await call("/api/internal/chat/agent-replies/", internal("POST", body)).catch(
+          (error: PlaneApiError) => error
+        );
+        if (response instanceof PlaneApiError) {
+          lastError = response;
+          continue;
+        }
+        if (response.ok) return;
+        // oxlint-disable-next-line no-await-in-loop -- sequential retry
+        lastError = await errorFor(response, "chat/agent-replies");
+        if (response.status < 500) break;
+      }
+      throw lastError ?? new PlaneApiError("chat/agent-replies failed", 0);
     },
 
     async deleteAgentConnection(input, signal) {

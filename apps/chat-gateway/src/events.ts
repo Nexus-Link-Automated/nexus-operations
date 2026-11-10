@@ -26,6 +26,8 @@ export const EVENT_TYPES = [
   "member.updated",
   "read.updated",
   "access.revoked",
+  "agent.responding",
+  "agent.responded",
 ] as const;
 
 export type EventType = (typeof EVENT_TYPES)[number];
@@ -37,13 +39,16 @@ export const chatEventSchema = z.object({
   workspace_id: id,
   /** Absent for `access.revoked`. */
   channel_id: id.optional(),
-  /** `message.*`: the message. `read.updated`: the message the read cursor moved to. */
+  /** `message.*`: the message. `read.updated`: the message the read cursor moved to. `agent.*`: the mention. */
   message_id: id.optional(),
-  /** `message.*` only, when the message is a thread reply. */
+  /** `message.*`, when the message is a thread reply. `agent.*`: the thread the agent's reply goes in. */
   parent_id: id.optional(),
   /** `member.*`, `read.updated` and `access.revoked`: the person it is about. */
   user_id: id.optional(),
-  /** `member.*` about an agent from the registry instead of a person (never with `user_id`): the agent's ID. */
+  /**
+   * `member.*` about an agent from the registry instead of a person (never with `user_id`), and `agent.*`: the
+   * agent's ID.
+   */
   agent_id: id.optional(),
   /** Who made the change; absent when nobody did through a request. */
   actor_id: id.optional(),

@@ -97,7 +97,7 @@ export async function startHarness(
   const config = testConfig({ apiBaseUrl: api.url, runnerHttpUrl: runner.url, ...options.config });
   const bridge = new AgentBridge({
     config,
-    api: createPlaneApi({ baseUrl: api.url, bridgeSecret: BRIDGE_SECRET }),
+    api: createPlaneApi({ baseUrl: api.url, bridgeSecret: BRIDGE_SECRET, reportRetryDelaysMs: [10, 10] }),
     transport,
     log,
     ...(options.initializeTimeoutMs ? { initializeTimeoutMs: options.initializeTimeoutMs } : {}),

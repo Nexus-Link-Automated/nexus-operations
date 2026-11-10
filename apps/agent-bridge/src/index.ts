@@ -4,6 +4,8 @@
  * See the LICENSE file for details.
  */
 
+export { MAX_REPLY_CHARS, driveChannelSession } from "./channel-session.ts";
+export type { ChannelSessionError, ChannelSessionOutcome, DriveChannelSessionOptions } from "./channel-session.ts";
 export { loadBridgeConfig, runnerHttpUrl } from "./config.ts";
 export { CONNECTION_PROVIDERS, RateLimiter, connectionsRouter } from "./connections.ts";
 export type { ConnectionProvider, ConnectionsRouterOptions } from "./connections.ts";
@@ -14,11 +16,14 @@ export { BRIDGE_SECRET_HEADER, PlaneApiError, createPlaneApi } from "./plane-api
 export type {
   AccountMethod,
   AgentSessionGrant,
+  ChannelReply,
   ConnectionGrant,
   MemberRef,
   PlaneApi,
   PlaneApiOptions,
 } from "./plane-api.ts";
+export { INTERNAL_PATH, internalRouter } from "./internal.ts";
+export type { ChannelSessionAdmission, ChannelSessionRequest, InternalRouterOptions } from "./internal.ts";
 export {
   AGENT_NOTIFICATIONS,
   AGENT_REQUESTS,

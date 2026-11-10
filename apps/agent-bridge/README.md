@@ -9,6 +9,8 @@ browser ──WS /agents/acp (cookie)──▶ agent-bridge ──WS /acp (spawn
 browser ──HTTP /agents/connections/* ─▶     │      ──HTTP /auth/* (login ticket)─▶      └──stdio──▶ plane-agent-login
                                             └─▶ API: /api/users/me/ (cookie), /api/internal/agent-sessions/,
                                                      /api/internal/agent-connections/ (shared secret)
+API worker ──HTTP POST /internal/channel-sessions (shared secret)──▶ agent-bridge ──▶ (same runner path)
+                                                         └─▶ API: /api/internal/chat/agent-replies/ (shared secret)
 ```
 
 ## Endpoints
@@ -19,7 +21,7 @@ browser ──HTTP /agents/connections/* ─▶     │      ──HTTP /auth/* 
   3. Per-user connection cap.
   4. `POST /api/internal/agent-sessions/` mints a short-lived, workspace-scoped token.
   5. Opens the runner connection.
-- `GET /agents/health`: liveness and the open connection count.
+- `GET /agents/health`: liveness, the open connection count and the running channel sessions.
 - `<base>/connections/<provider>/…`: provider account sign-in (below).
 
 When the browser disconnects (or the session ends any other way), the runner connection is closed
@@ -72,6 +74,35 @@ credentials and revoke their tokens in the API at once.
   - An initialize deadline (30 s).
   - An idle timeout, which only applies when no request is in flight.
   - The connection closes when the token expires.
+
+## Channel sessions (`POST /internal/channel-sessions`)
+
+When someone @mentions an agent in a Nexus Messages channel, the API's worker asks the bridge to run one turn for
+it. The bridge is the ACP client here (`src/channel-session.ts`), behind the same `PolicyProxy` and `SessionPolicy`
+as a browser connection, so the allowlist, the pinned `cwd`, Plane MCP and the mode clamp all apply.
+
+- **Not public.** The route is mounted at `/internal`, outside `AGENT_BRIDGE_BASE_PATH`; the reverse proxy forwards
+  only the base path. It also requires `X-Agent-Bridge-Secret` (the same `AGENT_BRIDGE_SECRET`, compared in constant
+  time); anything else gets 403. Every answer is `Cache-Control: no-store`.
+- **Body**: `{run_id, user_id, workspace_slug, agent_id, permission_level, prompt, timeout_ms}` (`run_id` is 32 hex
+  characters; `timeout_ms` 1 s to 1 h, default 5 min). 400 if it isn't valid.
+- **Answer**: 202 at once, 429 when the per-user or bridge-wide connection cap is reached (channel sessions count
+  against the same caps as browser chats), 503 while shutting down.
+- **The session**:
+  1. `POST /api/internal/agent-sessions/` mints the token for `user_id`, the person who mentioned the agent, so the
+     agent's Plane MCP calls can do only what they can.
+  2. The runner starts the agent at `permission_level` (the channel's), clamped to the registry maximum, in the
+     spawn ticket and in `session/new`'s `_meta`.
+  3. `initialize`, `session/new`, then one `session/prompt` with the API's prompt. The agent's `agent_message_chunk`
+     text is the answer (up to 100,000 characters), with a blank line where a tool call came between two parts.
+  4. Nobody can answer a permission prompt from a channel, so every `session/request_permission` is refused: its
+     `reject_once` (or `reject_always`) option, else `cancelled`. The tool call's title is reported.
+  5. The runner connection closes and the token is revoked, whatever happened.
+- **The outcome** goes to `POST /api/internal/chat/agent-replies/`: `{run_id, status: "ok", text,
+permission_requests}` or `{run_id, status: "failed", error}`, `error` being `timeout`, `unavailable` (runner or API
+  down, or the bridge shutting down), `credentials` (the agent asked for authentication) or `failed`. Retried after
+  1 s and 5 s on network errors and 5xx; a 4xx is final.
+- Prompts, answers, tokens and provider env are never logged.
 
 ## Provider sign-in (`<base>/connections/<provider>/…`)
 
