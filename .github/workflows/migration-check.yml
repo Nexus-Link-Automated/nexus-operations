@@ -67,10 +67,15 @@ jobs:
       # Fails on two leaf nodes in one app (the PR and the base branch both
       # numbered a migration off the same parent), on a dependency pointing at
       # a migration that does not exist, and on models whose changes were never
-      # written to a migration at all.
+      # written to a migration at all. Two leaves also appear after every upstream
+      # merge that adds a migration to db or license, where the fork's own sit.
       - name: Migration graph and model/migration drift
         working-directory: apps/api
-        run: uv run --no-sync python manage.py makemigrations --check --dry-run
+        run: |
+          if ! uv run --no-sync python manage.py makemigrations --check --dry-run; then
+            echo "::error::If this lists conflicting migrations after an upstream merge, add a merge migration as described in 'Merging upstream Plane' in deployments/hybrid/README.md. Do not renumber existing migrations."
+            exit 1
+          fi
 
       # HEAD^1 is the base branch tip, HEAD^2 the PR head, so this is exactly
       # what the PR does to files that already exist on the base branch.

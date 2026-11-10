@@ -205,13 +205,33 @@ Then check the things a script cannot:
 
 Back up first, because migrations run automatically and do not roll back.
 
-1. Compare `apps/proxy/Caddyfile.ce` in the new release with the path lists here.
+1. Compare `apps/proxy/Caddyfile.ce` in the new release with the path lists here. If the release merges in upstream Plane, follow [Merging upstream Plane](#merging-upstream-plane) first.
 2. Check out the commit you are about to deploy and run the local test, which builds its images: `deployments/hybrid/test/run.sh`.
 3. Build the images (step 1).
 4. On the VPS, run `git pull` and `./generate-env.sh --add-missing`, which adds any secret the new release needs and never changes an existing one. Set `APP_RELEASE` in `.env`, then run `docker compose pull && docker compose up -d`. If `bootstrap.sh` changed, run it again.
 5. In Railway, change the source image of `web` to the new tag. If `railway/router/` changed, redeploy the router with `railway up` (step 5).
 
 Between steps 4 and 5 the frontend is one version behind the backend, so do them together and at a quiet time.
+
+### Merging upstream Plane
+
+This fork adds migrations to two of Plane's own apps, and they use the numbers Plane's next migrations will take:
+
+| App       | Fork migrations                                                       |
+| --------- | --------------------------------------------------------------------- |
+| `db`      | `0126_agentprovidercredential`                                        |
+| `license` | `0007_agent_definition` to `0009_alter_instance_is_telemetry_enabled` |
+
+When a merge from upstream brings a new migration in either app, that app ends up with two leaf migrations, and `migrate` refuses to run until something joins them. The migrator would fail on deploy, so the Migration check workflow already fails the merge's pull request with "Conflicting migrations detected". Fix it on the merge branch, before building images:
+
+1. In `apps/api`, run `uv run python manage.py makemigrations db license --merge --name merge_upstream_<version>`, for example `merge_upstream_v1_5_0`. It writes one merge migration per app that needs it. A merge migration has no operations: it only depends on both leaves, so `migrate` applies both lines in either order.
+2. Read the operations the command lists for each branch. If both sides change the same model or field, a merge migration is not enough: add a migration after it that settles the difference.
+3. Run `uv run python manage.py makemigrations --check --dry-run`. It must report no changes.
+4. Commit the merge migrations with the merge.
+
+Never renumber, rename or edit the fork's migrations to make room. Every database that has applied them records them by name, and the Migration check rejects a pull request that changes a merged migration.
+
+Expect to do this on every upstream merge that adds a migration to `db` or `license`, not only the first. Plane's next migration depends on Plane's previous one, not on our merge migration, so each one splits the graph again. New fork migrations in these apps go after the current leaf, which is where `makemigrations` puts them.
 
 ## Backups
 
