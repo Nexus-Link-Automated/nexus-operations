@@ -694,3 +694,54 @@ def test_customer_update_sends_zero_employees(registered, spy):
     registered["customer"].fn(action="update", customer_id="c", employees=0)
     data = next(c for c in spy.recorder.calls if c.method == "customers.update").kwargs["data"]
     assert data.employees == 0
+
+
+def _page():
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        results=[],
+        total_count=0,
+        count=0,
+        next_cursor=None,
+        prev_cursor=None,
+        next_page_results=False,
+        prev_page_results=False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("external", "project_id", "expected_pql"),
+    [
+        ({"external_id": "ext-1", "external_source": "jira"}, "p", 'project = "p"'),
+        ({"external_id": "ext-1"}, "p", 'project = "p"'),
+        ({"external_source": "jira"}, "p", 'project = "p"'),
+        ({"external_id": "ext-1"}, "", None),
+    ],
+)
+def test_external_lookups_go_through_the_workspace_list(external, project_id, expected_pql, registered, spy):
+    """The project endpoint returns a bare object for both fields and ignores either one alone."""
+    spy.returns["work_items.list_workspace"] = _page()
+    registered["workitem"].fn(action="list", project_id=project_id, **external)
+
+    params = spy.recorder.only()
+    assert params.method == "work_items.list_workspace"
+    assert params.kwargs["params"].pql == expected_pql
+    for name, value in external.items():
+        assert getattr(params.kwargs["params"], name) == value
+
+
+def test_external_lookup_keeps_the_callers_pql(registered, spy):
+    spy.returns["work_items.list_workspace"] = _page()
+    registered["workitem"].fn(action="list", project_id="p", external_id="e", pql='priority = "high"')
+
+    assert spy.recorder.only().kwargs["params"].pql == '(priority = "high") AND project = "p"'
+
+
+def test_a_plain_project_list_stays_on_the_project_endpoint(registered, spy):
+    spy.returns["work_items.list"] = _page()
+    registered["workitem"].fn(action="list", project_id="p", pql='priority = "high"')
+
+    call = spy.recorder.only()
+    assert call.method == "work_items.list"
+    assert call.kwargs["params"].pql == 'priority = "high"'

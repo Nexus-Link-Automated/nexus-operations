@@ -292,8 +292,13 @@ def register(mcp: FastMCP) -> None:
         if action in ("list", "list_archived"):
             if action == "list_archived" and not project_id:
                 return missing(action, "project_id")
+            # The project endpoint answers both external fields with a bare object the SDK
+            # cannot parse, and ignores either one alone. The workspace endpoint filters on
+            # each and returns a page.
+            workspace_wide = action == "list" and (not project_id or external_id or external_source)
+            applied_pql = _scoped_pql(pql, project_id) if workspace_wide else pql
             params = WorkItemQueryParams(
-                pql=opt(pql),
+                pql=opt(applied_pql),
                 order_by=opt(order_by),
                 per_page=per_page or DEFAULT_PAGE_SIZE,
                 cursor=opt(cursor),
@@ -307,14 +312,14 @@ def register(mcp: FastMCP) -> None:
                     response = client.work_items.list_archived(
                         workspace_slug=workspace_slug, project_id=project_id, params=params
                     )
-                elif project_id:
+                elif workspace_wide:
+                    response = client.work_items.list_workspace(workspace_slug=workspace_slug, params=params)
+                else:
                     response: PaginatedWorkItemResponse = client.work_items.list(
                         workspace_slug=workspace_slug, project_id=project_id, params=params
                     )
-                else:
-                    response = client.work_items.list_workspace(workspace_slug=workspace_slug, params=params)
             except HttpError as exc:
-                failure = pql_failure("workitem", action, pql, exc)
+                failure = pql_failure("workitem", action, applied_pql, exc)
                 if failure:
                     return failure
                 raise
