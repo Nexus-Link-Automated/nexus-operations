@@ -10,6 +10,7 @@ import json
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.contrib.postgres.fields import ArrayField
 from django.core.serializers.json import DjangoJSONEncoder
+from django.db import transaction
 from django.db.models import (
     Count,
     Exists,
@@ -40,6 +41,7 @@ from plane.app.serializers import (
     IssueSerializer,
     ProjectUserPropertySerializer,
 )
+from plane.bgtasks.deletion_task import soft_delete_related_objects
 from plane.bgtasks.issue_activities_task import issue_activity
 from plane.bgtasks.issue_description_version_task import issue_description_version_task
 from plane.bgtasks.recent_visited_task import recent_visited_task
@@ -780,21 +782,49 @@ class BulkDeleteIssuesEndpoint(BaseAPIView):
         if not len(issue_ids):
             return Response({"error": "Issue IDs are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        issues = Issue.issue_objects.filter(workspace__slug=slug, project_id=project_id, pk__in=issue_ids)
+        deleted_ids = [
+            str(pk)
+            for pk in Issue.issue_objects.filter(
+                workspace__slug=slug, project_id=project_id, pk__in=issue_ids
+            ).values_list("id", flat=True)
+        ]
+        now = timezone.now()
+        epoch = int(now.timestamp())
+        origin = base_host(request=request, is_app=True)
 
-        total_issues = len(issues)
+        def after_commit():
+            # What deleting one work item does: cascade to its sub-work items and
+            # related records, and record the deletion in its history.
+            for pk in deleted_ids:
+                soft_delete_related_objects.delay("db", "issue", pk)
+                issue_activity.delay(
+                    type="issue.activity.deleted",
+                    requested_data=json.dumps({"issue_id": pk}),
+                    actor_id=str(request.user.id),
+                    issue_id=pk,
+                    project_id=str(project_id),
+                    current_instance={},
+                    epoch=epoch,
+                    notification=True,
+                    origin=origin,
+                    subscriber=False,
+                )
 
-        # First, delete all related cycle issues
-        CycleIssue.objects.filter(issue__in=issues).delete()
-
-        # Then, delete all related module issues
-        ModuleIssue.objects.filter(issue__in=issues).delete()
-
-        # Finally, delete the issues themselves
-        issues.delete()
+        with transaction.atomic():
+            CycleIssue.objects.filter(issue_id__in=deleted_ids).delete()
+            ModuleIssue.objects.filter(issue_id__in=deleted_ids).delete()
+            # updated_at moves too, as on a single delete, so clients syncing deleted items see these.
+            Issue.objects.filter(pk__in=deleted_ids).update(deleted_at=now, updated_at=now, updated_by=request.user)
+            UserRecentVisit.objects.filter(
+                project_id=project_id,
+                workspace__slug=slug,
+                entity_identifier__in=deleted_ids,
+                entity_name="issue",
+            ).delete(soft=False)
+            transaction.on_commit(after_commit)
 
         return Response(
-            {"message": f"{total_issues} issues were deleted"},
+            {"message": f"{len(deleted_ids)} issues were deleted"},
             status=status.HTTP_200_OK,
         )
 
