@@ -82,7 +82,7 @@ describe("MCP call classification", () => {
     for (const action of ["list", "list_archived", "retrieve", "retrieve_by_identifier", "search", "count", "get"]) {
       expect(classifyMcpCall("workitem", { action }), action).toBe("mcp_read");
     }
-    for (const action of ["create", "update", "delete", "archive", "manage_label", "something_new"]) {
+    for (const action of ["create", "update", "delete", "archive", "manage_label", "resolve", "something_new"]) {
       expect(classifyMcpCall("workitem", { action }), action).toBe("mcp_write");
     }
     expect(classifyMcpCall("get_pql_reference", {})).toBe("mcp_read");

@@ -105,7 +105,7 @@ export function toolKindForCategory(category: ToolCategory): ToolKind {
   }
 }
 
-const READ_ACTION = /^(list|retrieve|get|search|count|read|fetch|find|query|resolve|describe|status|show|view)(_|$)/;
+const READ_ACTION = /^(list|retrieve|get|search|count|read|fetch|find|query|describe|status|show|view)(_|$)/;
 const READ_TOOL_NAME = /^(list|retrieve|get|search|count|read|fetch|find|query|describe|show|view)[_-]/;
 
 /**
