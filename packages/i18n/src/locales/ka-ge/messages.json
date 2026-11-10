@@ -80,6 +80,17 @@
       "placeholder_channel": "შეტყობინება #{name}-ში",
       "placeholder_dm": "შეტყობინება: {name}"
     },
+    "attachments": {
+      "attach": "ფაილების მიმაგრება",
+      "download": "{name}-ის ჩამოტვირთვა",
+      "remove": "{name}-ის წაშლა",
+      "uploading": "იტვირთება {name}",
+      "too_large": "{name} აღემატება {limit} მბ ლიმიტს.",
+      "not_allowed": "{name}-ის მიმაგრება შეუძლებელია. ამ ტიპის ფაილი დაუშვებელია.",
+      "failed": "{name}-ის ატვირთვა ვერ მოხერხდა.",
+      "too_many": "შეტყობინებას შეიძლება ჰქონდეს მაქსიმუმ {count} დანართი.",
+      "hidden": "{count, plural, one {# დანართი} other {# დანართი}}. სანახავად შეუერთდით არხს."
+    },
     "message": {
       "label": "{name}, {time}",
       "edit": "შეტყობინების რედაქტირება",

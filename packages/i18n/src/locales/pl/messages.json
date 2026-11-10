@@ -80,6 +80,17 @@
       "placeholder_channel": "Wiadomość do #{name}",
       "placeholder_dm": "Wiadomość do: {name}"
     },
+    "attachments": {
+      "attach": "Załącz pliki",
+      "download": "Pobierz {name}",
+      "remove": "Usuń {name}",
+      "uploading": "Przesyłanie {name}",
+      "too_large": "{name} przekracza limit {limit} MB.",
+      "not_allowed": "Nie można załączyć {name}. Ten typ pliku jest niedozwolony.",
+      "failed": "Nie udało się przesłać {name}.",
+      "too_many": "Wiadomość może mieć maksymalnie {count} załączników.",
+      "hidden": "{count, plural, one {# załącznik} few {# załączniki} many {# załączników} other {# załącznika}}. Dołącz do kanału, aby je zobaczyć."
+    },
     "message": {
       "label": "{name} o {time}",
       "edit": "Edytuj wiadomość",

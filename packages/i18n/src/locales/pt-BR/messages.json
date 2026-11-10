@@ -80,6 +80,17 @@
       "placeholder_channel": "Mensagem para #{name}",
       "placeholder_dm": "Mensagem para {name}"
     },
+    "attachments": {
+      "attach": "Anexar arquivos",
+      "download": "Baixar {name}",
+      "remove": "Remover {name}",
+      "uploading": "Enviando {name}",
+      "too_large": "{name} excede o limite de {limit} MB.",
+      "not_allowed": "Não é possível anexar {name}. Este tipo de arquivo não é permitido.",
+      "failed": "Não foi possível enviar {name}.",
+      "too_many": "Uma mensagem pode ter até {count} anexos.",
+      "hidden": "{count, plural, one {# anexo} many {# anexos} other {# anexos}}. Entre no canal para vê-los."
+    },
     "message": {
       "label": "{name} às {time}",
       "edit": "Editar mensagem",

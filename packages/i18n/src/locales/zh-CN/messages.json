@@ -80,6 +80,17 @@
       "placeholder_channel": "发送消息到 #{name}",
       "placeholder_dm": "发送消息给 {name}"
     },
+    "attachments": {
+      "attach": "添加附件",
+      "download": "下载 {name}",
+      "remove": "移除 {name}",
+      "uploading": "正在上传 {name}",
+      "too_large": "{name} 超出 {limit} MB 的限制。",
+      "not_allowed": "无法添加 {name}：不允许此文件类型。",
+      "failed": "无法上传 {name}。",
+      "too_many": "每条消息最多可添加 {count} 个附件。",
+      "hidden": "{count, plural, other {# 个附件}}。加入频道后即可查看。"
+    },
     "message": {
       "label": "{name}，{time}",
       "edit": "编辑消息",

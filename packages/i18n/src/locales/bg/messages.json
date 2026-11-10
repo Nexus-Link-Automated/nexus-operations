@@ -80,6 +80,17 @@
       "placeholder_channel": "Съобщение до #{name}",
       "placeholder_dm": "Съобщение до {name}"
     },
+    "attachments": {
+      "attach": "Прикачване на файлове",
+      "download": "Изтегляне на {name}",
+      "remove": "Премахване на {name}",
+      "uploading": "{name} се качва",
+      "too_large": "{name} надвишава ограничението от {limit} MB.",
+      "not_allowed": "{name} не може да бъде прикачен. Този тип файл не е разрешен.",
+      "failed": "{name} не можа да бъде качен.",
+      "too_many": "Едно съобщение може да има до {count} прикачени файла.",
+      "hidden": "{count, plural, one {# прикачен файл} other {# прикачени файла}}. Присъединете се към канала, за да ги видите."
+    },
     "message": {
       "label": "{name} в {time}",
       "edit": "Редактирай съобщението",

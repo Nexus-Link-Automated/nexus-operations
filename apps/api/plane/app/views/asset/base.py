@@ -27,7 +27,9 @@ class FileAssetEndpoint(BaseAPIView):
     def get(self, request, workspace_id, asset_key):
         asset_key = str(workspace_id) + "/" + asset_key
         # A project-bound asset requires active membership of its project.
-        files = [f for f in FileAsset.objects.filter(asset=asset_key) if f.is_project_accessible_to(request.user)]
+        files = [
+            f for f in FileAsset.outside_chat().filter(asset=asset_key) if f.is_project_accessible_to(request.user)
+        ]
         if files:
             serializer = FileAssetSerializer(files, context={"request": request}, many=True)
             return Response({"data": serializer.data, "status": True}, status=status.HTTP_200_OK)
@@ -49,7 +51,7 @@ class FileAssetEndpoint(BaseAPIView):
 
     def delete(self, request, workspace_id, asset_key):
         asset_key = str(workspace_id) + "/" + asset_key
-        file_asset = FileAsset.objects.get(asset=asset_key)
+        file_asset = FileAsset.outside_chat().get(asset=asset_key)
         if not can_modify_asset(request.user, file_asset):
             return Response(
                 {"error": "You don't have the required permissions."},
@@ -65,7 +67,7 @@ class FileAssetViewSet(BaseViewSet):
 
     def restore(self, request, workspace_id, asset_key):
         asset_key = str(workspace_id) + "/" + asset_key
-        file_asset = FileAsset.objects.get(asset=asset_key)
+        file_asset = FileAsset.outside_chat().get(asset=asset_key)
         if not can_modify_asset(request.user, file_asset):
             return Response(
                 {"error": "You don't have the required permissions."},
@@ -80,7 +82,7 @@ class UserAssetsEndpoint(BaseAPIView):
     parser_classes = (MultiPartParser, FormParser)
 
     def get(self, request, asset_key):
-        files = FileAsset.objects.filter(asset=asset_key, created_by=request.user)
+        files = FileAsset.outside_chat().filter(asset=asset_key, created_by=request.user)
         if files.exists():
             serializer = FileAssetSerializer(files, context={"request": request})
             return Response({"data": serializer.data, "status": True}, status=status.HTTP_200_OK)
@@ -98,7 +100,7 @@ class UserAssetsEndpoint(BaseAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, asset_key):
-        file_asset = FileAsset.objects.get(asset=asset_key, created_by=request.user)
+        file_asset = FileAsset.outside_chat().get(asset=asset_key, created_by=request.user)
         file_asset.is_deleted = True
         file_asset.save(update_fields=["is_deleted"])
         return Response(status=status.HTTP_204_NO_CONTENT)

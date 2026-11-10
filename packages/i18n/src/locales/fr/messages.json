@@ -80,6 +80,17 @@
       "placeholder_channel": "Message à #{name}",
       "placeholder_dm": "Message à {name}"
     },
+    "attachments": {
+      "attach": "Joindre des fichiers",
+      "download": "Télécharger {name}",
+      "remove": "Retirer {name}",
+      "uploading": "Envoi de {name}",
+      "too_large": "{name} dépasse la limite de {limit} Mo.",
+      "not_allowed": "Impossible de joindre {name}. Ce type de fichier n'est pas autorisé.",
+      "failed": "Impossible d'envoyer {name}.",
+      "too_many": "Un message peut contenir jusqu'à {count} pièces jointes.",
+      "hidden": "{count, plural, one {# pièce jointe} many {# pièces jointes} other {# pièces jointes}}. Rejoignez le canal pour les voir."
+    },
     "message": {
       "label": "{name} à {time}",
       "edit": "Modifier le message",

@@ -80,6 +80,17 @@
       "placeholder_channel": "Mesaj în #{name}",
       "placeholder_dm": "Mesaj către {name}"
     },
+    "attachments": {
+      "attach": "Atașează fișiere",
+      "download": "Descarcă {name}",
+      "remove": "Elimină {name}",
+      "uploading": "Se încarcă {name}",
+      "too_large": "{name} depășește limita de {limit} MB.",
+      "not_allowed": "{name} nu poate fi atașat. Acest tip de fișier nu este permis.",
+      "failed": "{name} nu a putut fi încărcat.",
+      "too_many": "Un mesaj poate avea cel mult {count} atașamente.",
+      "hidden": "{count, plural, one {# atașament} few {# atașamente} other {# de atașamente}}. Alătură-te canalului pentru a le vedea."
+    },
     "message": {
       "label": "{name} la {time}",
       "edit": "Editați mesajul",

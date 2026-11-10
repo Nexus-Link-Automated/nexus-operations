@@ -17,6 +17,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 
+from plane.chat.attachments import attachments_for, claim_attachments, has_attachments
 from plane.chat.events import EventType, message_event, publish_on_commit
 from plane.chat.exceptions import BadRequest, Conflict, Forbidden, NotFound
 from plane.chat.models import ChannelKind, Message, MessageReference
@@ -37,7 +38,7 @@ from plane.utils.host import base_host
 
 def _serialized(messages, user, many):
     ids = [message.id for message in messages]
-    context = {"references": references_for(ids, user)}
+    context = {"references": references_for(ids, user), "attachments": attachments_for(messages, user)}
     return MessageSerializer(messages if many else messages[0], many=many, context=context).data
 
 
@@ -73,13 +74,16 @@ class MessageEndpoint(ChatBaseEndpoint):
             if parent.parent_id is not None:
                 raise BadRequest("Reply to the thread's first message; threads are one level deep.")
 
-        message = Message.objects.create(
-            channel=channel,
-            sender=request.user,
-            parent=parent,
-            body_html=data["body_html"],
-            body_json=data["body_json"],
-        )
+        # One transaction, so a refused attachment leaves no message behind.
+        with transaction.atomic():
+            message = Message.objects.create(
+                channel=channel,
+                sender=request.user,
+                parent=parent,
+                body_html=data["body_html"],
+                body_json=data["body_json"],
+            )
+            claim_attachments(message, data["attachment_ids"], request.user)
         # Before the event: whoever it reaches fetches the message, and should get its references.
         sync_references(message)
         publish_on_commit(message_event(EventType.MESSAGE_CREATED, message))
@@ -111,7 +115,7 @@ class MessageDetailEndpoint(ChatBaseEndpoint):
             if message.removed_at is not None:
                 raise Conflict("The message was removed.")
             require_not_archived(channel)
-            serializer = MessageEditSerializer(data=request.data)
+            serializer = MessageEditSerializer(data=request.data, context={"has_attachments": has_attachments(message)})
             serializer.is_valid(raise_exception=True)
             data = serializer.validated_data
 

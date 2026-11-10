@@ -436,7 +436,7 @@ class GenericAssetEndpoint(BaseAPIView):
             workspace = Workspace.objects.get(slug=slug)
 
             # Get the asset
-            asset = FileAsset.objects.get(id=asset_id, workspace_id=workspace.id, is_deleted=False)
+            asset = FileAsset.outside_chat().get(id=asset_id, workspace_id=workspace.id, is_deleted=False)
 
             # A project-bound asset requires active membership of its project.
             if not asset.is_project_accessible_to(request.user):
@@ -646,7 +646,7 @@ class GenericAssetEndpoint(BaseAPIView):
         and trigger metadata extraction.
         """
         try:
-            asset = FileAsset.objects.get(id=asset_id, workspace__slug=slug, is_deleted=False)
+            asset = FileAsset.outside_chat().get(id=asset_id, workspace__slug=slug, is_deleted=False)
 
             # A project-bound asset requires active membership of its project, and
             # changing an asset follows the same rule as the app asset endpoints.

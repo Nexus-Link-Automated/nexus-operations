@@ -80,6 +80,17 @@
       "placeholder_channel": "Bericht aan #{name}",
       "placeholder_dm": "Bericht aan {name}"
     },
+    "attachments": {
+      "attach": "Bestanden bijvoegen",
+      "download": "{name} downloaden",
+      "remove": "{name} verwijderen",
+      "uploading": "{name} wordt geüpload",
+      "too_large": "{name} is groter dan de limiet van {limit} MB.",
+      "not_allowed": "{name} kan niet worden bijgevoegd. Dit bestandstype is niet toegestaan.",
+      "failed": "{name} kon niet worden geüpload.",
+      "too_many": "Een bericht kan maximaal {count} bijlagen hebben.",
+      "hidden": "{count, plural, one {# bijlage} other {# bijlagen}}. Word lid van het kanaal om ze te bekijken."
+    },
     "message": {
       "label": "{name} om {time}",
       "edit": "Bericht bewerken",

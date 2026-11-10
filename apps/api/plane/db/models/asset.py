@@ -45,6 +45,7 @@ class FileAsset(BaseModel):
         PROJECT_COVER = "PROJECT_COVER"
         DRAFT_ISSUE_ATTACHMENT = "DRAFT_ISSUE_ATTACHMENT"
         DRAFT_ISSUE_DESCRIPTION = "DRAFT_ISSUE_DESCRIPTION"
+        CHAT_MESSAGE_ATTACHMENT = "CHAT_MESSAGE_ATTACHMENT"
 
     attributes = models.JSONField(default=dict)
     asset = models.FileField(upload_to=get_upload_path, max_length=800)
@@ -79,6 +80,16 @@ class FileAsset(BaseModel):
 
     def __str__(self):
         return str(self.asset)
+
+    @classmethod
+    def outside_chat(cls, manager=None):
+        """Assets the generic asset endpoints may touch.
+
+        A message attachment is only ever served through `plane.chat`, which checks channel
+        membership on every request; the generic endpoints check workspace or project access,
+        which says nothing about a private channel or a DM. To them it doesn't exist.
+        """
+        return (manager or cls.objects).exclude(entity_type=cls.EntityTypeContext.CHAT_MESSAGE_ATTACHMENT)
 
     @property
     def asset_url(self):

@@ -33,7 +33,7 @@ def _strip(attrs):
 class CustomerSerializer(serializers.ModelSerializer):
     customer_request_count = serializers.SerializerMethodField()
     logo_url = serializers.SerializerMethodField()
-    logo_asset = serializers.PrimaryKeyRelatedField(queryset=FileAsset.objects.all(), required=False, allow_null=True)
+    logo_asset = serializers.PrimaryKeyRelatedField(queryset=FileAsset.outside_chat(), required=False, allow_null=True)
 
     class Meta:
         model = Customer

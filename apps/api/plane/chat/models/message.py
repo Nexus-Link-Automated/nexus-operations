@@ -5,9 +5,9 @@
 """Messages, their thread replies, and the work items they reference.
 
 A message is sent by a user (`sender`) or by an agent (`sender_agent`, the agent's
-slug), never both. A user deleting a message calls `remove()`: the body is cleared
-and `removed_at` is set, but the row stays so its thread replies and read cursors
-keep working. `deleted_at` (soft delete) is reserved for removing data for real.
+slug), never both. A user deleting a message calls `remove()`: the body and
+attachments are cleared and `removed_at` is set, but the row stays so its thread
+replies and read cursors keep working. `deleted_at` (soft delete) is reserved for removing data for real.
 """
 
 from django.core.exceptions import ValidationError
@@ -16,7 +16,7 @@ from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.html import strip_tags
 
-from plane.db.models import BaseModel
+from plane.db.models import BaseModel, FileAsset
 
 __all__ = ["Message", "MessageReference"]
 
@@ -65,7 +65,7 @@ class Message(BaseModel):
         super().save(*args, **kwargs)
 
     def remove(self):
-        """Delete the message as the user sees it: clear the body and drop its work item references."""
+        """Delete the message as the user sees it: clear the body and drop its references and attachments."""
         with transaction.atomic():
             self.body_html = ""
             self.body_json = {}
@@ -74,6 +74,10 @@ class Message(BaseModel):
                 update_fields=["body_html", "body_json", "body_stripped", "removed_at", "updated_at", "updated_by"]
             )
             self.references.all().delete()
+            # Filtered by entity type: entity_identifier means something else on other entity types.
+            FileAsset.objects.filter(
+                entity_type=FileAsset.EntityTypeContext.CHAT_MESSAGE_ATTACHMENT, entity_identifier=str(self.pk)
+            ).update(is_deleted=True, deleted_at=self.removed_at)
 
 
 class MessageReference(BaseModel):

@@ -8,6 +8,7 @@ import re
 from rest_framework import serializers
 
 from plane.app.serializers.base import BaseSerializer
+from plane.chat.attachments import MAX_ATTACHMENTS_PER_MESSAGE
 from plane.chat.models import Message
 from plane.utils.content_validator import validate_html_content
 
@@ -46,6 +47,8 @@ class MessageSerializer(BaseSerializer):
     reply_count = serializers.IntegerField(read_only=True)
     last_reply_at = serializers.DateTimeField(read_only=True, allow_null=True)
     references = serializers.SerializerMethodField()
+    attachments = serializers.SerializerMethodField()
+    attachment_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
@@ -62,6 +65,8 @@ class MessageSerializer(BaseSerializer):
             "reply_count",
             "last_reply_at",
             "references",
+            "attachments",
+            "attachment_count",
             "edited_at",
             "removed_at",
             "created_at",
@@ -73,22 +78,35 @@ class MessageSerializer(BaseSerializer):
         """The work items this message references, as far as the reader may see them (`references_for`)."""
         return self.context.get("references", {}).get(message.id, [])
 
+    def get_attachments(self, message):
+        """Its files, for a channel member only (`attachments_for`)."""
+        return self.context.get("attachments", {}).get(message.id, {}).get("files", [])
+
+    def get_attachment_count(self, message):
+        """How many files it has, which a reader who isn't in the channel sees instead of the files."""
+        return self.context.get("attachments", {}).get(message.id, {}).get("count", 0)
+
 
 class MessageWriteSerializer(serializers.Serializer):
-    """The body of a new or edited message. `parent_id` (a top-level message in the channel) makes it a reply."""
+    """A new or edited message. `parent_id` (a top-level message in the channel) makes it a reply.
 
-    body_html = serializers.CharField(max_length=MAX_BODY_HTML_LENGTH, trim_whitespace=False)
+    `attachment_ids` are finished uploads; a message that has some doesn't need any text.
+    """
+
+    body_html = serializers.CharField(
+        max_length=MAX_BODY_HTML_LENGTH, trim_whitespace=False, required=False, allow_blank=True, default=""
+    )
     body_json = serializers.JSONField(required=False, default=dict)
     parent_id = serializers.UUIDField(required=False, allow_null=True, default=None)
+    attachment_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, default=list, max_length=MAX_ATTACHMENTS_PER_MESSAGE
+    )
 
     def validate_body_html(self, value):
         is_valid, error, clean_html = validate_html_content(value)
         if not is_valid:
             raise serializers.ValidationError(error or "HTML content is not valid")
-        clean_html = clean_html if clean_html is not None else value
-        if not _BLANK_MARKUP.sub("", clean_html):
-            raise serializers.ValidationError("A message can't be empty.")
-        return clean_html
+        return clean_html if clean_html is not None else value
 
     def validate_body_json(self, value):
         if not isinstance(value, dict):
@@ -99,6 +117,14 @@ class MessageWriteSerializer(serializers.Serializer):
             raise serializers.ValidationError("body_json contains characters that can't be stored.")
         return value
 
+    def validate(self, data):
+        if not _BLANK_MARKUP.sub("", data["body_html"]) and not self._has_attachments(data):
+            raise serializers.ValidationError({"body_html": ["A message can't be empty."]})
+        return data
+
+    def _has_attachments(self, data):
+        return bool(data["attachment_ids"])
+
 
 class MessageWorkItemSerializer(serializers.Serializer):
     """A work item just created from a message, to link to it."""
@@ -107,6 +133,14 @@ class MessageWorkItemSerializer(serializers.Serializer):
 
 
 class MessageEditSerializer(MessageWriteSerializer):
-    """Editing changes the body only; a message never moves between threads."""
+    """Editing changes the body only: a message never moves between threads, and keeps the files it was sent with.
 
+    Pass `has_attachments` in the context for a message that has some, which can then be emptied of text.
+    """
+
+    body_html = serializers.CharField(max_length=MAX_BODY_HTML_LENGTH, trim_whitespace=False, allow_blank=True)
     parent_id = None
+    attachment_ids = None
+
+    def _has_attachments(self, data):
+        return self.context.get("has_attachments", False)

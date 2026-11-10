@@ -25,13 +25,14 @@ import { useWorkspace } from "@/hooks/store/use-workspace";
 // store
 import type { TChatPendingMessage } from "@/store/chat.store";
 // local imports
+import { ChatMessageAttachments, ChatPendingAttachments } from "./attachments";
 import { ChatCreateWorkItemAction } from "./create-work-item-action";
 import { MemberAvatar } from "./member-avatar";
 import { ChatMessageBody } from "./message-body";
 import { ChatWorkItemCards } from "./work-item-card";
 
 const noUploads = async (): Promise<string> => {
-  throw new Error("Attachments are not supported in messages yet");
+  throw new Error("Files are attached to a message, not embedded in it");
 };
 
 type Props = {
@@ -111,7 +112,9 @@ export const ChatMessageItem = observer(function ChatMessageItem({
 
   const save = async () => {
     const document = editorRef.current?.getDocument();
-    if (!document || isCommentEmpty(document.html) || saving.current) return;
+    // A message with files doesn't need any text.
+    if (!document || saving.current) return;
+    if (isCommentEmpty(document.html) && message.attachment_count === 0) return;
     saving.current = true;
     setBusy(true);
     try {
@@ -221,8 +224,11 @@ export const ChatMessageItem = observer(function ChatMessageItem({
             </div>
           </div>
         ) : (
-          <ChatMessageBody id={`chat-message-${message.id}`} html={message.body_html} />
+          !isCommentEmpty(message.body_html) && (
+            <ChatMessageBody id={`chat-message-${message.id}`} html={message.body_html} />
+          )
         )}
+        {!removed && <ChatMessageAttachments message={message} />}
         {!removed && <ChatWorkItemCards references={message.references} workspaceSlug={workspaceSlug} />}
         {!removed && !editing && message.edited_at && (
           <span className="text-caption-sm-regular text-tertiary">{t("messages.message.edited")}</span>
@@ -274,7 +280,10 @@ export const ChatPendingMessageItem = observer(function ChatPendingMessageItem({
         <MemberAvatar userId={userId} size="md" />
       </div>
       <div className={cn("min-w-0 flex-1", { "opacity-60": !failed })}>
-        <ChatMessageBody id={`chat-pending-${pending.localId}`} html={pending.body_html} />
+        {!isCommentEmpty(pending.body_html) && (
+          <ChatMessageBody id={`chat-pending-${pending.localId}`} html={pending.body_html} />
+        )}
+        <ChatPendingAttachments attachments={pending.attachments} />
         {failed ? (
           <div className="flex items-center gap-2 text-caption-md-regular text-danger-primary">
             <span>{t("messages.message.failed")}</span>
