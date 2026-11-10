@@ -83,7 +83,9 @@ function UserInvitationsPage() {
         mutate(USER_WORKSPACES_LIST);
         const firstInviteId = invitationsRespond[0];
         const redirectWorkspace = invitations?.find((i) => i.id === firstInviteId)?.workspace;
+        // The join has succeeded: failing to remember the last workspace must not stop the redirect.
         return updateUserProfile({ last_workspace_id: redirectWorkspace?.id })
+          .catch(() => undefined)
           .then(() => {
             setIsJoiningWorkspaces(false);
             return fetchWorkspaces().then(() => {
