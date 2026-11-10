@@ -291,14 +291,14 @@ class Adapter:
         # Set display name
         user.display_name = display_name
 
-        # Download and upload avatar only if the avatar is different from the one in the storage
-        avatar = self.user_data.get("user", {}).get("avatar", "")
-        # Delete the old avatar if it exists
-        self.delete_old_avatar(user=user)
+        # Providers report a missing avatar as None
+        avatar = self.user_data.get("user", {}).get("avatar") or ""
         avatar_asset = self.download_and_upload_avatar(avatar_url=avatar, user=user)
         if avatar_asset:
+            # Replace the stored avatar only once the new one is uploaded
+            self.delete_old_avatar(user=user)
             user.avatar_asset = avatar_asset
-        # If avatar upload fails, set the avatar to the original URL
+        # If there is no avatar or the upload fails, keep the stored one and record the original URL
         else:
             user.avatar = avatar
 

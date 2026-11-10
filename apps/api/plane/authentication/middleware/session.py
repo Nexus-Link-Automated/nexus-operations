@@ -13,6 +13,11 @@ from django.utils.deprecation import MiddlewareMixin
 from django.utils.http import http_date
 
 
+def is_admin_path(path):
+    """Instance-admin endpoints use their own session cookie."""
+    return path.startswith("/api/instances/")
+
+
 class SessionMiddleware(MiddlewareMixin):
     def __init__(self, get_response):
         super().__init__(get_response)
@@ -20,7 +25,7 @@ class SessionMiddleware(MiddlewareMixin):
         self.SessionStore = engine.SessionStore
 
     def process_request(self, request):
-        if "instances" in request.path:
+        if is_admin_path(request.path):
             session_key = request.COOKIES.get(settings.ADMIN_SESSION_COOKIE_NAME)
         else:
             session_key = request.COOKIES.get(settings.SESSION_COOKIE_NAME)
@@ -40,8 +45,8 @@ class SessionMiddleware(MiddlewareMixin):
             return response
         # First check if we need to delete this cookie.
         # The session should be deleted only if the session is entirely empty.
-        is_admin_path = "instances" in request.path
-        cookie_name = settings.ADMIN_SESSION_COOKIE_NAME if is_admin_path else settings.SESSION_COOKIE_NAME
+        admin_path = is_admin_path(request.path)
+        cookie_name = settings.ADMIN_SESSION_COOKIE_NAME if admin_path else settings.SESSION_COOKIE_NAME
 
         if cookie_name in request.COOKIES and empty:
             response.delete_cookie(
@@ -60,7 +65,7 @@ class SessionMiddleware(MiddlewareMixin):
                     expires = None
                 else:
                     # Use different max_age based on whether it's an admin cookie
-                    if is_admin_path:
+                    if admin_path:
                         max_age = settings.ADMIN_SESSION_COOKIE_AGE
                     else:
                         max_age = request.session.get_expiry_age()

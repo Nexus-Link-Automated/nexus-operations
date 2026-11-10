@@ -32,6 +32,21 @@ from plane.chat.permissions import workspace_role
 from ..base import BaseAPIView, BaseViewSet
 
 
+def snooze_filter(snoozed, archived=False):
+    """Match notifications by snooze state.
+
+    A notification is snoozed only while ``snoozed_till`` is in the future; once it
+    passes, the notification is back in the inbox and its unread count. The archived
+    view lists every archived notification whatever its snooze, as the web app does.
+    """
+    now = timezone.now()
+    if snoozed:
+        return Q(snoozed_till__gt=now)
+    if archived:
+        return Q()
+    return Q(snoozed_till__isnull=True) | Q(snoozed_till__lte=now)
+
+
 class NotificationViewSet(BaseViewSet, BasePaginator):
     model = Notification
     serializer_class = NotificationSerializer
@@ -80,12 +95,7 @@ class NotificationViewSet(BaseViewSet, BasePaginator):
         )
 
         # Filters based on query parameters
-        snoozed_filters = {
-            "true": Q(snoozed_till__lt=timezone.now()) | Q(snoozed_till__isnull=False),
-            "false": Q(snoozed_till__gte=timezone.now()) | Q(snoozed_till__isnull=True),
-        }
-
-        notifications = notifications.filter(snoozed_filters[snoozed])
+        notifications = notifications.filter(snooze_filter(snoozed == "true", archived == "true"))
 
         archived_filters = {
             "true": Q(archived_at__isnull=False),
@@ -215,8 +225,8 @@ class UnreadNotificationEndpoint(BaseAPIView):
                 receiver_id=request.user.id,
                 read_at__isnull=True,
                 archived_at__isnull=True,
-                snoozed_till__isnull=True,
             )
+            .filter(snooze_filter(False))
             .exclude(sender__icontains="mentioned")
             .count()
         )
@@ -228,9 +238,9 @@ class UnreadNotificationEndpoint(BaseAPIView):
                 receiver_id=request.user.id,
                 read_at__isnull=True,
                 archived_at__isnull=True,
-                snoozed_till__isnull=True,
                 sender__icontains="mentioned",
             )
+            .filter(snooze_filter(False))
             .filter(~Q(entity_name=CHAT_MESSAGE_ENTITY) | chat_mentions)
             .count()
         )
@@ -256,10 +266,7 @@ class MarkAllReadNotificationViewSet(BaseViewSet):
         )
 
         # Filter for snoozed notifications
-        if snoozed:
-            notifications = notifications.filter(Q(snoozed_till__lt=timezone.now()) | Q(snoozed_till__isnull=False))
-        else:
-            notifications = notifications.filter(Q(snoozed_till__gte=timezone.now()) | Q(snoozed_till__isnull=True))
+        notifications = notifications.filter(snooze_filter(snoozed, archived))
 
         # Filter for archived or unarchive
         if archived:

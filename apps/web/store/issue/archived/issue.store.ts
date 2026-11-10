@@ -149,7 +149,9 @@ export class ArchivedIssues extends BaseIssuesStore implements IArchivedIssues {
         subGroupId
       );
       // call the fetch issues API with the params for next page in issues
-      const response = await this.issueArchiveService.getArchivedIssues(workspaceSlug, projectId, params);
+      const response = await this.issueArchiveService.getArchivedIssues(workspaceSlug, projectId, params, {
+        signal: this.controller.signal,
+      });
 
       // after the next page of issues are fetched, call the base method to process the response
       this.onfetchNexIssues(response, groupId, subGroupId);
