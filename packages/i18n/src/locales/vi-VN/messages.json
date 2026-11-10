@@ -131,6 +131,23 @@
       "last_reply_today": "Trả lời gần nhất lúc {time}",
       "last_reply_on": "Trả lời gần nhất ngày {date}"
     },
+    "search": {
+      "placeholder": "Tìm kiếm tin nhắn",
+      "title": "Kết quả tìm kiếm",
+      "close": "Đóng tìm kiếm",
+      "loading": "Đang tìm kiếm…",
+      "only_in": "Chỉ trong {name}",
+      "from": "Từ",
+      "anyone": "Bất kỳ ai",
+      "include_automatic": "Bao gồm cập nhật hạng mục công việc",
+      "empty_title": "Không có kết quả",
+      "empty": "Không có tin nhắn nào khớp với \"{query}\".",
+      "failed": "Không thể tìm kiếm tin nhắn.",
+      "load_more": "Hiển thị thêm kết quả",
+      "more_failed": "Không thể tải thêm kết quả.",
+      "in_thread": "Trong một chuỗi",
+      "archived": "Đã lưu trữ"
+    },
     "day": {
       "today": "Hôm nay",
       "yesterday": "Hôm qua"

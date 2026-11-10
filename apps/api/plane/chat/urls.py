@@ -27,6 +27,7 @@ from plane.chat.views import (
     MessageDetailEndpoint,
     MessageEndpoint,
     MessageReplyEndpoint,
+    MessageSearchEndpoint,
     MessageWorkItemEndpoint,
 )
 
@@ -36,6 +37,7 @@ urlpatterns = [
     path("me/", ChatMeEndpoint.as_view(), name="chat-me"),
     path("channels/", ChannelEndpoint.as_view(), name="chat-channels"),
     path("dms/", DirectMessageEndpoint.as_view(), name="chat-dms"),
+    path("search/", MessageSearchEndpoint.as_view(), name="chat-search"),
     path("guests/dm-access/", GuestDmAccessListEndpoint.as_view(), name="chat-guest-dm-access-list"),
     path("guests/<uuid:user_id>/dm-access/", GuestDmAccessEndpoint.as_view(), name="chat-guest-dm-access"),
     path(CHANNEL, ChannelDetailEndpoint.as_view(), name="chat-channel"),

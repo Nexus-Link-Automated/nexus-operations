@@ -131,6 +131,23 @@
       "last_reply_today": "Son yanıt {time}",
       "last_reply_on": "Son yanıt {date}"
     },
+    "search": {
+      "placeholder": "Mesajlarda ara",
+      "title": "Arama sonuçları",
+      "close": "Aramayı kapat",
+      "loading": "Aranıyor…",
+      "only_in": "Yalnızca {name} içinde",
+      "from": "Gönderen",
+      "anyone": "Herkes",
+      "include_automatic": "İş öğesi güncellemelerini dahil et",
+      "empty_title": "Sonuç yok",
+      "empty": "\"{query}\" ile eşleşen mesaj yok.",
+      "failed": "Mesajlarda arama yapılamadı.",
+      "load_more": "Daha fazla sonuç göster",
+      "more_failed": "Daha fazla sonuç yüklenemedi.",
+      "in_thread": "Bir ileti dizisinde",
+      "archived": "Arşivlendi"
+    },
     "day": {
       "today": "Bugün",
       "yesterday": "Dün"

@@ -131,6 +131,23 @@
       "last_reply_today": "Balasan terakhir pukul {time}",
       "last_reply_on": "Balasan terakhir pada {date}"
     },
+    "search": {
+      "placeholder": "Cari pesan",
+      "title": "Hasil pencarian",
+      "close": "Tutup pencarian",
+      "loading": "Mencari…",
+      "only_in": "Hanya di {name}",
+      "from": "Dari",
+      "anyone": "Siapa saja",
+      "include_automatic": "Sertakan pembaruan item kerja",
+      "empty_title": "Tidak ada hasil",
+      "empty": "Tidak ada pesan yang cocok dengan \"{query}\".",
+      "failed": "Tidak dapat mencari pesan.",
+      "load_more": "Tampilkan hasil lainnya",
+      "more_failed": "Tidak dapat memuat hasil lainnya.",
+      "in_thread": "Di utas",
+      "archived": "Diarsipkan"
+    },
     "day": {
       "today": "Hari ini",
       "yesterday": "Kemarin"

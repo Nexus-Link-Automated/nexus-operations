@@ -131,6 +131,23 @@
       "last_reply_today": "Ostatnia odpowiedź o {time}",
       "last_reply_on": "Ostatnia odpowiedź {date}"
     },
+    "search": {
+      "placeholder": "Szukaj w wiadomościach",
+      "title": "Wyniki wyszukiwania",
+      "close": "Zamknij wyszukiwanie",
+      "loading": "Wyszukiwanie…",
+      "only_in": "Tylko w {name}",
+      "from": "Od",
+      "anyone": "Każdy",
+      "include_automatic": "Uwzględnij aktualizacje elementów pracy",
+      "empty_title": "Brak wyników",
+      "empty": "Żadna wiadomość nie pasuje do „{query}”.",
+      "failed": "Nie udało się przeszukać wiadomości.",
+      "load_more": "Pokaż więcej wyników",
+      "more_failed": "Nie udało się wczytać kolejnych wyników.",
+      "in_thread": "W wątku",
+      "archived": "Zarchiwizowany"
+    },
     "day": {
       "today": "Dzisiaj",
       "yesterday": "Wczoraj"

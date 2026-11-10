@@ -131,6 +131,23 @@
       "last_reply_today": "Poslední odpověď v {time}",
       "last_reply_on": "Poslední odpověď {date}"
     },
+    "search": {
+      "placeholder": "Hledat ve zprávách",
+      "title": "Výsledky hledání",
+      "close": "Zavřít hledání",
+      "loading": "Hledání…",
+      "only_in": "Pouze v {name}",
+      "from": "Od",
+      "anyone": "Kdokoli",
+      "include_automatic": "Zahrnout aktualizace pracovních položek",
+      "empty_title": "Žádné výsledky",
+      "empty": "Žádné zprávy neodpovídají „{query}“.",
+      "failed": "Zprávy se nepodařilo prohledat.",
+      "load_more": "Zobrazit další výsledky",
+      "more_failed": "Další výsledky se nepodařilo načíst.",
+      "in_thread": "Ve vlákně",
+      "archived": "Archivováno"
+    },
     "day": {
       "today": "Dnes",
       "yesterday": "Včera"

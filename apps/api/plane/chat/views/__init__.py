@@ -11,6 +11,7 @@ from .channel import (  # noqa: F401
 )
 from .guest import GuestDmAccessEndpoint, GuestDmAccessListEndpoint  # noqa: F401
 from .me import ChatMeEndpoint  # noqa: F401
+from .search import MessageSearchEndpoint  # noqa: F401
 from .membership import (  # noqa: F401
     ChannelJoinEndpoint,
     ChannelLeaveEndpoint,

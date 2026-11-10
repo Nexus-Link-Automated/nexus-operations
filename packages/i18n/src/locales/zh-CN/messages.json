@@ -131,6 +131,23 @@
       "last_reply_today": "最后回复于 {time}",
       "last_reply_on": "最后回复于 {date}"
     },
+    "search": {
+      "placeholder": "搜索消息",
+      "title": "搜索结果",
+      "close": "关闭搜索",
+      "loading": "正在搜索…",
+      "only_in": "仅在 {name} 中",
+      "from": "发送者",
+      "anyone": "任何人",
+      "include_automatic": "包括工作项更新",
+      "empty_title": "没有结果",
+      "empty": "没有与“{query}”匹配的消息。",
+      "failed": "无法搜索消息。",
+      "load_more": "显示更多结果",
+      "more_failed": "无法加载更多结果。",
+      "in_thread": "在话题中",
+      "archived": "已归档"
+    },
     "day": {
       "today": "今天",
       "yesterday": "昨天"

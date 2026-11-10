@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { sortBy } from "lodash-es";
+import { orderBy, sortBy } from "lodash-es";
 import { describe, expect, it, vi } from "vitest";
 import { ChatServiceError } from "@plane/services";
 import type { TChatSocketHandlers } from "@plane/services";
@@ -15,6 +15,8 @@ import type {
   TChatMessage,
   TChatMessagePage,
   TChatMessagePageQuery,
+  TChatSearchPage,
+  TChatSearchQuery,
   TChatWorkItemLink,
 } from "@plane/types";
 import { ChatStore } from "./chat.store";
@@ -156,6 +158,32 @@ class FakeChatServer {
     return { results: list.slice(Math.max(0, end - limit), end), has_more: end - limit > 0 };
   }
 
+  /** The API's search, as far as the store can tell: matches in readable channels, newest first, `before` paging. */
+  search(query: TChatSearchQuery): TChatSearchPage {
+    const matches = orderBy(
+      this.messages
+        .filter((m) => this.visible(this.channels.get(m.channel)) && !m.removed_at && m.body_stripped.includes(query.q))
+        .filter((m) => !query.channel || m.channel === query.channel)
+        .filter((m) => !query.sender || m.sender === query.sender)
+        .filter((m) => query.automatic !== false || !m.system_event),
+      ["created_at", "id"],
+      ["desc", "desc"]
+    );
+    const start = query.before ? matches.findIndex((m) => m.id === query.before) + 1 : 0;
+    const limit = query.limit ?? 20;
+    return {
+      results: matches.slice(start, start + limit).map((m) => {
+        const { id, kind, name, archived_at, is_member, dm_member_ids } = this.payload(this.channels.get(m.channel)!);
+        return {
+          message: m,
+          channel: { id, kind, name, archived_at, is_member, dm_member_ids },
+          snippet: [{ text: m.body_stripped, match: true }],
+        };
+      }),
+      has_more: start + limit < matches.length,
+    };
+  }
+
   payload(channel: ServerChannel): TChatChannel {
     const isMember = channel.members.has(ME);
     const cursor = channel.cursors.get(ME) ?? null;
@@ -261,6 +289,10 @@ class FakeChatServer {
         }
         const replies = this.messages.filter((m) => m.parent === parentId);
         return this.held("listReplies", clone(this.page(replies, query)));
+      },
+      searchMessages: async (_slug, query: TChatSearchQuery) => {
+        log(`searchMessages ${JSON.stringify(query)}`);
+        return this.held("searchMessages", clone(this.search(query)));
       },
       getMessage: async (_slug, channelId, messageId) => {
         log(`getMessage ${messageId}`);
@@ -1437,5 +1469,124 @@ describe("ChatStore threads", () => {
       await store.openThread("c-general", parent.id);
       expect(await store.revealReply(parent.id, server.messages[1]!.id)).toBe(false);
     });
+  });
+});
+
+const found = (store: ChatStore) => store.search?.results.map((result) => result.message.body_stripped);
+
+describe("ChatStore search", () => {
+  it("finds matches newest first, and pages back from the last one", async () => {
+    const { store, server } = await setup((s) => {
+      for (let i = 0; i < 25; i++) s.post(i % 2 ? "c-general" : "c-random", ADA, `deploy ${i}`);
+    });
+    await store.searchMessages("  deploy ");
+    expect(store.search).toMatchObject({ query: "deploy", loading: false, hasMore: true, error: false });
+    expect(found(store)).toHaveLength(20);
+    expect(found(store)?.[0]).toBe("deploy 24");
+    expect(server.calls).toEqual([`searchMessages ${JSON.stringify({ q: "deploy", limit: 20 })}`]);
+
+    await store.loadMoreSearchResults();
+    expect(found(store)).toEqual(Array.from({ length: 25 }, (_, i) => `deploy ${24 - i}`));
+    expect(store.search?.hasMore).toBe(false);
+    expect(server.calls[1]).toContain(`"before":"${server.messages[5]!.id}"`);
+  });
+
+  it("sends the filters it was given", async () => {
+    const { store, server } = await setup();
+    await store.searchMessages("deploy", { channelId: "c-general", senderId: ADA, excludeAutomatic: true });
+    expect(server.calls).toEqual([
+      `searchMessages ${JSON.stringify({ q: "deploy", limit: 20, channel: "c-general", sender: ADA, automatic: false })}`,
+    ]);
+    expect(store.search?.filters).toEqual({ channelId: "c-general", senderId: ADA, excludeAutomatic: true });
+  });
+
+  it("doesn't send a search shorter than two characters, and ends the one showing", async () => {
+    const { store, server } = await setup((s) => s.post("c-general", ADA, "deploy"));
+    await store.searchMessages("deploy");
+    await store.searchMessages(" d ");
+    expect(store.search).toBeNull();
+    expect(server.calls).toHaveLength(1);
+  });
+
+  it("shows loading, then an error, then results on a retry", async () => {
+    const { store, server } = await setup((s) => s.post("c-general", ADA, "deploy"));
+    let fail!: (error: unknown) => void;
+    server.holds.set("searchMessages", new Promise<void>((_, reject) => (fail = reject)));
+    const searching = store.searchMessages("deploy");
+    expect(store.search).toMatchObject({ loading: true, results: [] });
+    fail(new ChatServiceError(0, undefined));
+    await searching;
+    expect(store.search).toMatchObject({ loading: false, error: true });
+    await store.searchMessages("deploy");
+    expect(store.search).toMatchObject({ error: false });
+    expect(found(store)).toEqual(["deploy"]);
+  });
+
+  it("drops the answer to an older search that lands after a newer one", async () => {
+    const { store, server } = await setup((s) => {
+      s.post("c-general", ADA, "alpha");
+      s.post("c-general", ADA, "beta");
+    });
+    let releaseOld!: () => void;
+    server.holds.set("searchMessages", new Promise<void>((resolve) => (releaseOld = resolve)));
+    const older = store.searchMessages("alpha");
+    await store.searchMessages("beta");
+    releaseOld();
+    await older;
+    expect(store.search?.query).toBe("beta");
+    expect(found(store)).toEqual(["beta"]);
+  });
+
+  it("drops a further page that lands after the search changed or ended", async () => {
+    const { store, server } = await setup((s) => {
+      for (let i = 0; i < 25; i++) s.post("c-general", ADA, `deploy ${i}`);
+    });
+    await store.searchMessages("deploy");
+    let release!: () => void;
+    server.holds.set("searchMessages", new Promise<void>((resolve) => (release = resolve)));
+    const more = store.loadMoreSearchResults();
+    expect(store.search?.loadingMore).toBe(true);
+    store.clearSearch();
+    release();
+    await more;
+    expect(store.search).toBeNull();
+  });
+
+  it("offers a retry when a further page fails, and shows each result once", async () => {
+    const { store, server } = await setup((s) => {
+      for (let i = 0; i < 25; i++) s.post("c-general", ADA, `deploy ${i}`);
+    });
+    await store.searchMessages("deploy");
+    server.holds.set("searchMessages", Promise.reject(new ChatServiceError(500, undefined)));
+    await store.loadMoreSearchResults();
+    expect(store.search).toMatchObject({ loadingMore: false, moreFailed: true, hasMore: true });
+    await store.loadMoreSearchResults();
+    const ids = store.search!.results.map((result) => result.message.id);
+    expect(new Set(ids).size).toBe(25);
+    expect(store.search?.moreFailed).toBe(false);
+  });
+
+  it("shows a result once when it moved to the next page", async () => {
+    const { store, server } = await setup((s) => {
+      for (let i = 0; i < 25; i++) s.post("c-general", ADA, `deploy ${i}`);
+    });
+    await store.searchMessages("deploy");
+    const search = server.search.bind(server);
+    // An edit made the oldest result on the first page newer, as far as paging is concerned.
+    server.search = (query) => {
+      const page = search(query);
+      return { ...page, results: [store.search!.results[19]!, ...page.results] };
+    };
+    await store.loadMoreSearchResults();
+    const ids = store.search!.results.map((result) => result.message.id);
+    expect(ids).toHaveLength(25);
+    expect(new Set(ids).size).toBe(25);
+  });
+
+  it("forgets the search when the store stops", async () => {
+    const { store } = await setup((s) => s.post("c-general", ADA, "deploy"));
+    await store.searchMessages("deploy");
+    store.stop();
+    expect(store.search).toBeNull();
   });
 });

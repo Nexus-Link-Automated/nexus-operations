@@ -22,3 +22,4 @@ from .message import (  # noqa: F401
     MessageWorkItemSerializer,
     MessageWriteSerializer,
 )
+from .search import MessageSearchQuerySerializer, SearchChannelSerializer  # noqa: F401

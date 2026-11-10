@@ -18,6 +18,8 @@ import type {
   TChatMessagePage,
   TChatMessagePageQuery,
   TChatMessageWrite,
+  TChatSearchPage,
+  TChatSearchQuery,
   TChatUploadedAttachment,
   TChatWorkItemLink,
 } from "@plane/types";
@@ -165,6 +167,11 @@ export class ChatService extends APIService {
         params: query,
       })
     );
+  }
+
+  /** Messages and replies the caller may read that match `query.q`, newest first. */
+  async searchMessages(workspaceSlug: string, query: TChatSearchQuery): Promise<TChatSearchPage> {
+    return this.call(this.get(`${this.base(workspaceSlug)}/search/`, { params: query }));
   }
 
   async getMessage(workspaceSlug: string, channelId: string, messageId: string): Promise<TChatMessage> {

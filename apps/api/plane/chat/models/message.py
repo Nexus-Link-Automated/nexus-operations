@@ -9,19 +9,51 @@ slug), or by Nexus itself (`system_event`, what it announces), and only ever one
 them. A user deleting a message calls `remove()`: the body and attachments are
 cleared and `removed_at` is set, but the row stays so its thread replies and read
 cursors keep working. `deleted_at` (soft delete) is reserved for removing data for real.
+
+`body_stripped` is the body as plain text, for search (`plane.chat.search`), previews and work item titles.
 """
 
+import re
+from html import unescape
+
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVector
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import F, Q
+from django.db.models import F, Func, Q, Value
 from django.utils import timezone
 from django.utils.html import strip_tags
 
 from plane.db.models import BaseModel, FileAsset
 
-__all__ = ["Message", "MessageReference", "MessageSystemEvent"]
+__all__ = ["Message", "MessageReference", "MessageSystemEvent", "plain_text", "search_document"]
 
 _ALIVE = Q(deleted_at__isnull=True)
+
+# Where one line of text ends, so that stripping the tags doesn't run the last word of a paragraph into the next.
+_LINE_END = re.compile(r"<br\b[^>]*>|</(?:p|div|li|h[1-6]|blockquote|pre|tr)\s*>", re.IGNORECASE)
+
+
+def plain_text(html):
+    """`html` as the text a reader sees: tags gone, entities decoded, a line break where a paragraph or line ends."""
+    if not html:
+        return ""
+    text = unescape(strip_tags(_LINE_END.sub(lambda end: end.group(0) + "\n", html)))
+    return text.replace("\xa0", " ").strip()
+
+
+def search_document():
+    """The text search vector of a message's body. Its GIN index is on exactly this expression.
+
+    `simple` lowercases and splits on non-word characters without stemming or stop words, so it suits all 22 locales
+    the same way; a language's own configuration would only help messages written in that one language.
+
+    `<` becomes a space first: the parser reads `<Button variant="x">` in pasted code as a tag and drops its words.
+    """
+    without_tags = Func(
+        F("body_stripped"), Value("<"), Value(" "), function="translate", output_field=models.TextField()
+    )
+    return SearchVector(without_tags, config="simple")
 
 
 class MessageSystemEvent(models.TextChoices):
@@ -73,6 +105,7 @@ class Message(BaseModel):
         indexes = [
             models.Index(fields=["channel", "created_at"], name="chat_message_channel_idx"),
             models.Index(fields=["parent", "created_at"], name="chat_message_parent_idx"),
+            GinIndex(search_document(), name="chat_message_search_idx"),
         ]
 
     def save(self, *args, **kwargs):
@@ -82,7 +115,7 @@ class Message(BaseModel):
                 raise ValidationError("A reply must be in the same channel as its parent.")
             if self.parent.parent_id is not None:
                 raise ValidationError("A reply cannot have replies of its own.")
-        self.body_stripped = strip_tags(self.body_html) if self.body_html else ""
+        self.body_stripped = plain_text(self.body_html)
         super().save(*args, **kwargs)
 
     def remove(self):

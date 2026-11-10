@@ -131,6 +131,23 @@
       "last_reply_today": "Ultimul răspuns la {time}",
       "last_reply_on": "Ultimul răspuns pe {date}"
     },
+    "search": {
+      "placeholder": "Caută în mesaje",
+      "title": "Rezultatele căutării",
+      "close": "Închide căutarea",
+      "loading": "Se caută…",
+      "only_in": "Doar în {name}",
+      "from": "De la",
+      "anyone": "Oricine",
+      "include_automatic": "Include actualizările elementelor de lucru",
+      "empty_title": "Niciun rezultat",
+      "empty": "Niciun mesaj nu corespunde cu „{query}”.",
+      "failed": "Nu s-a putut căuta în mesaje.",
+      "load_more": "Arată mai multe rezultate",
+      "more_failed": "Nu s-au putut încărca mai multe rezultate.",
+      "in_thread": "Într-un fir",
+      "archived": "Arhivat"
+    },
     "day": {
       "today": "Astăzi",
       "yesterday": "Ieri"

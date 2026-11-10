@@ -131,6 +131,23 @@
       "last_reply_today": "Last reply at {time}",
       "last_reply_on": "Last reply on {date}"
     },
+    "search": {
+      "placeholder": "Search messages",
+      "title": "Search results",
+      "close": "Close search",
+      "loading": "Searching…",
+      "only_in": "Only in {name}",
+      "from": "From",
+      "anyone": "Anyone",
+      "include_automatic": "Include work item updates",
+      "empty_title": "No results",
+      "empty": "No messages match \"{query}\".",
+      "failed": "Couldn't search messages.",
+      "load_more": "Show more results",
+      "more_failed": "Couldn't load more results.",
+      "in_thread": "In a thread",
+      "archived": "Archived"
+    },
     "day": {
       "today": "Today",
       "yesterday": "Yesterday"

@@ -131,6 +131,23 @@
       "last_reply_today": "最後回覆於 {time}",
       "last_reply_on": "最後回覆於 {date}"
     },
+    "search": {
+      "placeholder": "搜尋訊息",
+      "title": "搜尋結果",
+      "close": "關閉搜尋",
+      "loading": "正在搜尋…",
+      "only_in": "僅在 {name} 中",
+      "from": "傳送者",
+      "anyone": "任何人",
+      "include_automatic": "包含工作項目更新",
+      "empty_title": "沒有結果",
+      "empty": "沒有與「{query}」相符的訊息。",
+      "failed": "無法搜尋訊息。",
+      "load_more": "顯示更多結果",
+      "more_failed": "無法載入更多結果。",
+      "in_thread": "在討論串中",
+      "archived": "已封存"
+    },
     "day": {
       "today": "今天",
       "yesterday": "昨天"
