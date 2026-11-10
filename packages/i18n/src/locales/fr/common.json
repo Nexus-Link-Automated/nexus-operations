@@ -117,7 +117,7 @@
   "comments": "Commentaires",
   "comments_description": "Me notifier lorsque quelqu’un laisse un commentaire sur l’élément de travail",
   "mentions": "Mentions",
-  "mentions_description": "Me notifier uniquement lorsque quelqu’un me mentionne dans les commentaires ou la description",
+  "mentions_description": "Me notifier uniquement lorsque quelqu’un me mentionne dans les commentaires, les descriptions ou les messages",
   "old_password": "Ancien mot de passe",
   "general_settings": "Paramètres généraux",
   "sign_out": "Se déconnecter",

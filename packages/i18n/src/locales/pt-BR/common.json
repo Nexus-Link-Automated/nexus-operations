@@ -117,7 +117,7 @@
   "comments": "Comentários",
   "comments_description": "Notifique-me quando alguém deixar um comentário no item de trabalho",
   "mentions": "Menções",
-  "mentions_description": "Notifique-me apenas quando alguém me mencionar nos comentários ou na descrição",
+  "mentions_description": "Notifique-me apenas quando alguém me mencionar nos comentários, nas descrições ou nas mensagens",
   "old_password": "Senha antiga",
   "general_settings": "Configurações gerais",
   "sign_out": "Sair",

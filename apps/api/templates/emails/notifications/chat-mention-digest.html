@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Unread mentions on Plane</title>
+
+    <style>
+      /* Basic resets for email clients */
+      body,
+      table,
+      td,
+      p {
+        margin: 0;
+        padding: 0;
+      }
+
+      img {
+        border: 0;
+        line-height: 100%;
+        text-decoration: none;
+        -ms-interpolation-mode: bicubic;
+      }
+
+      table {
+        border-collapse: collapse;
+      }
+
+      /* Mobile adjustments */
+      @media only screen and (max-width: 600px) {
+        .email-container {
+          width: 100% !important;
+        }
+
+        .email-content {
+          padding: 24px 20px !important;
+        }
+
+        .email-footer {
+          padding: 0 20px 16px 20px !important;
+        }
+      }
+
+      *[class="gmail-fix"] {
+        display: none !important;
+      }
+    </style>
+  </head>
+
+  <body
+    bgcolor="#f9f9f9"
+    style="
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        sans-serif;
+      font-weight: 400;
+      color: #474747;
+      -webkit-font-smoothing: antialiased;
+      -webkit-text-size-adjust: none;
+      background-color: #f9f9f9;
+    "
+  >
+    <!-- Preheader (hidden) -->
+    <span
+      class="preheader"
+      style="
+        display: none;
+        font-size: 1px;
+        color: transparent;
+        line-height: 1px;
+        max-height: 0;
+        max-width: 0;
+        opacity: 0;
+        overflow: hidden;
+        mso-hide: all;
+        visibility: hidden;
+      "
+    >
+      {% if mentions %}{{ mentions.0.sender }} mentioned you in {{ mentions.0.place }}{% endif %}
+    </span>
+
+    <!-- Outer Wrapper -->
+    <center
+      class="email-body"
+      style="width: 100%; background-color: #f9f9f9; padding: 40px 0;"
+    >
+      <!-- HEADER -->
+      <table role="presentation" width="100%">
+        <tr>
+          <td></td>
+          <td
+            class="email-container"
+            width="620"
+            style="width: 620px; max-width: 620px; margin: 0 auto;"
+          >
+            <table
+              role="presentation"
+              width="100%"
+              style="background-color: #000000;"
+            >
+              <tr>
+                <td style="padding: 24px 40px; text-align: center;">
+                  <img
+                    src="https://media.docs.plane.so/logo/new-logo-dark.png"
+                    width="120"
+                    alt="Plane"
+                    style="height: auto; display: block; margin: 0 auto;"
+                  />
+                </td>
+              </tr>
+            </table>
+          </td>
+          <td></td>
+        </tr>
+      </table>
+
+      <!-- BODY -->
+      <table role="presentation" width="100%">
+        <tr>
+          <td></td>
+          <td
+            class="email-container"
+            width="620"
+            style="width: 620px; max-width: 620px; margin: 0 auto;"
+          >
+            <table
+              role="presentation"
+              width="100%"
+              class="email-content"
+              style="background-color: #ffffff; padding: 32px 40px 32px 40px;"
+            >
+              <tr>
+                <td
+                  style="
+                    padding: 24px;
+                    font-size: 16px;
+                    line-height: 1.5;
+                    color: #474747;
+                  "
+                >
+                  <h1
+                    style="
+                      margin: 0 0 12px;
+                      font-size: 22px;
+                      line-height: 1.35;
+                      font-weight: 600;
+                      color: #111111;
+                    "
+                  >
+                    {% if total == 1 %}You have an unread mention{% else %}You have {{ total }} unread mentions{% endif %}
+                  </h1>
+
+                  {% for mention in mentions %}
+                  <table
+                    role="presentation"
+                    width="100%"
+                    style="
+                      margin: 0 0 16px;
+                      border: 1px solid #e9e9e9;
+                      border-radius: 6px;
+                    "
+                  >
+                    <tr>
+                      <td style="padding: 16px;">
+                        <p style="margin: 0 0 4px; font-size: 14px; color: #111111;">
+                          <strong>{{ mention.sender }}</strong> mentioned you in
+                          <strong>{{ mention.place }}</strong>
+                        </p>
+                        <p style="margin: 0 0 8px; font-size: 12px; color: #979797;">
+                          {{ mention.workspace }}
+                        </p>
+                        {% if mention.preview %}
+                        <p
+                          style="
+                            margin: 0 0 12px;
+                            padding: 0 0 0 12px;
+                            border-left: 3px solid #e9e9e9;
+                            font-size: 14px;
+                            line-height: 1.5;
+                            color: #474747;
+                            word-break: break-word;
+                          "
+                        >
+                          {{ mention.preview }}
+                        </p>
+                        {% endif %}
+                        <a
+                          href="{{ mention.url }}"
+                          target="_blank"
+                          style="
+                            font-size: 14px;
+                            font-weight: 500;
+                            color: #1080bc;
+                            text-decoration: none;
+                          "
+                        >
+                          Open message
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                  {% endfor %}
+
+                  {% if more %}
+                  <p style="margin: 0 0 16px;">
+                    And {{ more }} more. You’ll find them all in your inbox.
+                  </p>
+                  {% endif %}
+
+                  <p
+                    style="
+                      margin: 16px 0 0;
+                      font-size: 13px;
+                      line-height: 1.6;
+                      color: #5f5e5e;
+                    "
+                  >
+                    This email was sent to {{ receiver_email }} because
+                    {% if total == 1 %}this mention was{% else %}these mentions were{% endif %} still unread. To stop these emails, turn off
+                    Mentions in your
+                    <a
+                      href="{{ settings_url }}"
+                      target="_blank"
+                      style="color: #1080bc; text-decoration: none;"
+                      >notification settings</a
+                    >.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+          <td></td>
+        </tr>
+      </table>
+
+      <!-- FOOTER -->
+      <table role="presentation" width="100%">
+        <tr>
+          <td></td>
+          <td
+            class="email-container"
+            width="620"
+            style="width: 620px; max-width: 620px; margin: 0 auto;"
+          >
+            <table
+              role="presentation"
+              width="100%"
+              class="email-footer"
+              style="background-color: #ffffff; padding: 0 40px 16px 40px;"
+            >
+              <tr>
+                <td
+                  style="
+                    border-top: 1px solid #e9e9e9;
+                    padding: 24px;
+                    font-size: 12px;
+                    line-height: 1.6;
+                    color: #979797;
+                    text-align: left;
+                  "
+                >
+                  <p style="margin: 0;">Plane Software, Inc.</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+          <td></td>
+        </tr>
+      </table>
+    </center>
+
+    <base target="_blank" />
+  </body>
+</html>

@@ -117,7 +117,7 @@
   "comments": "Comentarios",
   "comments_description": "Notificarme cuando alguien deje un comentario en el elemento de trabajo",
   "mentions": "Menciones",
-  "mentions_description": "Notificarme solo cuando alguien me mencione en los comentarios o descripción",
+  "mentions_description": "Notificarme solo cuando alguien me mencione en comentarios, descripciones o mensajes",
   "old_password": "Contraseña anterior",
   "general_settings": "Configuración general",
   "sign_out": "Cerrar sesión",

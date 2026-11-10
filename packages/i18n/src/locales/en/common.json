@@ -117,7 +117,7 @@
   "comments": "Comments",
   "comments_description": "Notify me when someone leaves a comment on the work item",
   "mentions": "Mentions",
-  "mentions_description": "Notify me only when someone mentions me in the comments or description",
+  "mentions_description": "Notify me only when someone mentions me in comments, descriptions or messages",
   "old_password": "Old password",
   "general_settings": "General settings",
   "sign_out": "Sign out",

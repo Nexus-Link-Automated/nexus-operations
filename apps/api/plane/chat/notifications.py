@@ -10,6 +10,8 @@ exists. A channel set to "Nothing" gets no entry.
 
 The entry is a snapshot, so what the inbox lists is checked when it is read: an entry
 disappears once its message is removed or its receiver can no longer see the channel.
+
+Each entry is also queued for the email digest of mentions left unread (`plane.chat.digest`).
 """
 
 import uuid
@@ -18,7 +20,7 @@ from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 
 from plane.bgtasks.notification_task import get_new_comment_mentions
-from plane.chat.models import ChannelKind, ChannelMember, ChannelNotificationLevel, Message
+from plane.chat.models import ChannelKind, ChannelMember, ChannelNotificationLevel, Message, PendingMentionEmail
 from plane.chat.permissions import can_browse_public_channels
 from plane.db.models import Notification, WorkspaceMember
 from plane.utils.exception_logger import log_exception
@@ -86,6 +88,14 @@ def _data(message):
     }
 
 
+def message_url(base_url, workspace_slug, message):
+    """The link that opens `message` in the app: in its channel, or for a reply in its thread, highlighted."""
+    url = f"{base_url.rstrip('/')}/{workspace_slug}/messages/{message.channel_id}"
+    if message.parent_id:
+        return f"{url}?message={message.parent_id}&reply={message.id}"
+    return f"{url}?message={message.id}"
+
+
 def _notify(message, previous_html):
     mentioned = _user_ids(get_new_comment_mentions(message.body_html, previous_html))
     if not mentioned:
@@ -94,7 +104,7 @@ def _notify(message, previous_html):
     actor_name = message.sender.display_name if message.sender else message.sender_agent
     title = f"{actor_name} mentioned you in a message"
     data = _data(message)
-    Notification.objects.bulk_create(
+    entries = Notification.objects.bulk_create(
         [
             Notification(
                 workspace_id=message.workspace_id,
@@ -107,6 +117,13 @@ def _notify(message, previous_html):
                 data=data,
             )
             for receiver_id in _recipients(message, mentioned - already_notified)
+        ],
+        batch_size=100,
+    )
+    PendingMentionEmail.objects.bulk_create(
+        [
+            PendingMentionEmail(notification_id=entry.id, receiver_id=entry.receiver_id, message_id=message.id)
+            for entry in entries
         ],
         batch_size=100,
     )
@@ -125,12 +142,15 @@ def notify_mentions(message, previous_html=None):
 def refresh_mention_previews(message):
     """Keep inbox entries in step with an edit or a removal, so text its author took back doesn't linger there.
 
-    New text only reaches people who can still open the message; a removal blanks every entry.
+    New text only reaches people who can still open the message; a removal blanks every entry. An edit that takes a
+    mention out also takes back the email it would have sent.
     """
     try:
         with transaction.atomic():
             entries = _entries(message)
             if message.removed_at is None:
+                still_mentioned = _user_ids(get_new_comment_mentions(message.body_html, None))
+                PendingMentionEmail.objects.filter(message=message).exclude(receiver_id__in=still_mentioned).delete()
                 receivers = list(entries.values_list("receiver_id", flat=True))
                 entries = entries.filter(receiver_id__in=list(_who_can_see(message, receivers)))
             entries.update(data=_data(message))

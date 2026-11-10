@@ -117,7 +117,7 @@
   "comments": "コメント",
   "comments_description": "誰かが作業項目にコメントを残したときに通知します",
   "mentions": "メンション",
-  "mentions_description": "誰かがコメントや説明で自分をメンションしたときのみ通知します",
+  "mentions_description": "誰かがコメント、説明、またはメッセージで自分をメンションしたときのみ通知します",
   "old_password": "現在のパスワード",
   "general_settings": "一般設定",
   "sign_out": "サインアウト",

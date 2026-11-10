@@ -117,7 +117,7 @@
   "comments": "Komentar",
   "comments_description": "Beri tahu saya ketika seseorang meninggalkan komentar pada item kerja",
   "mentions": "Sebutkan",
-  "mentions_description": "Beri tahu saya hanya ketika seseorang menyebut saya dalam komentar atau deskripsi",
+  "mentions_description": "Beri tahu saya hanya ketika seseorang menyebut saya dalam komentar, deskripsi, atau pesan",
   "old_password": "Kata sandi lama",
   "general_settings": "Pengaturan umum",
   "sign_out": "Keluar",

@@ -117,7 +117,7 @@
   "comments": "Komentáre",
   "comments_description": "Upozorniť ma, keď niekto pridá komentár k pracovnej položke",
   "mentions": "Zmienky",
-  "mentions_description": "Upozorniť ma iba, keď ma niekto spomenie v komentároch alebo popise",
+  "mentions_description": "Upozorniť ma iba, keď ma niekto spomenie v komentároch, popisoch alebo správach",
   "old_password": "Staré heslo",
   "general_settings": "Všeobecné nastavenia",
   "sign_out": "Odhlásiť sa",

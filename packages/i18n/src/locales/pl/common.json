@@ -117,7 +117,7 @@
   "comments": "Komentarze",
   "comments_description": "Powiadamiaj, gdy ktoś doda komentarz do elementu pracy",
   "mentions": "Wzmianki",
-  "mentions_description": "Powiadamiaj mnie tylko, gdy ktoś mnie wspomni w komentarzach lub opisie",
+  "mentions_description": "Powiadamiaj mnie tylko, gdy ktoś mnie wspomni w komentarzach, opisach lub wiadomościach",
   "old_password": "Stare hasło",
   "general_settings": "Ustawienia ogólne",
   "sign_out": "Wyloguj się",

@@ -117,7 +117,7 @@
   "comments": "Reacties",
   "comments_description": "Waarschuw me wanneer iemand een reactie achterlaat op het werkitem",
   "mentions": "Vermeldingen",
-  "mentions_description": "Waarschuw me alleen wanneer iemand mij vermeldt in de reacties of omschrijving",
+  "mentions_description": "Waarschuw me alleen wanneer iemand mij vermeldt in reacties, omschrijvingen of berichten",
   "old_password": "Oud wachtwoord",
   "general_settings": "Algemene instellingen",
   "sign_out": "Uitloggen",

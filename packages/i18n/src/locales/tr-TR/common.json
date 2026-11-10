@@ -117,7 +117,7 @@
   "comments": "Yorumlar",
   "comments_description": "Birisi iş öğesine yorum yaptığında bildir.",
   "mentions": "Bahsetmeler",
-  "mentions_description": "Yalnızca birisi yorumlarda veya açıklamada beni etiketlediğinde bildir.",
+  "mentions_description": "Yalnızca birisi yorumlarda, açıklamalarda veya mesajlarda beni etiketlediğinde bildir.",
   "old_password": "Eski şifre",
   "general_settings": "Genel ayarlar",
   "sign_out": "Çıkış yap",

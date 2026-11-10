@@ -56,6 +56,8 @@ x-app-env: &app-env
   AGENT_BRIDGE_SECRET: ${AGENT_BRIDGE_SECRET:?run generate-env.sh}
   PLANE_MCP_URL: http://mcp:8211/mcp
   AGENT_SESSION_TOKEN_TTL_MINUTES: ${AGENT_SESSION_TOKEN_TTL_MINUTES:-120}
+  # Minutes an @mention in Messages stays unread before it is emailed in a digest.
+  CHAT_MENTION_EMAIL_DELAY_MINUTES: ${CHAT_MENTION_EMAIL_DELAY_MINUTES:-30}
 
 services:
   gateway:
