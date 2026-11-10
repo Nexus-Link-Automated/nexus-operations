@@ -54,6 +54,8 @@ def _payload(message_id, user):
 
 
 class MessageEndpoint(ChatBaseEndpoint):
+    rate_limits = {"POST": "send"}
+
     def get(self, request, slug, channel_id):
         """A page of top-level messages. Query: `before` or `after` (a message ID) and `limit`."""
         channel = self.get_channel(channel_id)
@@ -94,6 +96,8 @@ class MessageEndpoint(ChatBaseEndpoint):
 
 
 class MessageDetailEndpoint(ChatBaseEndpoint):
+    rate_limits = {"PATCH": "edit", "DELETE": "edit"}
+
     def _message(self, channel, message_id, lock=False):
         messages = Message.objects.select_for_update() if lock else Message.objects
         message = messages.filter(channel=channel, pk=message_id).first()
@@ -170,6 +174,8 @@ class MessageReplyEndpoint(ChatBaseEndpoint):
 
 
 class MessageWorkItemEndpoint(ChatBaseEndpoint):
+    rate_limits = {"POST": "work_item"}
+
     def post(self, request, slug, channel_id, message_id):
         """Link a work item created from this message, both ways, and say so in its thread.
 

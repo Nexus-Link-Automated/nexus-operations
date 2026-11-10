@@ -209,7 +209,9 @@ export const ChatSearchPanel = observer(function ChatSearchPanel({
         </div>
       ) : search.error ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
-          <p className="text-body-sm-regular text-secondary">{t("messages.search.failed")}</p>
+          <p role="alert" className="text-body-sm-regular text-secondary">
+            {t(search.rateLimited ? "messages.search.rate_limited" : "messages.search.failed")}
+          </p>
           <Button
             variant="secondary"
             size="sm"
@@ -235,7 +237,9 @@ export const ChatSearchPanel = observer(function ChatSearchPanel({
           {search.hasMore && (
             <div className="flex flex-col items-center gap-1 px-4 pt-2">
               {search.moreFailed && (
-                <p className="text-caption-md-regular text-secondary">{t("messages.search.more_failed")}</p>
+                <p role="alert" className="text-caption-md-regular text-secondary">
+                  {t(search.rateLimited ? "messages.search.rate_limited" : "messages.search.more_failed")}
+                </p>
               )}
               <Button
                 variant="ghost"

@@ -102,7 +102,8 @@
       "not_allowed": "{name} nemožno priložiť. Tento typ súboru nie je povolený.",
       "failed": "{name} sa nepodarilo nahrať.",
       "too_many": "Správa môže mať najviac {count} príloh.",
-      "hidden": "{count, plural, one {# príloha} few {# prílohy} many {# prílohy} other {# príloh}}. Pripojte sa ku kanálu, aby ste ich videli."
+      "hidden": "{count, plural, one {# príloha} few {# prílohy} many {# prílohy} other {# príloh}}. Pripojte sa ku kanálu, aby ste ich videli.",
+      "rate_limited": "Súbor {name} sa nenahral: príliš veľa nahrávaní naraz. Chvíľu počkajte a skúste to znova."
     },
     "message": {
       "label": "{name} o {time}",
@@ -120,7 +121,8 @@
       "retry": "Skúsiť znova",
       "discard": "Zahodiť",
       "automatic_sender": "Aktualizácie pracovných položiek",
-      "automatic": "Automaticky"
+      "automatic": "Automaticky",
+      "rate_limited": "Neodoslané: posielate správy príliš rýchlo. Chvíľu počkajte a potom to skúste znova."
     },
     "thread": {
       "title": "Vlákno",
@@ -146,7 +148,8 @@
       "load_more": "Zobraziť ďalšie výsledky",
       "more_failed": "Ďalšie výsledky sa nepodarilo načítať.",
       "in_thread": "Vo vlákne",
-      "archived": "Archivované"
+      "archived": "Archivované",
+      "rate_limited": "Vyhľadávate príliš často. Chvíľu počkajte a skúste to znova."
     },
     "day": {
       "today": "Dnes",
@@ -176,11 +179,82 @@
       "message_not_found": "Táto správa už nie je dostupná.",
       "link_work_item_failed": "Pracovná položka bola vytvorená, ale nepodarilo sa ju prepojiť s touto správou.",
       "update_channel_failed": "Nastavenia kanála sa nepodarilo uložiť",
+      "rate_limited": "Robíte to príliš často. Chvíľu počkajte a skúste to znova.",
       "load_members_failed": "Členov sa nepodarilo načítať",
       "add_members_failed": "Ľudí sa nepodarilo pridať",
       "remove_member_failed": "Z kanála sa nepodarilo odobrať",
       "load_guest_access_failed": "Prístup hostí sa nepodarilo načítať",
       "update_guest_access_failed": "Prístup hosťa sa nepodarilo zmeniť"
+    },
+    "admin": {
+      "title": "Správy",
+      "description": "Ako dlho sa správy uchovávajú, exporty správ pracovného priestoru a ako rýchlo možno posielať.",
+      "load_failed": "Nastavenia správ sa nepodarilo načítať",
+      "retry": "Skúsiť znova",
+      "cancel": "Zrušiť",
+      "retention": {
+        "title": "Uchovávanie správ",
+        "description": "Správy sa uchovávajú navždy, ak nenastavíte limit. S limitom denná úloha natrvalo vymaže staršie správy vo všetkých pracovných priestoroch aj s priloženými súbormi a upozorneniami na ne.",
+        "enable": "Mazať staré správy",
+        "enable_help": "Vypnuté: všetky správy sa uchovávajú navždy.",
+        "days": "Uchovávať správy (dní)",
+        "days_help": "Od {min} do {max} dní.",
+        "days_invalid": "Zadajte celý počet dní od {min} do {max}.",
+        "save": "Uložiť",
+        "saving": "Ukladá sa",
+        "saved": "Uchovávanie správ uložené",
+        "save_failed": "Uchovávanie správ sa nepodarilo uložiť",
+        "confirm_title": "Natrvalo vymazať staršie správy?",
+        "confirm_description": "Pri ďalšom dennom behu Nexus natrvalo vymaže každú správu staršiu ako {days} dní aj s priloženými súbormi vo všetkých pracovných priestoroch. Vymazané správy nemožno obnoviť.",
+        "confirm": "Vymazať staršie správy"
+      },
+      "export": {
+        "title": "Exportovať správy",
+        "description": "Stiahnite si správy pracovného priestoru ako zip so súbormi JSON Lines: kanály, členov, správy a odpovede vo vláknach a názvy a veľkosti príloh (nie samotné súbory). Každý export možno sťahovať {hours} h.",
+        "workspace": "Pracovný priestor",
+        "workspace_placeholder": "Vyberte pracovný priestor",
+        "more_workspaces": "Načítať ďalšie pracovné priestory",
+        "include_private": "Zahrnúť súkromné kanály a priame správy",
+        "include_private_help": "Vypnuté: exportujú sa iba verejné kanály. Súkromné kanály a priame správy sú súkromné konverzácie: zahrňte ich iba vtedy, keď na to máte dôvod, napríklad právnu žiadosť.",
+        "start": "Spustiť export",
+        "started": "Export sa spustil. Zobrazí sa nižšie, keď bude pripravený.",
+        "start_failed": "Export sa nepodarilo spustiť",
+        "history": "Predchádzajúce exporty",
+        "empty": "Zatiaľ žiadne exporty.",
+        "load_failed": "Predchádzajúce exporty sa nepodarilo načítať",
+        "started_by": "Spustil(a) {email}, {date}",
+        "contents": "Kanály: {channels} · Správy: {messages} · {size}",
+        "expires": "Na stiahnutie do {date}",
+        "download": "Stiahnuť",
+        "download_named": "Stiahnuť export {name}",
+        "download_failed": "Export sa nepodarilo stiahnuť",
+        "scope_public": "Verejné kanály",
+        "scope_all": "So súkromnými kanálmi a DM",
+        "status": {
+          "queued": "V poradí",
+          "running": "Prebieha",
+          "ready": "Pripravené",
+          "failed": "Zlyhalo",
+          "expired": "Platnosť vypršala"
+        }
+      },
+      "rate_limits": {
+        "title": "Limity frekvencie",
+        "description": "Koľko požiadaviek každého druhu môže jedna osoba urobiť. Nastavujú sa premennými prostredia CHAT_RATE_LIMIT_* v API.",
+        "per_second": "{count} za sekundu",
+        "per_minute": "{count} za minútu",
+        "per_hour": "{count} za hodinu",
+        "per_day": "{count} za deň",
+        "names": {
+          "send": "Odoslať správu alebo odpoveď",
+          "edit": "Upraviť alebo vymazať správu",
+          "upload": "Nahrať súbor",
+          "channel": "Vytvoriť kanál alebo otvoriť priamu správu",
+          "search": "Hľadať v správach",
+          "read": "Označiť ako prečítané",
+          "work_item": "Vytvoriť pracovnú položku zo správy"
+        }
+      }
     }
   }
 }

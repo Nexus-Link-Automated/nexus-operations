@@ -17,7 +17,15 @@ import {
 // types
 import type { TSidebarMenuItem } from "./types";
 
-export type TCoreSidebarMenuKey = "general" | "email" | "workspace" | "authentication" | "ai" | "agents" | "image";
+export type TCoreSidebarMenuKey =
+  | "general"
+  | "email"
+  | "workspace"
+  | "authentication"
+  | "ai"
+  | "agents"
+  | "messages"
+  | "image";
 
 export const coreSidebarMenuLinks: Record<TCoreSidebarMenuKey, TSidebarMenuItem> = {
   general: {
@@ -55,6 +63,13 @@ export const coreSidebarMenuLinks: Record<TCoreSidebarMenuKey, TSidebarMenuItem>
     name: "Agents",
     description: "Configure the agents members can chat with.",
     href: `/agents/`,
+  },
+  messages: {
+    // The web app's icon for Messages.
+    Icon: ChatOutline,
+    name: "Messages",
+    description: "Message retention, exports and rate limits.",
+    href: `/messages/`,
   },
   image: {
     Icon: ImageOutline,

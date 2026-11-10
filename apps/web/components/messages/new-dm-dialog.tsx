@@ -29,7 +29,7 @@ import { useAppRouter } from "@/hooks/use-app-router";
 import { useChat } from "@/hooks/store/use-chat";
 import { useMember } from "@/hooks/store/use-member";
 // local imports
-import { chatErrorMessage, GROUP_DM_MAX_MEMBERS } from "./helpers";
+import { chatErrorMessage, GROUP_DM_MAX_MEMBERS, isChatRateLimited } from "./helpers";
 import { MemberAvatar } from "./member-avatar";
 
 type Props = {
@@ -76,7 +76,7 @@ export const NewDirectMessageDialog = observer(function NewDirectMessageDialog({
       setToast({
         type: "error",
         title: t("messages.errors.open_dm_failed"),
-        message: chatErrorMessage(caught),
+        message: isChatRateLimited(caught) ? t("messages.errors.rate_limited") : chatErrorMessage(caught),
       });
     } finally {
       setIsSubmitting(false);

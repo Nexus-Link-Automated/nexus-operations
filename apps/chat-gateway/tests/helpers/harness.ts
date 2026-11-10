@@ -52,6 +52,8 @@ export function testConfig(overrides: Partial<GatewayConfig> = {}): GatewayConfi
     maxSubscriptions: 100,
     rateFrames: 100,
     rateWindowMs: 10_000,
+    // High enough that only the tests about it reach it.
+    rateChecks: 10_000,
     // Long enough that nothing re-checks by itself unless a test asks for it.
     accessTtlMs: 600_000,
     sessionRecheckMs: 600_000,

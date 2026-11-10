@@ -102,7 +102,8 @@
       "not_allowed": "{name} eklenemiyor. Bu dosya türüne izin verilmiyor.",
       "failed": "{name} yüklenemedi.",
       "too_many": "Bir mesajda en fazla {count} ek olabilir.",
-      "hidden": "{count, plural, one {# ek} other {# ek}}. Görmek için kanala katılın."
+      "hidden": "{count, plural, one {# ek} other {# ek}}. Görmek için kanala katılın.",
+      "rate_limited": "{name} yüklenmedi: aynı anda çok fazla yükleme var. Biraz bekleyip tekrar deneyin."
     },
     "message": {
       "label": "{name}, {time}",
@@ -120,7 +121,8 @@
       "retry": "Yeniden dene",
       "discard": "Vazgeç",
       "automatic_sender": "İş öğesi güncellemeleri",
-      "automatic": "Otomatik"
+      "automatic": "Otomatik",
+      "rate_limited": "Gönderilmedi: mesajları çok hızlı gönderiyorsunuz. Biraz bekleyip tekrar deneyin."
     },
     "thread": {
       "title": "Konu",
@@ -146,7 +148,8 @@
       "load_more": "Daha fazla sonuç göster",
       "more_failed": "Daha fazla sonuç yüklenemedi.",
       "in_thread": "Bir ileti dizisinde",
-      "archived": "Arşivlendi"
+      "archived": "Arşivlendi",
+      "rate_limited": "Çok sık arama yapıyorsunuz. Biraz bekleyip tekrar deneyin."
     },
     "day": {
       "today": "Bugün",
@@ -176,11 +179,82 @@
       "message_not_found": "Bu mesaj artık kullanılamıyor.",
       "link_work_item_failed": "İş öğesi oluşturuldu ancak bu mesaja bağlanamadı.",
       "update_channel_failed": "Kanal ayarları kaydedilemedi",
+      "rate_limited": "Bunu çok sık yapıyorsunuz. Biraz bekleyip tekrar deneyin.",
       "load_members_failed": "Üyeler yüklenemedi",
       "add_members_failed": "Kişiler eklenemedi",
       "remove_member_failed": "Kanaldan çıkarılamadı",
       "load_guest_access_failed": "Misafir erişimi yüklenemedi",
       "update_guest_access_failed": "Misafir erişimi değiştirilemedi"
+    },
+    "admin": {
+      "title": "Mesajlar",
+      "description": "Mesajların ne kadar süre saklandığı, bir çalışma alanının mesajlarının dışa aktarımı ve kişilerin ne kadar hızlı gönderebileceği.",
+      "load_failed": "Mesaj ayarları yüklenemedi",
+      "retry": "Tekrar deneyin",
+      "cancel": "İptal",
+      "retention": {
+        "title": "Mesaj saklama",
+        "description": "Bir sınır belirlemediğiniz sürece mesajlar süresiz saklanır. Sınır belirlendiğinde günlük bir iş, tüm çalışma alanlarındaki daha eski mesajları ekli dosyaları ve ilgili bildirimlerle birlikte kalıcı olarak siler.",
+        "enable": "Eski mesajları sil",
+        "enable_help": "Kapalı: tüm mesajlar süresiz saklanır.",
+        "days": "Mesajların saklanma süresi (gün)",
+        "days_help": "{min} ile {max} gün arası.",
+        "days_invalid": "{min} ile {max} arasında tam sayı olarak gün girin.",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor",
+        "saved": "Mesaj saklama ayarı kaydedildi",
+        "save_failed": "Mesaj saklama ayarı kaydedilemedi",
+        "confirm_title": "Eski mesajlar kalıcı olarak silinsin mi?",
+        "confirm_description": "Bir sonraki günlük çalışmada Nexus, tüm çalışma alanlarında {days} günden eski her mesajı ekli dosyalarıyla birlikte kalıcı olarak silecek. Silinen mesajlar geri getirilemez.",
+        "confirm": "Eski mesajları sil"
+      },
+      "export": {
+        "title": "Mesajları dışa aktar",
+        "description": "Bir çalışma alanının mesajlarını JSON Lines dosyalarından oluşan bir zip olarak indirin: kanallar, üyeler, mesajlar ve ileti dizisi yanıtları ile eklerin adları ve boyutları (dosyaların kendisi değil). Her dışa aktarım {hours} saat boyunca indirilebilir.",
+        "workspace": "Çalışma alanı",
+        "workspace_placeholder": "Bir çalışma alanı seçin",
+        "more_workspaces": "Daha fazla çalışma alanı yükle",
+        "include_private": "Özel kanalları ve doğrudan mesajları dahil et",
+        "include_private_help": "Kapalı: yalnızca herkese açık kanallar dışa aktarılır. Özel kanallar ve doğrudan mesajlar özel konuşmalardır: yalnızca yasal bir talep gibi bir nedeniniz olduğunda dahil edin.",
+        "start": "Dışa aktarmayı başlat",
+        "started": "Dışa aktarma başladı. Hazır olduğunda aşağıda görünecek.",
+        "start_failed": "Dışa aktarma başlatılamadı",
+        "history": "Önceki dışa aktarmalar",
+        "empty": "Henüz dışa aktarma yok.",
+        "load_failed": "Önceki dışa aktarmalar yüklenemedi",
+        "started_by": "{email} tarafından {date} tarihinde başlatıldı",
+        "contents": "Kanallar: {channels} · Mesajlar: {messages} · {size}",
+        "expires": "{date} tarihine kadar indirilebilir",
+        "download": "İndir",
+        "download_named": "{name} dışa aktarımını indir",
+        "download_failed": "Dışa aktarma indirilemedi",
+        "scope_public": "Herkese açık kanallar",
+        "scope_all": "Özel kanallar ve DM'ler dahil",
+        "status": {
+          "queued": "Sırada",
+          "running": "Devam ediyor",
+          "ready": "Hazır",
+          "failed": "Başarısız",
+          "expired": "Süresi doldu"
+        }
+      },
+      "rate_limits": {
+        "title": "Hız sınırları",
+        "description": "Bir kişinin her türden kaç istek yapabileceği. API'deki CHAT_RATE_LIMIT_* ortam değişkenleriyle ayarlanır.",
+        "per_second": "Saniyede {count}",
+        "per_minute": "Dakikada {count}",
+        "per_hour": "Saatte {count}",
+        "per_day": "Günde {count}",
+        "names": {
+          "send": "Mesaj veya yanıt gönderme",
+          "edit": "Mesajı düzenleme veya silme",
+          "upload": "Dosya yükleme",
+          "channel": "Kanal oluşturma veya doğrudan mesaj açma",
+          "search": "Mesajlarda arama",
+          "read": "Okundu olarak işaretleme",
+          "work_item": "Mesajdan iş öğesi oluşturma"
+        }
+      }
     }
   }
 }

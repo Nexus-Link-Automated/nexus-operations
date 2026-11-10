@@ -83,6 +83,11 @@ export function unreadLabel(count: number): string {
   return count > 99 ? "99+" : String(count);
 }
 
+/** The API refused the request for now because too many like it came from this person (429). */
+export function isChatRateLimited(error: unknown): boolean {
+  return error instanceof ChatServiceError && error.isRateLimited;
+}
+
 /** The API's own message for a failed request (a field error or `error`), if it gave one. */
 export function chatErrorMessage(error: unknown): string | undefined {
   if (!(error instanceof ChatServiceError)) return undefined;

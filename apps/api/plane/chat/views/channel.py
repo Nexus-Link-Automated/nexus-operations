@@ -44,6 +44,8 @@ class ChannelPayloadMixin:
 
 
 class ChannelEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
+    rate_limits = {"POST": "channel"}
+
     def get(self, request, slug):
         """Every channel and DM the caller can see. `?archived=true` lists archived channels instead."""
         archived = request.query_params.get("archived", "false").lower()
@@ -134,6 +136,8 @@ class ChannelArchiveEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
 
 
 class DirectMessageEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
+    rate_limits = {"POST": "channel"}
+
     def post(self, request, slug):
         """Open the DM (one other person) or group DM (several) with exactly these people, creating it if needed.
 

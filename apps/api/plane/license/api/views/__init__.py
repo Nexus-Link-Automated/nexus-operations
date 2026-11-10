@@ -29,3 +29,10 @@ from .workspace import (
 
 
 from .agent import InstanceAgentEndpoint
+
+
+from .chat import (
+    InstanceChatSettingsEndpoint,
+    InstanceMessageExportEndpoint,
+    InstanceMessageExportDownloadEndpoint,
+)

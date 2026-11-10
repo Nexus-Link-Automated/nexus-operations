@@ -88,6 +88,8 @@ export type TChatPendingMessage = {
   /** Already in storage: a retry sends these again by ID and never re-uploads them. */
   attachments: TChatUploadedAttachment[];
   status: "sending" | "failed";
+  /** It failed because the API refused to take more for now (429): the same message can be retried shortly. */
+  rateLimited: boolean;
 };
 
 /** The most files one message can carry (the API's `MAX_ATTACHMENTS_PER_MESSAGE`). */
@@ -118,6 +120,8 @@ export type TChatSearch = {
   error: boolean;
   /** The last try at a further page failed; the panel offers a retry. */
   moreFailed: boolean;
+  /** The last failure was the API refusing more searches for now (429). */
+  rateLimited: boolean;
 };
 
 /** The API refuses shorter searches (`MIN_QUERY_LENGTH`), and the panel doesn't send them. */
@@ -144,6 +148,7 @@ function searchParams(q: string, filters: TChatSearchFilters) {
 }
 
 const isNotFound = (error: unknown) => error instanceof ChatServiceError && error.isNotFound;
+const isRateLimited = (error: unknown) => error instanceof ChatServiceError && error.isRateLimited;
 
 const byName = (channels: TChatChannel[]) => sortBy(channels, (channel) => channel.name.toLowerCase());
 
@@ -1114,13 +1119,14 @@ export class ChatStore implements IChatStore {
       loadingMore: false,
       error: false,
       moreFailed: false,
+      rateLimited: false,
     };
     const commit = this.searchGuard(generation);
     try {
       const page = await this.service.searchMessages(workspaceSlug, searchParams(q, filters));
       commit((search) => ({ ...search, results: page.results, hasMore: page.has_more, loading: false }));
-    } catch {
-      commit((search) => ({ ...search, loading: false, error: true }));
+    } catch (error) {
+      commit((search) => ({ ...search, loading: false, error: true, rateLimited: isRateLimited(error) }));
     }
   }
 
@@ -1130,7 +1136,7 @@ export class ChatStore implements IChatStore {
     const search = this.search;
     const last = search?.results[search.results.length - 1];
     if (!workspaceSlug || !search || !last || !search.hasMore || search.loading || search.loadingMore) return;
-    this.search = { ...search, loadingMore: true, moreFailed: false };
+    this.search = { ...search, loadingMore: true, moreFailed: false, rateLimited: false };
     const commit = this.searchGuard(this.searchGeneration);
     try {
       const page = await this.service.searchMessages(workspaceSlug, {
@@ -1143,8 +1149,8 @@ export class ChatStore implements IChatStore {
         const fresh = page.results.filter((result) => !held.has(result.message.id));
         return { ...current, results: [...current.results, ...fresh], hasMore: page.has_more, loadingMore: false };
       });
-    } catch {
-      commit((current) => ({ ...current, loadingMore: false, moreFailed: true }));
+    } catch (error) {
+      commit((current) => ({ ...current, loadingMore: false, moreFailed: true, rateLimited: isRateLimited(error) }));
     }
   }
 
@@ -1187,6 +1193,7 @@ export class ChatStore implements IChatStore {
       body_json: body.body_json ?? {},
       attachments: body.attachments ?? [],
       status: "sending",
+      rateLimited: false,
     };
   }
 
@@ -1200,6 +1207,7 @@ export class ChatStore implements IChatStore {
     const pending = this.findPending(channelId, localId);
     if (!pending || pending.status !== "failed") return;
     pending.status = "sending";
+    pending.rateLimited = false;
     await this.deliver(pending);
   }
 
@@ -1247,7 +1255,10 @@ export class ChatStore implements IChatStore {
     } catch (error) {
       commit(() => {
         const current = this.findPending(channelId, localId);
-        if (current) current.status = "failed";
+        if (current) {
+          current.status = "failed";
+          current.rateLimited = isRateLimited(error);
+        }
       });
       throw error;
     }

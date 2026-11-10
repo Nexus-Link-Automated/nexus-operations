@@ -102,7 +102,8 @@
       "not_allowed": "{name} kann nicht angehängt werden. Dieser Dateityp ist nicht erlaubt.",
       "failed": "{name} konnte nicht hochgeladen werden.",
       "too_many": "Eine Nachricht kann höchstens {count} Anhänge haben.",
-      "hidden": "{count, plural, one {# Anhang} other {# Anhänge}}. Tritt dem Kanal bei, um sie zu sehen."
+      "hidden": "{count, plural, one {# Anhang} other {# Anhänge}}. Tritt dem Kanal bei, um sie zu sehen.",
+      "rate_limited": "{name} wurde nicht hochgeladen: zu viele Uploads auf einmal. Warten Sie einen Moment und versuchen Sie es erneut."
     },
     "message": {
       "label": "{name} um {time}",
@@ -120,7 +121,8 @@
       "retry": "Erneut versuchen",
       "discard": "Verwerfen",
       "automatic_sender": "Updates zu Arbeitselementen",
-      "automatic": "Automatisch"
+      "automatic": "Automatisch",
+      "rate_limited": "Nicht gesendet: Sie senden Nachrichten zu schnell. Warten Sie einen Moment und versuchen Sie es dann erneut."
     },
     "thread": {
       "title": "Thread",
@@ -146,7 +148,8 @@
       "load_more": "Weitere Ergebnisse anzeigen",
       "more_failed": "Weitere Ergebnisse konnten nicht geladen werden.",
       "in_thread": "In einem Thread",
-      "archived": "Archiviert"
+      "archived": "Archiviert",
+      "rate_limited": "Sie suchen zu oft. Warten Sie einen Moment und versuchen Sie es erneut."
     },
     "day": {
       "today": "Heute",
@@ -176,11 +179,82 @@
       "message_not_found": "Diese Nachricht ist nicht mehr verfügbar.",
       "link_work_item_failed": "Das Arbeitselement wurde erstellt, konnte aber nicht mit dieser Nachricht verknüpft werden.",
       "update_channel_failed": "Die Kanaleinstellungen konnten nicht gespeichert werden",
+      "rate_limited": "Sie tun das zu oft. Warten Sie einen Moment und versuchen Sie es erneut.",
       "load_members_failed": "Mitglieder konnten nicht geladen werden",
       "add_members_failed": "Personen konnten nicht hinzugefügt werden",
       "remove_member_failed": "Konnte nicht aus dem Kanal entfernt werden",
       "load_guest_access_failed": "Gastzugriff konnte nicht geladen werden",
       "update_guest_access_failed": "Gastzugriff konnte nicht geändert werden"
+    },
+    "admin": {
+      "title": "Nachrichten",
+      "description": "Wie lange Nachrichten aufbewahrt werden, Exporte der Nachrichten eines Arbeitsbereichs und wie schnell Personen senden können.",
+      "load_failed": "Die Nachrichten-Einstellungen konnten nicht geladen werden",
+      "retry": "Erneut versuchen",
+      "cancel": "Abbrechen",
+      "retention": {
+        "title": "Aufbewahrung von Nachrichten",
+        "description": "Nachrichten werden unbegrenzt aufbewahrt, sofern Sie kein Limit festlegen. Mit einem Limit löscht ein täglicher Job ältere Nachrichten in allen Arbeitsbereichen endgültig, samt angehängter Dateien und der Benachrichtigungen dazu.",
+        "enable": "Alte Nachrichten löschen",
+        "enable_help": "Aus: Alle Nachrichten werden unbegrenzt aufbewahrt.",
+        "days": "Nachrichten aufbewahren für (Tage)",
+        "days_help": "Von {min} bis {max} Tagen.",
+        "days_invalid": "Geben Sie eine ganze Zahl von Tagen zwischen {min} und {max} ein.",
+        "save": "Speichern",
+        "saving": "Wird gespeichert",
+        "saved": "Aufbewahrung von Nachrichten gespeichert",
+        "save_failed": "Die Aufbewahrung von Nachrichten konnte nicht gespeichert werden",
+        "confirm_title": "Ältere Nachrichten endgültig löschen?",
+        "confirm_description": "Beim nächsten täglichen Lauf löscht Nexus jede Nachricht, die älter als {days} Tage ist, samt angehängter Dateien in allen Arbeitsbereichen endgültig. Gelöschte Nachrichten können nicht wiederhergestellt werden.",
+        "confirm": "Ältere Nachrichten löschen"
+      },
+      "export": {
+        "title": "Nachrichten exportieren",
+        "description": "Laden Sie die Nachrichten eines Arbeitsbereichs als ZIP mit JSON-Lines-Dateien herunter: Kanäle, Mitglieder, Nachrichten und Thread-Antworten sowie Namen und Größen der Anhänge (nicht die Dateien). Jeder Export kann {hours} Stunden lang heruntergeladen werden.",
+        "workspace": "Arbeitsbereich",
+        "workspace_placeholder": "Arbeitsbereich auswählen",
+        "more_workspaces": "Weitere Arbeitsbereiche laden",
+        "include_private": "Private Kanäle und Direktnachrichten einschließen",
+        "include_private_help": "Aus: Nur öffentliche Kanäle werden exportiert. Private Kanäle und Direktnachrichten sind private Unterhaltungen: Schließen Sie sie nur mit gutem Grund ein, etwa bei einer rechtlichen Anfrage.",
+        "start": "Export starten",
+        "started": "Export gestartet. Er erscheint unten, sobald er bereit ist.",
+        "start_failed": "Der Export konnte nicht gestartet werden",
+        "history": "Bisherige Exporte",
+        "empty": "Noch keine Exporte.",
+        "load_failed": "Bisherige Exporte konnten nicht geladen werden",
+        "started_by": "Gestartet von {email} am {date}",
+        "contents": "Kanäle: {channels} · Nachrichten: {messages} · {size}",
+        "expires": "Herunterladbar bis {date}",
+        "download": "Herunterladen",
+        "download_named": "Export von {name} herunterladen",
+        "download_failed": "Der Export konnte nicht heruntergeladen werden",
+        "scope_public": "Öffentliche Kanäle",
+        "scope_all": "Mit privaten Kanälen und DMs",
+        "status": {
+          "queued": "In der Warteschlange",
+          "running": "In Bearbeitung",
+          "ready": "Bereit",
+          "failed": "Fehlgeschlagen",
+          "expired": "Abgelaufen"
+        }
+      },
+      "rate_limits": {
+        "title": "Ratenbegrenzungen",
+        "description": "Wie viele Anfragen jeder Art eine Person stellen kann. Festgelegt über die Umgebungsvariablen CHAT_RATE_LIMIT_* der API.",
+        "per_second": "{count} pro Sekunde",
+        "per_minute": "{count} pro Minute",
+        "per_hour": "{count} pro Stunde",
+        "per_day": "{count} pro Tag",
+        "names": {
+          "send": "Nachricht oder Antwort senden",
+          "edit": "Nachricht bearbeiten oder löschen",
+          "upload": "Datei hochladen",
+          "channel": "Kanal erstellen oder Direktnachricht öffnen",
+          "search": "Nachrichten durchsuchen",
+          "read": "Als gelesen markieren",
+          "work_item": "Arbeitselement aus einer Nachricht erstellen"
+        }
+      }
     }
   }
 }

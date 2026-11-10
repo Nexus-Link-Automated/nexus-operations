@@ -102,7 +102,8 @@
       "not_allowed": "Não é possível anexar {name}. Este tipo de arquivo não é permitido.",
       "failed": "Não foi possível enviar {name}.",
       "too_many": "Uma mensagem pode ter até {count} anexos.",
-      "hidden": "{count, plural, one {# anexo} many {# anexos} other {# anexos}}. Entre no canal para vê-los."
+      "hidden": "{count, plural, one {# anexo} many {# anexos} other {# anexos}}. Entre no canal para vê-los.",
+      "rate_limited": "{name} não foi enviado: muitos envios ao mesmo tempo. Aguarde um momento e tente novamente."
     },
     "message": {
       "label": "{name} às {time}",
@@ -120,7 +121,8 @@
       "retry": "Tentar de novo",
       "discard": "Descartar",
       "automatic_sender": "Atualizações de itens de trabalho",
-      "automatic": "Automático"
+      "automatic": "Automático",
+      "rate_limited": "Não enviada: você está enviando mensagens rápido demais. Aguarde um momento e tente novamente."
     },
     "thread": {
       "title": "Conversa",
@@ -146,7 +148,8 @@
       "load_more": "Mostrar mais resultados",
       "more_failed": "Não foi possível carregar mais resultados.",
       "in_thread": "Em uma conversa",
-      "archived": "Arquivado"
+      "archived": "Arquivado",
+      "rate_limited": "Você está pesquisando com muita frequência. Aguarde um momento e tente novamente."
     },
     "day": {
       "today": "Hoje",
@@ -176,11 +179,82 @@
       "message_not_found": "Esta mensagem não está mais disponível.",
       "link_work_item_failed": "O item de trabalho foi criado, mas não foi possível vinculá-lo a esta mensagem.",
       "update_channel_failed": "Não foi possível salvar as configurações do canal",
+      "rate_limited": "Você está fazendo isso com muita frequência. Aguarde um momento e tente novamente.",
       "load_members_failed": "Não foi possível carregar os membros",
       "add_members_failed": "Não foi possível adicionar as pessoas",
       "remove_member_failed": "Não foi possível remover do canal",
       "load_guest_access_failed": "Não foi possível carregar o acesso de convidados",
       "update_guest_access_failed": "Não foi possível alterar o acesso do convidado"
+    },
+    "admin": {
+      "title": "Mensagens",
+      "description": "Por quanto tempo as mensagens são mantidas, exportações das mensagens de um espaço de trabalho e com que rapidez as pessoas podem enviar.",
+      "load_failed": "Não foi possível carregar as configurações de Mensagens",
+      "retry": "Tentar de novo",
+      "cancel": "Cancelar",
+      "retention": {
+        "title": "Retenção de mensagens",
+        "description": "As mensagens são mantidas para sempre, a menos que você defina um limite. Com um limite, uma tarefa diária exclui permanentemente as mensagens mais antigas em todos os espaços de trabalho, com seus arquivos anexos e as notificações sobre elas.",
+        "enable": "Excluir mensagens antigas",
+        "enable_help": "Desativado: todas as mensagens são mantidas para sempre.",
+        "days": "Manter mensagens por (dias)",
+        "days_help": "De {min} a {max} dias.",
+        "days_invalid": "Insira um número inteiro de dias entre {min} e {max}.",
+        "save": "Salvar",
+        "saving": "Salvando",
+        "saved": "Retenção de mensagens salva",
+        "save_failed": "Não foi possível salvar a retenção de mensagens",
+        "confirm_title": "Excluir permanentemente as mensagens mais antigas?",
+        "confirm_description": "Na próxima execução diária, o Nexus excluirá permanentemente todas as mensagens com mais de {days} dias, com seus arquivos anexos, em todos os espaços de trabalho. Mensagens excluídas não podem ser recuperadas.",
+        "confirm": "Excluir mensagens mais antigas"
+      },
+      "export": {
+        "title": "Exportar mensagens",
+        "description": "Baixe as mensagens de um espaço de trabalho como um zip de arquivos JSON Lines: canais, membros, mensagens e respostas em threads, e os nomes e tamanhos dos anexos (não os arquivos). Cada exportação pode ser baixada por {hours} horas.",
+        "workspace": "Espaço de trabalho",
+        "workspace_placeholder": "Escolha um espaço de trabalho",
+        "more_workspaces": "Carregar mais espaços de trabalho",
+        "include_private": "Incluir canais privados e mensagens diretas",
+        "include_private_help": "Desativado: apenas canais públicos são exportados. Canais privados e mensagens diretas são conversas privadas: inclua-os somente quando houver um motivo, como uma solicitação legal.",
+        "start": "Iniciar exportação",
+        "started": "Exportação iniciada. Ela aparecerá abaixo quando estiver pronta.",
+        "start_failed": "Não foi possível iniciar a exportação",
+        "history": "Exportações anteriores",
+        "empty": "Nenhuma exportação ainda.",
+        "load_failed": "Não foi possível carregar as exportações anteriores",
+        "started_by": "Iniciada por {email} em {date}",
+        "contents": "Canais: {channels} · Mensagens: {messages} · {size}",
+        "expires": "Disponível para download até {date}",
+        "download": "Baixar",
+        "download_named": "Baixar a exportação de {name}",
+        "download_failed": "Não foi possível baixar a exportação",
+        "scope_public": "Canais públicos",
+        "scope_all": "Com canais privados e DMs",
+        "status": {
+          "queued": "Na fila",
+          "running": "Em andamento",
+          "ready": "Pronta",
+          "failed": "Falhou",
+          "expired": "Expirada"
+        }
+      },
+      "rate_limits": {
+        "title": "Limites de taxa",
+        "description": "Quantas solicitações de cada tipo uma pessoa pode fazer. Defina-os com as variáveis de ambiente CHAT_RATE_LIMIT_* da API.",
+        "per_second": "{count} por segundo",
+        "per_minute": "{count} por minuto",
+        "per_hour": "{count} por hora",
+        "per_day": "{count} por dia",
+        "names": {
+          "send": "Enviar uma mensagem ou resposta",
+          "edit": "Editar ou excluir uma mensagem",
+          "upload": "Enviar um arquivo",
+          "channel": "Criar um canal ou abrir uma mensagem direta",
+          "search": "Pesquisar mensagens",
+          "read": "Marcar como lida",
+          "work_item": "Criar um item de trabalho a partir de uma mensagem"
+        }
+      }
     }
   }
 }

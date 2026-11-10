@@ -147,6 +147,31 @@ describe("subscribing to a public channel the user hasn't joined", () => {
     expect(await ada.closed()).toBe(CloseCode.tooManyRequests);
   });
 
+  it("limits how many channels one socket has the API check per window", async () => {
+    h = await startHarness({ config: { rateChecks: 2, rateWindowMs: 3_000 } });
+    h.api.addChannel({ members: [ADA.id] });
+    const lounges = [1, 2, 3].map(() => h!.api.addChannel({ members: [BEN.id] }));
+    const ada = await h.open(ADA.cookie);
+    for (const channel_id of lounges) ada.send({ type: "subscribe", channel_id });
+    await waitUntil(() => ada.of("subscribed").length === 2 && ada.of("error").length === 1);
+    expect(ada.of("error")[0]).toMatchObject({ code: "unavailable", channel_id: lounges[2] });
+    expect(channelRequests(h, lounges[2]!)).toHaveLength(0);
+    // Asking about a channel it already follows needs no check, so it is answered whatever the budget.
+    ada.send({ type: "subscribe", channel_id: lounges[0]! });
+    await waitUntil(() => ada.of("subscribed").length === 3);
+    // Unsubscribing and subscribing again needs a new check.
+    ada.send({ type: "unsubscribe", channel_id: lounges[0]! });
+    ada.send({ type: "subscribe", channel_id: lounges[0]! });
+    await waitUntil(() => ada.of("error").length === 2);
+    expect(ada.closeCode).toBeUndefined();
+
+    // A new window, a new budget.
+    await settle(3_100);
+    ada.send({ type: "subscribe", channel_id: lounges[2]! });
+    await waitUntil(() => ada.of("subscribed").length === 4);
+    expect(channelRequests(h, lounges[2]!)).toHaveLength(1);
+  });
+
   it("limits how many channels one socket follows beyond its own", async () => {
     h = await startHarness({ config: { maxSubscriptions: 2 } });
     h.api.addChannel({ members: [ADA.id] });

@@ -8,6 +8,7 @@
 import ipaddress
 import logging
 import os
+import re
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 from urllib.parse import urljoin
@@ -184,6 +185,50 @@ if _mention_delay_raw.isdecimal() and 0 < int(_mention_delay_raw) <= 7 * 24 * 60
     CHAT_MENTION_EMAIL_DELAY_MINUTES = int(_mention_delay_raw)
 elif _mention_delay_raw:
     _logger.warning("CHAT_MENTION_EMAIL_DELAY_MINUTES: ignoring invalid value %r", _mention_delay_raw)
+
+# Nexus Messages: per-user rate limits on writes and searches (`plane.chat.throttles`). Each is one or more
+# DRF rates, comma separated, all of which apply: a short window for bursts and a long one for scripts.
+# CHAT_RATE_LIMIT_<NAME> overrides one, e.g. CHAT_RATE_LIMIT_SEND="30/minute,500/hour".
+_CHAT_RATE = re.compile(r"[1-9]\d{0,5}/(?:s|m|h|d|sec|min|second|minute|hour|day)")
+_CHAT_RATE_LIMIT_DEFAULTS = {
+    # Sending a message or a thread reply.
+    "send": "30/minute,500/hour",
+    # Editing or removing a message.
+    "edit": "30/minute,300/hour",
+    # Asking for an upload slot for a file.
+    "upload": "30/minute,300/hour",
+    # Creating a channel or opening a DM.
+    "channel": "20/minute,200/hour",
+    "search": "30/minute,300/hour",
+    # Moving a read cursor. The web app does this as messages arrive in the channel being read.
+    "read": "120/minute",
+    # Linking a work item created from a message.
+    "work_item": "20/minute,200/hour",
+}
+
+
+def _chat_rate_limits(environ):
+    limits = dict(_CHAT_RATE_LIMIT_DEFAULTS)
+    for name in limits:
+        env_var = f"CHAT_RATE_LIMIT_{name.upper()}"
+        raw = environ.get(env_var, "").replace(" ", "")
+        if raw and all(_CHAT_RATE.fullmatch(rate) for rate in raw.split(",")):
+            limits[name] = raw
+        elif raw:
+            _logger.warning("%s: ignoring invalid value %r", env_var, raw)
+    return limits
+
+
+CHAT_RATE_LIMITS = _chat_rate_limits(os.environ)
+
+# Nexus Messages exports from God mode (`plane.chat.export`): how long an archive can be downloaded before it is
+# deleted from storage.
+_export_hours_raw = os.environ.get("CHAT_EXPORT_EXPIRY_HOURS", "").strip()
+CHAT_EXPORT_EXPIRY_HOURS = 24
+if _export_hours_raw.isdecimal() and 0 < int(_export_hours_raw) <= 30 * 24:
+    CHAT_EXPORT_EXPIRY_HOURS = int(_export_hours_raw)
+elif _export_hours_raw:
+    _logger.warning("CHAT_EXPORT_EXPIRY_HOURS: ignoring invalid value %r", _export_hours_raw)
 
 # Per-statement limit, in milliseconds, for requests that carry a PQL query (PQL can
 # force unindexed scans). 0 turns it off. Scoped to those requests, not the database:
@@ -421,6 +466,10 @@ CELERY_IMPORTS = (
     "plane.chat.project_feed",
     # chat email digest of unread mentions
     "plane.chat.digest",
+    # chat message retention and the files it leaves behind
+    "plane.chat.retention",
+    # chat exports from God mode
+    "plane.chat.export",
 )
 
 FILE_SIZE_LIMIT = int(os.environ.get("FILE_SIZE_LIMIT", 5242880))

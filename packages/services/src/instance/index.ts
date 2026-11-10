@@ -6,3 +6,4 @@
 
 export * from "./instance.service";
 export * from "./agent.service";
+export * from "./chat.service";

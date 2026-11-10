@@ -102,7 +102,8 @@
       "not_allowed": "{name} can't be attached. This file type isn't allowed.",
       "failed": "{name} couldn't be uploaded.",
       "too_many": "A message can have up to {count} attachments.",
-      "hidden": "{count, plural, one {# attachment} other {# attachments}}. Join the channel to view."
+      "hidden": "{count, plural, one {# attachment} other {# attachments}}. Join the channel to view.",
+      "rate_limited": "{name} wasn't uploaded: too many uploads at once. Wait a moment and try again."
     },
     "message": {
       "label": "{name} at {time}",
@@ -120,7 +121,8 @@
       "retry": "Retry",
       "discard": "Discard",
       "automatic_sender": "Work item updates",
-      "automatic": "Automatic"
+      "automatic": "Automatic",
+      "rate_limited": "Not sent: you're sending messages too fast. Wait a moment, then retry."
     },
     "thread": {
       "title": "Thread",
@@ -146,7 +148,8 @@
       "load_more": "Show more results",
       "more_failed": "Couldn't load more results.",
       "in_thread": "In a thread",
-      "archived": "Archived"
+      "archived": "Archived",
+      "rate_limited": "You're searching too often. Wait a moment and try again."
     },
     "day": {
       "today": "Today",
@@ -176,11 +179,82 @@
       "message_not_found": "This message is no longer available.",
       "link_work_item_failed": "The work item was created, but it couldn't be linked to this message.",
       "update_channel_failed": "Couldn't save the channel settings",
+      "rate_limited": "You're doing that too often. Wait a moment and try again.",
       "load_members_failed": "Couldn't load the members",
       "add_members_failed": "Couldn't add people",
       "remove_member_failed": "Couldn't remove them from the channel",
       "load_guest_access_failed": "Couldn't load guest access",
       "update_guest_access_failed": "Couldn't change guest access"
+    },
+    "admin": {
+      "title": "Messages",
+      "description": "How long messages are kept, exports of a workspace's messages, and how fast people can send.",
+      "load_failed": "Couldn't load the Messages settings",
+      "retry": "Try again",
+      "cancel": "Cancel",
+      "retention": {
+        "title": "Message retention",
+        "description": "Messages are kept forever unless you set a limit. With a limit, a daily job permanently deletes older messages in every workspace, with their attached files and the notifications about them.",
+        "enable": "Delete old messages",
+        "enable_help": "Off keeps every message forever.",
+        "days": "Keep messages for (days)",
+        "days_help": "From {min} to {max} days.",
+        "days_invalid": "Enter a whole number of days from {min} to {max}.",
+        "save": "Save",
+        "saving": "Saving",
+        "saved": "Message retention saved",
+        "save_failed": "Couldn't save message retention",
+        "confirm_title": "Permanently delete older messages?",
+        "confirm_description": "On its next daily run, Nexus will permanently delete every message older than {days} days, with its attached files, in every workspace. Deleted messages can't be recovered.",
+        "confirm": "Delete older messages"
+      },
+      "export": {
+        "title": "Export messages",
+        "description": "Download one workspace's messages as a zip of JSON Lines files: channels, members, messages and thread replies, and the names and sizes of attachments (not the files). Each export can be downloaded for {hours} hours.",
+        "workspace": "Workspace",
+        "workspace_placeholder": "Choose a workspace",
+        "more_workspaces": "Load more workspaces",
+        "include_private": "Include private channels and direct messages",
+        "include_private_help": "Off exports public channels only. Private channels and direct messages are private conversations: include them only when you have a reason to, such as a legal request.",
+        "start": "Start export",
+        "started": "Export started. It appears below when it's ready.",
+        "start_failed": "Couldn't start the export",
+        "history": "Past exports",
+        "empty": "No exports yet.",
+        "load_failed": "Couldn't load past exports",
+        "started_by": "Started by {email} on {date}",
+        "contents": "Channels: {channels} · Messages: {messages} · {size}",
+        "expires": "Download until {date}",
+        "download": "Download",
+        "download_named": "Download the export of {name}",
+        "download_failed": "Couldn't download the export",
+        "scope_public": "Public channels",
+        "scope_all": "With private channels and DMs",
+        "status": {
+          "queued": "Queued",
+          "running": "In progress",
+          "ready": "Ready",
+          "failed": "Failed",
+          "expired": "Expired"
+        }
+      },
+      "rate_limits": {
+        "title": "Rate limits",
+        "description": "How many of each request one person can make. Set them with the CHAT_RATE_LIMIT_* environment variables on the API.",
+        "per_second": "{count} per second",
+        "per_minute": "{count} per minute",
+        "per_hour": "{count} per hour",
+        "per_day": "{count} per day",
+        "names": {
+          "send": "Send a message or reply",
+          "edit": "Edit or delete a message",
+          "upload": "Upload a file",
+          "channel": "Create a channel or open a direct message",
+          "search": "Search messages",
+          "read": "Mark as read",
+          "work_item": "Create a work item from a message"
+        }
+      }
     }
   }
 }

@@ -102,7 +102,8 @@
       "not_allowed": "{name} tidak dapat dilampirkan. Jenis file ini tidak diizinkan.",
       "failed": "{name} tidak dapat diunggah.",
       "too_many": "Satu pesan dapat memiliki hingga {count} lampiran.",
-      "hidden": "{count, plural, other {# lampiran}}. Gabung ke kanal untuk melihatnya."
+      "hidden": "{count, plural, other {# lampiran}}. Gabung ke kanal untuk melihatnya.",
+      "rate_limited": "{name} tidak terunggah: terlalu banyak unggahan sekaligus. Tunggu sebentar lalu coba lagi."
     },
     "message": {
       "label": "{name} pada {time}",
@@ -120,7 +121,8 @@
       "retry": "Coba lagi",
       "discard": "Buang",
       "automatic_sender": "Pembaruan item kerja",
-      "automatic": "Otomatis"
+      "automatic": "Otomatis",
+      "rate_limited": "Tidak terkirim: Anda mengirim pesan terlalu cepat. Tunggu sebentar, lalu coba lagi."
     },
     "thread": {
       "title": "Utas",
@@ -146,7 +148,8 @@
       "load_more": "Tampilkan hasil lainnya",
       "more_failed": "Tidak dapat memuat hasil lainnya.",
       "in_thread": "Di utas",
-      "archived": "Diarsipkan"
+      "archived": "Diarsipkan",
+      "rate_limited": "Anda mencari terlalu sering. Tunggu sebentar lalu coba lagi."
     },
     "day": {
       "today": "Hari ini",
@@ -176,11 +179,82 @@
       "message_not_found": "Pesan ini tidak lagi tersedia.",
       "link_work_item_failed": "Item kerja telah dibuat, tetapi tidak dapat ditautkan ke pesan ini.",
       "update_channel_failed": "Tidak dapat menyimpan pengaturan kanal",
+      "rate_limited": "Anda melakukannya terlalu sering. Tunggu sebentar lalu coba lagi.",
       "load_members_failed": "Tidak dapat memuat anggota",
       "add_members_failed": "Tidak dapat menambahkan orang",
       "remove_member_failed": "Tidak dapat mengeluarkan dari kanal",
       "load_guest_access_failed": "Tidak dapat memuat akses tamu",
       "update_guest_access_failed": "Tidak dapat mengubah akses tamu"
+    },
+    "admin": {
+      "title": "Pesan",
+      "description": "Berapa lama pesan disimpan, ekspor pesan ruang kerja, dan seberapa cepat orang dapat mengirim.",
+      "load_failed": "Tidak dapat memuat pengaturan Pesan",
+      "retry": "Coba lagi",
+      "cancel": "Batal",
+      "retention": {
+        "title": "Retensi pesan",
+        "description": "Pesan disimpan selamanya kecuali Anda menetapkan batas. Dengan batas, tugas harian menghapus permanen pesan yang lebih lama di setiap ruang kerja, beserta file lampiran dan notifikasi tentangnya.",
+        "enable": "Hapus pesan lama",
+        "enable_help": "Nonaktif: semua pesan disimpan selamanya.",
+        "days": "Simpan pesan selama (hari)",
+        "days_help": "Dari {min} sampai {max} hari.",
+        "days_invalid": "Masukkan jumlah hari berupa bilangan bulat dari {min} sampai {max}.",
+        "save": "Simpan",
+        "saving": "Menyimpan",
+        "saved": "Retensi pesan disimpan",
+        "save_failed": "Tidak dapat menyimpan retensi pesan",
+        "confirm_title": "Hapus permanen pesan yang lebih lama?",
+        "confirm_description": "Pada jalannya tugas harian berikutnya, Nexus akan menghapus permanen setiap pesan yang lebih lama dari {days} hari, beserta file lampirannya, di setiap ruang kerja. Pesan yang dihapus tidak dapat dipulihkan.",
+        "confirm": "Hapus pesan yang lebih lama"
+      },
+      "export": {
+        "title": "Ekspor pesan",
+        "description": "Unduh pesan satu ruang kerja sebagai zip berisi file JSON Lines: kanal, anggota, pesan dan balasan utas, serta nama dan ukuran lampiran (bukan filenya). Setiap ekspor dapat diunduh selama {hours} jam.",
+        "workspace": "Ruang kerja",
+        "workspace_placeholder": "Pilih ruang kerja",
+        "more_workspaces": "Muat lebih banyak ruang kerja",
+        "include_private": "Sertakan kanal privat dan pesan langsung",
+        "include_private_help": "Nonaktif: hanya kanal publik yang diekspor. Kanal privat dan pesan langsung adalah percakapan pribadi: sertakan hanya jika ada alasannya, misalnya permintaan hukum.",
+        "start": "Mulai ekspor",
+        "started": "Ekspor dimulai. Ekspor akan muncul di bawah setelah siap.",
+        "start_failed": "Tidak dapat memulai ekspor",
+        "history": "Ekspor sebelumnya",
+        "empty": "Belum ada ekspor.",
+        "load_failed": "Tidak dapat memuat ekspor sebelumnya",
+        "started_by": "Dimulai oleh {email} pada {date}",
+        "contents": "Kanal: {channels} · Pesan: {messages} · {size}",
+        "expires": "Dapat diunduh hingga {date}",
+        "download": "Unduh",
+        "download_named": "Unduh ekspor {name}",
+        "download_failed": "Tidak dapat mengunduh ekspor",
+        "scope_public": "Kanal publik",
+        "scope_all": "Dengan kanal privat dan DM",
+        "status": {
+          "queued": "Dalam antrean",
+          "running": "Sedang berjalan",
+          "ready": "Siap",
+          "failed": "Gagal",
+          "expired": "Kedaluwarsa"
+        }
+      },
+      "rate_limits": {
+        "title": "Batas laju",
+        "description": "Berapa banyak permintaan setiap jenis yang dapat dibuat satu orang. Atur dengan variabel lingkungan CHAT_RATE_LIMIT_* pada API.",
+        "per_second": "{count} per detik",
+        "per_minute": "{count} per menit",
+        "per_hour": "{count} per jam",
+        "per_day": "{count} per hari",
+        "names": {
+          "send": "Mengirim pesan atau balasan",
+          "edit": "Mengedit atau menghapus pesan",
+          "upload": "Mengunggah file",
+          "channel": "Membuat kanal atau membuka pesan langsung",
+          "search": "Mencari pesan",
+          "read": "Menandai sebagai dibaca",
+          "work_item": "Membuat item kerja dari pesan"
+        }
+      }
     }
   }
 }

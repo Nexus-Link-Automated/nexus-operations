@@ -4,18 +4,21 @@
 
 """What every chat endpoint shares: session auth, the workspace check, and the queryset annotations."""
 
+import math
 from functools import cached_property
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Case, Count, IntegerField, OuterRef, Q, Subquery, Value, When
 from django.db.models.functions import Coalesce
 from rest_framework import status
+from rest_framework.exceptions import Throttled
 from rest_framework.response import Response
 
 from plane.app.permissions.workspace import WorkspaceUserPermission
 from plane.app.views.base import BaseAPIView
 from plane.chat.models import ChannelMember, Message
 from plane.chat.permissions import get_visible_channel, workspace_role
+from plane.chat.throttles import chat_throttles
 from plane.db.models import Workspace
 
 
@@ -71,6 +74,13 @@ class ChatBaseEndpoint(BaseAPIView):
     """Session-authenticated, and only for active members of the workspace in the URL (403 otherwise)."""
 
     permission_classes = [WorkspaceUserPermission]
+    # HTTP method -> the `settings.CHAT_RATE_LIMITS` limit that applies to it, on top of the default throttles.
+    rate_limits = {}
+
+    def get_throttles(self):
+        throttles = super().get_throttles()
+        limit = self.rate_limits.get(self.request.method)
+        return throttles + chat_throttles(limit) if limit else throttles
 
     @cached_property
     def role(self):
@@ -89,4 +99,14 @@ class ChatBaseEndpoint(BaseAPIView):
         # parent). plane.app's base turns that into a generic 400; keep the model's message instead.
         if isinstance(exc, DjangoValidationError):
             return Response({"error": " ".join(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
+        # Plane's exception handler answers a throttle with a sign-in error code; say what happened instead.
+        if isinstance(exc, Throttled):
+            wait = math.ceil(exc.wait) if exc.wait is not None else None
+            response = Response(
+                {"error": "Too many requests. Wait a moment and try again.", "retry_after": wait},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+            if wait is not None:
+                response["Retry-After"] = str(wait)
+            return response
         return super().handle_exception(exc)

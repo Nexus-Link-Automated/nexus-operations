@@ -27,6 +27,11 @@ from plane.license.api.serializers import InstanceConfigurationSerializer, INSTA
 from plane.license.utils.encryption import encrypt_data
 from plane.utils.cache import invalidate_cache
 from plane.license.utils.instance_value import get_email_configuration
+from plane.chat.retention import RETENTION_DAYS_HELP, RETENTION_KEY, parse_retention_days
+
+# Settings whose value must parse: each validator returns the value to store, or raises ValueError, and the message
+# says what a valid value is.
+CONFIGURATION_VALIDATORS = {RETENTION_KEY: (lambda value: str(parse_retention_days(value)), RETENTION_DAYS_HELP)}
 
 
 class InstanceConfigurationEndpoint(BaseAPIView):
@@ -41,9 +46,17 @@ class InstanceConfigurationEndpoint(BaseAPIView):
     def patch(self, request):
         configurations = InstanceConfiguration.objects.filter(key__in=request.data.keys())
 
+        validated = {}
+        for key, (validate, help_text) in CONFIGURATION_VALIDATORS.items():
+            if key in request.data:
+                try:
+                    validated[key] = validate(request.data[key])
+                except ValueError:
+                    return Response({"error": help_text}, status=status.HTTP_400_BAD_REQUEST)
+
         bulk_configurations = []
         for configuration in configurations:
-            raw_value = request.data.get(configuration.key, configuration.value)
+            raw_value = validated.get(configuration.key, request.data.get(configuration.key, configuration.value))
             value = "" if raw_value is None else str(raw_value).strip()
             if configuration.is_encrypted:
                 # The admin app sends the mask back for a value that was not edited

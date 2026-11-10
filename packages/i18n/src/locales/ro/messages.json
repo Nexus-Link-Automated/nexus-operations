@@ -102,7 +102,8 @@
       "not_allowed": "{name} nu poate fi atașat. Acest tip de fișier nu este permis.",
       "failed": "{name} nu a putut fi încărcat.",
       "too_many": "Un mesaj poate avea cel mult {count} atașamente.",
-      "hidden": "{count, plural, one {# atașament} few {# atașamente} other {# de atașamente}}. Alătură-te canalului pentru a le vedea."
+      "hidden": "{count, plural, one {# atașament} few {# atașamente} other {# de atașamente}}. Alătură-te canalului pentru a le vedea.",
+      "rate_limited": "{name} nu a fost încărcat: prea multe încărcări simultan. Așteptați puțin și încercați din nou."
     },
     "message": {
       "label": "{name} la {time}",
@@ -120,7 +121,8 @@
       "retry": "Reîncercați",
       "discard": "Renunțați",
       "automatic_sender": "Actualizări ale elementelor de lucru",
-      "automatic": "Automat"
+      "automatic": "Automat",
+      "rate_limited": "Netrimis: trimiteți mesaje prea repede. Așteptați puțin, apoi reîncercați."
     },
     "thread": {
       "title": "Fir",
@@ -146,7 +148,8 @@
       "load_more": "Arată mai multe rezultate",
       "more_failed": "Nu s-au putut încărca mai multe rezultate.",
       "in_thread": "Într-un fir",
-      "archived": "Arhivat"
+      "archived": "Arhivat",
+      "rate_limited": "Căutați prea des. Așteptați puțin și încercați din nou."
     },
     "day": {
       "today": "Astăzi",
@@ -176,11 +179,82 @@
       "message_not_found": "Acest mesaj nu mai este disponibil.",
       "link_work_item_failed": "Activitatea a fost creată, dar nu a putut fi asociată acestui mesaj.",
       "update_channel_failed": "Setările canalului nu au putut fi salvate",
+      "rate_limited": "Faceți asta prea des. Așteptați puțin și încercați din nou.",
       "load_members_failed": "Membrii nu au putut fi încărcați",
       "add_members_failed": "Persoanele nu au putut fi adăugate",
       "remove_member_failed": "Eliminarea din canal nu a reușit",
       "load_guest_access_failed": "Accesul invitaților nu a putut fi încărcat",
       "update_guest_access_failed": "Accesul invitatului nu a putut fi schimbat"
+    },
+    "admin": {
+      "title": "Mesaje",
+      "description": "Cât timp sunt păstrate mesajele, exporturi ale mesajelor unui spațiu de lucru și cât de repede se poate trimite.",
+      "load_failed": "Setările pentru Mesaje nu au putut fi încărcate",
+      "retry": "Reîncercați",
+      "cancel": "Anulare",
+      "retention": {
+        "title": "Păstrarea mesajelor",
+        "description": "Mesajele sunt păstrate pentru totdeauna, dacă nu setați o limită. Cu o limită, o sarcină zilnică șterge definitiv mesajele mai vechi din toate spațiile de lucru, împreună cu fișierele atașate și notificările despre ele.",
+        "enable": "Ștergeți mesajele vechi",
+        "enable_help": "Dezactivat: toate mesajele sunt păstrate pentru totdeauna.",
+        "days": "Păstrați mesajele timp de (zile)",
+        "days_help": "Între {min} și {max} zile.",
+        "days_invalid": "Introduceți un număr întreg de zile între {min} și {max}.",
+        "save": "Salvați",
+        "saving": "Se salvează",
+        "saved": "Păstrarea mesajelor a fost salvată",
+        "save_failed": "Păstrarea mesajelor nu a putut fi salvată",
+        "confirm_title": "Ștergeți definitiv mesajele mai vechi?",
+        "confirm_description": "La următoarea rulare zilnică, Nexus va șterge definitiv fiecare mesaj mai vechi de {days} zile, împreună cu fișierele atașate, din toate spațiile de lucru. Mesajele șterse nu pot fi recuperate.",
+        "confirm": "Ștergeți mesajele mai vechi"
+      },
+      "export": {
+        "title": "Exportați mesajele",
+        "description": "Descărcați mesajele unui spațiu de lucru ca arhivă zip cu fișiere JSON Lines: canale, membri, mesaje și răspunsuri din fire, plus numele și dimensiunile atașamentelor (nu fișierele). Fiecare export poate fi descărcat timp de {hours} ore.",
+        "workspace": "Spațiu de lucru",
+        "workspace_placeholder": "Alegeți un spațiu de lucru",
+        "more_workspaces": "Încărcați mai multe spații de lucru",
+        "include_private": "Includeți canalele private și mesajele directe",
+        "include_private_help": "Dezactivat: se exportă doar canalele publice. Canalele private și mesajele directe sunt conversații private: includeți-le doar când aveți un motiv, de exemplu o cerere legală.",
+        "start": "Porniți exportul",
+        "started": "Exportul a pornit. Va apărea mai jos când este gata.",
+        "start_failed": "Exportul nu a putut fi pornit",
+        "history": "Exporturi anterioare",
+        "empty": "Încă nu există exporturi.",
+        "load_failed": "Exporturile anterioare nu au putut fi încărcate",
+        "started_by": "Pornit de {email} pe {date}",
+        "contents": "Canale: {channels} · Mesaje: {messages} · {size}",
+        "expires": "Se poate descărca până la {date}",
+        "download": "Descărcați",
+        "download_named": "Descărcați exportul pentru {name}",
+        "download_failed": "Exportul nu a putut fi descărcat",
+        "scope_public": "Canale publice",
+        "scope_all": "Cu canale private și MD",
+        "status": {
+          "queued": "În coadă",
+          "running": "În desfășurare",
+          "ready": "Gata",
+          "failed": "Eșuat",
+          "expired": "Expirat"
+        }
+      },
+      "rate_limits": {
+        "title": "Limite de frecvență",
+        "description": "Câte cereri de fiecare tip poate face o persoană. Se setează cu variabilele de mediu CHAT_RATE_LIMIT_* ale API-ului.",
+        "per_second": "{count} pe secundă",
+        "per_minute": "{count} pe minut",
+        "per_hour": "{count} pe oră",
+        "per_day": "{count} pe zi",
+        "names": {
+          "send": "Trimiterea unui mesaj sau răspuns",
+          "edit": "Editarea sau ștergerea unui mesaj",
+          "upload": "Încărcarea unui fișier",
+          "channel": "Crearea unui canal sau deschiderea unui mesaj direct",
+          "search": "Căutarea în mesaje",
+          "read": "Marcarea ca citit",
+          "work_item": "Crearea unui element de lucru dintr-un mesaj"
+        }
+      }
     }
   }
 }

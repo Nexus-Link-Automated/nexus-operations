@@ -102,7 +102,8 @@
       "not_allowed": "无法添加 {name}：不允许此文件类型。",
       "failed": "无法上传 {name}。",
       "too_many": "每条消息最多可添加 {count} 个附件。",
-      "hidden": "{count, plural, other {# 个附件}}。加入频道后即可查看。"
+      "hidden": "{count, plural, other {# 个附件}}。加入频道后即可查看。",
+      "rate_limited": "{name} 未上传：同时上传的文件过多。请稍候再试。"
     },
     "message": {
       "label": "{name}，{time}",
@@ -120,7 +121,8 @@
       "retry": "重试",
       "discard": "放弃",
       "automatic_sender": "工作项更新",
-      "automatic": "自动"
+      "automatic": "自动",
+      "rate_limited": "未发送：您发送消息的速度过快。请稍候再重试。"
     },
     "thread": {
       "title": "话题",
@@ -146,7 +148,8 @@
       "load_more": "显示更多结果",
       "more_failed": "无法加载更多结果。",
       "in_thread": "在话题中",
-      "archived": "已归档"
+      "archived": "已归档",
+      "rate_limited": "搜索过于频繁。请稍候再试。"
     },
     "day": {
       "today": "今天",
@@ -176,11 +179,82 @@
       "message_not_found": "此消息已不可用。",
       "link_work_item_failed": "工作项已创建，但无法关联到此消息。",
       "update_channel_failed": "无法保存频道设置",
+      "rate_limited": "操作过于频繁。请稍候再试。",
       "load_members_failed": "无法加载成员",
       "add_members_failed": "无法添加成员",
       "remove_member_failed": "无法从频道中移除",
       "load_guest_access_failed": "无法加载访客权限",
       "update_guest_access_failed": "无法更改访客权限"
+    },
+    "admin": {
+      "title": "消息",
+      "description": "消息的保留时长、工作区消息的导出，以及发送速度限制。",
+      "load_failed": "无法加载消息设置",
+      "retry": "重试",
+      "cancel": "取消",
+      "retention": {
+        "title": "消息保留",
+        "description": "除非设置期限，否则消息将永久保留。设置期限后，每日任务会在所有工作区中永久删除更早的消息，连同其附件以及相关通知。",
+        "enable": "删除旧消息",
+        "enable_help": "关闭时将永久保留所有消息。",
+        "days": "消息保留天数",
+        "days_help": "{min} 到 {max} 天。",
+        "days_invalid": "请输入 {min} 到 {max} 之间的整数天数。",
+        "save": "保存",
+        "saving": "正在保存",
+        "saved": "已保存消息保留设置",
+        "save_failed": "无法保存消息保留设置",
+        "confirm_title": "永久删除较早的消息？",
+        "confirm_description": "在下一次每日运行时，Nexus 将在所有工作区中永久删除早于 {days} 天的所有消息及其附件。已删除的消息无法恢复。",
+        "confirm": "删除较早的消息"
+      },
+      "export": {
+        "title": "导出消息",
+        "description": "将一个工作区的消息下载为包含 JSON Lines 文件的 zip：频道、成员、消息和话题回复，以及附件的名称和大小（不含文件本身）。每次导出可在 {hours} 小时内下载。",
+        "workspace": "工作区",
+        "workspace_placeholder": "选择工作区",
+        "more_workspaces": "加载更多工作区",
+        "include_private": "包含私有频道和私信",
+        "include_private_help": "关闭时仅导出公开频道。私有频道和私信属于私人对话：仅在有正当理由（例如法律要求）时才包含。",
+        "start": "开始导出",
+        "started": "导出已开始。完成后将显示在下方。",
+        "start_failed": "无法开始导出",
+        "history": "历史导出",
+        "empty": "暂无导出。",
+        "load_failed": "无法加载历史导出",
+        "started_by": "由 {email} 于 {date} 发起",
+        "contents": "频道：{channels} · 消息：{messages} · {size}",
+        "expires": "可下载至 {date}",
+        "download": "下载",
+        "download_named": "下载 {name} 的导出",
+        "download_failed": "无法下载导出",
+        "scope_public": "公开频道",
+        "scope_all": "含私有频道和私信",
+        "status": {
+          "queued": "排队中",
+          "running": "进行中",
+          "ready": "已就绪",
+          "failed": "失败",
+          "expired": "已过期"
+        }
+      },
+      "rate_limits": {
+        "title": "频率限制",
+        "description": "每个人可发出的各类请求数量。通过 API 的 CHAT_RATE_LIMIT_* 环境变量设置。",
+        "per_second": "每秒 {count} 次",
+        "per_minute": "每分钟 {count} 次",
+        "per_hour": "每小时 {count} 次",
+        "per_day": "每天 {count} 次",
+        "names": {
+          "send": "发送消息或回复",
+          "edit": "编辑或删除消息",
+          "upload": "上传文件",
+          "channel": "创建频道或打开私信",
+          "search": "搜索消息",
+          "read": "标记为已读",
+          "work_item": "从消息创建工作项"
+        }
+      }
     }
   }
 }

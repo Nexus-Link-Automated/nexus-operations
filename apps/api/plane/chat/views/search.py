@@ -19,6 +19,8 @@ MAX_LIMIT = 50
 
 
 class MessageSearchEndpoint(ChatBaseEndpoint):
+    rate_limits = {"GET": "search"}
+
     def get(self, request, slug):
         """Messages and replies matching `q`, newest first, from the channels and DMs the caller may read.
 

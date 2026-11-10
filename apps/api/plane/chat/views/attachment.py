@@ -43,6 +43,8 @@ class _AttachmentEndpoint(ChatBaseEndpoint):
 
 
 class AttachmentEndpoint(_AttachmentEndpoint):
+    rate_limits = {"POST": "upload"}
+
     def post(self, request, slug, channel_id):
         """A presigned POST to upload one file for this channel."""
         channel = self.member_channel(channel_id)

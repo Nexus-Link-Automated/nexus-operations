@@ -65,11 +65,14 @@ export function useChatComposerAttachments(channelId: string, maxFileSize: numbe
       })
       .catch((error: unknown) => {
         const refused = error instanceof ChatServiceError && error.status === 400;
+        const limited = error instanceof ChatServiceError && error.isRateLimited;
         update(key, {
           status: "failed",
           error: refused
             ? t("messages.attachments.not_allowed", { name: file.name })
-            : t("messages.attachments.failed", { name: file.name }),
+            : limited
+              ? t("messages.attachments.rate_limited", { name: file.name })
+              : t("messages.attachments.failed", { name: file.name }),
         });
       });
   };

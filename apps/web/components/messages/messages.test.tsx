@@ -1439,6 +1439,23 @@ describe("threads", () => {
     expect(within(screen.getByRole("log", { name: "Messages" })).queryByText("my answer")).toBeNull();
   });
 
+  it("says a reply was refused for going too fast, keeping it to retry", async () => {
+    const { ChatServiceError } = await import("@plane/services");
+    const sendMessage = vi.fn((_slug: string, _channelId: string, _data: unknown) =>
+      Promise.reject(new ChatServiceError(429, {}, 20))
+    );
+    const { store } = await view({}, { sendMessage });
+    await userEvent.click(screen.getByRole("button", { name: byTemplate("reply") }));
+    await within(panel()).findByText("second reply");
+    await act(async () => {
+      await store.sendReply("c-general", "p1", { body_html: "<p>my answer</p>" }).catch(() => undefined);
+    });
+    const failed = within(panel()).getByRole("article", { name: "Not sent." });
+    expect(within(failed).getByText(byTemplate("sending messages too fast"))).toBeTruthy();
+    expect(within(failed).getByText("my answer")).toBeTruthy();
+    expect(within(failed).getByRole("button", { name: "Retry" })).toBeTruthy();
+  });
+
   it("offers no reply box to a reader who hasn't joined, and focuses the panel instead", async () => {
     await view({ channel: { is_member: false } });
     await userEvent.click(screen.getByRole("button", { name: byTemplate("reply") }));
@@ -1576,6 +1593,20 @@ describe("search", () => {
     await view([], { searchMessages });
     await userEvent.type(box(), "deploy{Enter}");
     expect(await within(results()).findByText("Couldn't search messages.")).toBeTruthy();
+    await userEvent.click(within(results()).getByRole("button", { name: "Try again" }));
+    expect(await within(results()).findByRole("link")).toBeTruthy();
+  });
+
+  it("says when searching too often, keeping the query to try again", async () => {
+    const { ChatServiceError } = await import("@plane/services");
+    const searchMessages = vi
+      .fn()
+      .mockRejectedValueOnce(new ChatServiceError(429, {}, 30))
+      .mockResolvedValue({ results: [hit(message("m1", ADA, "we deploy today", 1))], has_more: false });
+    await view([], { searchMessages });
+    await userEvent.type(box(), "deploy{Enter}");
+    expect(await within(results()).findByText(byTemplate("searching too often"))).toBeTruthy();
+    expect((box() as HTMLInputElement).value).toBe("deploy");
     await userEvent.click(within(results()).getByRole("button", { name: "Try again" }));
     expect(await within(results()).findByRole("link")).toBeTruthy();
   });

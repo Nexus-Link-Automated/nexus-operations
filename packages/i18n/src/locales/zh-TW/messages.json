@@ -102,7 +102,8 @@
       "not_allowed": "無法新增 {name}：不允許此檔案類型。",
       "failed": "無法上傳 {name}。",
       "too_many": "每則訊息最多可新增 {count} 個附件。",
-      "hidden": "{count, plural, other {# 個附件}}。加入頻道後即可檢視。"
+      "hidden": "{count, plural, other {# 個附件}}。加入頻道後即可檢視。",
+      "rate_limited": "{name} 未上傳：同時上傳的檔案過多。請稍候再試。"
     },
     "message": {
       "label": "{name}，{time}",
@@ -120,7 +121,8 @@
       "retry": "重試",
       "discard": "捨棄",
       "automatic_sender": "工作項目更新",
-      "automatic": "自動"
+      "automatic": "自動",
+      "rate_limited": "未傳送：您傳送訊息的速度過快。請稍候再重試。"
     },
     "thread": {
       "title": "討論串",
@@ -146,7 +148,8 @@
       "load_more": "顯示更多結果",
       "more_failed": "無法載入更多結果。",
       "in_thread": "在討論串中",
-      "archived": "已封存"
+      "archived": "已封存",
+      "rate_limited": "搜尋過於頻繁。請稍候再試。"
     },
     "day": {
       "today": "今天",
@@ -176,11 +179,82 @@
       "message_not_found": "此訊息已無法使用。",
       "link_work_item_failed": "工作事項已建立，但無法連結至此訊息。",
       "update_channel_failed": "無法儲存頻道設定",
+      "rate_limited": "操作過於頻繁。請稍候再試。",
       "load_members_failed": "無法載入成員",
       "add_members_failed": "無法新增成員",
       "remove_member_failed": "無法從頻道中移除",
       "load_guest_access_failed": "無法載入訪客權限",
       "update_guest_access_failed": "無法變更訪客權限"
+    },
+    "admin": {
+      "title": "訊息",
+      "description": "訊息的保留時間、工作區訊息的匯出，以及傳送速度限制。",
+      "load_failed": "無法載入訊息設定",
+      "retry": "再試一次",
+      "cancel": "取消",
+      "retention": {
+        "title": "訊息保留",
+        "description": "除非設定期限，否則訊息將永久保留。設定期限後，每日工作會在所有工作區中永久刪除較舊的訊息，連同其附件以及相關通知。",
+        "enable": "刪除舊訊息",
+        "enable_help": "關閉時將永久保留所有訊息。",
+        "days": "訊息保留天數",
+        "days_help": "{min} 到 {max} 天。",
+        "days_invalid": "請輸入 {min} 到 {max} 之間的整數天數。",
+        "save": "儲存",
+        "saving": "正在儲存",
+        "saved": "已儲存訊息保留設定",
+        "save_failed": "無法儲存訊息保留設定",
+        "confirm_title": "永久刪除較舊的訊息？",
+        "confirm_description": "在下一次每日執行時，Nexus 將在所有工作區中永久刪除早於 {days} 天的所有訊息及其附件。已刪除的訊息無法復原。",
+        "confirm": "刪除較舊的訊息"
+      },
+      "export": {
+        "title": "匯出訊息",
+        "description": "將一個工作區的訊息下載為包含 JSON Lines 檔案的 zip：頻道、成員、訊息和討論串回覆，以及附件的名稱和大小（不含檔案本身）。每次匯出可在 {hours} 小時內下載。",
+        "workspace": "工作區",
+        "workspace_placeholder": "選擇工作區",
+        "more_workspaces": "載入更多工作區",
+        "include_private": "包含私人頻道和私訊",
+        "include_private_help": "關閉時僅匯出公開頻道。私人頻道和私訊屬於私人對話：僅在有正當理由（例如法律要求）時才包含。",
+        "start": "開始匯出",
+        "started": "匯出已開始。完成後會顯示在下方。",
+        "start_failed": "無法開始匯出",
+        "history": "過去的匯出",
+        "empty": "尚無匯出。",
+        "load_failed": "無法載入過去的匯出",
+        "started_by": "由 {email} 於 {date} 發起",
+        "contents": "頻道：{channels} · 訊息：{messages} · {size}",
+        "expires": "可下載至 {date}",
+        "download": "下載",
+        "download_named": "下載 {name} 的匯出",
+        "download_failed": "無法下載匯出",
+        "scope_public": "公開頻道",
+        "scope_all": "含私人頻道和私訊",
+        "status": {
+          "queued": "排隊中",
+          "running": "進行中",
+          "ready": "已就緒",
+          "failed": "失敗",
+          "expired": "已過期"
+        }
+      },
+      "rate_limits": {
+        "title": "頻率限制",
+        "description": "每個人可發出的各類請求數量。透過 API 的 CHAT_RATE_LIMIT_* 環境變數設定。",
+        "per_second": "每秒 {count} 次",
+        "per_minute": "每分鐘 {count} 次",
+        "per_hour": "每小時 {count} 次",
+        "per_day": "每天 {count} 次",
+        "names": {
+          "send": "傳送訊息或回覆",
+          "edit": "編輯或刪除訊息",
+          "upload": "上傳檔案",
+          "channel": "建立頻道或開啟私訊",
+          "search": "搜尋訊息",
+          "read": "標示為已讀",
+          "work_item": "從訊息建立工作項目"
+        }
+      }
     }
   }
 }

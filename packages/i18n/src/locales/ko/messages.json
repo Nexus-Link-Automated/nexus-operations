@@ -102,7 +102,8 @@
       "not_allowed": "{name}을(를) 첨부할 수 없습니다. 허용되지 않는 파일 형식입니다.",
       "failed": "{name}을(를) 업로드하지 못했습니다.",
       "too_many": "메시지에는 첨부 파일을 최대 {count}개까지 넣을 수 있습니다.",
-      "hidden": "{count, plural, one {첨부 파일 #개} other {첨부 파일 #개}}. 보려면 채널에 참여하세요."
+      "hidden": "{count, plural, one {첨부 파일 #개} other {첨부 파일 #개}}. 보려면 채널에 참여하세요.",
+      "rate_limited": "{name}을(를) 업로드하지 못했습니다: 동시 업로드가 너무 많습니다. 잠시 후 다시 시도하세요."
     },
     "message": {
       "label": "{name}, {time}",
@@ -120,7 +121,8 @@
       "retry": "다시 시도",
       "discard": "삭제",
       "automatic_sender": "작업 항목 업데이트",
-      "automatic": "자동"
+      "automatic": "자동",
+      "rate_limited": "보내지 못했습니다: 메시지를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도하세요."
     },
     "thread": {
       "title": "스레드",
@@ -146,7 +148,8 @@
       "load_more": "결과 더 보기",
       "more_failed": "결과를 더 불러올 수 없습니다.",
       "in_thread": "스레드에서",
-      "archived": "보관됨"
+      "archived": "보관됨",
+      "rate_limited": "검색을 너무 자주 하고 있습니다. 잠시 후 다시 시도하세요."
     },
     "day": {
       "today": "오늘",
@@ -176,11 +179,82 @@
       "message_not_found": "이 메시지는 더 이상 사용할 수 없습니다.",
       "link_work_item_failed": "작업 항목이 생성되었지만 이 메시지에 연결하지 못했습니다.",
       "update_channel_failed": "채널 설정을 저장할 수 없습니다",
+      "rate_limited": "이 작업을 너무 자주 하고 있습니다. 잠시 후 다시 시도하세요.",
       "load_members_failed": "멤버를 불러오지 못했습니다",
       "add_members_failed": "사람을 추가하지 못했습니다",
       "remove_member_failed": "채널에서 내보내지 못했습니다",
       "load_guest_access_failed": "게스트 액세스를 불러오지 못했습니다",
       "update_guest_access_failed": "게스트 액세스를 변경하지 못했습니다"
+    },
+    "admin": {
+      "title": "메시지",
+      "description": "메시지 보관 기간, 워크스페이스 메시지 내보내기, 보낼 수 있는 속도.",
+      "load_failed": "메시지 설정을 불러올 수 없습니다",
+      "retry": "다시 시도",
+      "cancel": "취소",
+      "retention": {
+        "title": "메시지 보관",
+        "description": "제한을 설정하지 않으면 메시지는 영구 보관됩니다. 제한을 설정하면 매일 실행되는 작업이 모든 워크스페이스에서 오래된 메시지를 첨부 파일 및 관련 알림과 함께 영구 삭제합니다.",
+        "enable": "오래된 메시지 삭제",
+        "enable_help": "끄면 모든 메시지를 영구 보관합니다.",
+        "days": "메시지 보관 기간(일)",
+        "days_help": "{min}~{max}일.",
+        "days_invalid": "{min}~{max} 사이의 정수로 일수를 입력하세요.",
+        "save": "저장",
+        "saving": "저장 중",
+        "saved": "메시지 보관 설정을 저장했습니다",
+        "save_failed": "메시지 보관 설정을 저장할 수 없습니다",
+        "confirm_title": "오래된 메시지를 영구 삭제할까요?",
+        "confirm_description": "다음 일일 실행 시 Nexus는 모든 워크스페이스에서 {days}일보다 오래된 메시지를 첨부 파일과 함께 영구 삭제합니다. 삭제된 메시지는 복구할 수 없습니다.",
+        "confirm": "오래된 메시지 삭제"
+      },
+      "export": {
+        "title": "메시지 내보내기",
+        "description": "워크스페이스의 메시지를 JSON Lines 파일의 zip으로 다운로드합니다: 채널, 멤버, 메시지와 스레드 답글, 첨부 파일의 이름과 크기(파일 자체는 제외). 각 내보내기는 {hours}시간 동안 다운로드할 수 있습니다.",
+        "workspace": "워크스페이스",
+        "workspace_placeholder": "워크스페이스 선택",
+        "more_workspaces": "워크스페이스 더 불러오기",
+        "include_private": "비공개 채널과 다이렉트 메시지 포함",
+        "include_private_help": "끄면 공개 채널만 내보냅니다. 비공개 채널과 다이렉트 메시지는 사적인 대화입니다. 법적 요청처럼 이유가 있을 때만 포함하세요.",
+        "start": "내보내기 시작",
+        "started": "내보내기를 시작했습니다. 준비되면 아래에 표시됩니다.",
+        "start_failed": "내보내기를 시작할 수 없습니다",
+        "history": "이전 내보내기",
+        "empty": "아직 내보내기가 없습니다.",
+        "load_failed": "이전 내보내기를 불러올 수 없습니다",
+        "started_by": "{email} 님이 {date}에 시작",
+        "contents": "채널: {channels} · 메시지: {messages} · {size}",
+        "expires": "{date}까지 다운로드 가능",
+        "download": "다운로드",
+        "download_named": "{name} 내보내기 다운로드",
+        "download_failed": "내보내기를 다운로드할 수 없습니다",
+        "scope_public": "공개 채널",
+        "scope_all": "비공개 채널 및 DM 포함",
+        "status": {
+          "queued": "대기 중",
+          "running": "진행 중",
+          "ready": "준비됨",
+          "failed": "실패",
+          "expired": "만료됨"
+        }
+      },
+      "rate_limits": {
+        "title": "요청 빈도 제한",
+        "description": "한 사람이 각 종류의 요청을 할 수 있는 횟수입니다. API의 CHAT_RATE_LIMIT_* 환경 변수로 설정합니다.",
+        "per_second": "초당 {count}회",
+        "per_minute": "분당 {count}회",
+        "per_hour": "시간당 {count}회",
+        "per_day": "하루 {count}회",
+        "names": {
+          "send": "메시지 또는 답글 보내기",
+          "edit": "메시지 편집 또는 삭제",
+          "upload": "파일 업로드",
+          "channel": "채널 만들기 또는 다이렉트 메시지 열기",
+          "search": "메시지 검색",
+          "read": "읽음으로 표시",
+          "work_item": "메시지에서 작업 항목 만들기"
+        }
+      }
     }
   }
 }
