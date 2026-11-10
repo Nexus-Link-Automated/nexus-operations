@@ -14,16 +14,25 @@ The registry gives each agent a default and a maximum permission level (ACP sess
 agent may pick any level up to its maximum when starting a session, and the bridge clamps to the maximum; adding an
 agent to a channel offers the same choice, and the level is clamped again whenever it is read.
 
+In a public or private channel the level is also capped at "ask for writes" (`CHANNEL_MAX_PERMISSION_LEVEL`). Nobody
+can answer a permission prompt there yet, so each one is refused, and the agent's context holds other members'
+messages, which must not be able to steer what it changes with the asker's rights unasked.
+
 Messages name their agent by slug (`Message.sender_agent`). The name shown is the registry's, also while the agent is
 disabled; once it is deleted from the registry its messages show as from a removed agent.
 """
 
 from plane.app.permissions.base import ROLE
+from plane.chat.models.channel import NAMED_KINDS
 from plane.license.models import (
     AGENT_PERMISSION_LEVEL_ORDER,
     AgentDefinition,
+    AgentPermissionLevel,
     agent_permission_rank,
 )
+
+# The most an agent may do in a public or private channel, whatever the registry allows (see the module docstring).
+CHANNEL_MAX_PERMISSION_LEVEL = AgentPermissionLevel.ASK_WRITES.value
 
 # What notifications and emails call an agent the registry no longer has. The web app has its own translations.
 REMOVED_AGENT_NAME = "Removed agent"
@@ -39,17 +48,36 @@ def available_agent(agent_id):
     return AgentDefinition.objects.filter(pk=agent_id, is_enabled=True).first()
 
 
-def can_grant(agent, level):
-    """Whether `level` is one of the agent's levels the registry allows: at most its maximum."""
+def _lower(first, second):
+    return first if agent_permission_rank(first) <= agent_permission_rank(second) else second
+
+
+def max_permission_level(agent, channel=None):
+    """The highest level `agent` may work at: the registry's maximum, capped in a public or private `channel`."""
+    maximum = agent.max_permission_level
+    if channel is not None and channel.kind in NAMED_KINDS:
+        return _lower(maximum, CHANNEL_MAX_PERMISSION_LEVEL)
+    return maximum
+
+
+def default_permission_level(agent, channel=None):
+    """The level `agent` starts at when none is chosen: the registry's default, capped by `max_permission_level`."""
+    return _lower(agent.default_permission_level, max_permission_level(agent, channel))
+
+
+def can_grant(agent, level, channel=None):
+    """Whether `agent` may be given `level` (in `channel`, if one is given): at most its maximum there."""
     return level in AGENT_PERMISSION_LEVEL_ORDER and agent_permission_rank(level) <= agent_permission_rank(
-        agent.max_permission_level
+        max_permission_level(agent, channel)
     )
 
 
 def effective_permission_level(channel_agent):
-    """The level the agent works at in the channel: as chosen, unless the registry's maximum has come down since."""
-    chosen, maximum = channel_agent.permission_level, channel_agent.agent.max_permission_level
-    return chosen if agent_permission_rank(chosen) <= agent_permission_rank(maximum) else maximum
+    """The level the agent works at in the channel: as chosen, unless its maximum there is lower.
+
+    Clamped when read, so a lower registry maximum, or the channel cap, applies to agents added before it.
+    """
+    return _lower(channel_agent.permission_level, max_permission_level(channel_agent.agent, channel_agent.channel))
 
 
 def agents_by_slug(slugs):

@@ -41,9 +41,24 @@ type Props = {
   onClose: () => void;
 };
 
-/** The levels up to `max`, least permissive first: what the registry lets anyone who may run the agent choose. */
+/**
+ * The most an agent may do in a channel, whatever the registry allows: nobody can answer its permission prompts there
+ * yet, and other members' messages are part of what it reads. The API caps it the same way.
+ */
+const CHANNEL_MAX_LEVEL: TAgentPermissionLevel = "ask_writes";
+
+const lower = (a: TAgentPermissionLevel, b: TAgentPermissionLevel): TAgentPermissionLevel =>
+  AGENT_PERMISSION_LEVELS.indexOf(a) <= AGENT_PERMISSION_LEVELS.indexOf(b) ? a : b;
+
+/** The levels up to `max` and the channel cap, least permissive first: what may be chosen for this channel. */
 const levelsUpTo = (max: TAgentPermissionLevel): TAgentPermissionLevel[] =>
-  AGENT_PERMISSION_LEVELS.slice(0, AGENT_PERMISSION_LEVELS.indexOf(max) + 1);
+  AGENT_PERMISSION_LEVELS.slice(0, AGENT_PERMISSION_LEVELS.indexOf(lower(max, CHANNEL_MAX_LEVEL)) + 1);
+
+/** The level an agent starts at in a channel when none is chosen. */
+const defaultLevel = (agent: {
+  default_permission_level: TAgentPermissionLevel;
+  max_permission_level: TAgentPermissionLevel;
+}) => lower(agent.default_permission_level, lower(agent.max_permission_level, CHANNEL_MAX_LEVEL));
 
 /**
  * Who is in a named channel: its agents and its people. Members can add people from the workspace, and channel or
@@ -358,7 +373,7 @@ const AddAgentForm = observer(function AddAgentForm({ channel, onDone }: AddAgen
     try {
       await chat.addChannelAgent(channel.id, {
         agent_id: chosen.id,
-        permission_level: level ?? chosen.default_permission_level,
+        permission_level: level ?? defaultLevel(chosen),
       });
       onDone();
     } catch (caught) {
@@ -419,7 +434,7 @@ const AddAgentForm = observer(function AddAgentForm({ channel, onDone }: AddAgen
           label={t("messages.members.permission_level")}
           size="md"
           density="compact"
-          value={level ?? chosen.default_permission_level}
+          value={level ?? defaultLevel(chosen)}
           onValueChange={(value) => setLevel(value as TAgentPermissionLevel)}
         >
           {levelsUpTo(chosen.max_permission_level).map((id) => (

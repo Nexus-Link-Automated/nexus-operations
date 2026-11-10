@@ -8,7 +8,7 @@ from django.db import IntegrityError, transaction
 from rest_framework import status
 from rest_framework.response import Response
 
-from plane.chat.agents import available_agent, can_grant
+from plane.chat.agents import available_agent, can_grant, default_permission_level
 from plane.chat.events import EventType, agent_member_event, publish_on_commit
 from plane.chat.exceptions import BadRequest, NotFound
 from plane.chat.models import ChannelAgent
@@ -56,8 +56,8 @@ class ChannelAgentEndpoint(ChatBaseEndpoint):
         agent = available_agent(serializer.validated_data["agent_id"])
         if agent is None:
             raise BadRequest("This agent isn't available in this workspace.")
-        level = serializer.validated_data.get("permission_level", agent.default_permission_level)
-        if not can_grant(agent, level):
+        level = serializer.validated_data.get("permission_level", default_permission_level(agent, channel))
+        if not can_grant(agent, level, channel):
             raise BadRequest("This agent can't be given that permission level.")
 
         existing = _channel_agents(channel).filter(agent=agent).first()

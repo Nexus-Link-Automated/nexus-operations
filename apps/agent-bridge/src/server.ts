@@ -16,7 +16,13 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { driveChannelSession, type ChannelSessionError, type ChannelSessionOutcome } from "./channel-session.ts";
 import type { BridgeConfig } from "./config.ts";
 import { connectionsRouter } from "./connections.ts";
-import { INTERNAL_PATH, internalRouter, type ChannelSessionAdmission, type ChannelSessionRequest } from "./internal.ts";
+import {
+  CHANNEL_MAX_PERMISSION_LEVEL,
+  INTERNAL_PATH,
+  internalRouter,
+  type ChannelSessionAdmission,
+  type ChannelSessionRequest,
+} from "./internal.ts";
 import { createLogger, withMeta, type Logger } from "./logger.ts";
 import { sweepEndedMemberships } from "./offboarding.ts";
 import { originAllowed } from "./origin.ts";
@@ -361,9 +367,16 @@ export class AgentBridge {
   /**
    * Mint the agent-session token for the user and open the agent on the runner. `level` (a channel
    * session's) replaces the registry default as the starting level, clamped to the maximum.
+   * `maxLevel` lowers that maximum for this session, so the agent can't switch above it either.
    */
   async #openAgent(
-    input: { userId: string; workspaceSlug: string; agentId: string; level?: PermissionLevel },
+    input: {
+      userId: string;
+      workspaceSlug: string;
+      agentId: string;
+      level?: PermissionLevel;
+      maxLevel?: PermissionLevel;
+    },
     signal: AbortSignal
   ): Promise<Omit<Admission, "release"> | Refusal> {
     const { userId, workspaceSlug, agentId } = input;
@@ -381,6 +394,17 @@ export class AgentBridge {
       if (status === 404) return refuse(CloseCode.agentNotFound, "Agent not found or disabled");
       this.#log.error("agent-bridge: could not start an agent session", { status, error: (error as Error).message });
       return refuse(CloseCode.internalError, "Could not start the agent session");
+    }
+    if (input.maxLevel) {
+      const maxPermissionLevel = clampPermissionLevel(grant.agent.maxPermissionLevel, input.maxLevel);
+      grant = {
+        ...grant,
+        agent: {
+          ...grant.agent,
+          maxPermissionLevel,
+          defaultPermissionLevel: clampPermissionLevel(grant.agent.defaultPermissionLevel, maxPermissionLevel),
+        },
+      };
     }
     if (input.level) {
       const start = clampPermissionLevel(input.level, grant.agent.maxPermissionLevel);
@@ -482,6 +506,7 @@ export class AgentBridge {
         workspaceSlug: request.workspaceSlug,
         agentId: request.agentId,
         level: request.permissionLevel,
+        maxLevel: CHANNEL_MAX_PERMISSION_LEVEL,
       },
       signal
     );

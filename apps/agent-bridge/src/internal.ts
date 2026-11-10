@@ -6,7 +6,7 @@
 
 import { createHash, timingSafeEqual } from "node:crypto";
 
-import { PERMISSION_LEVELS, type PermissionLevel } from "@plane/agent-runner-protocol";
+import { PERMISSION_LEVELS, clampPermissionLevel, type PermissionLevel } from "@plane/agent-runner-protocol";
 import express, { type Router } from "express";
 import { z } from "zod";
 
@@ -31,6 +31,12 @@ export interface ChannelSessionRequest {
 }
 
 export type ChannelSessionAdmission = "accepted" | "busy" | "shutting_down";
+
+/**
+ * The most a channel session may do, whatever it is asked to: nobody can answer its permission prompts, and its prompt
+ * holds other members' messages. The API caps the level the same way; this holds even if it doesn't.
+ */
+export const CHANNEL_MAX_PERMISSION_LEVEL: PermissionLevel = "ask_writes";
 
 const bodySchema = z.object({
   run_id: z.string().regex(/^[0-9a-f]{32}$/),
@@ -94,7 +100,7 @@ export function internalRouter(options: InternalRouterOptions): Router {
       userId: body.user_id,
       workspaceSlug: body.workspace_slug,
       agentId: body.agent_id,
-      permissionLevel: body.permission_level,
+      permissionLevel: clampPermissionLevel(body.permission_level, CHANNEL_MAX_PERMISSION_LEVEL),
       prompt: body.prompt,
       timeoutMs: body.timeout_ms,
     });

@@ -1916,6 +1916,17 @@ describe("agents", () => {
       expect(within(dialog).getByText("Reviewer")).toBeTruthy();
     });
 
+    it("never offers more than asking for writes in a channel, whatever the registry allows", async () => {
+      const { dialog } = await view({ my_role: "admin" }, []);
+      await userEvent.click(within(dialog).getByRole("button", { name: "Add an agent" }));
+      const form = await within(dialog).findByRole("form", { name: "Add an agent" });
+      // Triage's registry maximum is "never ask".
+      await userEvent.click(await within(form).findByRole("radio", { name: byTemplate("Triage") }));
+      const levels = within(form).getByRole("radiogroup", { name: "Permission level" });
+      expect(within(levels).getAllByRole("radio")).toHaveLength(2);
+      expect(within(levels).queryByRole("radio", { name: byTemplate("Never ask") })).toBeNull();
+    });
+
     it("leaves out agents already in the channel, and says less in a public one", async () => {
       const { dialog } = await view({ my_role: "admin" }, [seat("review", { name: "Reviewer" })]);
       await userEvent.click(within(dialog).getByRole("button", { name: "Add an agent" }));

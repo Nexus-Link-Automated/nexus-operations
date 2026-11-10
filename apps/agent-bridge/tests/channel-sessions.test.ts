@@ -118,6 +118,21 @@ describe("POST /internal/channel-sessions", () => {
     });
   });
 
+  it("never runs a channel session above asking for writes, whatever the registry allows", async () => {
+    harness = await startHarness({
+      agent: { default_permission_level: "yolo", max_permission_level: "yolo" },
+    });
+    await start(harness, request({ permission_level: "yolo" }));
+    await reply(harness);
+    const agent = harness.transport.agents[0]!;
+    expect(agent.grant.agent.defaultPermissionLevel).toBe("ask_writes");
+    // Nor can it switch above that during the session.
+    expect(agent.grant.agent.maxPermissionLevel).toBe("ask_writes");
+    expect(agent.received.find((m) => m.method === "session/new")!.params!._meta).toEqual({
+      "plane/initialModeId": "ask_writes",
+    });
+  });
+
   it("refuses every permission prompt and reports what it was for", async () => {
     harness = await startHarness();
     const answers: unknown[] = [];

@@ -174,6 +174,15 @@ class TestWhichAgents:
         assert add(admin, make_channel(), agent, permission_level="root").status_code == 400
         assert not ChannelAgent.objects.exists()
 
+    def test_a_channel_caps_the_level_at_asking_for_writes(self, admin, make_channel, make_agent, add, listed):
+        agent = make_agent(default="yolo", maximum="yolo")
+        assert add(admin, make_channel(), agent).data["permission_level"] == "ask_writes"
+        assert add(admin, make_channel(), agent, permission_level="yolo").status_code == 400
+        # A seat stored above the cap (added before it, say) works at the cap.
+        channel = make_channel()
+        seat(channel, agent, level="yolo")
+        assert listed(admin, channel)[agent.slug]["permission_level"] == "ask_writes"
+
     def test_a_lowered_maximum_lowers_the_level_shown(self, admin, make_channel, make_agent, add, listed):
         agent = make_agent(default="yolo", maximum="yolo")
         channel = make_channel()
