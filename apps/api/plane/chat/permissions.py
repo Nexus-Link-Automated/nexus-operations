@@ -28,9 +28,12 @@ Opening a DM or group DM needs a workspace member or admin, or a guest a workspa
 admin has granted it to (`ChatGuestPermission`).
 
 Agents from the registry can be members of public and private channels, never of DMs or
-group DMs (`plane.chat.agents`). Adding one needs a channel admin or a workspace admin who
-may also run agents, so never a guest. Removing one needs a channel admin or a workspace
-admin, as removing anyone else does: whoever added it gets no say of their own.
+group DMs (`plane.chat.agents`). An agent DM (`plane.chat.agent_dm`) is one person's own
+conversation with one agent: like a DM, only its member sees it, workspace admins included;
+it is opened only by someone who may run agents, so never by a guest. Adding an agent to a
+channel needs a channel admin or a workspace admin who may also run agents, so never a guest.
+Removing one needs a channel admin or a workspace admin, as removing anyone else does:
+whoever added it gets no say of their own.
 
 Linking a public or private channel to a project (`can_link_project`) needs a channel
 admin or a workspace admin who is also a member or admin of that project. Unlinking

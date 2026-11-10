@@ -9,7 +9,8 @@ messages need channel membership. Messages
 are always sent as the caller. Removing a message calls `Message.remove()`, which
 leaves a tombstone so replies and read cursors keep working; it is never deleted.
 Automatic messages (`system_event`, see `project_feed`) have no sender, so only an
-admin can remove one and nobody can edit it.
+admin can remove one and nobody can edit it. A read-only agent DM takes no new messages
+or edits (`agent_dm.read_only_reason`).
 """
 
 from html import escape
@@ -19,6 +20,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 
+from plane.chat.agent_dm import READ_ONLY_MESSAGES, read_only_reason
 from plane.chat.agent_replies import queue_agent_replies
 from plane.chat.agents import agents_by_slug
 from plane.chat.attachments import attachments_for, claim_attachments, has_attachments
@@ -38,6 +40,14 @@ from plane.chat.serializers import (
 from plane.chat.views.base import ChatBaseEndpoint, annotate_messages
 from plane.db.models import IssueLink
 from plane.utils.host import base_host
+
+
+def require_agent_dm_writable(channel):
+    """An agent DM takes no new messages or edits while it is read-only (`agent_dm.read_only_reason`)."""
+    if channel.is_agent_dm:
+        reason = read_only_reason(channel)
+        if reason is not None:
+            raise Conflict(READ_ONLY_MESSAGES[reason])
 
 
 def _serialized(messages, user, many):
@@ -72,6 +82,7 @@ class MessageEndpoint(ChatBaseEndpoint):
         channel = self.get_channel(channel_id)
         require_channel_member(channel)
         require_not_archived(channel)
+        require_agent_dm_writable(channel)
         serializer = MessageWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -98,7 +109,8 @@ class MessageEndpoint(ChatBaseEndpoint):
         sync_references(message)
         publish_on_commit(message_event(EventType.MESSAGE_CREATED, message))
         notify_mentions(message)
-        # New messages only: editing a mention in never sets an agent off.
+        # New messages only: editing a mention in never sets an agent off. In an agent DM, every new top-level message
+        # from its person is for the agent.
         queue_agent_replies(message)
         return Response(_payload(message.id, request.user), status=status.HTTP_201_CREATED)
 
@@ -129,6 +141,7 @@ class MessageDetailEndpoint(ChatBaseEndpoint):
             if message.removed_at is not None:
                 raise Conflict("The message was removed.")
             require_not_archived(channel)
+            require_agent_dm_writable(channel)
             serializer = MessageEditSerializer(data=request.data, context={"has_attachments": has_attachments(message)})
             serializer.is_valid(raise_exception=True)
             data = serializer.validated_data

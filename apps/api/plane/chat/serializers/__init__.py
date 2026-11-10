@@ -3,6 +3,9 @@
 # See the LICENSE file for details.
 
 from .channel import (  # noqa: F401
+    AgentDmOpenSerializer,
+    AgentDmUpdateSerializer,
+    AgentPermissionAnswerSerializer,
     ChannelCreateSerializer,
     ChannelSerializer,
     ChannelUpdateSerializer,

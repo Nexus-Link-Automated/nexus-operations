@@ -9,6 +9,8 @@ from plane.app.views import (
     AgentConnectionEndpoint,
     AgentOffboardingEndpoint,
     AgentSessionEndpoint,
+    ChatAgentDraftEndpoint,
+    ChatAgentPermissionEndpoint,
     ChatAgentReplyEndpoint,
 )
 
@@ -43,5 +45,15 @@ urlpatterns = [
         "internal/chat/agent-replies/",
         ChatAgentReplyEndpoint.as_view(),
         name="internal-chat-agent-replies",
+    ),
+    path(
+        "internal/chat/agent-replies/draft/",
+        ChatAgentDraftEndpoint.as_view(),
+        name="internal-chat-agent-reply-draft",
+    ),
+    path(
+        "internal/chat/agent-replies/permission/",
+        ChatAgentPermissionEndpoint.as_view(),
+        name="internal-chat-agent-reply-permission",
     ),
 ]

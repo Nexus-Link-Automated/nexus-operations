@@ -9,8 +9,8 @@ zip archive of JSON Lines files to the instance's storage, and an instance admin
 that lasts `DOWNLOAD_URL_SECONDS`. `delete_expired_exports` deletes the archive `CHAT_EXPORT_EXPIRY_HOURS` after it
 was made; the record stays.
 
-Public channels only, unless the export asks for private channels and direct messages as well. Archived channels are
-in it; deleted ones aren't.
+Public channels only, unless the export asks for private channels and direct messages (with people or with an agent)
+as well. Archived channels are in it; deleted ones aren't.
 
 The archive:
 
@@ -68,7 +68,7 @@ def _iso(value):
 
 def exported_kinds(include_private):
     if include_private:
-        return [ChannelKind.PUBLIC, ChannelKind.PRIVATE, ChannelKind.DM, ChannelKind.GROUP_DM]
+        return [ChannelKind.PUBLIC, ChannelKind.PRIVATE, ChannelKind.DM, ChannelKind.GROUP_DM, ChannelKind.AGENT_DM]
     return [ChannelKind.PUBLIC]
 
 

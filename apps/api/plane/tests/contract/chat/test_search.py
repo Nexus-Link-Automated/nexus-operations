@@ -449,6 +449,7 @@ class TestResults:
             "archived_at": None,
             "is_member": True,
             "dm_member_ids": dm.dm_key.split(":"),
+            "agent_dm": None,
         }
         assert result["snippet"] == [
             {"text": "can you review the ", "match": False},

@@ -10,6 +10,11 @@ The mount captures the workspace slug, so each view here receives it as the `slu
 from django.urls import path
 
 from plane.chat.views import (
+    AgentDmDetailEndpoint,
+    AgentDmEndpoint,
+    AgentDmPermissionDetailEndpoint,
+    AgentDmPermissionEndpoint,
+    AgentDmStopEndpoint,
     AttachmentDetailEndpoint,
     AttachmentEndpoint,
     ChannelAgentDetailEndpoint,
@@ -39,6 +44,7 @@ urlpatterns = [
     path("me/", ChatMeEndpoint.as_view(), name="chat-me"),
     path("channels/", ChannelEndpoint.as_view(), name="chat-channels"),
     path("dms/", DirectMessageEndpoint.as_view(), name="chat-dms"),
+    path("agent-dms/", AgentDmEndpoint.as_view(), name="chat-agent-dms"),
     path("search/", MessageSearchEndpoint.as_view(), name="chat-search"),
     path("guests/dm-access/", GuestDmAccessListEndpoint.as_view(), name="chat-guest-dm-access-list"),
     path("guests/<uuid:user_id>/dm-access/", GuestDmAccessEndpoint.as_view(), name="chat-guest-dm-access"),
@@ -51,6 +57,14 @@ urlpatterns = [
     path(f"{CHANNEL}members/<uuid:user_id>/", ChannelMemberDetailEndpoint.as_view(), name="chat-channel-member"),
     path(f"{CHANNEL}agents/", ChannelAgentEndpoint.as_view(), name="chat-channel-agents"),
     path(f"{CHANNEL}agents/<uuid:agent_id>/", ChannelAgentDetailEndpoint.as_view(), name="chat-channel-agent"),
+    path(f"{CHANNEL}agent-dm/", AgentDmDetailEndpoint.as_view(), name="chat-agent-dm"),
+    path(f"{CHANNEL}agent-dm/stop/", AgentDmStopEndpoint.as_view(), name="chat-agent-dm-stop"),
+    path(f"{CHANNEL}agent-dm/permissions/", AgentDmPermissionEndpoint.as_view(), name="chat-agent-dm-permissions"),
+    path(
+        f"{CHANNEL}agent-dm/permissions/<str:request_id>/",
+        AgentDmPermissionDetailEndpoint.as_view(),
+        name="chat-agent-dm-permission",
+    ),
     path(f"{CHANNEL}attachments/", AttachmentEndpoint.as_view(), name="chat-attachments"),
     path(f"{CHANNEL}attachments/<uuid:asset_id>/", AttachmentDetailEndpoint.as_view(), name="chat-attachment"),
     path(f"{CHANNEL}messages/", MessageEndpoint.as_view(), name="chat-messages"),

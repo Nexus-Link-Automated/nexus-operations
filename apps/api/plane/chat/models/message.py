@@ -15,6 +15,10 @@ cursors keep working. `deleted_at` (soft delete) is reserved for removing data f
 An agent's message in reply to a mention (`plane.chat.agent_replies`) that isn't an answer, but a note that it couldn't
 give one (it timed out, its service is down, it is still working on the last mention), has `agent_notice` set to why.
 The body says so too, in English, for search, exports and emails; the web app shows its own words for the notice.
+
+In an agent DM (`plane.chat.agent_dm`) the agent's reply is posted while it is still being written, with
+`agent_streaming` set, and updated until the turn ends. Drafts never count as unread. `agent_tool_calls` lists the
+tools the turn called (title and status only, never their input or output).
 """
 
 import re
@@ -76,6 +80,7 @@ class AgentNotice(models.TextChoices):
     EMPTY = "empty", "Finished without a reply"
     RATE_LIMITED = "rate_limited", "Too many mentions"
     STILL_WORKING = "still_working", "Still working on an earlier mention in the thread"
+    STOPPED = "stopped", "Stopped before replying"
 
 
 class Message(BaseModel):
@@ -88,6 +93,10 @@ class Message(BaseModel):
     # What an automatic message is about, for rendering it per reader (`project_feed.body_for_reader`).
     system_data = models.JSONField(null=True, blank=True)
     agent_notice = models.CharField(max_length=32, choices=AgentNotice.choices, null=True, blank=True)
+    # An agent DM reply the agent is still writing.
+    agent_streaming = models.BooleanField(default=False)
+    # `[{"id", "title", "status"}]`: the tool calls the agent made while writing this reply.
+    agent_tool_calls = models.JSONField(null=True, blank=True)
     body_html = models.TextField(blank=True, default="<p></p>")
     # Stored as the client sent it, unlike the sanitized body_html: render from body_html, never from this.
     body_json = models.JSONField(blank=True, default=dict)
@@ -121,6 +130,10 @@ class Message(BaseModel):
             models.CheckConstraint(
                 condition=Q(agent_notice__isnull=True) | Q(sender_agent__isnull=False),
                 name="chat_message_notice_by_agent",
+            ),
+            models.CheckConstraint(
+                condition=Q(agent_streaming=False) | Q(sender_agent__isnull=False),
+                name="chat_message_streaming_by_agent",
             ),
         ]
         indexes = [

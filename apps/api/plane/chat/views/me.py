@@ -30,6 +30,8 @@ class ChatMeEndpoint(ChatBaseEndpoint):
                 "can_add_agents": can_add_agents(self.role),
                 # Who may run agents may also set them off with a mention, in a channel they are in.
                 "can_mention_agents": can_add_agents(self.role),
+                # And open their own DM with an agent (`plane.chat.agent_dm`).
+                "can_open_agent_dms": can_add_agents(self.role),
                 # How long an agent may work on a mention; the web app stops showing it as working after this.
                 "agent_reply_timeout_seconds": settings.CHAT_AGENT_REPLY_TIMEOUT_SECONDS,
             }

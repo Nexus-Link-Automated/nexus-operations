@@ -207,6 +207,8 @@ _CHAT_RATE_LIMIT_DEFAULTS = {
     # Messages one agent posts in reply to mentions in one workspace, across its channels. Repeated "still working"
     # and "asked too often" notes are limited separately (one a minute per thread).
     "agent_post": "120/hour",
+    # Turns one person starts in their DMs with agents (`plane.chat.agent_dm`); messages sent during a turn share one.
+    "agent_dm_turn": "10/minute,200/hour",
 }
 
 
@@ -228,7 +230,8 @@ CHAT_RATE_LIMITS = _chat_rate_limits(os.environ)
 # worker reaches the bridge's internal address with AGENT_BRIDGE_SECRET; empty turns agent replies off (a mention then
 # gets a note saying the agent can't reply).
 AGENT_BRIDGE_INTERNAL_URL = os.environ.get("AGENT_BRIDGE_INTERNAL_URL", "").strip().rstrip("/")
-# How long an agent may work on one mention before the bridge stops it and a note says it ran out of time.
+# How long an agent may work on one mention, or on one turn in an agent DM, before the bridge stops it and a note says
+# it ran out of time. An unanswered permission prompt in an agent DM expires with it.
 _agent_reply_timeout_raw = os.environ.get("CHAT_AGENT_REPLY_TIMEOUT_SECONDS", "").strip()
 CHAT_AGENT_REPLY_TIMEOUT_SECONDS = 300
 if _agent_reply_timeout_raw.isdecimal() and 30 <= int(_agent_reply_timeout_raw) <= 3600:
@@ -481,6 +484,8 @@ CELERY_IMPORTS = (
     "plane.chat.project_feed",
     # chat agents answering @mentions
     "plane.chat.agent_replies",
+    # chat agents' turns in agent DMs
+    "plane.chat.agent_dm",
     # chat email digest of unread mentions
     "plane.chat.digest",
     # chat message retention and the files it leaves behind

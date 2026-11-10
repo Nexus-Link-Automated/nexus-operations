@@ -42,8 +42,9 @@ def annotate_channels(queryset, user):
         member_count=_count(ChannelMember.objects.filter(channel=OuterRef("pk")), "channel"),
         last_message_at=Subquery(top_level.order_by("-created_at").values("created_at")[:1]),
     )
-    # Unread: top-level, not removed, not mine, and after my read cursor in (created_at, id) order.
-    unread = top_level.filter(removed_at__isnull=True).exclude(sender=user)
+    # Unread: top-level, not removed, not mine, not an agent's reply it is still writing, and after my read cursor in
+    # (created_at, id) order.
+    unread = top_level.filter(removed_at__isnull=True, agent_streaming=False).exclude(sender=user)
     after_cursor = unread.filter(
         Q(created_at__gt=OuterRef("last_read_at"))
         | Q(created_at=OuterRef("last_read_at"), id__gt=OuterRef("last_read_message_id"))
