@@ -1523,6 +1523,7 @@ describe("search", () => {
     archived_at: null,
     is_member: true,
     dm_member_ids: [],
+    agent_dm: null,
   };
   const hit = (found: TChatMessage, extra: Partial<TChatSearchResult> = {}): TChatSearchResult => ({
     message: found,
