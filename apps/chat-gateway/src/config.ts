@@ -33,6 +33,7 @@ const schema = z.object({
   CHAT_GATEWAY_MAX_SUBSCRIPTIONS: positiveInt(100),
   CHAT_GATEWAY_RATE_FRAMES: positiveInt(100),
   CHAT_GATEWAY_RATE_WINDOW_MS: positiveInt(10_000),
+  CHAT_GATEWAY_RATE_CHECKS: positiveInt(30),
   CHAT_GATEWAY_ACCESS_TTL_MS: positiveInt(60_000),
   CHAT_GATEWAY_SESSION_RECHECK_MS: positiveInt(5 * 60_000),
 });
@@ -65,6 +66,11 @@ export interface GatewayConfig {
   /** At most `rateFrames` frames from one socket per `rateWindowMs`. */
   readonly rateFrames: number;
   readonly rateWindowMs: number;
+  /**
+   * At most `rateChecks` subscriptions per `rateWindowMs` that need the API to answer. Subscribing again to a channel
+   * already followed, or already refused, doesn't count; unsubscribing and subscribing again does.
+   */
+  readonly rateChecks: number;
   /**
    * How long what the API told the gateway about a user's channels is trusted. Each socket re-reads its user's
    * channel list this often, which catches anything an event didn't (a missed event, a demotion).
@@ -101,6 +107,7 @@ export function loadGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
     maxSubscriptions: e.CHAT_GATEWAY_MAX_SUBSCRIPTIONS,
     rateFrames: e.CHAT_GATEWAY_RATE_FRAMES,
     rateWindowMs: e.CHAT_GATEWAY_RATE_WINDOW_MS,
+    rateChecks: e.CHAT_GATEWAY_RATE_CHECKS,
     accessTtlMs: e.CHAT_GATEWAY_ACCESS_TTL_MS,
     sessionRecheckMs: e.CHAT_GATEWAY_SESSION_RECHECK_MS,
   };

@@ -27,7 +27,7 @@ import { useAppRouter } from "@/hooks/use-app-router";
 import { useChat } from "@/hooks/store/use-chat";
 // local imports
 import { ChannelProjectField } from "./channel-project";
-import { chatErrorMessage } from "./helpers";
+import { chatErrorMessage, isChatRateLimited } from "./helpers";
 
 /** The API's limit on channel names (`Channel.name`). */
 const MAX_NAME_LENGTH = 80;
@@ -69,7 +69,13 @@ export function CreateChannelDialog({ workspaceSlug, onClose }: Props) {
       router.push(`/${workspaceSlug}/messages/${channel.id}`);
     } catch (caught) {
       const message = chatErrorMessage(caught);
-      if (message) setError(message);
+      if (isChatRateLimited(caught)) {
+        setToast({
+          type: "error",
+          title: t("messages.errors.create_channel_failed"),
+          message: t("messages.errors.rate_limited"),
+        });
+      } else if (message) setError(message);
       else setToast({ type: "error", title: t("messages.errors.create_channel_failed") });
     } finally {
       setIsSubmitting(false);

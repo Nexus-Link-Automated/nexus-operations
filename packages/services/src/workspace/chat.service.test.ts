@@ -100,3 +100,29 @@ describe("ChatService search", () => {
     );
   });
 });
+
+describe("ChatService rate limits", () => {
+  it("says a 429 is rate limited and how long the API asked to wait", async () => {
+    const chat = new ChatService("http://api");
+    const post = vi.spyOn(chat as unknown as { post: () => Promise<unknown> }, "post");
+    post.mockRejectedValue({
+      response: { status: 429, data: { error: "Too many requests." }, headers: { "retry-after": "12" } },
+    });
+    await expect(chat.sendMessage("acme", "c1", { body_html: "<p>hi</p>" })).rejects.toSatisfy(
+      (error) => error instanceof ChatServiceError && error.isRateLimited && error.retryAfter === 12
+    );
+  });
+
+  it("has no wait when the API gave none, and other failures aren't rate limited", async () => {
+    const chat = new ChatService("http://api");
+    const post = vi.spyOn(chat as unknown as { post: () => Promise<unknown> }, "post");
+    post.mockRejectedValueOnce({ response: { status: 429, data: {} } });
+    await expect(chat.sendMessage("acme", "c1", { body_html: "<p>hi</p>" })).rejects.toSatisfy(
+      (error) => error instanceof ChatServiceError && error.isRateLimited && error.retryAfter === null
+    );
+    post.mockRejectedValueOnce({ response: { status: 500, data: {}, headers: { "retry-after": "5" } } });
+    await expect(chat.sendMessage("acme", "c1", { body_html: "<p>hi</p>" })).rejects.toSatisfy(
+      (error) => error instanceof ChatServiceError && !error.isRateLimited
+    );
+  });
+});

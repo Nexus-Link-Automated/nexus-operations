@@ -81,6 +81,8 @@ export class Connection implements Recipient {
   #feedVersion = 0;
   #rateWindowStart = Date.now();
   #rateCount = 0;
+  #checkWindowStart = Date.now();
+  #checkCount = 0;
 
   constructor(options: ConnectionOptions) {
     this.userId = options.userId;
@@ -265,6 +267,17 @@ export class Connection implements Recipient {
     return this.#rateCount > this.#config.rateFrames;
   }
 
+  #overCheckRate(): boolean {
+    const now = Date.now();
+    if (now - this.#checkWindowStart >= this.#config.rateWindowMs) {
+      this.#checkWindowStart = now;
+      this.#checkCount = 0;
+    }
+    if (this.#checkCount >= this.#config.rateChecks) return true;
+    this.#checkCount += 1;
+    return false;
+  }
+
   async #subscribe(channel: string): Promise<void> {
     if (this.#follows(channel)) {
       this.#send({ type: "subscribed", channel_id: channel });
@@ -281,6 +294,11 @@ export class Connection implements Recipient {
     }
     if (this.#checksInFlight >= MAX_CHECKS_IN_FLIGHT) {
       this.#error("unavailable", "Too many channels being checked at once", channel);
+      return;
+    }
+    // Each check is an API call, and subscribing and unsubscribing over and over would make one every time.
+    if (this.#overCheckRate()) {
+      this.#error("unavailable", "Too many channels checked; try again shortly", channel);
       return;
     }
 

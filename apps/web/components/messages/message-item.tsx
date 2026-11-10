@@ -26,6 +26,7 @@ import { useWorkspace } from "@/hooks/store/use-workspace";
 import type { TChatPendingMessage } from "@/store/chat.store";
 // local imports
 import { ChatMessageAttachments, ChatPendingAttachments } from "./attachments";
+import { isChatRateLimited } from "./helpers";
 import { ChatCreateWorkItemAction } from "./create-work-item-action";
 import { MemberAvatar } from "./member-avatar";
 import { ChatMessageBody } from "./message-body";
@@ -146,8 +147,13 @@ export const ChatMessageItem = observer(function ChatMessageItem({
         body_json: (document.json ?? {}) as Record<string, unknown>,
       });
       setEditing(false);
-    } catch {
-      setToast({ type: "error", title: t("messages.errors.edit_failed") });
+    } catch (error) {
+      // The editor stays open with the text, to save again.
+      setToast({
+        type: "error",
+        title: t("messages.errors.edit_failed"),
+        ...(isChatRateLimited(error) && { message: t("messages.errors.rate_limited") }),
+      });
     } finally {
       saving.current = false;
       setBusy(false);
@@ -159,8 +165,12 @@ export const ChatMessageItem = observer(function ChatMessageItem({
     try {
       await removeMessage(message.channel, message.id);
       setConfirmingRemove(false);
-    } catch {
-      setToast({ type: "error", title: t("messages.errors.remove_failed") });
+    } catch (error) {
+      setToast({
+        type: "error",
+        title: t("messages.errors.remove_failed"),
+        ...(isChatRateLimited(error) && { message: t("messages.errors.rate_limited") }),
+      });
     } finally {
       setBusy(false);
     }
@@ -319,7 +329,7 @@ export const ChatPendingMessageItem = observer(function ChatPendingMessageItem({
         <ChatPendingAttachments attachments={pending.attachments} />
         {failed ? (
           <div className="flex items-center gap-2 text-caption-md-regular text-danger-primary">
-            <span>{t("messages.message.failed")}</span>
+            <span>{t(pending.rateLimited ? "messages.message.rate_limited" : "messages.message.failed")}</span>
             <Button
               variant="ghost"
               size="sm"

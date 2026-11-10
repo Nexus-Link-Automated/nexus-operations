@@ -102,7 +102,8 @@
       "not_allowed": "Nie można załączyć {name}. Ten typ pliku jest niedozwolony.",
       "failed": "Nie udało się przesłać {name}.",
       "too_many": "Wiadomość może mieć maksymalnie {count} załączników.",
-      "hidden": "{count, plural, one {# załącznik} few {# załączniki} many {# załączników} other {# załącznika}}. Dołącz do kanału, aby je zobaczyć."
+      "hidden": "{count, plural, one {# załącznik} few {# załączniki} many {# załączników} other {# załącznika}}. Dołącz do kanału, aby je zobaczyć.",
+      "rate_limited": "Nie przesłano {name}: zbyt wiele przesyłań naraz. Poczekaj chwilę i spróbuj ponownie."
     },
     "message": {
       "label": "{name} o {time}",
@@ -120,7 +121,8 @@
       "retry": "Ponów",
       "discard": "Odrzuć",
       "automatic_sender": "Aktualizacje elementów pracy",
-      "automatic": "Automatycznie"
+      "automatic": "Automatycznie",
+      "rate_limited": "Nie wysłano: wysyłasz wiadomości zbyt szybko. Poczekaj chwilę, a potem spróbuj ponownie."
     },
     "thread": {
       "title": "Wątek",
@@ -146,7 +148,8 @@
       "load_more": "Pokaż więcej wyników",
       "more_failed": "Nie udało się wczytać kolejnych wyników.",
       "in_thread": "W wątku",
-      "archived": "Zarchiwizowany"
+      "archived": "Zarchiwizowany",
+      "rate_limited": "Wyszukujesz zbyt często. Poczekaj chwilę i spróbuj ponownie."
     },
     "day": {
       "today": "Dzisiaj",
@@ -176,11 +179,82 @@
       "message_not_found": "Ta wiadomość nie jest już dostępna.",
       "link_work_item_failed": "Element pracy został utworzony, ale nie udało się powiązać go z tą wiadomością.",
       "update_channel_failed": "Nie udało się zapisać ustawień kanału",
+      "rate_limited": "Robisz to zbyt często. Poczekaj chwilę i spróbuj ponownie.",
       "load_members_failed": "Nie udało się wczytać członków",
       "add_members_failed": "Nie udało się dodać osób",
       "remove_member_failed": "Nie udało się usunąć z kanału",
       "load_guest_access_failed": "Nie udało się wczytać dostępu gości",
       "update_guest_access_failed": "Nie udało się zmienić dostępu gościa"
+    },
+    "admin": {
+      "title": "Wiadomości",
+      "description": "Jak długo przechowywane są wiadomości, eksporty wiadomości przestrzeni roboczej i jak szybko można wysyłać.",
+      "load_failed": "Nie udało się wczytać ustawień wiadomości",
+      "retry": "Spróbuj ponownie",
+      "cancel": "Anuluj",
+      "retention": {
+        "title": "Przechowywanie wiadomości",
+        "description": "Wiadomości są przechowywane bezterminowo, chyba że ustawisz limit. Z limitem codzienne zadanie trwale usuwa starsze wiadomości we wszystkich przestrzeniach roboczych wraz z załączonymi plikami i powiadomieniami o nich.",
+        "enable": "Usuwaj stare wiadomości",
+        "enable_help": "Wyłączone: wszystkie wiadomości są przechowywane bezterminowo.",
+        "days": "Przechowuj wiadomości przez (dni)",
+        "days_help": "Od {min} do {max} dni.",
+        "days_invalid": "Wpisz całkowitą liczbę dni od {min} do {max}.",
+        "save": "Zapisz",
+        "saving": "Zapisywanie",
+        "saved": "Zapisano przechowywanie wiadomości",
+        "save_failed": "Nie udało się zapisać przechowywania wiadomości",
+        "confirm_title": "Trwale usunąć starsze wiadomości?",
+        "confirm_description": "Przy następnym codziennym uruchomieniu Nexus trwale usunie każdą wiadomość starszą niż {days} dni wraz z załączonymi plikami we wszystkich przestrzeniach roboczych. Usuniętych wiadomości nie można odzyskać.",
+        "confirm": "Usuń starsze wiadomości"
+      },
+      "export": {
+        "title": "Eksportuj wiadomości",
+        "description": "Pobierz wiadomości przestrzeni roboczej jako plik zip z plikami JSON Lines: kanały, członkowie, wiadomości i odpowiedzi w wątkach oraz nazwy i rozmiary załączników (bez samych plików). Każdy eksport można pobierać przez {hours} godz.",
+        "workspace": "Przestrzeń robocza",
+        "workspace_placeholder": "Wybierz przestrzeń roboczą",
+        "more_workspaces": "Wczytaj więcej przestrzeni roboczych",
+        "include_private": "Uwzględnij kanały prywatne i wiadomości bezpośrednie",
+        "include_private_help": "Wyłączone: eksportowane są tylko kanały publiczne. Kanały prywatne i wiadomości bezpośrednie to prywatne rozmowy: uwzględniaj je tylko wtedy, gdy masz ku temu powód, np. wniosek prawny.",
+        "start": "Rozpocznij eksport",
+        "started": "Eksport rozpoczęty. Pojawi się poniżej, gdy będzie gotowy.",
+        "start_failed": "Nie udało się rozpocząć eksportu",
+        "history": "Poprzednie eksporty",
+        "empty": "Brak eksportów.",
+        "load_failed": "Nie udało się wczytać poprzednich eksportów",
+        "started_by": "Rozpoczęty przez {email}, {date}",
+        "contents": "Kanały: {channels} · Wiadomości: {messages} · {size}",
+        "expires": "Do pobrania do {date}",
+        "download": "Pobierz",
+        "download_named": "Pobierz eksport {name}",
+        "download_failed": "Nie udało się pobrać eksportu",
+        "scope_public": "Kanały publiczne",
+        "scope_all": "Z kanałami prywatnymi i DM",
+        "status": {
+          "queued": "W kolejce",
+          "running": "W toku",
+          "ready": "Gotowy",
+          "failed": "Niepowodzenie",
+          "expired": "Wygasł"
+        }
+      },
+      "rate_limits": {
+        "title": "Limity częstotliwości",
+        "description": "Ile żądań każdego rodzaju może wykonać jedna osoba. Ustawia się je zmiennymi środowiskowymi CHAT_RATE_LIMIT_* w API.",
+        "per_second": "{count} na sekundę",
+        "per_minute": "{count} na minutę",
+        "per_hour": "{count} na godzinę",
+        "per_day": "{count} na dzień",
+        "names": {
+          "send": "Wysłanie wiadomości lub odpowiedzi",
+          "edit": "Edycja lub usunięcie wiadomości",
+          "upload": "Przesłanie pliku",
+          "channel": "Utworzenie kanału lub otwarcie wiadomości bezpośredniej",
+          "search": "Wyszukiwanie wiadomości",
+          "read": "Oznaczenie jako przeczytane",
+          "work_item": "Utworzenie elementu pracy z wiadomości"
+        }
+      }
     }
   }
 }

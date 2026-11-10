@@ -102,7 +102,8 @@
       "not_allowed": "Không thể đính kèm {name}. Loại tệp này không được phép.",
       "failed": "Không thể tải lên {name}.",
       "too_many": "Một tin nhắn có thể có tối đa {count} tệp đính kèm.",
-      "hidden": "{count, plural, other {# tệp đính kèm}}. Tham gia kênh để xem."
+      "hidden": "{count, plural, other {# tệp đính kèm}}. Tham gia kênh để xem.",
+      "rate_limited": "Chưa tải lên {name}: quá nhiều lượt tải lên cùng lúc. Hãy đợi một chút rồi thử lại."
     },
     "message": {
       "label": "{name} lúc {time}",
@@ -120,7 +121,8 @@
       "retry": "Thử lại",
       "discard": "Bỏ",
       "automatic_sender": "Cập nhật hạng mục công việc",
-      "automatic": "Tự động"
+      "automatic": "Tự động",
+      "rate_limited": "Chưa gửi được: bạn gửi tin nhắn quá nhanh. Hãy đợi một chút rồi thử lại."
     },
     "thread": {
       "title": "Chuỗi",
@@ -146,7 +148,8 @@
       "load_more": "Hiển thị thêm kết quả",
       "more_failed": "Không thể tải thêm kết quả.",
       "in_thread": "Trong một chuỗi",
-      "archived": "Đã lưu trữ"
+      "archived": "Đã lưu trữ",
+      "rate_limited": "Bạn tìm kiếm quá thường xuyên. Hãy đợi một chút rồi thử lại."
     },
     "day": {
       "today": "Hôm nay",
@@ -176,11 +179,82 @@
       "message_not_found": "Tin nhắn này không còn khả dụng.",
       "link_work_item_failed": "Mục công việc đã được tạo nhưng không thể liên kết với tin nhắn này.",
       "update_channel_failed": "Không thể lưu cài đặt kênh",
+      "rate_limited": "Bạn thực hiện thao tác này quá thường xuyên. Hãy đợi một chút rồi thử lại.",
       "load_members_failed": "Không thể tải danh sách thành viên",
       "add_members_failed": "Không thể thêm người",
       "remove_member_failed": "Không thể xóa khỏi kênh",
       "load_guest_access_failed": "Không thể tải quyền truy cập của khách",
       "update_guest_access_failed": "Không thể thay đổi quyền truy cập của khách"
+    },
+    "admin": {
+      "title": "Tin nhắn",
+      "description": "Thời gian lưu giữ tin nhắn, xuất tin nhắn của một không gian làm việc và tốc độ gửi tối đa.",
+      "load_failed": "Không thể tải cài đặt Tin nhắn",
+      "retry": "Thử lại",
+      "cancel": "Hủy",
+      "retention": {
+        "title": "Lưu giữ tin nhắn",
+        "description": "Tin nhắn được lưu giữ vĩnh viễn trừ khi bạn đặt giới hạn. Khi có giới hạn, một tác vụ hằng ngày sẽ xóa vĩnh viễn các tin nhắn cũ hơn trong mọi không gian làm việc, cùng với tệp đính kèm và các thông báo liên quan.",
+        "enable": "Xóa tin nhắn cũ",
+        "enable_help": "Tắt: mọi tin nhắn được lưu giữ vĩnh viễn.",
+        "days": "Lưu giữ tin nhắn trong (ngày)",
+        "days_help": "Từ {min} đến {max} ngày.",
+        "days_invalid": "Nhập số ngày là số nguyên từ {min} đến {max}.",
+        "save": "Lưu",
+        "saving": "Đang lưu",
+        "saved": "Đã lưu cài đặt lưu giữ tin nhắn",
+        "save_failed": "Không thể lưu cài đặt lưu giữ tin nhắn",
+        "confirm_title": "Xóa vĩnh viễn các tin nhắn cũ hơn?",
+        "confirm_description": "Ở lần chạy hằng ngày tiếp theo, Nexus sẽ xóa vĩnh viễn mọi tin nhắn cũ hơn {days} ngày, cùng với tệp đính kèm, trong mọi không gian làm việc. Không thể khôi phục tin nhắn đã xóa.",
+        "confirm": "Xóa các tin nhắn cũ hơn"
+      },
+      "export": {
+        "title": "Xuất tin nhắn",
+        "description": "Tải xuống tin nhắn của một không gian làm việc dưới dạng tệp zip chứa các tệp JSON Lines: kênh, thành viên, tin nhắn và trả lời trong chuỗi, cùng tên và kích thước tệp đính kèm (không gồm tệp). Mỗi bản xuất có thể tải xuống trong {hours} giờ.",
+        "workspace": "Không gian làm việc",
+        "workspace_placeholder": "Chọn không gian làm việc",
+        "more_workspaces": "Tải thêm không gian làm việc",
+        "include_private": "Bao gồm kênh riêng tư và tin nhắn trực tiếp",
+        "include_private_help": "Tắt: chỉ xuất các kênh công khai. Kênh riêng tư và tin nhắn trực tiếp là các cuộc trò chuyện riêng tư: chỉ bao gồm khi có lý do, chẳng hạn yêu cầu pháp lý.",
+        "start": "Bắt đầu xuất",
+        "started": "Đã bắt đầu xuất. Bản xuất sẽ hiện bên dưới khi sẵn sàng.",
+        "start_failed": "Không thể bắt đầu xuất",
+        "history": "Các bản xuất trước",
+        "empty": "Chưa có bản xuất nào.",
+        "load_failed": "Không thể tải các bản xuất trước",
+        "started_by": "Bắt đầu bởi {email} vào {date}",
+        "contents": "Kênh: {channels} · Tin nhắn: {messages} · {size}",
+        "expires": "Có thể tải xuống đến {date}",
+        "download": "Tải xuống",
+        "download_named": "Tải xuống bản xuất của {name}",
+        "download_failed": "Không thể tải xuống bản xuất",
+        "scope_public": "Kênh công khai",
+        "scope_all": "Gồm kênh riêng tư và DM",
+        "status": {
+          "queued": "Đang chờ",
+          "running": "Đang xử lý",
+          "ready": "Sẵn sàng",
+          "failed": "Thất bại",
+          "expired": "Đã hết hạn"
+        }
+      },
+      "rate_limits": {
+        "title": "Giới hạn tần suất",
+        "description": "Số yêu cầu mỗi loại mà một người có thể thực hiện. Đặt bằng các biến môi trường CHAT_RATE_LIMIT_* của API.",
+        "per_second": "{count} mỗi giây",
+        "per_minute": "{count} mỗi phút",
+        "per_hour": "{count} mỗi giờ",
+        "per_day": "{count} mỗi ngày",
+        "names": {
+          "send": "Gửi tin nhắn hoặc trả lời",
+          "edit": "Sửa hoặc xóa tin nhắn",
+          "upload": "Tải lên tệp",
+          "channel": "Tạo kênh hoặc mở tin nhắn trực tiếp",
+          "search": "Tìm kiếm tin nhắn",
+          "read": "Đánh dấu là đã đọc",
+          "work_item": "Tạo mục công việc từ tin nhắn"
+        }
+      }
     }
   }
 }

@@ -250,6 +250,16 @@ unsplash_config_variables = [
     },
 ]
 
+# Nexus Messages: delete messages after this many days (`plane.chat.retention`); 0 keeps them forever.
+chat_config_variables = [
+    {
+        "key": "CHAT_MESSAGE_RETENTION_DAYS",
+        "value": os.environ.get("CHAT_MESSAGE_RETENTION_DAYS", "0"),
+        "category": "CHAT",
+        "is_encrypted": False,
+    },
+]
+
 core_config_variables = [
     *authentication_config_variables,
     *workspace_management_config_variables,
@@ -260,4 +270,5 @@ core_config_variables = [
     *smtp_config_variables,
     *llm_config_variables,
     *unsplash_config_variables,
+    *chat_config_variables,
 ]

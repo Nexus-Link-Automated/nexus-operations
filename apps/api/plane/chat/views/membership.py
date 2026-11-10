@@ -172,6 +172,8 @@ class ChannelMemberDetailEndpoint(ChatBaseEndpoint):
 
 
 class ChannelReadEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
+    rate_limits = {"POST": "read"}
+
     def post(self, request, slug, channel_id):
         """Move the caller's read cursor to `message_id`. It only moves forward; an older message is a no-op.
 

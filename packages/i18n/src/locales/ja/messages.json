@@ -102,7 +102,8 @@
       "not_allowed": "{name} は添付できません。このファイル形式は許可されていません。",
       "failed": "{name} をアップロードできませんでした。",
       "too_many": "1 件のメッセージに添付できるファイルは最大 {count} 件です。",
-      "hidden": "{count, plural, one {添付ファイル #件} other {添付ファイル #件}}。表示するにはチャンネルに参加してください。"
+      "hidden": "{count, plural, one {添付ファイル #件} other {添付ファイル #件}}。表示するにはチャンネルに参加してください。",
+      "rate_limited": "{name} はアップロードされませんでした：同時アップロードが多すぎます。少し待ってからもう一度お試しください。"
     },
     "message": {
       "label": "{name}（{time}）",
@@ -120,7 +121,8 @@
       "retry": "再試行",
       "discard": "破棄",
       "automatic_sender": "作業項目の更新",
-      "automatic": "自動"
+      "automatic": "自動",
+      "rate_limited": "送信されませんでした：メッセージの送信が速すぎます。少し待ってから再試行してください。"
     },
     "thread": {
       "title": "スレッド",
@@ -146,7 +148,8 @@
       "load_more": "さらに結果を表示",
       "more_failed": "これ以上の結果を読み込めませんでした。",
       "in_thread": "スレッド内",
-      "archived": "アーカイブ済み"
+      "archived": "アーカイブ済み",
+      "rate_limited": "検索の回数が多すぎます。少し待ってからもう一度お試しください。"
     },
     "day": {
       "today": "今日",
@@ -176,11 +179,82 @@
       "message_not_found": "このメッセージは利用できなくなりました。",
       "link_work_item_failed": "作業項目は作成されましたが、このメッセージにリンクできませんでした。",
       "update_channel_failed": "チャンネル設定を保存できませんでした",
+      "rate_limited": "操作の回数が多すぎます。少し待ってからもう一度お試しください。",
       "load_members_failed": "メンバーを読み込めませんでした",
       "add_members_failed": "メンバーを追加できませんでした",
       "remove_member_failed": "チャンネルから削除できませんでした",
       "load_guest_access_failed": "ゲストのアクセスを読み込めませんでした",
       "update_guest_access_failed": "ゲストのアクセスを変更できませんでした"
+    },
+    "admin": {
+      "title": "メッセージ",
+      "description": "メッセージの保持期間、ワークスペースのメッセージのエクスポート、送信できる速さ。",
+      "load_failed": "メッセージの設定を読み込めませんでした",
+      "retry": "もう一度試す",
+      "cancel": "キャンセル",
+      "retention": {
+        "title": "メッセージの保持",
+        "description": "上限を設定しない限り、メッセージは無期限に保持されます。上限を設定すると、毎日のジョブがすべてのワークスペースで古いメッセージを、添付ファイルや関連する通知とともに完全に削除します。",
+        "enable": "古いメッセージを削除する",
+        "enable_help": "オフの場合、すべてのメッセージを無期限に保持します。",
+        "days": "メッセージの保持期間（日）",
+        "days_help": "{min}～{max} 日。",
+        "days_invalid": "{min}～{max} の整数で日数を入力してください。",
+        "save": "保存",
+        "saving": "保存中",
+        "saved": "メッセージの保持設定を保存しました",
+        "save_failed": "メッセージの保持設定を保存できませんでした",
+        "confirm_title": "古いメッセージを完全に削除しますか？",
+        "confirm_description": "次回の毎日の実行で、Nexus はすべてのワークスペースで {days} 日より古いメッセージを添付ファイルとともに完全に削除します。削除したメッセージは復元できません。",
+        "confirm": "古いメッセージを削除"
+      },
+      "export": {
+        "title": "メッセージのエクスポート",
+        "description": "ワークスペースのメッセージを JSON Lines ファイルの zip としてダウンロードします：チャンネル、メンバー、メッセージとスレッドの返信、添付ファイルの名前とサイズ（ファイル本体は含みません）。各エクスポートは {hours} 時間ダウンロードできます。",
+        "workspace": "ワークスペース",
+        "workspace_placeholder": "ワークスペースを選択",
+        "more_workspaces": "さらにワークスペースを読み込む",
+        "include_private": "プライベートチャンネルとダイレクトメッセージを含める",
+        "include_private_help": "オフの場合、パブリックチャンネルのみをエクスポートします。プライベートチャンネルとダイレクトメッセージは非公開の会話です。法的な要請など、理由がある場合にのみ含めてください。",
+        "start": "エクスポートを開始",
+        "started": "エクスポートを開始しました。準備ができると下に表示されます。",
+        "start_failed": "エクスポートを開始できませんでした",
+        "history": "過去のエクスポート",
+        "empty": "まだエクスポートはありません。",
+        "load_failed": "過去のエクスポートを読み込めませんでした",
+        "started_by": "{email} が {date} に開始",
+        "contents": "チャンネル: {channels} · メッセージ: {messages} · {size}",
+        "expires": "{date} までダウンロード可能",
+        "download": "ダウンロード",
+        "download_named": "{name} のエクスポートをダウンロード",
+        "download_failed": "エクスポートをダウンロードできませんでした",
+        "scope_public": "パブリックチャンネル",
+        "scope_all": "プライベートと DM を含む",
+        "status": {
+          "queued": "待機中",
+          "running": "処理中",
+          "ready": "完了",
+          "failed": "失敗",
+          "expired": "期限切れ"
+        }
+      },
+      "rate_limits": {
+        "title": "レート制限",
+        "description": "1 人が各種類のリクエストを行える回数です。API の環境変数 CHAT_RATE_LIMIT_* で設定します。",
+        "per_second": "毎秒 {count} 回",
+        "per_minute": "毎分 {count} 回",
+        "per_hour": "毎時 {count} 回",
+        "per_day": "1 日 {count} 回",
+        "names": {
+          "send": "メッセージまたは返信の送信",
+          "edit": "メッセージの編集または削除",
+          "upload": "ファイルのアップロード",
+          "channel": "チャンネルの作成またはダイレクトメッセージの開始",
+          "search": "メッセージの検索",
+          "read": "既読にする",
+          "work_item": "メッセージからワークアイテムを作成"
+        }
+      }
     }
   }
 }

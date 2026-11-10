@@ -31,8 +31,10 @@ import { generateFileUploadPayload, getFileMetaDataForUpload } from "../file/hel
 export class ChatServiceError extends Error {
   readonly status: number;
   readonly data: unknown;
+  /** For a 429: how many seconds the API asked to wait (`Retry-After`), or null if it didn't say. */
+  readonly retryAfter: number | null;
 
-  constructor(status: number, data: unknown) {
+  constructor(status: number, data: unknown, retryAfter: number | null = null) {
     const detail = (data as { error?: unknown; detail?: unknown } | undefined) ?? {};
     const message =
       typeof detail.error === "string" ? detail.error : typeof detail.detail === "string" ? detail.detail : "";
@@ -40,6 +42,12 @@ export class ChatServiceError extends Error {
     this.name = "ChatServiceError";
     this.status = status;
     this.data = data;
+    this.retryAfter = retryAfter;
+  }
+
+  /** Too many requests of this kind for now. Nothing was done, so the same request can be made again later. */
+  get isRateLimited(): boolean {
+    return this.status === 429;
   }
 
   /** The channel or message is gone, or the caller can no longer see it (the API never says which). */
@@ -49,8 +57,16 @@ export class ChatServiceError extends Error {
 }
 
 function toChatError(error: unknown): ChatServiceError {
-  const response = (error as { response?: { status?: number; data?: unknown } } | undefined)?.response;
-  return new ChatServiceError(response?.status ?? 0, response?.data);
+  const response = (
+    error as { response?: { status?: number; data?: unknown; headers?: Record<string, unknown> } } | undefined
+  )?.response;
+  const header = response?.headers?.["retry-after"];
+  const retryAfter = typeof header === "string" && header.trim() ? Number(header) : Number.NaN;
+  return new ChatServiceError(
+    response?.status ?? 0,
+    response?.data,
+    Number.isFinite(retryAfter) && retryAfter >= 0 ? retryAfter : null
+  );
 }
 
 /**

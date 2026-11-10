@@ -119,7 +119,10 @@ class Message(BaseModel):
         super().save(*args, **kwargs)
 
     def remove(self):
-        """Delete the message as the user sees it: clear the body and drop its references and attachments."""
+        """Delete the message as the user sees it: clear the body and drop its references and attachments.
+
+        The attachments' files leave storage on the next daily run (`plane.chat.retention`).
+        """
         with transaction.atomic():
             self.body_html = ""
             self.body_json = {}

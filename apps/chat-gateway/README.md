@@ -125,6 +125,7 @@ and sent after `ready`, in order.
 | `CHAT_GATEWAY_MAX_SUBSCRIPTIONS`              | 100         | Public channels one socket may follow beyond its own.                            |
 | `CHAT_GATEWAY_MAX_MESSAGE_BYTES`              | 16384       | Largest frame accepted from a browser.                                           |
 | `CHAT_GATEWAY_RATE_FRAMES`, `_RATE_WINDOW_MS` | 100 / 10000 | Frames (WebSocket pings included) one socket may send per window before 4429.    |
+| `CHAT_GATEWAY_RATE_CHECKS`                    | 30          | Subscriptions per window that need the API to answer; more get `unavailable`.    |
 | `CHAT_GATEWAY_MAX_BUFFERED_BYTES`             | 1048576     | A socket with more than this unsent is too slow and is closed (1013).            |
 | `CHAT_GATEWAY_ACCESS_TTL_MS`                  | 60000       | How long what the API said about a user's channels is trusted.                   |
 | `CHAT_GATEWAY_SESSION_RECHECK_MS`             | 300000      | How often each socket's cookie and workspace membership are checked again.       |

@@ -21,6 +21,7 @@ import { useProject } from "@/hooks/store/use-project";
 import {
   defaultWorkItemAssignee,
   defaultWorkItemProject,
+  isChatRateLimited,
   mentionedUserIds,
   readLastWorkItemProject,
   workItemTitleFromMessage,
@@ -68,8 +69,12 @@ export const ChatCreateWorkItemAction = observer(function ChatCreateWorkItemActi
     if (workItem.project_id) writeLastWorkItemProject(workspaceSlug, workItem.project_id);
     try {
       await linkWorkItem(message.channel, message.id, workItem.id);
-    } catch {
-      setToast({ type: "error", title: t("messages.errors.link_work_item_failed") });
+    } catch (error) {
+      setToast({
+        type: "error",
+        title: t("messages.errors.link_work_item_failed"),
+        ...(isChatRateLimited(error) && { message: t("messages.errors.rate_limited") }),
+      });
     }
   };
 

@@ -102,6 +102,14 @@ app.conf.beat_schedule = {
         "task": "plane.bgtasks.exporter_expired_task.delete_old_s3_link",
         "schedule": crontab(hour=3, minute=45),  # UTC 03:45
     },
+    "check-every-day-to-purge-chat-messages": {
+        "task": "plane.chat.retention.purge_chat_data",
+        "schedule": crontab(hour=4, minute=0),  # UTC 04:00
+    },
+    "check-every-hour-to-delete-expired-chat-exports": {
+        "task": "plane.chat.export.delete_expired_exports",
+        "schedule": crontab(minute=40),  # Every hour at :40
+    },
     "check-every-hour-to-delete-expired-agent-session-tokens": {
         "task": "plane.bgtasks.cleanup_task.delete_expired_agent_session_tokens",
         "schedule": crontab(minute=20),  # Every hour at :20

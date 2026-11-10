@@ -102,7 +102,8 @@
       "not_allowed": "{name} kan niet worden bijgevoegd. Dit bestandstype is niet toegestaan.",
       "failed": "{name} kon niet worden geüpload.",
       "too_many": "Een bericht kan maximaal {count} bijlagen hebben.",
-      "hidden": "{count, plural, one {# bijlage} other {# bijlagen}}. Word lid van het kanaal om ze te bekijken."
+      "hidden": "{count, plural, one {# bijlage} other {# bijlagen}}. Word lid van het kanaal om ze te bekijken.",
+      "rate_limited": "{name} is niet geüpload: te veel uploads tegelijk. Wacht even en probeer het opnieuw."
     },
     "message": {
       "label": "{name} om {time}",
@@ -120,7 +121,8 @@
       "retry": "Opnieuw proberen",
       "discard": "Weggooien",
       "automatic_sender": "Updates van werkitems",
-      "automatic": "Automatisch"
+      "automatic": "Automatisch",
+      "rate_limited": "Niet verstuurd: je verstuurt berichten te snel. Wacht even en probeer het dan opnieuw."
     },
     "thread": {
       "title": "Thread",
@@ -146,7 +148,8 @@
       "load_more": "Meer resultaten tonen",
       "more_failed": "Kan geen resultaten meer laden.",
       "in_thread": "In een thread",
-      "archived": "Gearchiveerd"
+      "archived": "Gearchiveerd",
+      "rate_limited": "Je zoekt te vaak. Wacht even en probeer het opnieuw."
     },
     "day": {
       "today": "Vandaag",
@@ -176,11 +179,82 @@
       "message_not_found": "Dit bericht is niet meer beschikbaar.",
       "link_work_item_failed": "Het werkitem is gemaakt, maar kon niet aan dit bericht worden gekoppeld.",
       "update_channel_failed": "Kan de kanaalinstellingen niet opslaan",
+      "rate_limited": "Je doet dat te vaak. Wacht even en probeer het opnieuw.",
       "load_members_failed": "De leden konden niet worden geladen",
       "add_members_failed": "De personen konden niet worden toegevoegd",
       "remove_member_failed": "Verwijderen uit het kanaal is mislukt",
       "load_guest_access_failed": "De gasttoegang kon niet worden geladen",
       "update_guest_access_failed": "De gasttoegang kon niet worden gewijzigd"
+    },
+    "admin": {
+      "title": "Berichten",
+      "description": "Hoe lang berichten worden bewaard, exports van de berichten van een werkruimte en hoe snel mensen kunnen versturen.",
+      "load_failed": "Kan de instellingen voor Berichten niet laden",
+      "retry": "Opnieuw proberen",
+      "cancel": "Annuleren",
+      "retention": {
+        "title": "Bewaartermijn van berichten",
+        "description": "Berichten worden voor altijd bewaard, tenzij je een limiet instelt. Met een limiet verwijdert een dagelijkse taak oudere berichten in elke werkruimte definitief, samen met hun bijlagen en de meldingen erover.",
+        "enable": "Oude berichten verwijderen",
+        "enable_help": "Uit: alle berichten worden voor altijd bewaard.",
+        "days": "Berichten bewaren gedurende (dagen)",
+        "days_help": "Van {min} tot {max} dagen.",
+        "days_invalid": "Voer een geheel aantal dagen in van {min} tot {max}.",
+        "save": "Opslaan",
+        "saving": "Opslaan…",
+        "saved": "Bewaartermijn van berichten opgeslagen",
+        "save_failed": "Kan de bewaartermijn van berichten niet opslaan",
+        "confirm_title": "Oudere berichten definitief verwijderen?",
+        "confirm_description": "Bij de volgende dagelijkse run verwijdert Nexus elk bericht ouder dan {days} dagen, samen met de bijlagen, in elke werkruimte definitief. Verwijderde berichten kunnen niet worden hersteld.",
+        "confirm": "Oudere berichten verwijderen"
+      },
+      "export": {
+        "title": "Berichten exporteren",
+        "description": "Download de berichten van een werkruimte als zip met JSON Lines-bestanden: kanalen, leden, berichten en antwoorden in threads, en de namen en groottes van bijlagen (niet de bestanden). Elke export kan {hours} uur lang worden gedownload.",
+        "workspace": "Werkruimte",
+        "workspace_placeholder": "Kies een werkruimte",
+        "more_workspaces": "Meer werkruimtes laden",
+        "include_private": "Privékanalen en directe berichten opnemen",
+        "include_private_help": "Uit: alleen openbare kanalen worden geëxporteerd. Privékanalen en directe berichten zijn privégesprekken: neem ze alleen op als je daar een reden voor hebt, zoals een juridisch verzoek.",
+        "start": "Export starten",
+        "started": "Export gestart. Hij verschijnt hieronder zodra hij klaar is.",
+        "start_failed": "Kan de export niet starten",
+        "history": "Eerdere exports",
+        "empty": "Nog geen exports.",
+        "load_failed": "Kan eerdere exports niet laden",
+        "started_by": "Gestart door {email} op {date}",
+        "contents": "Kanalen: {channels} · Berichten: {messages} · {size}",
+        "expires": "Te downloaden tot {date}",
+        "download": "Downloaden",
+        "download_named": "Export van {name} downloaden",
+        "download_failed": "Kan de export niet downloaden",
+        "scope_public": "Openbare kanalen",
+        "scope_all": "Met privékanalen en DM's",
+        "status": {
+          "queued": "In de wachtrij",
+          "running": "Bezig",
+          "ready": "Klaar",
+          "failed": "Mislukt",
+          "expired": "Verlopen"
+        }
+      },
+      "rate_limits": {
+        "title": "Snelheidslimieten",
+        "description": "Hoeveel verzoeken van elk soort één persoon kan doen. Stel ze in met de omgevingsvariabelen CHAT_RATE_LIMIT_* van de API.",
+        "per_second": "{count} per seconde",
+        "per_minute": "{count} per minuut",
+        "per_hour": "{count} per uur",
+        "per_day": "{count} per dag",
+        "names": {
+          "send": "Een bericht of antwoord versturen",
+          "edit": "Een bericht bewerken of verwijderen",
+          "upload": "Een bestand uploaden",
+          "channel": "Een kanaal maken of een direct bericht openen",
+          "search": "Berichten doorzoeken",
+          "read": "Markeren als gelezen",
+          "work_item": "Een werkitem maken van een bericht"
+        }
+      }
     }
   }
 }

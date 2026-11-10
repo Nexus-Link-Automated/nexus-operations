@@ -13,6 +13,7 @@ from unittest import mock
 from uuid import uuid4
 
 import pytest
+from django.core.cache import cache
 from rest_framework.test import APIClient
 
 from plane.chat.models import Channel, ChannelKind, ChannelMember, ChannelMemberRole, Message
@@ -33,6 +34,14 @@ def no_soft_delete_task():
     """`BaseModel.delete()` queues a Celery task to soft delete related rows; keep it off the broker."""
     with mock.patch("plane.db.mixins.soft_delete_related_objects"):
         yield
+
+
+@pytest.fixture(autouse=True)
+def reset_chat_rate_limits():
+    """The chat rate limits count in the shared cache, which outlives a test."""
+    cache.delete_pattern("chat_throttle:*")
+    yield
+    cache.delete_pattern("chat_throttle:*")
 
 
 @pytest.fixture

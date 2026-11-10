@@ -19,6 +19,9 @@ from plane.license.api.views import (
     InstanceWorkSpaceAvailabilityCheckEndpoint,
     InstanceWorkSpaceEndpoint,
     InstanceAgentEndpoint,
+    InstanceChatSettingsEndpoint,
+    InstanceMessageExportEndpoint,
+    InstanceMessageExportDownloadEndpoint,
 )
 
 urlpatterns = [
@@ -74,4 +77,11 @@ urlpatterns = [
     path("workspaces/", InstanceWorkSpaceEndpoint.as_view(), name="instance-workspace"),
     path("agents/", InstanceAgentEndpoint.as_view(), name="instance-agents"),
     path("agents/<uuid:pk>/", InstanceAgentEndpoint.as_view(), name="instance-agent-detail"),
+    path("chat/settings/", InstanceChatSettingsEndpoint.as_view(), name="instance-chat-settings"),
+    path("chat/exports/", InstanceMessageExportEndpoint.as_view(), name="instance-chat-exports"),
+    path(
+        "chat/exports/<uuid:pk>/download/",
+        InstanceMessageExportDownloadEndpoint.as_view(),
+        name="instance-chat-export-download",
+    ),
 ]

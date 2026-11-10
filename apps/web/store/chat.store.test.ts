@@ -48,6 +48,8 @@ class FakeChatServer {
   messages: TChatMessage[] = [];
   calls: string[] = [];
   failSends = false;
+  /** What a failed send throws. */
+  sendFailure = new ChatServiceError(0, undefined);
   sentAttachmentIds: (string[] | undefined)[] = [];
   /** Holds the next answer of a call back until the promise resolves. The answer is read when the call arrives. */
   holds = new Map<string, Promise<void>>();
@@ -309,7 +311,7 @@ class FakeChatServer {
       sendMessage: async (_slug, channelId, data) => {
         log(`sendMessage ${channelId}`);
         this.sentAttachmentIds.push(data.attachment_ids);
-        if (this.failSends) throw new ChatServiceError(0, undefined);
+        if (this.failSends) throw this.sendFailure;
         this.channelOr404(channelId);
         const message = this.post(channelId, ME, data.body_html, data.parent_id ?? null);
         return this.held("sendMessage", clone(message));
@@ -571,6 +573,24 @@ describe("ChatStore", () => {
     await expect(store.sendMessage("c-general", { body_html: "<p>again</p>" })).rejects.toThrow();
     store.discardMessage("c-general", store.getPendingMessages("c-general")[0]!.localId);
     expect(store.getPendingMessages("c-general")).toEqual([]);
+  });
+
+  it("keeps a send refused for going too fast, says so, and sends it on a retry", async () => {
+    const { store, server } = await setup();
+    await store.openChannel("c-general");
+    server.failSends = true;
+    await expect(store.sendMessage("c-general", { body_html: "<p>first</p>" })).rejects.toThrow();
+    expect(store.getPendingMessages("c-general")[0]).toMatchObject({ status: "failed", rateLimited: false });
+
+    server.sendFailure = new ChatServiceError(429, { error: "Too many requests." }, 7);
+    await expect(store.sendMessage("c-general", { body_html: "<p>pasted</p>" })).rejects.toThrow();
+    const [, limited] = store.getPendingMessages("c-general");
+    expect(limited).toMatchObject({ status: "failed", rateLimited: true, body_html: "<p>pasted</p>" });
+
+    server.failSends = false;
+    await store.retryMessage("c-general", limited!.localId);
+    expect(store.getPendingMessages("c-general").map((p) => p.body_html)).toEqual(["<p>first</p>"]);
+    expect(bodies(store, "c-general")).toEqual(["<p>pasted</p>"]);
   });
 
   it("sends finished uploads by ID and keeps them across a failed send, without uploading again", async () => {
@@ -1520,6 +1540,18 @@ describe("ChatStore search", () => {
     await store.searchMessages("deploy");
     expect(store.search).toMatchObject({ error: false });
     expect(found(store)).toEqual(["deploy"]);
+  });
+
+  it("says when a search was refused for going too fast, until one goes through", async () => {
+    const { store, server } = await setup((s) => s.post("c-general", ADA, "deploy"));
+    server.holds.set("searchMessages", Promise.reject(new ChatServiceError(429, {}, 30)));
+    await store.searchMessages("deploy");
+    expect(store.search).toMatchObject({ query: "deploy", error: true, rateLimited: true });
+    await store.searchMessages("deploy");
+    expect(store.search).toMatchObject({ error: false, rateLimited: false });
+    server.holds.set("searchMessages", Promise.reject(new ChatServiceError(500, undefined)));
+    await store.searchMessages("deploy");
+    expect(store.search).toMatchObject({ error: true, rateLimited: false });
   });
 
   it("drops the answer to an older search that lands after a newer one", async () => {

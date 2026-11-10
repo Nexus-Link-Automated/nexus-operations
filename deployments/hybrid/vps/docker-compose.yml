@@ -58,6 +58,16 @@ x-app-env: &app-env
   AGENT_SESSION_TOKEN_TTL_MINUTES: ${AGENT_SESSION_TOKEN_TTL_MINUTES:-120}
   # Minutes an @mention in Messages stays unread before it is emailed in a digest.
   CHAT_MENTION_EMAIL_DELAY_MINUTES: ${CHAT_MENTION_EMAIL_DELAY_MINUTES:-30}
+  # Per-person limits on Messages writes and searches, e.g. "30/minute,500/hour". Empty keeps the default.
+  CHAT_RATE_LIMIT_SEND: ${CHAT_RATE_LIMIT_SEND:-}
+  CHAT_RATE_LIMIT_EDIT: ${CHAT_RATE_LIMIT_EDIT:-}
+  CHAT_RATE_LIMIT_UPLOAD: ${CHAT_RATE_LIMIT_UPLOAD:-}
+  CHAT_RATE_LIMIT_CHANNEL: ${CHAT_RATE_LIMIT_CHANNEL:-}
+  CHAT_RATE_LIMIT_SEARCH: ${CHAT_RATE_LIMIT_SEARCH:-}
+  CHAT_RATE_LIMIT_READ: ${CHAT_RATE_LIMIT_READ:-}
+  CHAT_RATE_LIMIT_WORK_ITEM: ${CHAT_RATE_LIMIT_WORK_ITEM:-}
+  # Hours a Messages export from God mode can be downloaded before it is deleted.
+  CHAT_EXPORT_EXPIRY_HOURS: ${CHAT_EXPORT_EXPIRY_HOURS:-24}
 
 services:
   gateway:

@@ -102,7 +102,8 @@
       "not_allowed": "Impossible de joindre {name}. Ce type de fichier n'est pas autorisé.",
       "failed": "Impossible d'envoyer {name}.",
       "too_many": "Un message peut contenir jusqu'à {count} pièces jointes.",
-      "hidden": "{count, plural, one {# pièce jointe} many {# pièces jointes} other {# pièces jointes}}. Rejoignez le canal pour les voir."
+      "hidden": "{count, plural, one {# pièce jointe} many {# pièces jointes} other {# pièces jointes}}. Rejoignez le canal pour les voir.",
+      "rate_limited": "{name} n’a pas été envoyé : trop d’envois à la fois. Patientez un instant et réessayez."
     },
     "message": {
       "label": "{name} à {time}",
@@ -120,7 +121,8 @@
       "retry": "Réessayer",
       "discard": "Abandonner",
       "automatic_sender": "Mises à jour des éléments de travail",
-      "automatic": "Automatique"
+      "automatic": "Automatique",
+      "rate_limited": "Non envoyé : vous envoyez des messages trop vite. Patientez un instant, puis réessayez."
     },
     "thread": {
       "title": "Fil",
@@ -146,7 +148,8 @@
       "load_more": "Afficher plus de résultats",
       "more_failed": "Impossible de charger plus de résultats.",
       "in_thread": "Dans un fil",
-      "archived": "Archivé"
+      "archived": "Archivé",
+      "rate_limited": "Vous effectuez trop de recherches. Patientez un instant et réessayez."
     },
     "day": {
       "today": "Aujourd'hui",
@@ -176,11 +179,82 @@
       "message_not_found": "Ce message n'est plus disponible.",
       "link_work_item_failed": "L'élément de travail a été créé, mais n'a pas pu être lié à ce message.",
       "update_channel_failed": "Impossible d'enregistrer les paramètres du canal",
+      "rate_limited": "Vous faites cela trop souvent. Patientez un instant et réessayez.",
       "load_members_failed": "Impossible de charger les membres",
       "add_members_failed": "Impossible d'ajouter ces personnes",
       "remove_member_failed": "Impossible de retirer cette personne du canal",
       "load_guest_access_failed": "Impossible de charger l'accès des invités",
       "update_guest_access_failed": "Impossible de modifier l'accès de l'invité"
+    },
+    "admin": {
+      "title": "Messages",
+      "description": "Durée de conservation des messages, exports des messages d’un espace de travail et rythme d’envoi autorisé.",
+      "load_failed": "Impossible de charger les paramètres des messages",
+      "retry": "Réessayer",
+      "cancel": "Annuler",
+      "retention": {
+        "title": "Conservation des messages",
+        "description": "Les messages sont conservés indéfiniment, sauf si vous fixez une limite. Avec une limite, une tâche quotidienne supprime définitivement les messages plus anciens dans tous les espaces de travail, avec leurs fichiers joints et les notifications qui les concernent.",
+        "enable": "Supprimer les anciens messages",
+        "enable_help": "Désactivé : tous les messages sont conservés indéfiniment.",
+        "days": "Conserver les messages pendant (jours)",
+        "days_help": "De {min} à {max} jours.",
+        "days_invalid": "Saisissez un nombre entier de jours entre {min} et {max}.",
+        "save": "Enregistrer",
+        "saving": "Enregistrement",
+        "saved": "Conservation des messages enregistrée",
+        "save_failed": "Impossible d’enregistrer la conservation des messages",
+        "confirm_title": "Supprimer définitivement les anciens messages ?",
+        "confirm_description": "Lors de sa prochaine exécution quotidienne, Nexus supprimera définitivement tous les messages de plus de {days} jours, avec leurs fichiers joints, dans tous les espaces de travail. Les messages supprimés ne peuvent pas être récupérés.",
+        "confirm": "Supprimer les anciens messages"
+      },
+      "export": {
+        "title": "Exporter les messages",
+        "description": "Téléchargez les messages d’un espace de travail sous forme de zip de fichiers JSON Lines : canaux, membres, messages et réponses de fil, ainsi que les noms et tailles des pièces jointes (pas les fichiers). Chaque export peut être téléchargé pendant {hours} heures.",
+        "workspace": "Espace de travail",
+        "workspace_placeholder": "Choisir un espace de travail",
+        "more_workspaces": "Charger plus d’espaces de travail",
+        "include_private": "Inclure les canaux privés et les messages directs",
+        "include_private_help": "Désactivé : seuls les canaux publics sont exportés. Les canaux privés et les messages directs sont des conversations privées : ne les incluez que si vous avez une raison de le faire, comme une demande légale.",
+        "start": "Lancer l’export",
+        "started": "Export lancé. Il apparaîtra ci-dessous lorsqu’il sera prêt.",
+        "start_failed": "Impossible de lancer l’export",
+        "history": "Exports précédents",
+        "empty": "Aucun export pour l’instant.",
+        "load_failed": "Impossible de charger les exports précédents",
+        "started_by": "Lancé par {email} le {date}",
+        "contents": "Canaux : {channels} · Messages : {messages} · {size}",
+        "expires": "Téléchargeable jusqu’au {date}",
+        "download": "Télécharger",
+        "download_named": "Télécharger l’export de {name}",
+        "download_failed": "Impossible de télécharger l’export",
+        "scope_public": "Canaux publics",
+        "scope_all": "Avec canaux privés et MP",
+        "status": {
+          "queued": "En attente",
+          "running": "En cours",
+          "ready": "Prêt",
+          "failed": "Échec",
+          "expired": "Expiré"
+        }
+      },
+      "rate_limits": {
+        "title": "Limites de débit",
+        "description": "Nombre de requêtes de chaque type qu’une personne peut effectuer. Elles se règlent avec les variables d’environnement CHAT_RATE_LIMIT_* de l’API.",
+        "per_second": "{count} par seconde",
+        "per_minute": "{count} par minute",
+        "per_hour": "{count} par heure",
+        "per_day": "{count} par jour",
+        "names": {
+          "send": "Envoyer un message ou une réponse",
+          "edit": "Modifier ou supprimer un message",
+          "upload": "Envoyer un fichier",
+          "channel": "Créer un canal ou ouvrir un message direct",
+          "search": "Rechercher dans les messages",
+          "read": "Marquer comme lu",
+          "work_item": "Créer un élément de travail à partir d’un message"
+        }
+      }
     }
   }
 }
