@@ -2,7 +2,7 @@
 
 The live half of Nexus Messages. Django (`plane.chat`) owns all chat data and permissions; this service only
 pushes updates to browsers. **It never writes data**: sending, editing, joining and everything else goes through
-the REST API at `/api/workspaces/<slug>/chat/`. It holds no database credentials and no secrets: it asks the
+the REST API at `/api/workspaces/<slug>/chat/`. It holds no database credentials and no secrets beyond its Redis URL: it asks the
 Plane API about the user's own session cookie.
 
 ```

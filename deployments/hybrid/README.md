@@ -403,11 +403,11 @@ browser ──▶ router ──▶ gateway ──▶ chat-gateway ──▶ api 
    └── REST writes ──▶ api ──▶ Valkey ──┘ (chat events, after each write commits)
 ```
 
-| Service        | Networks      | What it does                                                                                                                                                                                    |
-| -------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `chat-gateway` | `app`, `data` | Checks the session cookie and the `Origin` header, asks the API which channels the user may see, and forwards the events Django publishes to Valkey. It never writes data and holds no secrets. |
+| Service        | Networks      | What it does                                                                                                                                                                                                           |
+| -------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chat-gateway` | `app`, `data` | Checks the session cookie and the `Origin` header, asks the API which channels the user may see, and forwards the events Django publishes to Valkey. It never writes data and holds no secret but the Valkey password. |
 
-The compose file sets `API_BASE_URL=http://api:8000`, `REDIS_URL=redis://plane-redis:6379/` (the API's Valkey; it must be the same one), and `CORS_ALLOWED_ORIGINS=https://$APP_DOMAIN`. The web image is built with `VITE_CHAT_GATEWAY_BASE_URL` empty, meaning the page's own origin, and `VITE_CHAT_GATEWAY_BASE_PATH=/chat`. Keep it that way: the session cookie is host-only, so the gateway must be a path on `$APP_DOMAIN`, not a subdomain.
+The compose file sets `API_BASE_URL=http://api:8000`, `REDIS_URL=redis://:$VALKEY_PASSWORD@plane-redis:6379/` (the API's Valkey; it must be the same one), and `CORS_ALLOWED_ORIGINS=https://$APP_DOMAIN`. The web image is built with `VITE_CHAT_GATEWAY_BASE_URL` empty, meaning the page's own origin, and `VITE_CHAT_GATEWAY_BASE_PATH=/chat`. Keep it that way: the session cookie is host-only, so the gateway must be a path on `$APP_DOMAIN`, not a subdomain.
 
 The gateway keeps nothing between connections. Restarting it drops every socket, and browsers reconnect and fetch what they missed over REST. It pings each socket every 30 seconds, which also keeps idle sockets alive through Railway's edge and the tunnel. If a proxy still cuts a socket, the browser reconnects the same way. `GET /chat/health` reports the open connection count and whether the gateway hears Valkey (`live`).
 

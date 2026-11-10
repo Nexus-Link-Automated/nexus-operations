@@ -2,8 +2,8 @@
 # Writes deployments/hybrid/vps/.env with fresh random secrets. Refuses to replace
 # an existing file, because new secrets would lock the stack out of its own data.
 #
-# --add-missing appends the secrets a newer release needs (such as the agent chat's)
-# to an existing .env, and never changes a value that is already there.
+# --add-missing appends the secrets a newer release needs (such as the agent chat's or
+# the Valkey password) to an existing .env, and never changes a value that is already there.
 set -euo pipefail
 
 usage() {
@@ -28,18 +28,26 @@ done
 
 env_file="$(cd "$(dirname "$0")" && pwd)/.env"
 
-# Hex only, so the values are safe inside DATABASE_URL and AMQP_URL.
+# Hex only, so the values are safe inside DATABASE_URL, AMQP_URL and REDIS_URL.
 secret() { openssl rand -hex "$1"; }
 
 umask 077
 
-# Secrets added after the first release. Each one is shared by two services, which
-# read it from this one file, so a fresh value is safe as long as both restart.
+# Secrets added after the first release. Each one is shared by services that read it
+# from this one file, so a fresh value is safe: `docker compose up -d` restarts them all.
 agent_secrets() {
   # The API and the agent bridge (X-Agent-Bridge-Secret).
   echo "AGENT_BRIDGE_SECRET=$(secret 32)"
   # The agent bridge and the agent runner (spawn tickets; 32+ characters).
   echo "AGENT_RUNNER_SECRET=$(secret 32)"
+}
+# Valkey and every service that connects to it (REDIS_URL).
+valkey_secrets() {
+  echo "VALKEY_PASSWORD=$(secret 32)"
+}
+added_secrets() {
+  agent_secrets
+  valkey_secrets
 }
 
 if [ "$add_missing" -eq 1 ]; then
@@ -53,7 +61,7 @@ if [ "$add_missing" -eq 1 ]; then
       echo "Added $key."
       added=1
     fi
-  done < <(agent_secrets)
+  done < <(added_secrets)
   [ "$added" -eq 1 ] || echo "Nothing to add."
   exit 0
 fi
@@ -76,6 +84,8 @@ POSTGRES_PASSWORD=$(secret 32)
 RABBITMQ_USER=plane
 RABBITMQ_VHOST=plane
 RABBITMQ_PASSWORD=$(secret 32)
+
+$(valkey_secrets)
 
 AWS_REGION=
 AWS_ACCESS_KEY_ID=$(secret 16)
