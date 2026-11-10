@@ -25,6 +25,17 @@ browser ──HTTP /agents/connections/* ─▶     │      ──HTTP /auth/* 
 When the browser disconnects (or the session ends any other way), the runner connection is closed
 (the runner kills the agent) and the token is revoked with `DELETE /api/internal/agent-sessions/<id>/`.
 
+### Ended memberships
+
+Every `AGENT_BRIDGE_OFFBOARD_INTERVAL_MS` the bridge collects the members it holds agent state for:
+those with directories on the runner (`GET /members`) and those with a chat open here. It sends them,
+500 at a time, to `POST /api/internal/agent-offboarding/`, which answers whose membership has ended
+(and removes any credentials and tokens still stored for them). For each of those, the bridge closes
+their open chats (close code 4403) and calls the runner's `POST /members/offboard`, which stops their
+agents and sign-ins and deletes their directories. A step that fails is logged and retried on the
+next pass. Removing a member, a member leaving and deactivating an account also delete the member's
+credentials and revoke their tokens in the API at once.
+
 ## Policy
 
 - **Method allowlist.**
@@ -140,6 +151,7 @@ A cross-origin upgrade is refused with HTTP 403 before any API call.
 | `AGENT_BRIDGE_PING_INTERVAL_MS`         | 30 s             | WebSocket keepalive                                                                   |
 | `AGENT_BRIDGE_LOGIN_START_LIMIT`        | `10`             | Sign-in `start`s per user per window                                                  |
 | `AGENT_BRIDGE_LOGIN_START_WINDOW_MS`    | 10 min           |                                                                                       |
+| `AGENT_BRIDGE_OFFBOARD_INTERVAL_MS`     | 60 s             | How often ended memberships are looked for (above)                                    |
 | `LOG_LEVEL`, `APP_VERSION`              |                  | Structured JSON logs via `@plane/logger`. Tokens, env and cookies are never logged    |
 
 ## Transports

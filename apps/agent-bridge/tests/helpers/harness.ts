@@ -49,6 +49,7 @@ export function testConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig 
     pingIntervalMs: 30_000,
     loginStartLimit: 10,
     loginStartWindowMs: 60_000,
+    offboardIntervalMs: 60_000,
     ...overrides,
   };
 }

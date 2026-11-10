@@ -11,7 +11,14 @@ export type { BridgeConfig } from "./config.ts";
 export { createLogger, silentLogger, withMeta } from "./logger.ts";
 export type { Logger } from "./logger.ts";
 export { BRIDGE_SECRET_HEADER, PlaneApiError, createPlaneApi } from "./plane-api.ts";
-export type { AccountMethod, AgentSessionGrant, ConnectionGrant, PlaneApi, PlaneApiOptions } from "./plane-api.ts";
+export type {
+  AccountMethod,
+  AgentSessionGrant,
+  ConnectionGrant,
+  MemberRef,
+  PlaneApi,
+  PlaneApiOptions,
+} from "./plane-api.ts";
 export {
   AGENT_NOTIFICATIONS,
   AGENT_REQUESTS,
@@ -22,9 +29,11 @@ export {
 } from "./policy.ts";
 export type { PolicyContext } from "./policy.ts";
 export { CloseCode, PolicyProxy } from "./proxy.ts";
+export { sweepEndedMemberships } from "./offboarding.ts";
+export type { OffboardingSweepInput } from "./offboarding.ts";
 export { originAllowed } from "./origin.ts";
 export { RunnerLoginClient, RunnerUnavailableError } from "./runner-login.ts";
-export type { LoginRunner, LoginTarget, RunnerLoginClientOptions, RunnerReply } from "./runner-login.ts";
+export type { LoginRunner, LoginTarget, MemberRunner, RunnerLoginClientOptions, RunnerReply } from "./runner-login.ts";
 export { AgentBridge } from "./server.ts";
 export type { AgentBridgeOptions } from "./server.ts";
 export { RunnerTransport } from "./transport.ts";

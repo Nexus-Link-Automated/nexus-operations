@@ -69,6 +69,15 @@ export interface ConnectionGrant {
   readonly workspace: { readonly id: string; readonly slug: string };
 }
 
+/** One user in one workspace, by id. */
+export interface MemberRef {
+  readonly workspaceId: string;
+  readonly userId: string;
+}
+
+/** Most members one `endedMemberships` request may carry (`MAX_OFFBOARDING_MEMBERS` in the API). */
+export const MAX_OFFBOARDING_BATCH = 500;
+
 /** Account sign-in methods (personal only), as the API names them. */
 export type AccountMethod = "chatgpt" | "google_account";
 
@@ -95,6 +104,11 @@ export interface PlaneApi {
     input: { userId: string; workspaceSlug: string; provider: string },
     signal?: AbortSignal
   ): Promise<void>;
+  /**
+   * Which of `members` (at most `MAX_OFFBOARDING_BATCH`) no longer have an active membership. The
+   * API also removes their stored credentials and agent-session tokens.
+   */
+  endedMemberships(members: readonly MemberRef[], signal?: AbortSignal): Promise<MemberRef[]>;
 }
 
 const level = z.enum(PERMISSION_LEVELS);
@@ -117,6 +131,10 @@ const grantSchema = z.object({
 });
 
 const userSchema = z.object({ id: z.string().min(1) });
+
+const endedSchema = z.object({
+  ended: z.array(z.object({ workspace_id: z.string().min(1), user_id: z.string().min(1) })),
+});
 
 const connectionGrantSchema = z.object({
   user: z.object({ id: z.string().min(1) }),
@@ -277,6 +295,20 @@ export function createPlaneApi(options: PlaneApiOptions): PlaneApi {
         signal
       );
       if (!response.ok) throw await errorFor(response, "agent-connections delete");
+    },
+
+    async endedMemberships(members, signal) {
+      const response = await call(
+        "/api/internal/agent-offboarding/",
+        internal("POST", {
+          members: members.map((member) => ({ workspace_id: member.workspaceId, user_id: member.userId })),
+        }),
+        signal
+      );
+      if (!response.ok) throw await errorFor(response, "agent-offboarding");
+      const parsed = endedSchema.safeParse(await json(response, "agent-offboarding"));
+      if (!parsed.success) throw new PlaneApiError("agent-offboarding: unexpected response", 502);
+      return parsed.data.ended.map((member) => ({ workspaceId: member.workspace_id, userId: member.user_id }));
     },
   };
 }
