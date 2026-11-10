@@ -14,6 +14,7 @@ import { ControllerInput } from "@/components/common/controller-input";
 import { setToast } from "@plane/blocks/toast";
 // hooks
 import { useInstance } from "@/hooks/store";
+import { showSaveErrorToast } from "@/helpers/save-error";
 
 type IInstanceAIForm = {
   config: IFormattedInstanceConfiguration;
@@ -98,7 +99,10 @@ export function InstanceAIForm(props: IInstanceAIForm) {
           message: "AI Settings updated successfully",
         });
       })
-      .catch((err) => console.error(err));
+      .catch((err) => {
+        console.error(err);
+        showSaveErrorToast(err);
+      });
   };
 
   return (

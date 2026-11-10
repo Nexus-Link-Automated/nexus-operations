@@ -17,6 +17,7 @@ import { ControllerInput } from "@/components/common/controller-input";
 import { setToast } from "@plane/blocks/toast";
 // hooks
 import { useInstance } from "@/hooks/store";
+import { showSaveErrorToast } from "@/helpers/save-error";
 
 export interface IGeneralConfigurationForm {
   instance: IInstance;
@@ -55,6 +56,7 @@ export const GeneralConfigurationForm = observer(function GeneralConfigurationFo
       });
     } catch (err) {
       console.error(err);
+      showSaveErrorToast(err);
     }
   };
 

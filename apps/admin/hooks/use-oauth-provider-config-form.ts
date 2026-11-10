@@ -12,6 +12,7 @@ import { setToast } from "@plane/blocks/toast";
 import type { IFormattedInstanceConfiguration } from "@plane/types";
 // hooks
 import { useInstance } from "@/hooks/store";
+import { showSaveErrorToast } from "@/helpers/save-error";
 
 /**
  * Form state and save handler shared by the OAuth provider config forms.
@@ -40,6 +41,7 @@ export function useOAuthProviderConfigForm<T extends Partial<IFormattedInstanceC
       form.reset(savedValues as T);
     } catch (err) {
       console.error(err);
+      showSaveErrorToast(err);
     }
   };
 

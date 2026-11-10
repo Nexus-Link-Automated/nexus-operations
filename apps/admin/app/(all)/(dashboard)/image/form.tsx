@@ -12,6 +12,7 @@ import { ControllerInput } from "@/components/common/controller-input";
 import { setToast } from "@plane/blocks/toast";
 // hooks
 import { useInstance } from "@/hooks/store";
+import { showSaveErrorToast } from "@/helpers/save-error";
 
 type IInstanceImageConfigForm = {
   config: IFormattedInstanceConfiguration;
@@ -49,6 +50,7 @@ export function InstanceImageConfigForm(props: IInstanceImageConfigForm) {
       });
     } catch (err) {
       console.error(err);
+      showSaveErrorToast(err);
     }
   };
 
