@@ -26,7 +26,7 @@ from plane.chat.models import (
     Message,
     PendingMentionEmail,
 )
-from plane.chat.notifications import notify_mentions
+from plane.chat.notifications import notify_mentions, refresh_mention_previews
 from plane.db.models import Notification, User, UserNotificationPreference, WorkspaceMember
 
 APP_URL = "https://app.example.com"
@@ -113,6 +113,34 @@ class TestWhoIsEmailed:
         assert email.to == [member2.user.email]
         assert email.subject == "ada mentioned you in #design"
         assert f"{APP_URL}/test-workspace/messages/{channel.id}?message={message.id}" in email.body
+        assert not PendingMentionEmail.objects.exists()
+
+    def test_an_edit_that_takes_the_mention_out_takes_back_the_email(
+        self, channel, ada, member, member2, make_actor, say, mailoutbox
+    ):
+        third = make_actor(role=15)
+        ChannelMember.objects.create(channel=channel, user=third.user)
+        message = say(channel, ada, member2.user, third.user)
+        before = message.body_html
+        message.body_html = f"<p>never mind {mention(third.user)}</p>"
+        message.save()
+        notify_mentions(message, before)
+        refresh_mention_previews(message)
+        come_due()
+
+        run()
+
+        [email] = mailoutbox
+        assert email.to == [third.user.email]
+
+    def test_a_bot_account_is_not_emailed(self, channel, ada, member2, say, mailoutbox):
+        User.objects.filter(pk=member2.user.pk).update(is_bot=True)
+        say(channel, ada, member2.user)
+        come_due()
+
+        run()
+
+        assert mailoutbox == []
         assert not PendingMentionEmail.objects.exists()
 
     def test_nothing_is_sent_before_the_delay(self, channel, ada, member2, say, mailoutbox):

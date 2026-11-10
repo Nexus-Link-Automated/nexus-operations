@@ -87,10 +87,11 @@ def _worth_emailing(receiver_id, roles, now):
 
 def _take(receiver_id, due_before):
     """Remove the receiver's due mentions from the queue, and return the ones to email, oldest first."""
+    # Bot accounts (a workspace's seed bot is an admin member) have addresses that nobody reads.
     roles = dict(
-        WorkspaceMember.objects.filter(member_id=receiver_id, is_active=True, member__is_active=True).values_list(
-            "workspace_id", "role"
-        )
+        WorkspaceMember.objects.filter(
+            member_id=receiver_id, is_active=True, member__is_active=True, member__is_bot=False
+        ).values_list("workspace_id", "role")
     )
     with transaction.atomic():
         taken = list(

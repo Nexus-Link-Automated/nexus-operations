@@ -142,12 +142,15 @@ def notify_mentions(message, previous_html=None):
 def refresh_mention_previews(message):
     """Keep inbox entries in step with an edit or a removal, so text its author took back doesn't linger there.
 
-    New text only reaches people who can still open the message; a removal blanks every entry.
+    New text only reaches people who can still open the message; a removal blanks every entry. An edit that takes a
+    mention out also takes back the email it would have sent.
     """
     try:
         with transaction.atomic():
             entries = _entries(message)
             if message.removed_at is None:
+                still_mentioned = _user_ids(get_new_comment_mentions(message.body_html, None))
+                PendingMentionEmail.objects.filter(message=message).exclude(receiver_id__in=still_mentioned).delete()
                 receivers = list(entries.values_list("receiver_id", flat=True))
                 entries = entries.filter(receiver_id__in=list(_who_can_see(message, receivers)))
             entries.update(data=_data(message))
