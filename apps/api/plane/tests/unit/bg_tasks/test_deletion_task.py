@@ -16,7 +16,7 @@ from django.db.models import QuerySet
 from django.utils import timezone
 
 from plane.bgtasks.deletion_task import hard_delete
-from plane.db.models import Cycle, Issue, IssueActivity, IssueComment, Page, Project, State
+from plane.db.models import Cycle, FileAsset, Issue, IssueActivity, IssueComment, Page, Project, State
 
 pytestmark = [pytest.mark.unit, pytest.mark.django_db(transaction=True)]
 
@@ -182,3 +182,133 @@ def test_a_failing_model_does_not_stop_the_later_ones(scope):
 
     assert _exists(cycle)
     assert not _exists(page)
+
+
+@pytest.fixture
+def storage():
+    with mock.patch("plane.settings.storage.S3Storage") as storage_class:
+        storage_class.return_value.delete_files.return_value = True
+        yield storage_class.return_value
+
+
+def _file(scope, key, **kwargs):
+    return FileAsset.objects.create(asset=key, workspace=scope.workspace, project=scope.project, **kwargs)
+
+
+def _deleted_keys(storage):
+    return sorted(key for call in storage.delete_files.call_args_list for key in call.kwargs["object_names"])
+
+
+def test_expired_file_is_deleted_from_storage_with_its_row(scope, storage):
+    expired = _file(scope, "ws/expired.png")
+    _soft_delete(expired, PAST_RETENTION_DAYS)
+    recent = _file(scope, "ws/recent.png")
+    _soft_delete(recent, INSIDE_RETENTION_DAYS)
+    live = _file(scope, "ws/live.png")
+
+    hard_delete()
+
+    assert not _exists(expired)
+    assert _exists(recent) and _exists(live)
+    assert _deleted_keys(storage) == ["ws/expired.png"]
+
+
+def test_live_file_rows_removed_by_a_cascade_are_deleted_from_storage(scope, storage):
+    issue = _issue(scope, "Expired")
+    attachment = _file(scope, "ws/attachment.png", issue=issue)
+    comment = _comment(scope, issue)
+    comment_image = FileAsset.objects.create(asset="ws/comment.png", workspace=scope.workspace, comment=comment)
+    _soft_delete(issue, PAST_RETENTION_DAYS)
+
+    hard_delete()
+
+    assert not _exists(attachment) and not _exists(comment_image)
+    assert _deleted_keys(storage) == ["ws/attachment.png", "ws/comment.png"]
+
+
+def test_files_of_a_sub_issue_that_outlives_its_parent_are_kept(scope, storage):
+    parent = _issue(scope, "Expired parent")
+    child = _issue(scope, "Live child", parent=parent)
+    child_file = _file(scope, "ws/child.png", issue=child)
+    _soft_delete(parent, PAST_RETENTION_DAYS)
+
+    hard_delete()
+
+    assert not _exists(parent)
+    assert _exists(child_file)
+    storage.delete_files.assert_not_called()
+
+
+def test_key_shared_with_a_surviving_row_stays_in_storage(scope, storage):
+    expired = _file(scope, "ws/shared.png")
+    _soft_delete(expired, PAST_RETENTION_DAYS)
+    survivor = _file(scope, "ws/shared.png")
+
+    hard_delete()
+
+    assert not _exists(expired)
+    assert _exists(survivor)
+    storage.delete_files.assert_not_called()
+
+
+def test_storage_deletes_are_batched(scope, storage):
+    for index in range(5):
+        _soft_delete(_file(scope, f"ws/{index}.png"), PAST_RETENTION_DAYS)
+
+    with mock.patch("plane.bgtasks.deletion_task.STORAGE_DELETE_BATCH_SIZE", 2):
+        hard_delete()
+
+    sizes = [len(call.kwargs["object_names"]) for call in storage.delete_files.call_args_list]
+    assert sizes == [2, 2, 1]
+    assert _deleted_keys(storage) == [f"ws/{index}.png" for index in range(5)]
+
+
+def test_storage_failure_keeps_rows_and_logs_until_a_later_run_succeeds(scope, storage):
+    issue = _issue(scope, "Expired")
+    attachment = _file(scope, "ws/attachment.png", issue=issue)
+    _soft_delete(issue, PAST_RETENTION_DAYS)
+    storage.delete_files.return_value = False
+
+    with mock.patch("plane.bgtasks.deletion_task.log_exception") as log_exception:
+        hard_delete()
+
+    assert _exists(issue) and _exists(attachment)
+    assert log_exception.called
+
+    storage.delete_files.reset_mock()
+    storage.delete_files.return_value = True
+    hard_delete()
+
+    assert not _exists(issue) and not _exists(attachment)
+    assert _deleted_keys(storage) == ["ws/attachment.png"]
+
+
+def test_storage_outage_does_not_stop_the_later_models(scope, storage):
+    issue = _issue(scope, "Expired")
+    attachment = _file(scope, "ws/attachment.png", issue=issue)
+    _soft_delete(issue, PAST_RETENTION_DAYS)
+    page = Page.objects.create(name="Expired", workspace=scope.workspace, owned_by=scope.user)
+    _soft_delete(page, PAST_RETENTION_DAYS)
+    storage.delete_files.side_effect = ConnectionError("storage unreachable")
+
+    hard_delete()
+
+    assert _exists(issue) and _exists(attachment)
+    assert not _exists(page)
+
+
+def test_key_the_store_refuses_keeps_its_row_with_the_real_delete_files(scope):
+    """S3 reports a refused key inside a successful response."""
+    expired = _file(scope, "ws/refused.png")
+    _soft_delete(expired, PAST_RETENTION_DAYS)
+
+    with mock.patch("plane.settings.storage.boto3.client") as client:
+        client.return_value.delete_objects.return_value = {
+            "Errors": [{"Key": "ws/refused.png", "Code": "AccessDenied"}]
+        }
+        hard_delete()
+        assert _exists(expired)
+
+        client.return_value.delete_objects.return_value = {"Deleted": [{"Key": "ws/refused.png"}]}
+        hard_delete()
+        assert not _exists(expired)

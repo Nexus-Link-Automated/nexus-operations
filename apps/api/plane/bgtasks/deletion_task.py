@@ -8,6 +8,7 @@ from django.apps import apps
 from django.conf import settings
 from django.db import models, transaction
 from django.db.models import Exists, OuterRef
+from django.db.models.deletion import Collector
 from django.db.models.fields.related import OneToOneRel
 
 
@@ -16,6 +17,13 @@ from celery import shared_task
 
 # Module imports
 from plane.utils.exception_logger import log_exception
+
+# The most keys one S3 DeleteObjects request accepts
+STORAGE_DELETE_BATCH_SIZE = 1000
+
+
+class StoredFilesNotDeleted(Exception):
+    pass
 
 
 @shared_task
@@ -114,9 +122,46 @@ def restore_related_objects(app_label, model_name, instance_pk, using=None):
     pass
 
 
+def file_keys_removed_with(queryset):
+    """Return the storage key of every FileAsset that deleting this queryset removes, cascades included."""
+    from plane.db.models import FileAsset
+
+    collector = Collector(using=queryset.db, origin=queryset)
+    collector.collect(queryset)
+
+    keys = {file_asset.asset.name for file_asset in collector.data.get(FileAsset, ())}
+    for fast_delete in collector.fast_deletes:
+        if fast_delete.model is FileAsset:
+            keys.update(fast_delete.values_list("asset", flat=True))
+    return {key for key in keys if key}
+
+
+def delete_stored_files(keys):
+    """
+    Delete objects from storage once their rows are gone from the open transaction.
+
+    Raises on any failure: the caller's transaction then rolls back, so the rows stay as
+    the record of what is still stored and the next run tries again.
+    """
+    from plane.db.models import FileAsset
+    from plane.settings.storage import S3Storage
+
+    if not keys:
+        return
+
+    storage = S3Storage()
+    keys = sorted(keys)
+    for start in range(0, len(keys), STORAGE_DELETE_BATCH_SIZE):
+        batch = keys[start : start + STORAGE_DELETE_BATCH_SIZE]
+        still_referenced = set(FileAsset.all_objects.filter(asset__in=batch).values_list("asset", flat=True))
+        unreferenced = [key for key in batch if key not in still_referenced]
+        if unreferenced and not storage.delete_files(object_names=unreferenced):
+            raise StoredFilesNotDeleted(f"Could not delete {len(unreferenced)} stored files")
+
+
 def purge_expired_rows(model, cutoff):
     """
-    Hard delete one model's rows that were soft deleted before the cutoff.
+    Hard delete one model's rows that were soft deleted before the cutoff, and their stored files.
 
     Each model gets its own transaction, and a failure is logged so that it cannot
     stop the models after it.
@@ -132,7 +177,10 @@ def purge_expired_rows(model, cutoff):
                     parent=None
                 )
 
-            deleted, _ = model.all_objects.filter(deleted_at__lt=cutoff).delete()
+            expired = model.all_objects.filter(deleted_at__lt=cutoff)
+            # Collected here, after the re-parenting above, so that a surviving sub-issue's files are left out
+            file_keys = file_keys_removed_with(expired)
+            deleted, _ = expired.delete()
 
             if deleted:
                 # IssueActivity history outlives what it describes through DO_NOTHING foreign keys,
@@ -143,6 +191,8 @@ def purge_expired_rows(model, cutoff):
                         ~Exists(target.all_objects.filter(pk=OuterRef(f"{field}_id"))),
                         **{f"{field}__isnull": False},
                     ).update(**{field: None})
+
+            delete_stored_files(file_keys)
     except Exception as e:
         log_exception(e)
 
