@@ -27,6 +27,7 @@ from plane.bgtasks.issue_activities_task import issue_activity
 from plane.utils.timezone_converter import user_timezone_converter
 from collections import defaultdict
 from plane.utils.host import base_host
+from plane.utils.issue_hierarchy import PARENT_CYCLE_ERROR, get_ancestor_ids
 from plane.utils.order_queryset import order_issue_queryset
 
 
@@ -231,6 +232,11 @@ class SubIssuesEndpoint(BaseAPIView):
         sub_issues = Issue.issue_objects.filter(
             id__in=sub_issue_ids, workspace__slug=slug, project_id=project_id
         )
+
+        # The parent itself, or anything above it, would form a loop if placed under it.
+        loop_ids = get_ancestor_ids(parent_issue.id) | {str(parent_issue.id)}
+        if any(str(sub_issue.id) in loop_ids for sub_issue in sub_issues):
+            return Response({"error": PARENT_CYCLE_ERROR}, status=status.HTTP_400_BAD_REQUEST)
 
         for sub_issue in sub_issues:
             sub_issue.parent = parent_issue

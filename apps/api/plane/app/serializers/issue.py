@@ -47,6 +47,7 @@ from plane.utils.content_validator import (
     validate_html_content,
     validate_binary_data,
 )
+from plane.utils.issue_hierarchy import PARENT_CYCLE_ERROR, creates_parent_cycle
 
 
 class IssueFlatSerializer(BaseSerializer):
@@ -194,6 +195,13 @@ class IssueCreateSerializer(BaseSerializer):
             ).exists()
         ):
             raise serializers.ValidationError("Parent is not valid issue_id please pass a valid issue_id")
+
+        if (
+            self.instance is not None
+            and attrs.get("parent")
+            and creates_parent_cycle(self.instance.id, attrs.get("parent").id)
+        ):
+            raise serializers.ValidationError(PARENT_CYCLE_ERROR)
 
         if (
             attrs.get("estimate_point")
