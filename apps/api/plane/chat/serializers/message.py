@@ -9,7 +9,8 @@ from rest_framework import serializers
 
 from plane.app.serializers.base import BaseSerializer
 from plane.chat.attachments import MAX_ATTACHMENTS_PER_MESSAGE
-from plane.chat.models import Message
+from plane.chat.models import Message, MessageSystemEvent
+from plane.chat.project_feed import body_for_reader
 from plane.utils.content_validator import validate_html_content
 
 # Slack's limit. Plane's 10 MB limit for descriptions is far beyond what a chat message needs.
@@ -74,6 +75,13 @@ class MessageSerializer(BaseSerializer):
             "updated_at",
         ]
         read_only_fields = fields
+
+    def to_representation(self, message):
+        data = super().to_representation(message)
+        if message.system_event == MessageSystemEvent.WORK_ITEM_STATE and message.removed_at is None:
+            visible_keys = {reference["id"]: reference["key"] for reference in data["references"]}
+            data["body_html"] = body_for_reader(message, visible_keys)
+        return data
 
     def get_references(self, message):
         """The work items this message references, as far as the reader may see them (`references_for`)."""

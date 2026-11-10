@@ -19,6 +19,11 @@ class Migration(migrations.Migration):
             name='system_event',
             field=models.CharField(blank=True, choices=[('work_item_state', 'Work item state changes')], max_length=32, null=True),
         ),
+        migrations.AddField(
+            model_name='message',
+            name='system_data',
+            field=models.JSONField(blank=True, null=True),
+        ),
         migrations.AddConstraint(
             model_name='channel',
             constraint=models.CheckConstraint(condition=models.Q(('kind__in', ('public', 'private')), ('project__isnull', True), _connector='OR'), name='chat_channel_project_on_named_only'),

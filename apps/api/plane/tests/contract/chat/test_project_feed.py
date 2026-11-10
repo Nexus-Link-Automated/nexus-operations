@@ -129,6 +129,12 @@ def _key(issue):
     return f"EMP-{issue.sequence_id}"
 
 
+def _shown(message):
+    """The post's body as a reader who may see all its work items reads it."""
+    keys = {str(reference.issue_id): _key(reference.issue) for reference in message.references.select_related("issue")}
+    return project_feed.body_for_reader(message, keys)
+
+
 @pytest.mark.contract
 @pytest.mark.django_db
 class TestLinking:
@@ -250,7 +256,10 @@ class TestStateChangePosts:
 
         run_feed()
         [message] = _feed(channel)
-        assert message.body_html == f"<p>{_key(issue)} moved to In Review</p>"
+        assert _shown(message) == f"<p>{_key(issue)} moved to In Review</p>"
+        # What everyone reads (search, export, the inbox) names no work item.
+        assert message.body_html == "<p>1 work item changed state</p>"
+        assert _key(issue) not in message.body_stripped
         assert message.sender_id is None and message.sender_agent is None
         assert list(message.references.values_list("issue_id", flat=True)) == [issue.id]
 
@@ -302,11 +311,13 @@ class TestStateChangePosts:
         channel.save()
         api_issue, closed_issue = make_issue(), make_issue()
         # The external API (and the MCP server through it) sends `state`; Plane's auto-close sends `closed_to`.
+        Issue.objects.filter(pk=api_issue.pk).update(state=states["progress"])
+        Issue.objects.filter(pk=closed_issue.pk).update(state=states["done"])
         change(api_issue, {"state": str(states["progress"].id)}, {"state": str(states["todo"].id)})
         change(closed_issue, {"closed_to": str(states["done"].id)})
         run_feed()
         [message] = _feed(channel)
-        assert message.body_html == (
+        assert _shown(message) == (
             f"<p>{_key(api_issue)} moved to In Progress</p><p>{_key(closed_issue)} moved to Done</p>"
         )
 
@@ -320,7 +331,7 @@ class TestStateChangePosts:
         assert len(scheduled) == 1
         run_feed()
         [message] = _feed(channel)
-        lines = message.body_html.split("</p><p>")
+        lines = _shown(message).split("</p><p>")
         assert len(lines) == project_feed.MAX_LINES_PER_POST + 1
         assert lines[0] == f"<p>{_key(issues[0])} moved to Done"
         assert lines[-1] == "and 15 more work items changed state</p>"
@@ -339,7 +350,7 @@ class TestStateChangePosts:
         move(back, "todo")
         run_feed()
         [message] = _feed(channel)
-        assert message.body_html == f"<p>{_key(moved)} moved to In Review</p>"
+        assert _shown(message) == f"<p>{_key(moved)} moved to In Review</p>"
 
     def test_the_next_change_after_a_run_schedules_another(
         self, project, make_channel, make_issue, move, run_feed, scheduled
@@ -353,7 +364,7 @@ class TestStateChangePosts:
         move(issue, "done")
         assert len(scheduled) == 2
         run_feed()
-        assert [m.body_html for m in _feed(channel)] == [
+        assert [_shown(m) for m in _feed(channel)] == [
             f"<p>{_key(issue)} moved to In Progress</p>",
             f"<p>{_key(issue)} moved to Done</p>",
         ]
@@ -458,7 +469,7 @@ class TestStateChangePosts:
         Issue.objects.filter(pk=intake.pk).update(state=triage)
         run_feed()
         [message] = _feed(channel)
-        assert message.body_html == f"<p>{_key(listed)} moved to In Review</p>"
+        assert _shown(message) == f"<p>{_key(listed)} moved to In Review</p>"
 
     def test_state_names_are_escaped(self, project, make_channel, make_issue, states, move, run_feed, scheduled):
         channel = make_channel()
@@ -468,7 +479,22 @@ class TestStateChangePosts:
         states["review"].refresh_from_db()
         move(make_issue(), "review")
         run_feed()
-        assert "&lt;b&gt;Review&lt;/b&gt;" in _feed(channel)[0].body_html
+        assert "&lt;b&gt;Review&lt;/b&gt;" in _shown(_feed(channel)[0])
+
+    def test_changes_saved_out_of_order_name_the_state_the_work_item_is_in(
+        self, project, make_channel, make_issue, change, states, run_feed, scheduled
+    ):
+        channel = make_channel()
+        channel.project = project
+        channel.save()
+        issue = make_issue()
+        # Todo -> In Progress -> Done, but the second change's activity was saved first.
+        Issue.objects.filter(pk=issue.pk).update(state=states["done"])
+        change(issue, {"state_id": str(states["done"].id)}, {"state_id": str(states["progress"].id)})
+        change(issue, {"state_id": str(states["progress"].id)}, {"state_id": str(states["todo"].id)})
+        run_feed()
+        [message] = _feed(channel)
+        assert _shown(message) == f"<p>{_key(issue)} moved to Done</p>"
 
     def test_it_is_live_and_counts_as_unread_but_mentions_nobody(
         self, member, project, make_channel, make_issue, move, run_feed, scheduled, url, published
@@ -512,10 +538,44 @@ class TestReadingThePosts:
         theirs = member2.client.get(url(f"channels/{channel.id}/messages/{message.id}/")).data
         assert mine["system_event"] == "work_item_state" and mine["sender"] is None
         assert [card["name"] for card in mine["references"]] == ["Secret title"]
-        # Outside the project: the key and the state, nothing more.
+        assert mine["body_html"] == f"<p>{_key(issue)} moved to In Review</p>"
+        # Outside the project: that a work item changed state, nothing more.
         assert theirs["references"] == []
         assert "Secret title" not in json.dumps(theirs, default=str)
-        assert theirs["body_html"] == f"<p>{_key(issue)} moved to In Review</p>"
+        assert _key(issue) not in json.dumps(theirs, default=str)
+        assert theirs["body_html"] == "<p>1 work item changed state</p>"
+
+    def test_each_reader_gets_the_lines_for_their_own_work_items(
+        self, member, member2, in_project, project, make_channel, make_issue, move, run_feed, scheduled, url
+    ):
+        channel = make_channel(members=[member.user, member2.user])
+        channel.project = project
+        channel.save()
+        theirs, others = make_issue(), (make_issue(), make_issue())
+        for issue in (theirs, *others):
+            move(issue, "review")
+        Issue.objects.filter(pk=theirs.pk).update(created_by=member2.user)
+        run_feed()
+        [message] = _feed(channel)
+        in_project(member, MEMBER)
+        in_project(member2, GUEST)
+        detail = url(f"channels/{channel.id}/messages/{message.id}/")
+        assert member.client.get(detail).data["body_html"] == "".join(
+            f"<p>{_key(issue)} moved to In Review</p>" for issue in (theirs, *others)
+        )
+        # A project guest sees only the work items they created, as in Plane.
+        guest_view = member2.client.get(detail).data
+        assert guest_view["body_html"] == (
+            f"<p>{_key(theirs)} moved to In Review</p><p>and 2 more work items changed state</p>"
+        )
+        assert [card["key"] for card in guest_view["references"]] == [_key(theirs)]
+
+    def test_a_removed_post_shows_nothing(self, member, admin, in_project, posted, url):
+        channel, message, _ = posted
+        in_project(member, MEMBER)
+        detail = url(f"channels/{channel.id}/messages/{message.id}/")
+        assert admin.client.delete(detail).status_code == 204
+        assert member.client.get(detail).data["body_html"] == ""
 
     def test_a_project_guest_sees_a_card_only_where_plane_lets_them(self, member, in_project, project, posted, url):
         channel, message, _ = posted

@@ -13,12 +13,12 @@ channel. So a bulk change, or an agent working through a list, makes one message
 
 What is posted:
 
-- One line per work item, "EMP-142 moved to In Review", with the last state it reached. A work item that
-  ends the batch where it started posts nothing, and neither does a "change" to the state it already had.
-  Up to `MAX_LINES_PER_POST` lines; any more are counted on a last line.
-- Only the key and the state's name are in the text, because everyone who can read the channel reads it,
-  and they need not be in the project. Each work item's card (`references.py`) adds its title and the
-  rest, for readers who may see that work item.
+- One line per work item, "EMP-142 moved to In Review", with the state it is in when the run posts. A work
+  item that ends the batch where it started posts nothing, and neither does a "change" to the state it
+  already had. Up to `MAX_LINES_PER_POST` lines; any more are counted on a last line.
+- Each reader sees the lines only for the work items they may see, and a count of the others
+  (`body_for_reader`): not everyone who can read the channel is in the project. Each work item's card
+  (`references.py`) adds its title and the rest, for the same readers.
 - Nothing, if by the time of the run the project is deleted or archived, or the channel is archived or no
   longer linked to it. Archived, draft and intake work items are left out.
 
@@ -122,9 +122,13 @@ def _take_pending(project_id):
 
 
 def _changes(project, activity_ids):
-    """`[(issue, state name)]` for each work item whose state ended up somewhere new, in the order they got there."""
+    """`[(issue, state name)]` for each work item whose state ended up somewhere new, in the order they got there.
+
+    The state named is the work item's state now, not the last activity's: activities are saved by Celery workers
+    that can run out of order, so the last one saved needn't be the last change made.
+    """
     activities = IssueActivity.objects.filter(pk__in=activity_ids, project=project, field="state").order_by(
-        "created_at", "id"
+        "epoch", "created_at", "id"
     )
     first_state, last = {}, {}
     for activity in activities:
@@ -134,20 +138,45 @@ def _changes(project, activity_ids):
         # Re-inserted, so the dict ends up ordered by each work item's last change.
         last.pop(activity.issue_id, None)
         last[activity.issue_id] = activity
-    moved = [issue_id for issue_id, activity in last.items() if activity.new_identifier != first_state[issue_id]]
-    issues = Issue.issue_objects.filter(pk__in=moved, project=project).in_bulk()
-    return [(issues[issue_id], last[issue_id].new_value) for issue_id in moved if issue_id in issues]
-
-
-def _body(project, changes):
-    lines = [
-        f"<p>{escape(project.identifier)}-{issue.sequence_id} moved to {escape(state_name or '')}</p>"
-        for issue, state_name in changes[:MAX_LINES_PER_POST]
+    issues = Issue.issue_objects.filter(pk__in=list(last), project=project).select_related("state").in_bulk()
+    return [
+        (issues[issue_id], issues[issue_id].state.name if issues[issue_id].state else "")
+        for issue_id in last
+        if issue_id in issues and str(issues[issue_id].state_id) != str(first_state[issue_id])
     ]
-    more = len(changes) - MAX_LINES_PER_POST
-    if more > 0:
-        lines.append(f"<p>and {more} more work item{'s' if more > 1 else ''} changed state</p>")
-    return "".join(lines)
+
+
+def _count_line(count, more):
+    noun = "work item" if count == 1 else "work items"
+    return f"<p>and {count} more {noun} changed state</p>" if more else f"<p>{count} {noun} changed state</p>"
+
+
+def _system_data(changes):
+    """What a post records, so each reader is shown only the lines they may see (`body_for_reader`)."""
+    return {
+        "lines": [{"issue": str(issue.pk), "state": state_name} for issue, state_name in changes[:MAX_LINES_PER_POST]],
+        "more": max(len(changes) - MAX_LINES_PER_POST, 0),
+    }
+
+
+def body_for_reader(message, visible_keys):
+    """A state-change post's body as one reader may see it, given `{work item id: key}` for the work items they may see.
+
+    A line names a work item's key, which Plane shows only to those who may see the work item (a secret project's
+    identifier included), so each reader gets the lines for their own work items and a count of the rest. What is
+    stored in `body_html` is only that count, since search, export and the inbox read it for everyone.
+    """
+    data = message.system_data if isinstance(message.system_data, dict) else {}
+    lines, hidden = [], data.get("more", 0)
+    for line in data.get("lines", []):
+        key = visible_keys.get(line.get("issue"))
+        if key is None:
+            hidden += 1
+        else:
+            lines.append(f"<p>{escape(key)} moved to {escape(line.get('state') or '')}</p>")
+    if hidden:
+        lines.append(_count_line(hidden, more=bool(lines)))
+    return "".join(lines) or message.body_html
 
 
 def post_state_changes(project_id, activity_ids):
@@ -161,7 +190,8 @@ def post_state_changes(project_id, activity_ids):
     changes = _changes(project, activity_ids)
     if not changes:
         return
-    body_html = _body(project, changes)
+    body_html = _count_line(len(changes), more=False)
+    system_data = _system_data(changes)
     shown = [issue for issue, _ in changes[:MAX_LINES_PER_POST]]
     for candidate in channels:
         with transaction.atomic():
@@ -171,7 +201,10 @@ def post_state_changes(project_id, activity_ids):
             if channel is None:
                 continue
             message = Message.objects.create(
-                channel=channel, system_event=MessageSystemEvent.WORK_ITEM_STATE, body_html=body_html
+                channel=channel,
+                system_event=MessageSystemEvent.WORK_ITEM_STATE,
+                body_html=body_html,
+                system_data=system_data,
             )
             MessageReference.objects.bulk_create(
                 [MessageReference(workspace_id=message.workspace_id, message=message, issue=issue) for issue in shown]

@@ -37,6 +37,8 @@ class Message(BaseModel):
     # Slug of an instance-level agent (`AgentDefinition.slug` on the agent branches).
     sender_agent = models.SlugField(max_length=100, null=True, blank=True)
     system_event = models.CharField(max_length=32, choices=MessageSystemEvent.choices, null=True, blank=True)
+    # What an automatic message is about, for rendering it per reader (`project_feed.body_for_reader`).
+    system_data = models.JSONField(null=True, blank=True)
     body_html = models.TextField(blank=True, default="<p></p>")
     # Stored as the client sent it, unlike the sanitized body_html: render from body_html, never from this.
     body_json = models.JSONField(blank=True, default=dict)
@@ -88,9 +90,18 @@ class Message(BaseModel):
         with transaction.atomic():
             self.body_html = ""
             self.body_json = {}
+            self.system_data = None
             self.removed_at = timezone.now()
             self.save(
-                update_fields=["body_html", "body_json", "body_stripped", "removed_at", "updated_at", "updated_by"]
+                update_fields=[
+                    "body_html",
+                    "body_json",
+                    "body_stripped",
+                    "system_data",
+                    "removed_at",
+                    "updated_at",
+                    "updated_by",
+                ]
             )
             self.references.all().delete()
             # Filtered by entity type: entity_identifier means something else on other entity types.

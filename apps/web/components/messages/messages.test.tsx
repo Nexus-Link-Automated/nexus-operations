@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => ({
   search: "",
   toast: vi.fn(),
   projects: {} as Record<string, { id: string; name: string }>,
-  canLink: (_projectId: string) => true,
+  canLink: (_projectId: string): boolean => true,
 }));
 
 vi.mock("next/navigation", async (importOriginal) => ({
