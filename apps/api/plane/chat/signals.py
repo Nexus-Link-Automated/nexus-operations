@@ -2,20 +2,24 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-"""Keep chat access in step with Plane's workspace membership. Connected in `ChatConfig.ready()`."""
+"""Keep chat access in step with Plane's workspace membership and the agent registry.
+
+Connected in `ChatConfig.ready()`.
+"""
 
 from django.db import transaction
 from django.db.models import OuterRef, Subquery
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
 from plane.app.permissions.base import ROLE
-from plane.chat.events import EventType, access_revoked_event, member_event, publish_on_commit
-from plane.chat.models import ChannelKind, ChannelMember, ChannelMemberRole, ChatGuestPermission
+from plane.chat.events import EventType, access_revoked_event, agent_member_event, member_event, publish_on_commit
+from plane.chat.models import ChannelAgent, ChannelKind, ChannelMember, ChannelMemberRole, ChatGuestPermission
 from plane.chat.models.channel import NAMED_KINDS
 from plane.chat.permissions import lock_channel_admins, lock_member
 from plane.db.models import User, WorkspaceMember
+from plane.license.models import AgentDefinition
 
 # The columns whose change can end someone's time as a guest or in the workspace.
 _MEMBERSHIP_FIELDS = {"role", "is_active", "deleted_at"}
@@ -134,3 +138,40 @@ def account_deactivated(sender, instance, update_fields=None, **kwargs):
         workspaces = WorkspaceMember.objects.filter(member_id=instance.pk).values_list("workspace_id", flat=True)
         events += [access_revoked_event(workspace_id, instance.pk) for workspace_id in workspaces]
     publish_on_commit(*events)
+
+
+def _agent_seats(agent):
+    """The agent's places in channels people can still open."""
+    return ChannelAgent.objects.filter(agent=agent, channel__deleted_at__isnull=True)
+
+
+@receiver(pre_save, sender=AgentDefinition, dispatch_uid="chat_note_agent_availability")
+def note_agent_availability(sender, instance, **kwargs):
+    """Whether the agent was enabled before this save, or None for a new one."""
+    previous = None
+    if not instance._state.adding:
+        previous = sender.objects.filter(pk=instance.pk).values_list("is_enabled", flat=True).first()
+    instance._chat_was_enabled = previous
+
+
+@receiver(post_save, sender=AgentDefinition, dispatch_uid="chat_agent_availability_changed")
+def agent_availability_changed(sender, instance, **kwargs):
+    """Disabling an agent takes it out of its channels for open clients, and enabling it brings it back.
+
+    The rows stay either way: a disabled agent is listed as unavailable, and nothing reaches it.
+    """
+    previous = getattr(instance, "_chat_was_enabled", None)
+    if previous is None or previous == instance.is_enabled:
+        return
+    event_type = EventType.MEMBER_ADDED if instance.is_enabled else EventType.MEMBER_REMOVED
+    publish_on_commit(*[agent_member_event(event_type, seat) for seat in _agent_seats(instance)])
+
+
+@receiver(pre_delete, sender=AgentDefinition, dispatch_uid="chat_agent_deleted")
+def agent_deleted(sender, instance, **kwargs):
+    """Deleting an agent from the registry deletes its places in channels with it (the foreign key cascades).
+
+    Its messages stay and show as from a removed agent. A disabled agent has already been announced as gone.
+    """
+    if instance.is_enabled:
+        publish_on_commit(*[agent_member_event(EventType.MEMBER_REMOVED, seat) for seat in _agent_seats(instance)])

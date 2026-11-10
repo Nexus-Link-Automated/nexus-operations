@@ -43,6 +43,8 @@ export const chatEventSchema = z.object({
   parent_id: id.optional(),
   /** `member.*`, `read.updated` and `access.revoked`: the person it is about. */
   user_id: id.optional(),
+  /** `member.*` about an agent from the registry instead of a person (never with `user_id`): the agent's ID. */
+  agent_id: id.optional(),
   /** Who made the change; absent when nobody did through a request. */
   actor_id: id.optional(),
   /** When it was made (ISO 8601, UTC). */

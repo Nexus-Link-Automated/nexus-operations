@@ -16,7 +16,9 @@ The archive:
 
     export.json     what was exported, when, by whom, and how much
     channels.jsonl  a channel per line
-    members.jsonl   a channel membership per line
+    members.jsonl   a channel membership per line: a person's (`member_type` "user"), or an agent's from the agent
+                    registry ("agent": its ID, slug, name, permission level, whether the registry has it enabled, and
+                    who added it)
     messages.jsonl  a message or thread reply (`parent_id`) per line, oldest first in each channel: the body as plain
                     text and as HTML, its timestamps, and its attachments' names, types and sizes, not the files
     users.jsonl     everyone in those lines: ID, display name and email
@@ -33,8 +35,17 @@ from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 
+from plane.chat.agents import effective_permission_level
 from plane.chat.attachments import assets
-from plane.chat.models import Channel, ChannelKind, ChannelMember, Message, MessageExport, MessageExportStatus
+from plane.chat.models import (
+    Channel,
+    ChannelAgent,
+    ChannelKind,
+    ChannelMember,
+    Message,
+    MessageExport,
+    MessageExportStatus,
+)
 from plane.chat.retention import delete_storage_objects
 from plane.db.models import User, Workspace
 from plane.settings.storage import S3Storage
@@ -101,8 +112,26 @@ def _member_rows(channels, people):
             people.add(member.user_id)
             yield {
                 "channel_id": str(member.channel_id),
+                "member_type": "user",
                 "user_id": str(member.user_id),
                 "role": member.role,
+                "joined_at": _iso(member.created_at),
+            }
+    for page in _pages(
+        ChannelAgent.objects.filter(channel__in=channels, agent__deleted_at__isnull=True).select_related("agent")
+    ):
+        for member in page:
+            if member.created_by_id:
+                people.add(member.created_by_id)
+            yield {
+                "channel_id": str(member.channel_id),
+                "member_type": "agent",
+                "agent_id": str(member.agent_id),
+                "agent_slug": member.agent.slug,
+                "agent_name": member.agent.name,
+                "permission_level": effective_permission_level(member),
+                "is_available": member.agent.is_enabled,
+                "added_by_id": str(member.created_by_id) if member.created_by_id else None,
                 "joined_at": _iso(member.created_at),
             }
 

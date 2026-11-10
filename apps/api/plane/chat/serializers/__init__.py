@@ -23,3 +23,4 @@ from .message import (  # noqa: F401
     MessageWriteSerializer,
 )
 from .search import MessageSearchQuerySerializer, SearchChannelSerializer  # noqa: F401
+from .agent import ChannelAgentAddSerializer, ChannelAgentSerializer  # noqa: F401

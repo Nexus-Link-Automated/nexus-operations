@@ -70,8 +70,9 @@ Gateway → browser:
 Django publishes one JSON object per change to `chat:workspace:<workspace_id>` once the write has committed
 (`apps/api/plane/chat/events.py` is the other half of this contract and lists what each write publishes). The
 gateway forwards exactly these fields and no others: `type`, `workspace_id`, `channel_id?`, `message_id?`,
-`parent_id?`, `user_id?`, `actor_id?`, `at`. IDs only; the browser fetches what it needs over REST, where
-permissions are enforced.
+`parent_id?`, `user_id?`, `agent_id?`, `actor_id?`, `at`. IDs only; the browser fetches what it needs over REST,
+where permissions are enforced. A `member.*` event about an agent carries `agent_id` and no `user_id`, so it goes
+to the channel's followers and changes no one's own access.
 
 Types: `message.created|updated|removed`, `channel.created|updated|archived|unarchived`,
 `member.added|removed|updated`, `read.updated`, `access.revoked`.

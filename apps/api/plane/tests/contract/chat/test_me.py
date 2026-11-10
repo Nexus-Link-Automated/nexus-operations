@@ -22,6 +22,7 @@ class TestMe:
             "is_workspace_admin": True,
             "can_create_channels": True,
             "can_open_dms": True,
+            "can_add_agents": True,
         }
         assert member.client.get(url("me/")).data == {
             "workspace_id": str(workspace.id),
@@ -29,6 +30,7 @@ class TestMe:
             "is_workspace_admin": False,
             "can_create_channels": True,
             "can_open_dms": True,
+            "can_add_agents": True,
         }
 
     def test_guest_follows_their_grant(self, admin, guest, url, workspace):
@@ -40,6 +42,7 @@ class TestMe:
             "is_workspace_admin": False,
             "can_create_channels": False,
             "can_open_dms": False,
+            "can_add_agents": False,
         }
         admin.client.put(url(f"guests/{guest.user.id}/dm-access/"))
         assert guest.client.get(url("me/")).data["can_open_dms"] is True
