@@ -60,9 +60,20 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
   });
 
   const onSubmit = async (formData: Partial<TIssueComment>) => {
+    let comment: Partial<TIssueComment> | undefined;
     try {
-      const comment = await activityOperations.createComment(formData);
-      if (comment?.id) onSubmitCallback?.(comment.id);
+      comment = await activityOperations.createComment(formData);
+    } catch (error) {
+      // keep what the user wrote so they can post it again
+      console.error(error);
+      return;
+    }
+    if (comment?.id) onSubmitCallback?.(comment.id);
+    reset({
+      comment_html: "<p></p>",
+    });
+    editorRef.current?.clearEditor();
+    try {
       if (uploadedAssetIds.length > 0) {
         if (projectId) {
           await fileService.updateBulkProjectAssetsUploadStatus(workspaceSlug, projectId.toString(), entityId, {
@@ -77,11 +88,6 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
       }
     } catch (error) {
       console.error(error);
-    } finally {
-      reset({
-        comment_html: "<p></p>",
-      });
-      editorRef.current?.clearEditor();
     }
   };
 

@@ -81,12 +81,14 @@ export const useWorkItemCommentOperations = (
             message: t("issue.comments.create.success"),
           });
           return comment;
-        } catch {
+        } catch (error) {
           setToast({
             title: t("common.error.label"),
             type: "error",
             message: t("issue.comments.create.error"),
           });
+          // the comment box keeps the text only if it can tell the post failed
+          throw error;
         }
       },
       updateComment: async (commentId, data) => {
