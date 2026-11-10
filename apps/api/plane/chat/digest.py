@@ -99,6 +99,8 @@ def _take(receiver_id, due_before):
             .filter(receiver_id=receiver_id, created_at__lte=due_before)
             .annotate(worth_emailing=_worth_emailing(receiver_id, roles, timezone.now()))
             .select_related("receiver", "message__channel__workspace", "message__sender")
+            # In the order the mentions were made: queued at the same moment (one bulk insert), the rows tie.
+            .order_by("message__created_at", "message_id")
         )
         if taken:
             PendingMentionEmail.objects.filter(pk__in=[pending.pk for pending in taken]).delete()
