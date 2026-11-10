@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
+import { useSearchParams } from "next/navigation";
 // plane imports
 import { Button } from "@makeplane/propel/components/button";
 import { IconButton } from "@makeplane/propel/components/icon-button";
@@ -15,6 +16,7 @@ import { setToast } from "@plane/blocks/toast";
 import { useTranslation } from "@plane/i18n";
 import { ChatServiceError } from "@plane/services";
 import type { TChatChannel } from "@plane/types";
+import { cn } from "@plane/utils";
 // hooks
 import { useChat } from "@/hooks/store/use-chat";
 import { useMember } from "@/hooks/store/use-member";
@@ -32,7 +34,10 @@ type Props = {
   channelId: string;
 };
 
-/** One channel or DM: its header, its messages, and the composer (or a Join bar for a channel the user isn't in). */
+/**
+ * One channel or DM: its header, its messages, and the composer (or a Join bar for a channel the user isn't in). The
+ * open thread sits beside it (see `MessagesRoot`). A link to a reply, `?message=<thread>&reply=<reply>`, opens it.
+ */
 export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug, channelId }: Props) {
   const { t } = useTranslation();
   const chat = useChat();
@@ -44,6 +49,8 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
   const [settingsOpen, setSettingsOpen] = useState(false);
   const channel = chat.channelMap[channelId];
   const started = chat.workspaceSlug === workspaceSlug;
+  const searchParams = useSearchParams();
+  const linkedThreadId = searchParams.get("reply") ? searchParams.get("message") : null;
   // A channel that was shown and then went away: the user lost access (removed, or a private channel left).
   // The view is keyed by channel, so this starts over for each one.
   const [wasShown, setWasShown] = useState(false);
@@ -60,6 +67,10 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
     });
     return () => chat.closeChannel();
   }, [chat, channelId, started]);
+
+  useEffect(() => {
+    if (started && linkedThreadId) void chat.openThread(channelId, linkedThreadId);
+  }, [chat, channelId, started, linkedThreadId]);
 
   if (notFound || (wasShown && !channel)) {
     return (
@@ -119,7 +130,13 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    // Below `lg` an open thread takes the conversation's place: beside it, neither would have room.
+    <div
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col",
+        chat.activeThread?.channelId === channel.id && "max-lg:hidden"
+      )}
+    >
       <header className="flex flex-shrink-0 items-center gap-3 border-b border-subtle px-4 py-2.5">
         <ChannelIcon channel={channel} />
         <div className="min-w-0 flex-1">

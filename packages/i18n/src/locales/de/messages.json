@@ -122,6 +122,15 @@
       "automatic_sender": "Updates zu Arbeitselementen",
       "automatic": "Automatisch"
     },
+    "thread": {
+      "title": "Thread",
+      "close": "Thread schließen",
+      "reply": "Im Thread antworten",
+      "reply_placeholder": "Antworten…",
+      "list_label": "Antworten",
+      "last_reply_today": "Letzte Antwort um {time}",
+      "last_reply_on": "Letzte Antwort am {date}"
+    },
     "day": {
       "today": "Heute",
       "yesterday": "Gestern"

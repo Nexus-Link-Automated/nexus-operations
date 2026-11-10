@@ -122,6 +122,15 @@
       "automatic_sender": "작업 항목 업데이트",
       "automatic": "자동"
     },
+    "thread": {
+      "title": "스레드",
+      "close": "스레드 닫기",
+      "reply": "스레드에서 답장",
+      "reply_placeholder": "답장…",
+      "list_label": "답장",
+      "last_reply_today": "마지막 답장 {time}",
+      "last_reply_on": "마지막 답장 {date}"
+    },
     "day": {
       "today": "오늘",
       "yesterday": "어제"

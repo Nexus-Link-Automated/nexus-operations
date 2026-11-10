@@ -158,9 +158,9 @@ describe("chatMessagePermalink", () => {
     );
   });
 
-  it("links a thread reply to its thread's first message, the one the channel shows", () => {
+  it("links a thread reply to its thread's first message, the one the channel shows, and to the reply in it", () => {
     expect(chatMessagePermalink("acme", { id: "m2", channel_id: "c1", parent_id: "m1" })).toBe(
-      "/acme/messages/c1?message=m1"
+      "/acme/messages/c1?message=m1&reply=m2"
     );
   });
 });

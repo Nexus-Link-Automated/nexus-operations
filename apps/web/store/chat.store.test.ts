@@ -91,12 +91,31 @@ class FakeChatServer {
       updated_at: at,
     };
     this.messages.push(message);
-    if (parent) {
-      const p = this.messages.find((m) => m.id === parent)!;
-      p.reply_count += 1;
-      p.last_reply_at = at;
-    }
+    if (parent) this.summarize(parent);
     return message;
+  }
+
+  /** A thread's summary counts its replies that aren't removed, as the API's does. */
+  summarize(parentId: string) {
+    const parent = this.messages.find((m) => m.id === parentId)!;
+    const live = this.messages.filter((m) => m.parent === parentId && !m.removed_at);
+    parent.reply_count = live.length;
+    parent.last_reply_at = live.at(-1)?.created_at ?? null;
+  }
+
+  /** Remove a message the way the API does: a tombstone that stays in its list. */
+  remove(messageId: string) {
+    const message = this.messages.find((m) => m.id === messageId)!;
+    message.body_html = "";
+    message.body_stripped = "";
+    message.removed_at = "2026-01-03T00:00:00Z";
+    if (message.parent) this.summarize(message.parent);
+    return message;
+  }
+
+  /** The `message.updated` or `message.removed` event Django would publish for `message`. */
+  changedEvent(type: "message.updated" | "message.removed", message: TChatMessage): TChatEvent {
+    return { ...this.createdEvent(message), type, actor_id: ADA };
   }
 
   /** The event Django would publish for `message`. */
@@ -124,6 +143,17 @@ class FakeChatServer {
 
   private topLevel(channelId: string) {
     return this.messages.filter((m) => m.channel === channelId && !m.parent);
+  }
+
+  /** One keyset page of `list`, as the API's `paginate_messages` gives it. */
+  private page(list: TChatMessage[], query: TChatMessagePageQuery): TChatMessagePage {
+    const limit = query.limit ?? 50;
+    if (query.after) {
+      const start = list.findIndex((m) => m.id === query.after) + 1;
+      return { results: list.slice(start, start + limit), has_more: start + limit < list.length };
+    }
+    const end = query.before ? list.findIndex((m) => m.id === query.before) : list.length;
+    return { results: list.slice(Math.max(0, end - limit), end), has_more: end - limit > 0 };
   }
 
   payload(channel: ServerChannel): TChatChannel {
@@ -221,20 +251,16 @@ class FakeChatServer {
       listMessages: async (_slug, channelId, query: TChatMessagePageQuery = {}) => {
         log(`listMessages ${channelId} ${JSON.stringify(query)}`);
         this.channelOr404(channelId);
-        const top = this.topLevel(channelId);
-        const limit = query.limit ?? 50;
-        let page: TChatMessage[];
-        let hasMore: boolean;
-        if (query.after) {
-          const start = top.findIndex((m) => m.id === query.after) + 1;
-          page = top.slice(start, start + limit);
-          hasMore = start + limit < top.length;
-        } else {
-          const end = query.before ? top.findIndex((m) => m.id === query.before) : top.length;
-          page = top.slice(Math.max(0, end - limit), end);
-          hasMore = end - limit > 0;
+        return this.held("listMessages", clone(this.page(this.topLevel(channelId), query)));
+      },
+      listReplies: async (_slug, channelId, parentId, query: TChatMessagePageQuery = {}) => {
+        log(`listReplies ${parentId} ${JSON.stringify(query)}`);
+        this.channelOr404(channelId);
+        if (!this.messages.some((m) => m.id === parentId && m.channel === channelId && !m.parent)) {
+          throw new ChatServiceError(404, {});
         }
-        return this.held("listMessages", clone({ results: page, has_more: hasMore } satisfies TChatMessagePage));
+        const replies = this.messages.filter((m) => m.parent === parentId);
+        return this.held("listReplies", clone(this.page(replies, query)));
       },
       getMessage: async (_slug, channelId, messageId) => {
         log(`getMessage ${messageId}`);
@@ -253,8 +279,8 @@ class FakeChatServer {
         this.sentAttachmentIds.push(data.attachment_ids);
         if (this.failSends) throw new ChatServiceError(0, undefined);
         this.channelOr404(channelId);
-        const message = this.post(channelId, ME, data.body_html);
-        return clone(message);
+        const message = this.post(channelId, ME, data.body_html, data.parent_id ?? null);
+        return this.held("sendMessage", clone(message));
       },
       uploadAttachment: async (_slug, channelId, file) => {
         log(`uploadAttachment ${channelId} ${file.name}`);
@@ -272,9 +298,7 @@ class FakeChatServer {
       },
       removeMessage: async (_slug, _channelId, messageId) => {
         log(`removeMessage ${messageId}`);
-        const message = this.messages.find((m) => m.id === messageId)!;
-        message.body_html = "";
-        message.removed_at = "2026-01-03T00:00:00Z";
+        this.remove(messageId);
       },
     };
   }
@@ -805,17 +829,35 @@ describe("ChatStore", () => {
   });
 
   describe("linkWorkItem", () => {
-    it("shows the updated message and the note in the channel", async () => {
+    it("shows the updated message, and the note in its thread rather than the channel", async () => {
       const { store, server } = await setup();
       const original = server.post("c-general", ADA, "login is broken");
       await store.openChannel("c-general");
+      await store.openThread("c-general", original.id);
       const reference = { id: "i1", project: "p1", key: "EMP-1", name: "x", priority: "high" as const, state: null };
-      const reply = server.post("c-general", ME, "Created EMP-1");
-      server.nextLink = { message: { ...original, references: [reference] }, reply };
+      const reply = server.post("c-general", ME, "Created EMP-1", original.id);
+      server.nextLink = { message: { ...clone(original), references: [reference] }, reply: clone(reply) };
       await store.linkWorkItem("c-general", original.id, "i1");
       expect(server.calls).toContain(`linkWorkItem c-general ${original.id} i1`);
       expect(store.messageMap[original.id]?.references).toEqual([reference]);
-      expect(store.getChannelMessages("c-general").map((message) => message.id)).toEqual([original.id, reply.id]);
+      expect(store.messageMap[original.id]?.reply_count).toBe(1);
+      expect(store.getChannelMessages("c-general").map((message) => message.id)).toEqual([original.id]);
+      expect(store.getThreadReplies(original.id).map((message) => message.id)).toEqual([reply.id]);
+    });
+
+    it("puts the note for a reply in that reply's thread, and re-reads the thread's summary", async () => {
+      const { store, server } = await setup();
+      const original = server.post("c-general", ADA, "login is broken");
+      const report = server.post("c-general", ADA, "still broken", original.id);
+      await store.openChannel("c-general");
+      await store.openThread("c-general", original.id);
+      const note = server.post("c-general", ME, "Created EMP-1", original.id);
+      server.nextLink = { message: clone(report), reply: clone(note) };
+      server.calls = [];
+      await store.linkWorkItem("c-general", report.id, "i1");
+      expect(store.getThreadReplies(original.id).map((message) => message.id)).toEqual([report.id, note.id]);
+      expect(server.calls).toContain(`getMessage ${original.id}`);
+      expect(store.messageMap[original.id]?.reply_count).toBe(2);
     });
 
     it("adds no note when it was already linked", async () => {
@@ -1074,5 +1116,290 @@ describe("ChatStore", () => {
       s.post("dm-later", "user-bob").created_at = "2026-01-01T00:30:00Z";
     });
     expect(store.directMessages.map((c) => c.id)).toEqual(["dm-later", "dm-earlier"]);
+  });
+});
+
+const replies = (store: ChatStore, parentId: string) =>
+  store.getThreadReplies(parentId).map((m) => m.body_stripped || m.body_html);
+
+describe("ChatStore threads", () => {
+  /** A parent in c-general with `count` replies from Ada, the channel open. */
+  async function withThread(count: number, prepare?: (server: FakeChatServer) => void) {
+    const env = await setup((s) => {
+      const parent = s.post("c-general", ADA, "parent");
+      for (let i = 0; i < count; i++) s.post("c-general", ADA, `r${i}`, parent.id);
+      prepare?.(s);
+    });
+    await env.store.openChannel("c-general");
+    const parent = env.server.messages[0]!;
+    return { ...env, parent };
+  }
+
+  it("opens on the newest page of replies, oldest first, and scrolls back", async () => {
+    const { store, parent } = await withThread(60);
+    await store.openThread("c-general", parent.id);
+    expect(store.activeThread).toEqual({ channelId: "c-general", parentId: parent.id });
+    expect(replies(store, parent.id)).toEqual(Array.from({ length: 50 }, (_, i) => `r${i + 10}`));
+    expect(store.getThreadState(parent.id)!.hasMoreOlder).toBe(true);
+    await store.loadOlderReplies(parent.id);
+    expect(replies(store, parent.id)).toEqual(Array.from({ length: 60 }, (_, i) => `r${i}`));
+    expect(store.getThreadState(parent.id)!.hasMoreOlder).toBe(false);
+    // Replies never join the channel's list.
+    expect(bodies(store, "c-general")).toEqual(["parent"]);
+  });
+
+  it("fetches the thread's first message when the channel's list doesn't hold it", async () => {
+    const { store, server } = await setup((s) => {
+      const old = s.post("c-general", ADA, "old parent");
+      s.post("c-general", ADA, "reply", old.id);
+      for (let i = 0; i < 60; i++) s.post("c-general", ADA, `m${i}`);
+    });
+    await store.openChannel("c-general");
+    const parent = server.messages[0]!;
+    expect(store.messageMap[parent.id]).toBeUndefined();
+    await store.openThread("c-general", parent.id);
+    expect(store.messageMap[parent.id]?.body_stripped).toBe("old parent");
+    expect(replies(store, parent.id)).toEqual(["reply"]);
+    // Closing forgets it again: the channel's list never held it.
+    store.closeThread();
+    expect(store.messageMap[parent.id]).toBeUndefined();
+  });
+
+  it("shows a new reply live and updates the parent's summary, without counting it unread", async () => {
+    const { store, server, socket, parent } = await withThread(1);
+    await store.openThread("c-general", parent.id);
+    store.setDocumentVisible(false);
+    const reply = server.post("c-general", ADA, "live", parent.id);
+    socket.emit(server.createdEvent(reply));
+    await settle();
+    expect(replies(store, parent.id)).toEqual(["r0", "live"]);
+    expect(store.messageMap[parent.id]!.reply_count).toBe(2);
+    expect(store.messageMap[parent.id]!.last_reply_at).toBe(reply.created_at);
+    expect(store.channelMap["c-general"]!.unread_count).toBe(0);
+    expect(bodies(store, "c-general")).toEqual(["parent"]);
+  });
+
+  it("only re-reads the parent for a reply in a thread that isn't open", async () => {
+    const { store, server, socket, parent } = await withThread(0);
+    server.calls = [];
+    const reply = server.post("c-general", ADA, "elsewhere", parent.id);
+    socket.emit(server.createdEvent(reply));
+    await settle();
+    expect(server.calls).toEqual([`getMessage ${parent.id}`]);
+    expect(store.messageMap[reply.id]).toBeUndefined();
+    expect(store.getChannelMessages("c-general")[0]!.reply_count).toBe(1);
+  });
+
+  it("shows an edit to a reply, and drops a removed one from the thread and the count", async () => {
+    const { store, server, socket, parent } = await withThread(2);
+    await store.openThread("c-general", parent.id);
+    const [first, second] = server.messages.slice(1);
+    first!.body_stripped = "r0 (edited)";
+    first!.updated_at = "2026-01-02T00:00:00Z";
+    socket.emit(server.changedEvent("message.updated", first!));
+    socket.emit(server.changedEvent("message.removed", server.remove(second!.id)));
+    await settle();
+    expect(replies(store, parent.id)).toEqual(["r0 (edited)"]);
+    expect(store.messageMap[parent.id]!.reply_count).toBe(1);
+    expect(store.messageMap[parent.id]!.last_reply_at).toBe(first!.created_at);
+  });
+
+  it("keeps the thread of a removed first message open, showing it removed", async () => {
+    const { store, server, socket, parent } = await withThread(1);
+    await store.openThread("c-general", parent.id);
+    socket.emit(server.changedEvent("message.removed", server.remove(parent.id)));
+    await settle();
+    expect(store.messageMap[parent.id]!.removed_at).not.toBeNull();
+    expect(store.messageMap[parent.id]!.reply_count).toBe(1);
+    expect(store.activeThread?.parentId).toBe(parent.id);
+    expect(replies(store, parent.id)).toEqual(["r0"]);
+  });
+
+  it("puts the latest summary last when two replies' re-reads answer out of order", async () => {
+    const { store, server, socket, parent } = await withThread(0);
+    const slow = holdOpen();
+    server.holds.set("getMessage", slow.opened);
+    socket.emit(server.createdEvent(server.post("c-general", ADA, "one", parent.id)));
+    await tick();
+    // The first re-read is held, answering with one reply; the second event arrives meanwhile.
+    socket.emit(server.createdEvent(server.post("c-general", ADA, "two", parent.id)));
+    slow.open();
+    await settle();
+    expect(store.getChannelMessages("c-general")[0]!.reply_count).toBe(2);
+  });
+
+  describe("replying", () => {
+    it("shows a reply as pending, then as sent, and updates the parent", async () => {
+      const { store, server, parent } = await withThread(1);
+      await store.openThread("c-general", parent.id);
+      const sent = holdOpen();
+      server.holds.set("sendMessage", sent.opened);
+      server.calls = [];
+      const sending = store.sendReply("c-general", parent.id, { body_html: "<p>mine</p>" });
+      expect(store.getPendingReplies(parent.id).map((p) => p.status)).toEqual(["sending"]);
+      expect(store.getPendingMessages("c-general")).toEqual([]);
+      sent.open();
+      await sending;
+      expect(store.getPendingReplies(parent.id)).toEqual([]);
+      expect(replies(store, parent.id)).toEqual(["r0", "<p>mine</p>"]);
+      expect(store.messageMap[parent.id]!.reply_count).toBe(2);
+      expect(server.messages.at(-1)!.parent).toBe(parent.id);
+      // A reply doesn't move the channel's read cursor or its activity.
+      expect(server.calls.some((c) => c.startsWith("markRead"))).toBe(false);
+    });
+
+    it("ignores the event for its own reply", async () => {
+      const { store, server, socket, parent } = await withThread(0);
+      await store.openThread("c-general", parent.id);
+      await store.sendReply("c-general", parent.id, { body_html: "<p>mine</p>" });
+      socket.emit(server.createdEvent(server.messages.at(-1)!));
+      await settle();
+      expect(replies(store, parent.id)).toEqual(["<p>mine</p>"]);
+    });
+
+    it("keeps a failed reply to retry, once, or to discard with its files", async () => {
+      const { store, server, parent } = await withThread(0);
+      await store.openThread("c-general", parent.id);
+      server.failSends = true;
+      const attachment = { id: "asset-a", name: "a.png", type: "image/png", size: 1 };
+      await expect(
+        store.sendReply("c-general", parent.id, { body_html: "<p>a</p>", attachments: [attachment] })
+      ).rejects.toThrow();
+      await expect(store.sendReply("c-general", parent.id, { body_html: "<p>b</p>" })).rejects.toThrow();
+      const [a, b] = store.getPendingReplies(parent.id);
+      expect([a!.status, b!.status]).toEqual(["failed", "failed"]);
+
+      server.failSends = false;
+      await store.retryMessage("c-general", a!.localId);
+      expect(store.getPendingReplies(parent.id).map((p) => p.localId)).toEqual([b!.localId]);
+      expect(replies(store, parent.id)).toEqual(["<p>a</p>"]);
+      expect(server.sentAttachmentIds.at(-1)).toEqual(["asset-a"]);
+      // Retrying what already went sends nothing.
+      await store.retryMessage("c-general", a!.localId);
+      expect(server.messages.filter((m) => m.parent === parent.id)).toHaveLength(1);
+
+      store.discardMessage("c-general", b!.localId);
+      expect(store.getPendingReplies(parent.id)).toEqual([]);
+    });
+
+    it("keeps a failed reply across closing and reopening the thread", async () => {
+      const { store, server, parent } = await withThread(0);
+      await store.openThread("c-general", parent.id);
+      server.failSends = true;
+      await expect(store.sendReply("c-general", parent.id, { body_html: "<p>a</p>" })).rejects.toThrow();
+      store.closeThread();
+      await store.openThread("c-general", parent.id);
+      expect(store.getPendingReplies(parent.id).map((p) => p.status)).toEqual(["failed"]);
+    });
+  });
+
+  describe("after a reconnect", () => {
+    it("pages after the newest reply it had, without dropping or repeating any", async () => {
+      const { store, server, socket, parent } = await withThread(3);
+      await store.openThread("c-general", parent.id);
+      socket.handlers.onStatusChange?.("reconnecting", null);
+      for (let i = 0; i < 120; i++) server.post("c-general", ADA, `missed ${i}`, parent.id);
+      // Sent while disconnected: it lands at the end, and mustn't make the catch-up skip what came before it.
+      await store.sendReply("c-general", parent.id, { body_html: "<p>mine</p>" });
+      server.calls = [];
+      socket.ready(true);
+      await settle();
+
+      const shown = store.getThreadReplies(parent.id);
+      expect(shown.map((m) => m.body_stripped)).toEqual([
+        ...Array.from({ length: 3 }, (_, i) => `r${i}`),
+        ...Array.from({ length: 120 }, (_, i) => `missed ${i}`),
+        "<p>mine</p>",
+      ]);
+      expect(new Set(shown.map((m) => m.id)).size).toBe(shown.length);
+      expect(server.calls.filter((c) => c.startsWith(`listReplies ${parent.id} {"after"`))).toHaveLength(3);
+      expect(store.messageMap[parent.id]!.reply_count).toBe(124);
+      expect(bodies(store, "c-general")).toEqual(["parent"]);
+    });
+
+    it("re-reads the newest replies for edits and removals it missed", async () => {
+      const { store, server, socket, parent } = await withThread(2);
+      await store.openThread("c-general", parent.id);
+      const [first, second] = server.messages.slice(1);
+      first!.body_stripped = "r0 (edited)";
+      server.remove(second!.id);
+      socket.ready(true);
+      await settle();
+      expect(replies(store, parent.id)).toEqual(["r0 (edited)"]);
+      expect(store.messageMap[parent.id]!.reply_count).toBe(1);
+    });
+
+    it("reloads a thread that had no replies when events stopped", async () => {
+      const { store, server, socket, parent } = await withThread(0);
+      await store.openThread("c-general", parent.id);
+      server.post("c-general", ADA, "missed", parent.id);
+      socket.handlers.onResync?.("events_missed");
+      await settle();
+      expect(replies(store, parent.id)).toEqual(["missed"]);
+      expect(store.messageMap[parent.id]!.reply_count).toBe(1);
+    });
+
+    it("leaves a closed thread alone", async () => {
+      const { store, server, socket, parent } = await withThread(1);
+      await store.openThread("c-general", parent.id);
+      store.closeThread();
+      server.calls = [];
+      socket.ready(true);
+      await settle();
+      expect(server.calls.some((c) => c.startsWith("listReplies"))).toBe(false);
+      expect(store.getThreadState(parent.id)).toBeUndefined();
+    });
+  });
+
+  it("closes the thread with its channel, and forgets its replies", async () => {
+    const { store, parent } = await withThread(2);
+    await store.openThread("c-general", parent.id);
+    const replyIds = store.getThreadState(parent.id)!.ids;
+    store.closeChannel();
+    expect(store.activeThread).toBeNull();
+    expect(store.getThreadState(parent.id)).toBeUndefined();
+    expect(replyIds.some((id) => store.messageMap[id])).toBe(false);
+  });
+
+  it("drops a page that lands after the thread closed", async () => {
+    const { store, server, parent } = await withThread(1);
+    const load = holdOpen();
+    server.holds.set("listReplies", load.opened);
+    void store.openThread("c-general", parent.id);
+    await tick();
+    store.closeThread();
+    load.open();
+    await settle();
+    expect(store.getThreadState(parent.id)).toBeUndefined();
+  });
+
+  it("says when the thread can't be read, and loads it on a retry", async () => {
+    const { store, server } = await setup();
+    await store.openChannel("c-general");
+    // Not there yet: the fake server names its first message m0001.
+    await store.openThread("c-general", "m0001");
+    expect(store.getThreadState("m0001")!.error).toBe(true);
+    expect(store.messageMap.m0001).toBeUndefined();
+    server.post("c-general", ADA, "found");
+    await store.openThread("c-general", "m0001");
+    expect(store.getThreadState("m0001")!.loaded).toBe(true);
+    expect(store.messageMap.m0001?.body_stripped).toBe("found");
+  });
+
+  describe("revealReply", () => {
+    it("loads back through the thread until the reply is there", async () => {
+      const { store, server, parent } = await withThread(120);
+      await store.openThread("c-general", parent.id);
+      const oldest = server.messages[1]!;
+      expect(await store.revealReply(parent.id, oldest.id)).toBe(true);
+      expect(store.getThreadReplies(parent.id)).toHaveLength(120);
+    });
+
+    it("can't reveal a removed reply", async () => {
+      const { store, server, parent } = await withThread(2);
+      server.remove(server.messages[1]!.id);
+      await store.openThread("c-general", parent.id);
+      expect(await store.revealReply(parent.id, server.messages[1]!.id)).toBe(false);
+    });
   });
 });

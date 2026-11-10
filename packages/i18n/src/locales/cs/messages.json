@@ -122,6 +122,15 @@
       "automatic_sender": "Aktualizace pracovních položek",
       "automatic": "Automaticky"
     },
+    "thread": {
+      "title": "Vlákno",
+      "close": "Zavřít vlákno",
+      "reply": "Odpovědět ve vlákně",
+      "reply_placeholder": "Odpovědět…",
+      "list_label": "Odpovědi",
+      "last_reply_today": "Poslední odpověď v {time}",
+      "last_reply_on": "Poslední odpověď {date}"
+    },
     "day": {
       "today": "Dnes",
       "yesterday": "Včera"

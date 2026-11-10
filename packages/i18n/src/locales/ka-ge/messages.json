@@ -122,6 +122,15 @@
       "automatic_sender": "სამუშაო ელემენტების განახლებები",
       "automatic": "ავტომატური"
     },
+    "thread": {
+      "title": "თემა",
+      "close": "თემის დახურვა",
+      "reply": "თემაში პასუხი",
+      "reply_placeholder": "პასუხი…",
+      "list_label": "პასუხები",
+      "last_reply_today": "ბოლო პასუხი {time}-ზე",
+      "last_reply_on": "ბოლო პასუხი {date}"
+    },
     "day": {
       "today": "დღეს",
       "yesterday": "გუშინ"

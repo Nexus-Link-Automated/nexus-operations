@@ -122,6 +122,15 @@
       "automatic_sender": "工作项更新",
       "automatic": "自动"
     },
+    "thread": {
+      "title": "话题",
+      "close": "关闭话题",
+      "reply": "在话题中回复",
+      "reply_placeholder": "回复…",
+      "list_label": "回复",
+      "last_reply_today": "最后回复于 {time}",
+      "last_reply_on": "最后回复于 {date}"
+    },
     "day": {
       "today": "今天",
       "yesterday": "昨天"

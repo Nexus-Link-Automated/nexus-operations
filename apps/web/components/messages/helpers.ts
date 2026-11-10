@@ -95,12 +95,18 @@ export function chatErrorMessage(error: unknown): string | undefined {
   return undefined;
 }
 
-/** A link to a message in its channel. A thread reply opens at its thread's first message, the one the channel shows. */
+/**
+ * A link to a message in its channel. A thread reply links to its thread's first message, the one the channel shows,
+ * and opens the thread on the reply.
+ */
 export function chatMessagePermalink(
   workspaceSlug: string,
   message: { id: string; channel_id: string; parent_id: string | null }
 ): string {
-  return `/${workspaceSlug}/messages/${message.channel_id}?message=${message.parent_id ?? message.id}`;
+  const base = `/${workspaceSlug}/messages/${message.channel_id}`;
+  return message.parent_id
+    ? `${base}?message=${message.parent_id}&reply=${message.id}`
+    : `${base}?message=${message.id}`;
 }
 
 const WORK_ITEM_TITLE_MAX = 255;

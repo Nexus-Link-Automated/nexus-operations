@@ -171,7 +171,7 @@ class MessageReplyEndpoint(ChatBaseEndpoint):
 
 class MessageWorkItemEndpoint(ChatBaseEndpoint):
     def post(self, request, slug, channel_id, message_id):
-        """Link a work item created from this message, both ways, and say so in the channel.
+        """Link a work item created from this message, both ways, and say so in its thread.
 
         The work item is created first through Plane's own form, so its permissions and activity stay Plane's. Linking
         the same one again changes nothing and posts nothing.
@@ -191,10 +191,10 @@ class MessageWorkItemEndpoint(ChatBaseEndpoint):
             raise NotFound("Work item not found.")
 
         key = f"{issue.project.identifier}-{issue.sequence_id}"
-        anchor = message.parent_id or message.id
-        permalink = (
-            f"{base_host(request=request, is_app=True).rstrip('/')}/{slug}/messages/{channel.id}?message={anchor}"
-        )
+        # The thread the message is in: its own, or for a reply its parent's. The link opens a reply in it.
+        thread = message.parent or message
+        permalink = f"{base_host(request=request, is_app=True).rstrip('/')}/{slug}/messages/{channel.id}"
+        permalink += f"?message={thread.id}&reply={message.id}" if message.parent_id else f"?message={message.id}"
         # A private conversation's name doesn't belong on a work item that other people can read.
         link_title = (
             f"Message in #{channel.name}" if channel.kind == ChannelKind.PUBLIC else "Message in Nexus Messages"
@@ -211,9 +211,11 @@ class MessageWorkItemEndpoint(ChatBaseEndpoint):
             )
             reply = None
             if created:
+                # In the thread: the card on the message already tells the channel.
                 reply = Message.objects.create(
                     channel=channel,
                     sender=request.user,
+                    parent=thread,
                     body_html=f'<p>Created {escape(key)} from <a href="{escape(permalink)}">this message</a></p>',
                 )
                 MessageReference.objects.create(message=reply, issue=issue)

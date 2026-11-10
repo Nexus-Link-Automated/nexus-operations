@@ -122,6 +122,15 @@
       "automatic_sender": "Atualizações de itens de trabalho",
       "automatic": "Automático"
     },
+    "thread": {
+      "title": "Conversa",
+      "close": "Fechar conversa",
+      "reply": "Responder na conversa",
+      "reply_placeholder": "Responder…",
+      "list_label": "Respostas",
+      "last_reply_today": "Última resposta às {time}",
+      "last_reply_on": "Última resposta em {date}"
+    },
     "day": {
       "today": "Hoje",
       "yesterday": "Ontem"

@@ -122,6 +122,15 @@
       "automatic_sender": "Updates van werkitems",
       "automatic": "Automatisch"
     },
+    "thread": {
+      "title": "Thread",
+      "close": "Thread sluiten",
+      "reply": "Beantwoorden in thread",
+      "reply_placeholder": "Beantwoorden…",
+      "list_label": "Antwoorden",
+      "last_reply_today": "Laatste antwoord om {time}",
+      "last_reply_on": "Laatste antwoord op {date}"
+    },
     "day": {
       "today": "Vandaag",
       "yesterday": "Gisteren"

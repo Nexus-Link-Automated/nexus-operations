@@ -122,6 +122,15 @@
       "automatic_sender": "作業項目の更新",
       "automatic": "自動"
     },
+    "thread": {
+      "title": "スレッド",
+      "close": "スレッドを閉じる",
+      "reply": "スレッドで返信",
+      "reply_placeholder": "返信…",
+      "list_label": "返信",
+      "last_reply_today": "最終返信 {time}",
+      "last_reply_on": "最終返信 {date}"
+    },
     "day": {
       "today": "今日",
       "yesterday": "昨日"
