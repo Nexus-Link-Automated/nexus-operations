@@ -70,6 +70,8 @@
       "thinking": "Premýšľa",
       "thought": "Úvaha",
       "attachment": "Príloha",
+      "approval_needed": "Vyžaduje sa schválenie",
+      "go_to_approval": "Prejsť na žiadosť",
       "turn_end": {
         "cancelled": "Zastavené.",
         "max_tokens": "Agent dosiahol limit výstupu.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "Otvoriť {name}",
       "unread": "Otvoriť {name} (nová aktivita)",
+      "approval_needed": "Otvoriť {name} (vyžaduje sa schválenie)",
+      "needs_approval": "{name} čaká na vaše schválenie",
       "minimize": "Minimalizovať",
       "open_page": "Otvoriť na celej stránke",
       "greeting": "Dobrý deň, som {name}",

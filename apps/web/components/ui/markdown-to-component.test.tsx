@@ -72,3 +72,29 @@ describe("MarkdownRenderer images", () => {
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
   });
 });
+
+describe("MarkdownRenderer GitHub-flavoured markdown", () => {
+  const table = ["| Item | Points |", "| :--- | ---: |", "| Login page | 3 |", "| ~~Old API~~ | 5 |"].join("\n");
+
+  it("renders a table with header and body cells, keeping column alignment", () => {
+    const container = renderMarkdown(table);
+    expect(container.textContent).not.toContain("| Item |");
+    const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent);
+    expect(headers).toEqual(["Item", "Points"]);
+    const cells = screen.getAllByRole("cell");
+    expect(cells.map((cell) => cell.textContent)).toEqual(["Login page", "3", "Old API", "5"]);
+    expect(cells[1]!.style.textAlign).toBe("right");
+    expect(container.querySelector("del")?.textContent).toBe("Old API");
+  });
+
+  it("still renders an image inside a table cell as a link", () => {
+    const container = renderMarkdown("| Chart |\n| --- |\n| ![Build](https://example.com/b.png) |");
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByRole("cell").querySelector("a")?.getAttribute("href")).toBe("https://example.com/b.png");
+  });
+
+  it("styles second-level headings like the others", () => {
+    renderMarkdown("## Summary");
+    expect(screen.getByRole("heading", { level: 2, name: "Summary" }).className).toContain("text-primary");
+  });
+});

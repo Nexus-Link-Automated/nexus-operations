@@ -217,6 +217,24 @@ describe("plane-acp-claude over ndjson (mocked query())", () => {
     });
   });
 
+  it("reports a key the API rejects as auth required, and other failed turns as before", async () => {
+    const fake = fakeQuery();
+    client = inProcessClient(createClaudeAdapter({ query: fake.query as never }), env);
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const { sessionId } = await client.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+    await expect(
+      client.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text: "badkey" }] })
+    ).rejects.toMatchObject({
+      code: -32000,
+      message: expect.stringMatching(
+        /replace its Anthropic credential in Workspace settings → AI providers.*Invalid API key/
+      ),
+    });
+    await expect(
+      client.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text: "apierror" }] })
+    ).rejects.toMatchObject({ code: -32603, message: expect.stringContaining("API Error: 500") });
+  });
+
   it("loads a stored session by replaying its history", async () => {
     const fake = fakeQuery();
     const stored = [

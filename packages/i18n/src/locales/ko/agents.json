@@ -70,6 +70,8 @@
       "thinking": "생각 중",
       "thought": "생각",
       "attachment": "첨부 파일",
+      "approval_needed": "승인 필요",
+      "go_to_approval": "요청으로 이동",
       "turn_end": {
         "cancelled": "중지되었습니다.",
         "max_tokens": "에이전트가 출력 한도에 도달했습니다.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "{name} 열기",
       "unread": "{name} 열기(새 활동)",
+      "approval_needed": "{name} 열기(승인 필요)",
+      "needs_approval": "{name}에서 승인을 기다리고 있습니다",
       "minimize": "최소화",
       "open_page": "전체 페이지로 열기",
       "greeting": "안녕하세요, {name}입니다",

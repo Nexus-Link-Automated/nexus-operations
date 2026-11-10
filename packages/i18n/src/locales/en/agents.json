@@ -70,6 +70,8 @@
       "thinking": "Thinking",
       "thought": "Thought",
       "attachment": "Attachment",
+      "approval_needed": "Approval needed",
+      "go_to_approval": "Go to request",
       "turn_end": {
         "cancelled": "Stopped.",
         "max_tokens": "The agent reached its output limit.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "Open {name}",
       "unread": "Open {name} (new activity)",
+      "approval_needed": "Open {name} (approval needed)",
+      "needs_approval": "{name} needs your approval",
       "minimize": "Minimize",
       "open_page": "Open full page",
       "greeting": "Hi, I'm {name}",

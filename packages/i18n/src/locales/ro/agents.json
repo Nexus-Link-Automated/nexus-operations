@@ -70,6 +70,8 @@
       "thinking": "Se gândește",
       "thought": "Raționament",
       "attachment": "Atașament",
+      "approval_needed": "Este necesară aprobarea",
+      "go_to_approval": "Mergeți la solicitare",
       "turn_end": {
         "cancelled": "Oprit.",
         "max_tokens": "Agentul a atins limita de ieșire.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "Deschideți {name}",
       "unread": "Deschideți {name} (activitate nouă)",
+      "approval_needed": "Deschideți {name} (este necesară aprobarea)",
+      "needs_approval": "{name} așteaptă aprobarea dvs.",
       "minimize": "Minimizați",
       "open_page": "Deschideți pe toată pagina",
       "greeting": "Bună ziua, sunt {name}",

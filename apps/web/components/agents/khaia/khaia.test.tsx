@@ -52,6 +52,8 @@ const AGENTS: TWorkspaceAgent[] = [
 // Outside the app, i18next runs without the ICU plugin, so "{name}" stays in the labels.
 const OPEN = /^Open (Khaia|\{name\})$/;
 const UNREAD = /^Open (Khaia|\{name\}) \(new activity\)$/;
+const APPROVAL = /^Open (Khaia|\{name\}) \(approval needed\)$/;
+const NEEDS_APPROVAL = /^(Khaia|\{name\}) needs your approval$/;
 
 let store: AgentChatStore;
 vi.mock("@/hooks/store/use-agent-chat", () => ({ useAgentChat: () => store }));
@@ -258,6 +260,33 @@ describe("KhaiaWidget", () => {
     expect(screen.queryByRole("button", { name: UNREAD })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Minimize" }));
     expect(await screen.findByRole("button", { name: OPEN })).toBeTruthy();
+  });
+
+  it("shows a banner beside the bubble while an approval waits, which opens the chat at the request", async () => {
+    setup();
+    renderWidget();
+    await userEvent.click(await screen.findByRole("button", { name: OPEN }));
+    await waitFor(() => expect(store.canPrompt).toBe(true));
+    await userEvent.keyboard("{Escape}");
+
+    let turn: Promise<void> | undefined;
+    act(() => {
+      turn = store.sendPrompt("/tool");
+    });
+    await userEvent.click(await screen.findByRole("button", { name: NEEDS_APPROVAL }));
+    expect(screen.queryByRole("button", { name: APPROVAL })).toBeNull();
+    expect(await screen.findByRole("group", { name: "Allow this action?" })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "Minimize" }));
+    expect(screen.getByRole("button", { name: APPROVAL })).toBeTruthy();
+    expect(screen.getByRole("button", { name: NEEDS_APPROVAL })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: APPROVAL }));
+    await userEvent.click(await screen.findByRole("button", { name: "Allow once" }));
+    await act(() => turn!);
+    await userEvent.click(screen.getByRole("button", { name: "Minimize" }));
+    expect(await screen.findByRole("button", { name: OPEN })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: NEEDS_APPROVAL })).toBeNull();
   });
 
   it("switches agents from the composer picker, with agents that have no key disabled", async () => {

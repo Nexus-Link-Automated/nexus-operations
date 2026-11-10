@@ -6,6 +6,7 @@
 
 import React, { createContext, useContext } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface CustomComponentProps {
   href: string;
@@ -43,9 +44,23 @@ function HeadingPrimary({ children }: { children: React.ReactNode }) {
   return <h1 className="text-body-md-semibold text-primary">{children}</h1>;
 }
 
+function HeadingSection({ children }: { children: React.ReactNode }) {
+  return <h2 className="text-body-sm-semibold text-primary">{children}</h2>;
+}
+
 function HeadingSecondary({ children }: { children: React.ReactNode }) {
   return <h3 className="text-body-sm-semibold text-primary">{children}</h3>;
 }
+
+function minorHeading(Tag: "h4" | "h5" | "h6") {
+  return function HeadingMinor({ children }: { children: React.ReactNode }) {
+    return <Tag className="text-body-xs-semibold text-primary">{children}</Tag>;
+  };
+}
+
+const HeadingFour = minorHeading("h4");
+const HeadingFive = minorHeading("h5");
+const HeadingSix = minorHeading("h6");
 
 function Paragraph({ children }: { children: React.ReactNode }) {
   return <p className="text-body-xs-regular text-secondary">{children}</p>;
@@ -57,6 +72,42 @@ function OrderedList({ children }: { children: React.ReactNode }) {
 
 function UnorderedList({ children }: { children: React.ReactNode }) {
   return <ul className="mb-4 ml-8 list-disc text-body-xs-regular text-secondary">{children}</ul>;
+}
+
+function Blockquote({ children }: { children: React.ReactNode }) {
+  return <blockquote className="border-l-2 border-subtle pl-3 text-secondary">{children}</blockquote>;
+}
+
+function Rule() {
+  return <hr className="border-subtle" />;
+}
+
+/** Wide tables scroll on their own instead of widening the message. */
+function Table({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="max-w-full overflow-x-auto">
+      <table className="w-max min-w-full border-collapse text-body-xs-regular text-secondary">{children}</table>
+    </div>
+  );
+}
+
+function TableHeaderCell({ children, style }: React.ComponentProps<"th">) {
+  return (
+    <th
+      className="border border-subtle bg-layer-2 px-2 py-1 text-left text-body-xs-semibold text-primary"
+      style={style}
+    >
+      {children}
+    </th>
+  );
+}
+
+function TableCell({ children, style }: React.ComponentProps<"td">) {
+  return (
+    <td className="border border-subtle px-2 py-1 align-top" style={style}>
+      {children}
+    </td>
+  );
 }
 
 /** An image inside a link must not become a second link: anchors cannot nest. */
@@ -88,16 +139,26 @@ function ImageLink({ src, alt }: React.ComponentProps<"img">) {
 export function MarkdownRenderer({ markdown, options = {} }: Props) {
   const customComponents = {
     h1: HeadingPrimary,
+    h2: HeadingSection,
     h3: HeadingSecondary,
+    h4: HeadingFour,
+    h5: HeadingFive,
+    h6: HeadingSix,
     p: Paragraph,
     ol: OrderedList,
     ul: UnorderedList,
+    blockquote: Blockquote,
+    hr: Rule,
+    table: Table,
+    th: TableHeaderCell,
+    td: TableCell,
     a: Link,
     img: ImageLink,
   };
 
+  // GitHub-flavoured markdown: tables, strikethrough, task lists and bare links, as agents write them.
   return (
-    <ReactMarkdown {...options} components={customComponents}>
+    <ReactMarkdown remarkPlugins={[remarkGfm]} {...options} components={customComponents}>
       {markdown}
     </ReactMarkdown>
   );

@@ -70,6 +70,8 @@
       "thinking": "Réflexion en cours",
       "thought": "Réflexion",
       "attachment": "Pièce jointe",
+      "approval_needed": "Approbation requise",
+      "go_to_approval": "Voir la demande",
       "turn_end": {
         "cancelled": "Arrêté.",
         "max_tokens": "L’agent a atteint sa limite de sortie.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "Ouvrir {name}",
       "unread": "Ouvrir {name} (nouvelle activité)",
+      "approval_needed": "Ouvrir {name} (approbation requise)",
+      "needs_approval": "{name} attend votre approbation",
       "minimize": "Réduire",
       "open_page": "Ouvrir en pleine page",
       "greeting": "Bonjour, je suis {name}",

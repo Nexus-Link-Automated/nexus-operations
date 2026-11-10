@@ -130,7 +130,8 @@ function cannedTool(text: string): { name: string; input: Record<string, unknown
  * A stand-in for the Agent SDK's `query()`: yields canned SDK messages and calls the adapter's
  * PreToolUse hook the way Claude Code does before running a tool. Driven by the prompt text:
  * "hello", "run" (Bash), "read" (Read), "todo" (TodoWrite → plan), "wait" (until aborted),
- * "long" (stop_reason max_tokens), "tool:<Name>:<json input>" (that tool call).
+ * "long" (stop_reason max_tokens), "badkey" / "apierror" (the API rejects the key / fails), "tool:<Name>:<json input>"
+ * (that tool call).
  */
 export function fakeQuery(): {
   query: (params: { prompt: string | AsyncIterable<unknown>; options?: Options }) => Query;
@@ -172,6 +173,16 @@ export function fakeQuery(): {
           { type: "text", text: "Hi there" },
         ]);
         yield result(text === "long" ? "max_tokens" : "end_turn");
+        return;
+      }
+      if (text === "badkey" || text === "apierror") {
+        // What Claude Code yields when an API call fails: a synthetic message, then an error result.
+        const [reason, error] =
+          text === "badkey"
+            ? ["Invalid API key · Please run /login", "authentication_failed"]
+            : ["API Error: 500 Internal server error", "server_error"];
+        yield { ...assistant(id, [{ type: "text", text: reason }]), error } as SDKMessage;
+        yield { ...result(), is_error: true, result: reason } as SDKMessage;
         return;
       }
       const tool = cannedTool(text);

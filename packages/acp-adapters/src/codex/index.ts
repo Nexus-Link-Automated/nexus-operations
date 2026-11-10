@@ -130,7 +130,10 @@ export function createCodexAdapter(options: CodexAdapterOptions = {}): AgentAdap
       } catch (error) {
         await session.close();
         if (error instanceof RequestError) throw error;
-        throw RequestError.internalError(undefined, session.describeFailure(error));
+        const failure = session.describeFailure(error);
+        throw failure === CODEX_SIGNED_OUT
+          ? RequestError.authRequired(undefined, failure)
+          : RequestError.internalError(undefined, failure);
       }
       return session;
     },
@@ -344,7 +347,10 @@ class CodexSession implements AdapterSession {
       return "end_turn";
     } catch (error) {
       if (context.signal.aborted) return "cancelled";
-      throw new Error(this.describeFailure(error), { cause: error });
+      const failure = this.describeFailure(error);
+      // A key or sign-in that stops working mid-chat: auth-required lets the chat offer the fix.
+      if (failure === CODEX_SIGNED_OUT) throw RequestError.authRequired(undefined, failure);
+      throw new Error(failure, { cause: error });
     } finally {
       clearInterval(watchdog);
       context.signal.removeEventListener("abort", onAbort);

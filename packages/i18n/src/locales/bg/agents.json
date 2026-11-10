@@ -70,6 +70,8 @@
       "thinking": "Мисли",
       "thought": "Размисъл",
       "attachment": "Прикачен файл",
+      "approval_needed": "Нужно е одобрение",
+      "go_to_approval": "Към заявката",
       "turn_end": {
         "cancelled": "Спряно.",
         "max_tokens": "Агентът достигна лимита за обем на отговора.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "Отвори {name}",
       "unread": "Отвори {name} (нова активност)",
+      "approval_needed": "Отвори {name} (нужно е одобрение)",
+      "needs_approval": "{name} чака вашето одобрение",
       "minimize": "Минимизирай",
       "open_page": "Отвори на цяла страница",
       "greeting": "Здравейте, аз съм {name}",

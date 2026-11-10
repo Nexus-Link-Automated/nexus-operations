@@ -70,6 +70,8 @@
       "thinking": "Denkt na",
       "thought": "Gedachte",
       "attachment": "Bijlage",
+      "approval_needed": "Goedkeuring nodig",
+      "go_to_approval": "Naar het verzoek",
       "turn_end": {
         "cancelled": "Gestopt.",
         "max_tokens": "De agent heeft zijn uitvoerlimiet bereikt.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "{name} openen",
       "unread": "{name} openen (nieuwe activiteit)",
+      "approval_needed": "{name} openen (goedkeuring nodig)",
+      "needs_approval": "{name} wacht op uw goedkeuring",
       "minimize": "Minimaliseren",
       "open_page": "Openen op volledige pagina",
       "greeting": "Hallo, ik ben {name}",

@@ -70,6 +70,8 @@
       "thinking": "Pensando",
       "thought": "Razonamiento",
       "attachment": "Archivo adjunto",
+      "approval_needed": "Se necesita aprobación",
+      "go_to_approval": "Ir a la solicitud",
       "turn_end": {
         "cancelled": "Detenido.",
         "max_tokens": "El agente alcanzó su límite de salida.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "Abrir {name}",
       "unread": "Abrir {name} (nueva actividad)",
+      "approval_needed": "Abrir {name} (se necesita aprobación)",
+      "needs_approval": "{name} necesita su aprobación",
       "minimize": "Minimizar",
       "open_page": "Abrir en página completa",
       "greeting": "Hola, soy {name}",

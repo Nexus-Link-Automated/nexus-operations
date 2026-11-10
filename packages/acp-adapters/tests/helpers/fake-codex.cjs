@@ -82,6 +82,17 @@ function complete(status = "completed") {
 
 async function runTurn(text) {
   const n = turnCount;
+  // "badkey" / "apierror": the model API rejects the key / fails, and the turn fails.
+  if (text === "badkey" || text === "apierror") {
+    const error =
+      text === "badkey"
+        ? { message: "unexpected status 401 Unauthorized: invalid api key", codexErrorInfo: "unauthorized" }
+        : { message: "unexpected status 500 Internal Server Error", codexErrorInfo: "internalServerError" };
+    notify("error", { turnId: activeTurn, error, willRetry: false });
+    notify("turn/completed", { turn: { id: activeTurn, status: "failed", error, items: [] } });
+    activeTurn = undefined;
+    return;
+  }
   if (text === "hello") {
     notify("item/reasoning/summaryTextDelta", {
       turnId: activeTurn,

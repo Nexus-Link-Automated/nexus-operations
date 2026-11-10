@@ -16,6 +16,7 @@ import type {
   SessionInit,
   TurnContext,
 } from "../core/agent.ts";
+import { AI_PROVIDERS_SETTINGS } from "../core/auth.ts";
 import { scrubSecrets } from "../core/env.ts";
 import { agentInfo } from "../core/info.ts";
 import {
@@ -224,8 +225,13 @@ class DeepSeekSession implements AdapterSession {
       });
       if (!response.ok) {
         const detail = (await response.text().catch(() => "")).slice(0, 500);
-        const hint = response.status === 401 ? ` (check ${DEEPSEEK_ENV.apiKey})` : "";
-        throw new Error(`DeepSeek API error ${response.status}${hint}: ${detail}`);
+        if (response.status === 401) {
+          throw RequestError.authRequired(
+            undefined,
+            `DeepSeek rejected the API key: replace it in ${AI_PROVIDERS_SETTINGS} (or check ${DEEPSEEK_ENV.apiKey}): ${detail}`
+          );
+        }
+        throw new Error(`DeepSeek API error ${response.status}: ${detail}`);
       }
       if (!response.body) throw new Error("DeepSeek returned an empty response body");
       for await (const event of chatSseEvents(response.body)) {

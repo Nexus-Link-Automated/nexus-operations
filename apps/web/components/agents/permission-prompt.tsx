@@ -31,6 +31,9 @@ export function PermissionPrompt({ permission, onRespond }: Props) {
     <div
       role="group"
       aria-labelledby={headingId}
+      // The transcript finds pending prompts by this attribute, and focuses one when jumping to it.
+      data-permission-prompt=""
+      tabIndex={-1}
       className="flex flex-col gap-2 rounded-md border border-strong bg-layer-1 p-3"
     >
       <div className="flex items-center gap-2">

@@ -8,7 +8,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { usePathname } from "next/navigation";
 import useSWR from "swr";
-import { AiStarFourFilled } from "@makeplane/propel/icons";
+import { AiStarFourFilled, ShieldOutline } from "@makeplane/propel/icons";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 // components
@@ -96,11 +96,13 @@ export const KhaiaWidget = observer(function KhaiaWidget({ workspaceSlug }: Prop
     setOpen(false);
     restoreFocusRef.current = true;
   };
-  const launcherLabel = unread
-    ? t("agents.khaia.unread", { name: KHAIA_NAME })
-    : t("agents.khaia.open", { name: KHAIA_NAME });
+  // A turn waiting on an approval goes nowhere until it is answered, so it gets more than the dot.
+  const needsApproval = !open && hasChat && waitingOnPermission;
+  let launcherLabel = t("agents.khaia.open", { name: KHAIA_NAME });
+  if (needsApproval) launcherLabel = t("agents.khaia.approval_needed", { name: KHAIA_NAME });
+  else if (unread) launcherLabel = t("agents.khaia.unread", { name: KHAIA_NAME });
 
-  const launcher = (
+  const bubble = (
     <Tooltip>
       <TooltipTrigger
         render={
@@ -123,6 +125,17 @@ export const KhaiaWidget = observer(function KhaiaWidget({ workspaceSlug }: Prop
       </TooltipTrigger>
       <TooltipContent side="left">{launcherLabel}</TooltipContent>
     </Tooltip>
+  );
+  const launcher = (
+    <div className="flex items-center gap-2">
+      {needsApproval && (
+        <Button variant="outline" onClick={() => setOpen(true)} className="rounded-full shadow-raised-200">
+          <ShieldOutline className="text-accent-primary" />
+          {t("agents.khaia.needs_approval", { name: KHAIA_NAME })}
+        </Button>
+      )}
+      {bubble}
+    </div>
   );
 
   // Open, the window takes the bottom-right corner in place of the bubble; minimized, the bubble is back.

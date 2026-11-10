@@ -70,6 +70,8 @@
       "thinking": "Міркує",
       "thought": "Міркування",
       "attachment": "Вкладення",
+      "approval_needed": "Потрібне підтвердження",
+      "go_to_approval": "Перейти до запиту",
       "turn_end": {
         "cancelled": "Зупинено.",
         "max_tokens": "Агент досяг ліміту обсягу відповіді.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "Відкрити {name}",
       "unread": "Відкрити {name} (нова активність)",
+      "approval_needed": "Відкрити {name} (потрібне підтвердження)",
+      "needs_approval": "{name} чекає на ваше підтвердження",
       "minimize": "Згорнути",
       "open_page": "Відкрити на всю сторінку",
       "greeting": "Вітаю, я {name}",

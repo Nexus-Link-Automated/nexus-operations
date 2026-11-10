@@ -70,6 +70,8 @@
       "thinking": "Denkt nach",
       "thought": "Gedankengang",
       "attachment": "Anhang",
+      "approval_needed": "Freigabe erforderlich",
+      "go_to_approval": "Zur Anfrage",
       "turn_end": {
         "cancelled": "Gestoppt.",
         "max_tokens": "Der Agent hat sein Ausgabelimit erreicht.",
@@ -277,6 +279,8 @@
     "khaia": {
       "open": "{name} öffnen",
       "unread": "{name} öffnen (neue Aktivität)",
+      "approval_needed": "{name} öffnen (Freigabe erforderlich)",
+      "needs_approval": "{name} wartet auf Ihre Freigabe",
       "minimize": "Minimieren",
       "open_page": "Als ganze Seite öffnen",
       "greeting": "Hallo, ich bin {name}",

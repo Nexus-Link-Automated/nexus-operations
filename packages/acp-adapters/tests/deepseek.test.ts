@@ -134,6 +134,27 @@ describe("DeepSeek tool loop (fetch-stubbed SSE)", () => {
     expect(JSON.stringify(output?.content)).toContain("key=unset token=unset home=set");
   });
 
+  it("reports a rejected key as auth required, and other API errors as before", async () => {
+    const statuses = [401, 500];
+    const failing = (async () =>
+      new Response('{"error":{"message":"denied"}}', { status: statuses.shift() ?? 500 })) as typeof fetch;
+    client = inProcessClient(createDeepSeekAdapter({ fetch: failing }), env);
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const { sessionId } = await client.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+    const prompt = () => client!.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text: "hi" }] });
+
+    await expect(prompt()).rejects.toMatchObject({
+      code: -32000,
+      message: expect.stringContaining(
+        "DeepSeek rejected the API key: replace it in Workspace settings → AI providers"
+      ),
+    });
+    await expect(prompt()).rejects.toMatchObject({
+      code: -32603,
+      message: expect.stringContaining("DeepSeek API error 500"),
+    });
+  });
+
   it("requires an API key", async () => {
     client = inProcessClient(createDeepSeekAdapter({ fetch: deepSeekFetch().fetch }), {});
     await client.agent.request("initialize", { protocolVersion: 1 });

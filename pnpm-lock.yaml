@@ -1185,6 +1185,9 @@ importers:
       react-router:
         specifier: 'catalog:'
         version: 8.3.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      remark-gfm:
+        specifier: 'catalog:'
+        version: 4.0.1
       serve:
         specifier: 'catalog:'
         version: 14.2.5
