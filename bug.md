@@ -6,7 +6,7 @@ Line numbers refer to that commit, so they may have moved. Critical and High bug
 
 **224 bugs in the Plane base code:** 56 Medium, 168 Low.
 
-**75 bugs in the code Nexus adds on top of Plane:** 0 Medium, 75 Low, in the sections named "Nexus:" at the end of this file. These were reviewed separately, and each was re-checked by reading the code at `preview` `74111238e`. The Critical and High bugs in that code have their own pull requests, #30 to #39.
+**73 bugs in the code Nexus adds on top of Plane:** 0 Medium, 73 Low, in the sections named "Nexus:" at the end of this file. These were reviewed separately, and each was re-checked by reading the code at `preview` `74111238e`. The Critical and High bugs in that code have their own pull requests, #30 to #39.
 
 ## App API
 
@@ -317,7 +317,6 @@ Line numbers refer to that commit, so they may have moved. Critical and High bug
 | Low | `apps/agent-bridge/src/transport.ts:82-86`, `deployments/hybrid/vps/docker-compose.yml` | The bridge has no backpressure from the runner. Frames queue without limit when the browser reads slowly, and the compose file sets no bridge memory limit. | Pause the runner socket when the queue is full, and set a memory limit. |
 | Low | `apps/agent-runner/src/env.ts:75`, `apps/agent-runner/Dockerfile.agent-runner:54` | SSH does not work for agents. Agent uids have no passwd entry, and OpenSSH refuses to run for an unknown uid. | Add passwd entries for the uid range, or use `nss_wrapper`. |
 | Low | `apps/agent-bridge/src/offboarding.ts`, `apps/agent-bridge/src/plane-api.ts` | The ended-membership sweep trusts the API's answer with no cap, so a bridge pointed at the wrong or an empty database would offboard every member who has runner state. | Refuse a pass that would remove an unusually large share of members. |
-| Low | `packages/acp-adapters/src/codex/client.ts` | Codex's "not signed in" classification is a broad text match over errors and stderr, so an unrelated 401 is labelled a sign-in problem and shows the AI providers link. | Check the app-server's structured error code. |
 
 ## Nexus: agent chat
 
@@ -384,7 +383,6 @@ Checked against the open Messages PR stack at `a47352601`, because most of this 
 | Low | `apps/web/components/workspace-notifications/sidebar/notification-card/chat-mention-item.tsx:91` | A snoozed chat mention shows how long ago it arrived instead of when the snooze ends, unlike work item entries. | Show the snooze end as the work item card does. |
 | Low | `apps/web/components/agents/khaia/root.tsx:57` | The Khaia chat bubble hides only on the Agents page, so on Messages it can cover the composer in the same corner. | Hide it on the Messages path too, or move it clear of the composer. |
 | Low | `apps/web/components/messages/channel-view.tsx:47` | A user re-added to a channel while still on its page sees a spinner that never ends. Removal drops the message state, and nothing runs `openChannel` again when the channel comes back. | Reopen the channel when it returns after being lost. |
-| Low | `apps/web/components/messages/composer.tsx`, `root.tsx:37` | A half-written message is lost when switching channels, because the view is keyed by channel and drafts are not kept. | Keep a draft per channel in the store. |
 | Low | `apps/web/components/messages/channel-view.tsx:127` | Leave has no confirmation, and leaving a private channel can't be undone without being re-added. | Confirm before leaving, at least for private channels. |
 | Low | `apps/web/components/messages/message-item.tsx:199` | Workspace and channel admins can remove other people's messages in named channels through the API, but the app shows them no button. | Pass the role through the list and show Delete to them. |
 | Low | `apps/web/components/messages/message-list.tsx` (`DayDivider`), `create-channel-dialog.tsx`, `new-dm-dialog.tsx` | Parts of the screens stay in English in every locale: older day dividers, because `renderFormattedDate` takes no locale, and server errors shown in the dialogs. | Pass the locale to date formatting and map server errors to translated strings. |
