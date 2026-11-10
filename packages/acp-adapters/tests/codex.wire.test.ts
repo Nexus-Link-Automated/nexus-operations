@@ -325,6 +325,24 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
     });
   });
 
+  it("reports a key the API rejects mid-chat as auth required, and other failed turns as before", async () => {
+    const fake = fakeCodexEnv();
+    client = spawnClient("codex", fake.env);
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const { sessionId } = await client.agent.request("session/new", { cwd: tempDir(), mcpServers: [] });
+    const prompt = (text: string) =>
+      client!.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] });
+
+    await expect(prompt("badkey")).rejects.toMatchObject({
+      code: -32000,
+      message: expect.stringContaining("Codex is not signed in"),
+    });
+    await expect(prompt("apierror")).rejects.toMatchObject({
+      code: -32603,
+      message: expect.stringContaining("500 Internal Server Error"),
+    });
+  });
+
   it("points the app-server at the broker when the runner sets a base URL", async () => {
     const fake = fakeCodexEnv({ OPENAI_API_KEY: "opaque-token", PLANE_CODEX_BASE_URL: "http://127.0.0.1:9/v1" });
     client = spawnClient("codex", fake.env);

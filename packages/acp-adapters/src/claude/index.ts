@@ -359,6 +359,7 @@ class ClaudeSession implements AdapterSession {
 
     const streamed = new Set<string>();
     let stopReason: StopReason = "end_turn";
+    let authFailed = false;
     try {
       const activeQuery = this.#deps.query({
         prompt: promptToText(turn.prompt),
@@ -366,6 +367,7 @@ class ClaudeSession implements AdapterSession {
       });
       this.#active = activeQuery;
       for await (const message of activeQuery) {
+        if (message.type === "assistant" && message.error === "authentication_failed") authFailed = true;
         const result = await this.#handle(message, turn, streamed, planToolIds);
         if (result) stopReason = result;
       }
@@ -373,6 +375,13 @@ class ClaudeSession implements AdapterSession {
       return turn.signal.aborted ? "cancelled" : stopReason;
     } catch (error) {
       if (turn.signal.aborted) return "cancelled";
+      // Claude Code reports a rejected key as an ordinary failed turn; auth-required lets the chat offer the fix.
+      if (authFailed && !(error instanceof RequestError)) {
+        throw RequestError.authRequired(
+          undefined,
+          `Claude could not sign in: replace its Anthropic credential in ${AI_PROVIDERS_SETTINGS} (${errorMessage(error)})`
+        );
+      }
       throw error;
     } finally {
       this.#started = true;
