@@ -80,6 +80,17 @@
       "placeholder_channel": "Повідомлення в #{name}",
       "placeholder_dm": "Повідомлення: {name}"
     },
+    "attachments": {
+      "attach": "Прикріпити файли",
+      "download": "Завантажити {name}",
+      "remove": "Вилучити {name}",
+      "uploading": "Завантаження {name}",
+      "too_large": "{name} перевищує обмеження {limit} МБ.",
+      "not_allowed": "Не вдається прикріпити {name}. Цей тип файлу не дозволено.",
+      "failed": "Не вдалося завантажити {name}.",
+      "too_many": "До повідомлення можна додати щонайбільше {count} файлів.",
+      "hidden": "{count, plural, one {# вкладення} few {# вкладення} many {# вкладень} other {# вкладення}}. Приєднайтеся до каналу, щоб їх переглянути."
+    },
     "message": {
       "label": "{name}, {time}",
       "edit": "Редагувати повідомлення",

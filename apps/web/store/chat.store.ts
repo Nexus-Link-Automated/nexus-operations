@@ -18,6 +18,7 @@ import type {
   TChatMessageEdit,
   TChatMessagePage,
   TChatMessageWrite,
+  TChatUploadedAttachment,
 } from "@plane/types";
 
 /** The REST calls the store makes. `ChatService` in the app; a fake in tests. */
@@ -37,6 +38,8 @@ export type TChatStoreService = Pick<
   | "linkWorkItem"
   | "editMessage"
   | "removeMessage"
+  | "uploadAttachment"
+  | "deleteAttachment"
 >;
 
 /** The socket calls the store makes. `ChatSocket` in the app; a fake in tests. */
@@ -66,7 +69,16 @@ export type TChatPendingMessage = {
   channelId: string;
   body_html: string;
   body_json: Record<string, unknown>;
+  /** Already in storage: a retry sends these again by ID and never re-uploads them. */
+  attachments: TChatUploadedAttachment[];
   status: "sending" | "failed";
+};
+
+/** The most files one message can carry (the API's `MAX_ATTACHMENTS_PER_MESSAGE`). */
+export const CHAT_MAX_ATTACHMENTS = 10;
+
+export type TChatOutgoingMessage = Pick<TChatMessageWrite, "body_html" | "body_json"> & {
+  attachments?: TChatUploadedAttachment[];
 };
 
 /** A page fetches this many messages at a time. */
@@ -146,11 +158,17 @@ export interface IChatStore {
   setAtNewest: (channelId: string, atNewest: boolean) => void;
   loadOlderMessages: (channelId: string) => Promise<void>;
   revealMessage: (channelId: string, messageId: string) => Promise<boolean>;
-  sendMessage: (channelId: string, body: Pick<TChatMessageWrite, "body_html" | "body_json">) => Promise<void>;
+  sendMessage: (channelId: string, body: TChatOutgoingMessage) => Promise<void>;
   retryMessage: (channelId: string, localId: string) => Promise<void>;
   discardMessage: (channelId: string, localId: string) => void;
   editMessage: (channelId: string, messageId: string, body: TChatMessageEdit) => Promise<void>;
   removeMessage: (channelId: string, messageId: string) => Promise<void>;
+  uploadAttachment: (
+    channelId: string,
+    file: File,
+    onProgress?: (percent: number) => void
+  ) => Promise<TChatUploadedAttachment>;
+  deleteAttachment: (channelId: string, attachmentId: string) => void;
   linkWorkItem: (channelId: string, messageId: string, issueId: string) => Promise<void>;
   markRead: (channelId: string) => Promise<void>;
   createChannel: (data: TChatChannelCreate) => Promise<TChatChannel>;
@@ -246,6 +264,8 @@ export class ChatStore implements IChatStore {
       discardMessage: action.bound,
       editMessage: action.bound,
       removeMessage: action.bound,
+      uploadAttachment: action.bound,
+      deleteAttachment: action.bound,
       linkWorkItem: action.bound,
       markRead: action.bound,
       createChannel: action.bound,
@@ -747,13 +767,14 @@ export class ChatStore implements IChatStore {
     }
   }
 
-  async sendMessage(channelId: string, body: Pick<TChatMessageWrite, "body_html" | "body_json">): Promise<void> {
+  async sendMessage(channelId: string, body: TChatOutgoingMessage): Promise<void> {
     this.localIds += 1;
     const pending: TChatPendingMessage = {
       localId: `local-${this.localIds}`,
       channelId,
       body_html: body.body_html,
       body_json: body.body_json ?? {},
+      attachments: body.attachments ?? [],
       status: "sending",
     };
     if (!this.pendingMessages[channelId]) this.pendingMessages[channelId] = [];
@@ -768,7 +789,14 @@ export class ChatStore implements IChatStore {
     await this.deliver(pending);
   }
 
+  /** Give up on a message that failed to send, and on any files uploaded for it. */
   discardMessage(channelId: string, localId: string): void {
+    const pending = this.pendingMessages[channelId]?.find((p) => p.localId === localId);
+    this.forgetPending(channelId, localId);
+    for (const attachment of pending?.attachments ?? []) this.deleteAttachment(channelId, attachment.id);
+  }
+
+  private forgetPending(channelId: string, localId: string): void {
     const list = this.pendingMessages[channelId];
     if (list) this.pendingMessages[channelId] = list.filter((p) => p.localId !== localId);
   }
@@ -782,9 +810,10 @@ export class ChatStore implements IChatStore {
       const message = await this.service.sendMessage(slug, channelId, {
         body_html: pending.body_html,
         body_json: pending.body_json,
+        ...(pending.attachments.length > 0 && { attachment_ids: pending.attachments.map((file) => file.id) }),
       });
       commit(() => {
-        this.discardMessage(channelId, localId);
+        this.forgetPending(channelId, localId);
         if (this.channelMessages[channelId]?.loaded) this.upsertMessages(channelId, [message], "newer");
         const channel = this.channelMap[channelId];
         if (channel) channel.last_message_at = message.created_at;
@@ -798,6 +827,22 @@ export class ChatStore implements IChatStore {
       });
       throw error;
     }
+  }
+
+  /** Upload a file for a message about to be written. Its ID goes on the message at send time. */
+  uploadAttachment(
+    channelId: string,
+    file: File,
+    onProgress?: (percent: number) => void
+  ): Promise<TChatUploadedAttachment> {
+    return this.service.uploadAttachment(this.requireSlug(), channelId, file, onProgress);
+  }
+
+  /** Best effort: an upload nobody sends is also cleaned up on a schedule. */
+  deleteAttachment(channelId: string, attachmentId: string): void {
+    const slug = this.workspaceSlug;
+    if (!slug) return;
+    this.service.deleteAttachment(slug, channelId, attachmentId).catch(() => undefined);
   }
 
   async editMessage(channelId: string, messageId: string, body: TChatMessageEdit): Promise<void> {

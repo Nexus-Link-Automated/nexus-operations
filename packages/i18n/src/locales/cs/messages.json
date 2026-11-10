@@ -80,6 +80,17 @@
       "placeholder_channel": "Zpráva do #{name}",
       "placeholder_dm": "Zpráva pro: {name}"
     },
+    "attachments": {
+      "attach": "Připojit soubory",
+      "download": "Stáhnout {name}",
+      "remove": "Odebrat {name}",
+      "uploading": "Nahrávání {name}",
+      "too_large": "{name} překračuje limit {limit} MB.",
+      "not_allowed": "{name} nelze připojit. Tento typ souboru není povolen.",
+      "failed": "{name} se nepodařilo nahrát.",
+      "too_many": "Zpráva může mít nejvýše {count} příloh.",
+      "hidden": "{count, plural, one {# příloha} few {# přílohy} many {# přílohy} other {# příloh}}. Pro zobrazení se připojte ke kanálu."
+    },
     "message": {
       "label": "{name} v {time}",
       "edit": "Upravit zprávu",

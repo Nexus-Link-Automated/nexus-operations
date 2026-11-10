@@ -80,6 +80,17 @@
       "placeholder_channel": "Message #{name}",
       "placeholder_dm": "Message {name}"
     },
+    "attachments": {
+      "attach": "Attach files",
+      "download": "Download {name}",
+      "remove": "Remove {name}",
+      "uploading": "Uploading {name}",
+      "too_large": "{name} is larger than the {limit} MB limit.",
+      "not_allowed": "{name} can't be attached. This file type isn't allowed.",
+      "failed": "{name} couldn't be uploaded.",
+      "too_many": "A message can have up to {count} attachments.",
+      "hidden": "{count, plural, one {# attachment} other {# attachments}}. Join the channel to view."
+    },
     "message": {
       "label": "{name} at {time}",
       "edit": "Edit message",

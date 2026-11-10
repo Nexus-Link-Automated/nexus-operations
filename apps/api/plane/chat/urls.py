@@ -10,6 +10,8 @@ The mount captures the workspace slug, so each view here receives it as the `slu
 from django.urls import path
 
 from plane.chat.views import (
+    AttachmentDetailEndpoint,
+    AttachmentEndpoint,
     ChannelArchiveEndpoint,
     ChannelDetailEndpoint,
     ChannelEndpoint,
@@ -43,6 +45,8 @@ urlpatterns = [
     path(f"{CHANNEL}read/", ChannelReadEndpoint.as_view(), name="chat-channel-read"),
     path(f"{CHANNEL}members/", ChannelMemberEndpoint.as_view(), name="chat-channel-members"),
     path(f"{CHANNEL}members/<uuid:user_id>/", ChannelMemberDetailEndpoint.as_view(), name="chat-channel-member"),
+    path(f"{CHANNEL}attachments/", AttachmentEndpoint.as_view(), name="chat-attachments"),
+    path(f"{CHANNEL}attachments/<uuid:asset_id>/", AttachmentDetailEndpoint.as_view(), name="chat-attachment"),
     path(f"{CHANNEL}messages/", MessageEndpoint.as_view(), name="chat-messages"),
     path(f"{CHANNEL}messages/<uuid:message_id>/", MessageDetailEndpoint.as_view(), name="chat-message"),
     path(f"{CHANNEL}messages/<uuid:message_id>/replies/", MessageReplyEndpoint.as_view(), name="chat-message-replies"),

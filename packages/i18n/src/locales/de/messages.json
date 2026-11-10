@@ -80,6 +80,17 @@
       "placeholder_channel": "Nachricht an #{name}",
       "placeholder_dm": "Nachricht an {name}"
     },
+    "attachments": {
+      "attach": "Dateien anhängen",
+      "download": "{name} herunterladen",
+      "remove": "{name} entfernen",
+      "uploading": "{name} wird hochgeladen",
+      "too_large": "{name} überschreitet das Limit von {limit} MB.",
+      "not_allowed": "{name} kann nicht angehängt werden. Dieser Dateityp ist nicht erlaubt.",
+      "failed": "{name} konnte nicht hochgeladen werden.",
+      "too_many": "Eine Nachricht kann höchstens {count} Anhänge haben.",
+      "hidden": "{count, plural, one {# Anhang} other {# Anhänge}}. Tritt dem Kanal bei, um sie zu sehen."
+    },
     "message": {
       "label": "{name} um {time}",
       "edit": "Nachricht bearbeiten",

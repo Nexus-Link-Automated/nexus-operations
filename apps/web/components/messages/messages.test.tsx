@@ -36,6 +36,7 @@ vi.mock("@plane/blocks/toast", async (importOriginal) => ({
 }));
 
 vi.mock("@/hooks/store/use-chat", () => ({ useChat: () => mocks.chat }));
+vi.mock("@/hooks/use-file-size", () => ({ useFileSize: () => ({ maxFileSize: 5_242_880 }) }));
 vi.mock("@/hooks/use-app-router", () => ({ useAppRouter: () => ({ push: (href: string) => mocks.push(href) }) }));
 vi.mock("@/hooks/store/use-workspace", () => ({
   useWorkspace: () => ({ getWorkspaceBySlug: () => ({ id: "ws-1" }) }),
@@ -132,6 +133,8 @@ const message = (id: string, sender: string, text: string, minute: number, extra
     reply_count: 0,
     last_reply_at: null,
     references: [],
+    attachments: [],
+    attachment_count: 0,
     edited_at: null,
     removed_at: null,
     created_at: at,
@@ -152,6 +155,8 @@ function makeStore(service: Partial<TChatStoreService> = {}) {
     noteActivity: vi.fn(),
   };
   const fullService = {
+    uploadAttachment: notCalled,
+    deleteAttachment: notCalled,
     me: notCalled,
     listChannels: async () => [],
     getChannel: notCalled,
@@ -314,6 +319,73 @@ const isList = (el: Element) => el.getAttribute("role") === "log";
 const page = (ids: string[]) => ids.map((id, index) => message(id, ADA, id, index));
 
 describe("ChatMessageList", () => {
+  describe("attachments", () => {
+    const image = {
+      id: "a1",
+      name: "photo.png",
+      type: "image/png",
+      size: 2048,
+      preview_url: "/api/workspaces/acme/chat/channels/c/attachments/a1/?preview=1",
+      download_url: "/api/workspaces/acme/chat/channels/c/attachments/a1/",
+    };
+    const svg = {
+      ...image,
+      id: "a2",
+      name: "logo.svg",
+      type: "image/svg+xml",
+      preview_url: null,
+      download_url: "/api/workspaces/acme/chat/channels/c/attachments/a2/",
+    };
+
+    const renderMessage = async (extra: Partial<TChatMessage>) => {
+      const { store } = makeStore({
+        listMessages: async () => ({ results: [message("m1", ADA, "hello", 0, extra)], has_more: false }),
+        markRead: async () => channel({}),
+      });
+      mocks.chat = store;
+      await started(store, [channel({})]);
+      await store.openChannel("c-general");
+      inRouter(<ChatMessageList workspaceSlug="acme" channelId="c-general" intro={null} />);
+    };
+
+    it("previews a raster image through the API, and only that", async () => {
+      await renderMessage({ attachments: [image], attachment_count: 1 });
+      const preview = await screen.findByRole("img", { name: "photo.png" });
+      expect(preview.getAttribute("src")).toContain("?preview=1");
+    });
+
+    it("shows a file that can't be previewed as a download, with no inline rendering", async () => {
+      await renderMessage({ attachments: [svg], attachment_count: 1 });
+      await screen.findByText("logo.svg");
+      expect(screen.queryByRole("img", { name: "logo.svg" })).toBeNull();
+      expect(screen.getByRole("link", { name: byTemplate("Download") }).getAttribute("href")).toContain("/a2/");
+    });
+
+    it("shows nothing but the file for a message with no text", async () => {
+      await renderMessage({ body_html: "<p></p>", body_stripped: "", attachments: [svg], attachment_count: 1 });
+      await screen.findByText("logo.svg");
+      expect(screen.queryByTestId("chat-message-m1")).toBeNull();
+    });
+
+    it("tells someone outside the channel how many files there are, and shows none", async () => {
+      await renderMessage({ attachments: [], attachment_count: 2 });
+      await screen.findByText(byTemplate("Join the channel to view"));
+      expect(screen.queryByRole("link", { name: byTemplate("Download") })).toBeNull();
+    });
+
+    it("shows no files on a removed message", async () => {
+      // Whatever a stale copy still carries: the API already sends none.
+      await renderMessage({
+        attachments: [image],
+        attachment_count: 1,
+        removed_at: "2026-01-05T09:03:00Z",
+        body_html: "",
+      });
+      await screen.findByText(byTemplate("deleted"));
+      expect(screen.queryByRole("img", { name: "photo.png" })).toBeNull();
+    });
+  });
+
   describe("work item references", () => {
     const reference = {
       id: "i1",

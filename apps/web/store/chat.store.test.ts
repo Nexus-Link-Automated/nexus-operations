@@ -45,6 +45,7 @@ class FakeChatServer {
   messages: TChatMessage[] = [];
   calls: string[] = [];
   failSends = false;
+  sentAttachmentIds: (string[] | undefined)[] = [];
   /** Holds the next answer of a call back until the promise resolves. The answer is read when the call arrives. */
   holds = new Map<string, Promise<void>>();
   nextLink: TChatWorkItemLink | undefined;
@@ -79,6 +80,8 @@ class FakeChatServer {
       reply_count: 0,
       last_reply_at: null,
       references: [],
+      attachments: [],
+      attachment_count: 0,
       edited_at: null,
       removed_at: null,
       created_at: at,
@@ -238,10 +241,18 @@ class FakeChatServer {
       },
       sendMessage: async (_slug, channelId, data) => {
         log(`sendMessage ${channelId}`);
+        this.sentAttachmentIds.push(data.attachment_ids);
         if (this.failSends) throw new ChatServiceError(0, undefined);
         this.channelOr404(channelId);
         const message = this.post(channelId, ME, data.body_html);
         return clone(message);
+      },
+      uploadAttachment: async (_slug, channelId, file) => {
+        log(`uploadAttachment ${channelId} ${file.name}`);
+        return { id: `asset-${file.name}`, name: file.name, type: file.type, size: file.size };
+      },
+      deleteAttachment: async (_slug, _channelId, attachmentId) => {
+        log(`deleteAttachment ${attachmentId}`);
       },
       editMessage: async (_slug, _channelId, messageId, data) => {
         log(`editMessage ${messageId}`);
@@ -495,6 +506,56 @@ describe("ChatStore", () => {
     await expect(store.sendMessage("c-general", { body_html: "<p>again</p>" })).rejects.toThrow();
     store.discardMessage("c-general", store.getPendingMessages("c-general")[0]!.localId);
     expect(store.getPendingMessages("c-general")).toEqual([]);
+  });
+
+  it("sends finished uploads by ID and keeps them across a failed send, without uploading again", async () => {
+    const { store, server } = await setup();
+    await store.openChannel("c-general");
+    const files = [{ id: "asset-1", name: "a.png", type: "image/png", size: 10 }];
+
+    server.failSends = true;
+    await expect(
+      store.sendMessage("c-general", { body_html: "<p></p>", body_json: {}, attachments: files })
+    ).rejects.toThrow();
+    const [failed] = store.getPendingMessages("c-general");
+    expect(failed!.attachments).toEqual(files);
+
+    server.failSends = false;
+    await store.retryMessage("c-general", failed!.localId);
+    expect(store.getPendingMessages("c-general")).toEqual([]);
+    expect(server.sentAttachmentIds).toEqual([["asset-1"], ["asset-1"]]);
+    expect(server.calls.filter((call) => call.startsWith("uploadAttachment"))).toEqual([]);
+  });
+
+  it("sends no attachment_ids for a message without files", async () => {
+    const { store, server } = await setup();
+    await store.openChannel("c-general");
+    await store.sendMessage("c-general", { body_html: "<p>hi</p>", body_json: {} });
+    expect(server.sentAttachmentIds).toEqual([undefined]);
+  });
+
+  it("gives up the uploads of a discarded message, and only those", async () => {
+    const { store, server } = await setup();
+    await store.openChannel("c-general");
+    server.failSends = true;
+    await expect(
+      store.sendMessage("c-general", {
+        body_html: "<p></p>",
+        body_json: {},
+        attachments: [{ id: "asset-1", name: "a.png", type: "image/png", size: 10 }],
+      })
+    ).rejects.toThrow();
+    store.discardMessage("c-general", store.getPendingMessages("c-general")[0]!.localId);
+    expect(server.calls).toContain("deleteAttachment asset-1");
+
+    server.failSends = false;
+    server.calls = [];
+    await store.sendMessage("c-general", {
+      body_html: "<p></p>",
+      body_json: {},
+      attachments: [{ id: "asset-2", name: "b.png", type: "image/png", size: 10 }],
+    });
+    expect(server.calls.filter((call) => call.startsWith("deleteAttachment"))).toEqual([]);
   });
 
   it("re-reads an edited or removed message", async () => {

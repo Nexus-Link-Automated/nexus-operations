@@ -537,7 +537,7 @@ def _normalize(prop, value, workspace_id):
             option = prop.options.filter(pk=value, deleted_at__isnull=True, is_active=True).first()
             ok = option is not None
         elif kind == "FILE":
-            ok = FileAsset.objects.filter(pk=value, workspace_id=workspace_id).exists()
+            ok = FileAsset.outside_chat().filter(pk=value, workspace_id=workspace_id).exists()
         elif prop.relation_type == "USER":
             ok = WorkspaceMember.objects.filter(workspace_id=workspace_id, member_id=value, is_active=True).exists()
         else:

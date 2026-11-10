@@ -80,6 +80,17 @@
       "placeholder_channel": "#{name} kanalına mesaj",
       "placeholder_dm": "{name} kişisine mesaj"
     },
+    "attachments": {
+      "attach": "Dosya ekle",
+      "download": "{name} dosyasını indir",
+      "remove": "{name} dosyasını kaldır",
+      "uploading": "{name} yükleniyor",
+      "too_large": "{name}, {limit} MB sınırını aşıyor.",
+      "not_allowed": "{name} eklenemiyor. Bu dosya türüne izin verilmiyor.",
+      "failed": "{name} yüklenemedi.",
+      "too_many": "Bir mesajda en fazla {count} ek olabilir.",
+      "hidden": "{count, plural, one {# ek} other {# ek}}. Görmek için kanala katılın."
+    },
     "message": {
       "label": "{name}, {time}",
       "edit": "Mesajı düzenle",

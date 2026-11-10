@@ -80,6 +80,17 @@
       "placeholder_channel": "Správa do #{name}",
       "placeholder_dm": "Správa pre: {name}"
     },
+    "attachments": {
+      "attach": "Priložiť súbory",
+      "download": "Stiahnuť {name}",
+      "remove": "Odstrániť {name}",
+      "uploading": "Nahráva sa {name}",
+      "too_large": "{name} presahuje limit {limit} MB.",
+      "not_allowed": "{name} nemožno priložiť. Tento typ súboru nie je povolený.",
+      "failed": "{name} sa nepodarilo nahrať.",
+      "too_many": "Správa môže mať najviac {count} príloh.",
+      "hidden": "{count, plural, one {# príloha} few {# prílohy} many {# prílohy} other {# príloh}}. Pripojte sa ku kanálu, aby ste ich videli."
+    },
     "message": {
       "label": "{name} o {time}",
       "edit": "Upraviť správu",

@@ -21,6 +21,7 @@ import { useMember } from "@/hooks/store/use-member";
 import { useAppRouter } from "@/hooks/use-app-router";
 // local imports
 import { ChannelMembersDialog } from "./channel-members-dialog";
+import type { TChatComposerBody } from "./composer";
 import { ChatComposer } from "./composer";
 import { channelDisplayName } from "./helpers";
 import { ChatMessageList } from "./message-list";
@@ -107,7 +108,7 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
     }
   };
 
-  const send = (body: { body_html: string; body_json: Record<string, unknown> }) => {
+  const send = (body: TChatComposerBody) => {
     chat.sendMessage(channel.id, body).catch(() => {
       // The message stays in the list as failed, with retry and discard.
     });

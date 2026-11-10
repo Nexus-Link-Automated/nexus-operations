@@ -80,6 +80,17 @@
       "placeholder_channel": "Nhắn tin tới #{name}",
       "placeholder_dm": "Nhắn tin cho {name}"
     },
+    "attachments": {
+      "attach": "Đính kèm tệp",
+      "download": "Tải xuống {name}",
+      "remove": "Xóa {name}",
+      "uploading": "Đang tải lên {name}",
+      "too_large": "{name} vượt quá giới hạn {limit} MB.",
+      "not_allowed": "Không thể đính kèm {name}. Loại tệp này không được phép.",
+      "failed": "Không thể tải lên {name}.",
+      "too_many": "Một tin nhắn có thể có tối đa {count} tệp đính kèm.",
+      "hidden": "{count, plural, other {# tệp đính kèm}}. Tham gia kênh để xem."
+    },
     "message": {
       "label": "{name} lúc {time}",
       "edit": "Sửa tin nhắn",

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
+from .attachment import AttachmentDetailEndpoint, AttachmentEndpoint  # noqa: F401
 from .channel import (  # noqa: F401
     ChannelArchiveEndpoint,
     ChannelDetailEndpoint,

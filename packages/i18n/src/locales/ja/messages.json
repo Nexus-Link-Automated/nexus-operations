@@ -80,6 +80,17 @@
       "placeholder_channel": "#{name} へのメッセージ",
       "placeholder_dm": "{name} さんへのメッセージ"
     },
+    "attachments": {
+      "attach": "ファイルを添付",
+      "download": "{name} をダウンロード",
+      "remove": "{name} を削除",
+      "uploading": "{name} をアップロード中",
+      "too_large": "{name} は上限の {limit} MB を超えています。",
+      "not_allowed": "{name} は添付できません。このファイル形式は許可されていません。",
+      "failed": "{name} をアップロードできませんでした。",
+      "too_many": "1 件のメッセージに添付できるファイルは最大 {count} 件です。",
+      "hidden": "{count, plural, one {添付ファイル #件} other {添付ファイル #件}}。表示するにはチャンネルに参加してください。"
+    },
     "message": {
       "label": "{name}（{time}）",
       "edit": "メッセージを編集",

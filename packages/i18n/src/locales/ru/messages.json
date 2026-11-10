@@ -80,6 +80,17 @@
       "placeholder_channel": "Сообщение в #{name}",
       "placeholder_dm": "Сообщение: {name}"
     },
+    "attachments": {
+      "attach": "Прикрепить файлы",
+      "download": "Скачать {name}",
+      "remove": "Удалить {name}",
+      "uploading": "Загрузка {name}",
+      "too_large": "{name} превышает лимит {limit} МБ.",
+      "not_allowed": "Нельзя прикрепить {name}. Этот тип файла не разрешён.",
+      "failed": "Не удалось загрузить {name}.",
+      "too_many": "К сообщению можно прикрепить не более {count} файлов.",
+      "hidden": "{count, plural, one {# вложение} few {# вложения} many {# вложений} other {# вложения}}. Присоединитесь к каналу, чтобы их увидеть."
+    },
     "message": {
       "label": "{name}, {time}",
       "edit": "Изменить сообщение",

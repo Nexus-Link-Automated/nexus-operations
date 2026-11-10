@@ -80,6 +80,17 @@
       "placeholder_channel": "Kirim pesan ke #{name}",
       "placeholder_dm": "Kirim pesan ke {name}"
     },
+    "attachments": {
+      "attach": "Lampirkan file",
+      "download": "Unduh {name}",
+      "remove": "Hapus {name}",
+      "uploading": "Mengunggah {name}",
+      "too_large": "{name} melebihi batas {limit} MB.",
+      "not_allowed": "{name} tidak dapat dilampirkan. Jenis file ini tidak diizinkan.",
+      "failed": "{name} tidak dapat diunggah.",
+      "too_many": "Satu pesan dapat memiliki hingga {count} lampiran.",
+      "hidden": "{count, plural, other {# lampiran}}. Gabung ke kanal untuk melihatnya."
+    },
     "message": {
       "label": "{name} pada {time}",
       "edit": "Edit pesan",

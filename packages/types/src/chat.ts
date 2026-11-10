@@ -10,6 +10,7 @@
  * truth; these types follow them.
  */
 
+import type { TFileSignedURLResponse } from "./file";
 import type { TIssuePriorities } from "./issues";
 import type { TStateGroups } from "./state";
 
@@ -52,6 +53,23 @@ export type TChatMessageReference = {
   state: { name: string; group: TStateGroups; color: string } | null;
 };
 
+/** A file on a message. Both URLs are API paths: the API checks channel membership, then redirects to storage. */
+export type TChatAttachment = {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  /** Set only for raster images the API will show inline. Anything else (SVG included) only downloads. */
+  preview_url: string | null;
+  download_url: string;
+};
+
+/** A file uploaded but not yet on a message, enough to send it and to show it while it's sending. */
+export type TChatUploadedAttachment = Pick<TChatAttachment, "id" | "name" | "type" | "size">;
+
+/** A presigned POST for one file (`attachments/`). */
+export type TChatAttachmentUploadSlot = Pick<TFileSignedURLResponse, "asset_id" | "upload_data">;
+
 /** What linking a work item to a message returns; `reply` is null if it was already linked. */
 export type TChatWorkItemLink = {
   message: TChatMessage;
@@ -73,6 +91,9 @@ export type TChatMessage = {
   reply_count: number;
   last_reply_at: string | null;
   references: TChatMessageReference[];
+  /** Its files, for a channel member. Someone reading a channel they're not in gets none, and `attachment_count`. */
+  attachments: TChatAttachment[];
+  attachment_count: number;
   edited_at: string | null;
   removed_at: string | null;
   created_at: string;
@@ -97,6 +118,8 @@ export type TChatMessageWrite = {
   body_html: string;
   body_json?: Record<string, unknown>;
   parent_id?: string | null;
+  /** Finished uploads by the sender for this channel. A message with some doesn't need any text. */
+  attachment_ids?: string[];
 };
 
 /** An edit replaces both bodies: the API stores an empty `body_json` if it is left out. */

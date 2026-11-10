@@ -8,6 +8,7 @@ from .channel import (  # noqa: F401
     ChannelUpdateSerializer,
     DirectMessageOpenSerializer,
 )
+from .attachment import AttachmentUploadSerializer  # noqa: F401
 from .guest import ChatGuestPermissionSerializer  # noqa: F401
 from .membership import (  # noqa: F401
     ChannelMemberAddSerializer,

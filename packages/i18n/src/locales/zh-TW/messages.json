@@ -80,6 +80,17 @@
       "placeholder_channel": "傳送訊息到 #{name}",
       "placeholder_dm": "傳送訊息給 {name}"
     },
+    "attachments": {
+      "attach": "新增附件",
+      "download": "下載 {name}",
+      "remove": "移除 {name}",
+      "uploading": "正在上傳 {name}",
+      "too_large": "{name} 超過 {limit} MB 的限制。",
+      "not_allowed": "無法新增 {name}：不允許此檔案類型。",
+      "failed": "無法上傳 {name}。",
+      "too_many": "每則訊息最多可新增 {count} 個附件。",
+      "hidden": "{count, plural, other {# 個附件}}。加入頻道後即可檢視。"
+    },
     "message": {
       "label": "{name}，{time}",
       "edit": "編輯訊息",

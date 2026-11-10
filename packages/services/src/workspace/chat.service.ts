@@ -6,6 +6,7 @@
 
 import { API_BASE_URL } from "@plane/constants";
 import type {
+  TChatAttachmentUploadSlot,
   TChatChannel,
   TChatChannelCreate,
   TChatChannelMember,
@@ -17,9 +18,12 @@ import type {
   TChatMessagePage,
   TChatMessagePageQuery,
   TChatMessageWrite,
+  TChatUploadedAttachment,
   TChatWorkItemLink,
 } from "@plane/types";
 import { APIService } from "../api.service";
+import { FileUploadService } from "../file/file-upload.service";
+import { generateFileUploadPayload, getFileMetaDataForUpload } from "../file/helper";
 
 /** A chat request failed. `status` is the HTTP status, or 0 when the API was unreachable. */
 export class ChatServiceError extends Error {
@@ -155,6 +159,35 @@ export class ChatService extends APIService {
 
   async sendMessage(workspaceSlug: string, channelId: string, data: TChatMessageWrite): Promise<TChatMessage> {
     return this.call(this.post(`${this.channel(workspaceSlug, channelId)}/messages/`, data));
+  }
+
+  /**
+   * Upload a file for this channel, Plane's presigned way: ask for a slot, send the file to storage, say it finished.
+   * Sending a message with its ID then puts it on the message. A refused file (type, size) rejects with status 400.
+   */
+  async uploadAttachment(
+    workspaceSlug: string,
+    channelId: string,
+    file: File,
+    onProgress?: (percent: number) => void
+  ): Promise<TChatUploadedAttachment> {
+    const meta = await getFileMetaDataForUpload(file);
+    const base = `${this.channel(workspaceSlug, channelId)}/attachments/`;
+    const slot = await this.call<TChatAttachmentUploadSlot>(this.post(base, meta));
+    await new FileUploadService().uploadFile(
+      slot.upload_data.url,
+      generateFileUploadPayload(slot, file),
+      onProgress && ((event) => onProgress(event.total ? Math.round((event.loaded * 100) / event.total) : 0))
+    );
+    await this.call(this.patch(`${base}${encodeURIComponent(slot.asset_id)}/`));
+    return { id: slot.asset_id, name: meta.name, type: meta.type, size: meta.size };
+  }
+
+  /** Throw away an upload that hasn't been sent. */
+  async deleteAttachment(workspaceSlug: string, channelId: string, attachmentId: string): Promise<void> {
+    await this.call(
+      this.delete(`${this.channel(workspaceSlug, channelId)}/attachments/${encodeURIComponent(attachmentId)}/`)
+    );
   }
 
   async linkWorkItem(
