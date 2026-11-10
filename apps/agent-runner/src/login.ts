@@ -9,7 +9,7 @@ import type { ChildProcess, SpawnOptions } from "node:child_process";
 
 import type { SpawnTicket } from "@plane/agent-runner-protocol";
 
-import { defaultKiller, defaultSpawner, type Killer, type Spawner } from "./agent-process.ts";
+import { defaultKiller, defaultSpawner, withPrivateUmask, type Killer, type Spawner } from "./agent-process.ts";
 import type { HelperCommand, LoginAdapterId } from "./bins.ts";
 import type { Logger } from "./logger.ts";
 import type { WorkspaceLayout } from "./workspace.ts";
@@ -199,7 +199,10 @@ class HelperProcess {
     };
     let child: ChildProcess;
     try {
-      child = this.#options.spawner(helper.command, [...helper.args, adapter, action], options);
+      const helperArgs = [...helper.args, adapter, action];
+      const [file, args] =
+        layout.uid === undefined ? [helper.command, helperArgs] : withPrivateUmask(helper.command, helperArgs);
+      child = this.#options.spawner(file, args, options);
     } catch (error) {
       log.error("agent-runner: login helper spawn failed", { error: (error as Error).message });
       this.#markExited(null, null);

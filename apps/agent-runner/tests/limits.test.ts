@@ -86,7 +86,20 @@ describe("process and file size limits", () => {
     client.close();
 
     expect(calls).toEqual([
-      ["/usr/bin/prlimit", ["--nproc=100", "--fsize=1048576", "--", process.execPath, adapterBinPaths().echo!]],
+      [
+        "/bin/sh",
+        [
+          "-c",
+          'umask 077 && exec "$@"',
+          "sh",
+          "/usr/bin/prlimit",
+          "--nproc=100",
+          "--fsize=1048576",
+          "--",
+          process.execPath,
+          adapterBinPaths().echo!,
+        ],
+      ],
     ]);
   });
 

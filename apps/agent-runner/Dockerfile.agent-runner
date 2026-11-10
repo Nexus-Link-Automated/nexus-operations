@@ -85,6 +85,10 @@ RUN find /app/node_modules \( -name 'esbuild' -o -name 'tsgolint' \) -type f -de
   && printf '#!/bin/sh\nexec node /app/packages/acp-adapters/dist/bin/login.mjs "$@"\n' > /usr/local/bin/plane-agent-login \
   && chmod 0755 /usr/local/bin/plane-agent-login
 
+# Every agent has its own TMPDIR (TMP and TEMP too). For tools that write to /var/tmp anyway, agents
+# may create files there but not list it (the compose file mounts /tmp the same way).
+RUN chmod 1733 /var/tmp
+
 # plane-acp-gemini passes its policy with --admin-policy and its settings with
 # GEMINI_CLI_SYSTEM_SETTINGS_PATH, both from /app/packages/acp-adapters/gemini/ (root-owned, read-only
 # above). Gemini ignores --admin-policy when /etc/gemini-cli/policies holds any .toml, so keep it empty.

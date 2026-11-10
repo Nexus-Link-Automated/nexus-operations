@@ -26,6 +26,8 @@ describe("buildAgentEnv", () => {
         PATH: "/usr/bin:/bin",
         HOME: layout.home,
         TMPDIR: layout.tmp,
+        TMP: layout.tmp,
+        TEMP: layout.tmp,
         USER: "plane-agent-20001",
         LOGNAME: "plane-agent-20001",
         SHELL: "/bin/bash",
