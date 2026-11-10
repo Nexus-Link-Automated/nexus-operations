@@ -122,6 +122,15 @@
       "automatic_sender": "Оновлення робочих елементів",
       "automatic": "Автоматично"
     },
+    "thread": {
+      "title": "Гілка",
+      "close": "Закрити гілку",
+      "reply": "Відповісти в гілці",
+      "reply_placeholder": "Відповісти…",
+      "list_label": "Відповіді",
+      "last_reply_today": "Остання відповідь о {time}",
+      "last_reply_on": "Остання відповідь {date}"
+    },
     "day": {
       "today": "Сьогодні",
       "yesterday": "Учора"

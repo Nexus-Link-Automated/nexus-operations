@@ -122,6 +122,15 @@
       "automatic_sender": "Cập nhật hạng mục công việc",
       "automatic": "Tự động"
     },
+    "thread": {
+      "title": "Chuỗi",
+      "close": "Đóng chuỗi",
+      "reply": "Trả lời trong chuỗi",
+      "reply_placeholder": "Trả lời…",
+      "list_label": "Câu trả lời",
+      "last_reply_today": "Trả lời gần nhất lúc {time}",
+      "last_reply_on": "Trả lời gần nhất ngày {date}"
+    },
     "day": {
       "today": "Hôm nay",
       "yesterday": "Hôm qua"

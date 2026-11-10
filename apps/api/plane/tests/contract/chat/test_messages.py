@@ -152,6 +152,83 @@ class TestPagination:
 
 @pytest.mark.contract
 @pytest.mark.django_db
+class TestThreads:
+    def test_removed_replies_leave_the_summary_but_stay_in_the_thread(self, member, channel, five, send, url):
+        first, second = (send(channel, member.user, f"r{i}", parent=five[0]) for i in range(2))
+        second.remove()
+        res = member.client.get(url(f"channels/{channel.id}/messages/"))
+        summary = res.data["results"][0]
+        assert summary["reply_count"] == 1
+        assert (
+            summary["last_reply_at"]
+            == member.client.get(url(f"channels/{channel.id}/messages/{first.id}/")).data["created_at"]
+        )
+        thread = url(f"channels/{channel.id}/messages/{five[0].id}/replies/")
+        rows = member.client.get(thread).data["results"]
+        assert [row["id"] for row in rows] == [first.id, second.id] and rows[1]["removed_at"] is not None
+        # Still a cursor, so a client catching up from it isn't refused.
+        assert member.client.get(thread, {"after": str(second.id)}).status_code == 200
+
+        first.remove()
+        summary = member.client.get(url(f"channels/{channel.id}/messages/{five[0].id}/")).data
+        assert (summary["reply_count"], summary["last_reply_at"]) == (0, None)
+
+    def test_a_removed_message_keeps_its_thread(self, member, channel, five, send, url):
+        reply = send(channel, member.user, "still here", parent=five[0])
+        assert member.client.delete(url(f"channels/{channel.id}/messages/{five[0].id}/")).status_code == 204
+        parent = member.client.get(url(f"channels/{channel.id}/messages/")).data["results"][0]
+        assert parent["removed_at"] is not None and parent["reply_count"] == 1
+        thread = member.client.get(url(f"channels/{channel.id}/messages/{five[0].id}/replies/"))
+        assert [row["id"] for row in thread.data["results"]] == [reply.id]
+        res = member.client.post(
+            url(f"channels/{channel.id}/messages/"),
+            {"body_html": "<p>more</p>", "parent_id": str(five[0].id)},
+            format="json",
+        )
+        assert res.status_code == 201 and res.data["parent"] == five[0].id
+
+    def test_a_reader_who_isnt_in_the_channel_reads_the_thread_but_cant_reply(
+        self, member, member2, channel, five, send, url
+    ):
+        send(channel, member.user, "reply", parent=five[0])
+        thread = member2.client.get(url(f"channels/{channel.id}/messages/{five[0].id}/replies/"))
+        assert _texts(thread) == ["reply"]
+        res = member2.client.post(
+            url(f"channels/{channel.id}/messages/"),
+            {"body_html": "<p>me too</p>", "parent_id": str(five[0].id)},
+            format="json",
+        )
+        assert res.status_code == 403
+        assert not Message.objects.filter(body_stripped="me too").exists()
+
+    def test_someone_who_cant_see_the_channel_can_neither_read_nor_reply(
+        self, member, member2, make_channel, send, url
+    ):
+        secret = make_channel(ChannelKind.PRIVATE, members=[member.user])
+        parent = send(secret, member.user, "parent")
+        send(secret, member.user, "reply", parent=parent)
+        assert member2.client.get(url(f"channels/{secret.id}/messages/{parent.id}/replies/")).status_code == 404
+        res = member2.client.post(
+            url(f"channels/{secret.id}/messages/"),
+            {"body_html": "<p>x</p>", "parent_id": str(parent.id)},
+            format="json",
+        )
+        assert res.status_code == 404
+        assert not Message.objects.filter(body_stripped="x").exists()
+
+    def test_a_reply_to_a_reply_is_refused(self, member, channel, five, send, url):
+        reply = send(channel, member.user, "reply", parent=five[0])
+        res = member.client.post(
+            url(f"channels/{channel.id}/messages/"),
+            {"body_html": "<p>nested</p>", "parent_id": str(reply.id)},
+            format="json",
+        )
+        assert res.status_code == 400 and "one level deep" in res.data["error"]
+        assert not Message.objects.filter(body_stripped="nested").exists()
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
 class TestSend:
     def test_member_sends_as_themselves(self, member, channel, url):
         res = member.client.post(

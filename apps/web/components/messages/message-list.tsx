@@ -29,6 +29,8 @@ type Props = {
   channelId: string;
   /** Shown above the first message once there is nothing older. */
   intro: React.ReactNode;
+  /** List this thread's replies (by its first message) instead of the channel's messages. */
+  parentId?: string;
 };
 
 /** Where the list stands: the height of its content, and the first row on screen with its distance from the top. */
@@ -75,15 +77,16 @@ function DayDivider({ day }: { day: string }) {
 }
 
 /**
- * A channel's messages, oldest at the top. Scrolling to the top loads the page before (`before`) until `has_more`
- * is false, keeping what was on screen in place. New messages keep it at the bottom if it already was.
+ * A channel's messages, or a thread's replies, oldest at the top. Scrolling to the top loads the page before
+ * (`before`) until `has_more` is false, keeping what was on screen in place. New messages keep it at the bottom if it
+ * already was.
  */
-export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug, channelId, intro }: Props) {
+export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug, channelId, intro, parentId }: Props) {
   const { t } = useTranslation();
   const chat = useChat();
-  const messages = chat.getChannelMessages(channelId);
-  const state = chat.getMessagesState(channelId);
-  const pending = chat.getPendingMessages(channelId);
+  const messages = parentId ? chat.getThreadReplies(parentId) : chat.getChannelMessages(channelId);
+  const state = parentId ? chat.getThreadState(parentId) : chat.getMessagesState(channelId);
+  const pending = parentId ? chat.getPendingReplies(parentId) : chat.getPendingMessages(channelId);
   const rows = buildMessageRows(messages);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -105,7 +108,13 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
 
   const firstId = messages[0]?.id;
   const lastId = messages[messages.length - 1]?.id;
-  const targetMessageId = useSearchParams().get("message");
+  const searchParams = useSearchParams();
+  // A reply is linked as `?message=<its thread's first message>&reply=<the reply>`.
+  const targetMessageId = parentId
+    ? searchParams.get("message") === parentId
+      ? searchParams.get("reply")
+      : null
+    : searchParams.get("message");
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   // Strings for the reveal effect's dependencies: `t` is a new function on every render.
   const notFoundTitle = t("messages.errors.message_not_found");
@@ -114,6 +123,10 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
   const hasMoreOlder = !!state?.hasMoreOlder;
   const loadingOlder = !!state?.loadingOlder;
   const olderFailed = !!state?.olderFailed;
+  const loadOlder = useCallback(
+    () => (parentId ? chat.loadOlderReplies(parentId) : chat.loadOlderMessages(channelId)),
+    [chat, channelId, parentId]
+  );
 
   // Scrolled to the top: fetch the page before.
   useEffect(() => {
@@ -123,13 +136,13 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     if (!root || !target || !hasMoreOlder || olderFailed || typeof IntersectionObserver === "undefined") return;
     const intersection = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) void chat.loadOlderMessages(channelId);
+        if (entries.some((entry) => entry.isIntersecting)) void loadOlder();
       },
       { root, rootMargin: "200px 0px 0px 0px" }
     );
     intersection.observe(target);
     return () => intersection.disconnect();
-  }, [chat, channelId, hasMoreOlder, loadingOlder, olderFailed]);
+  }, [loadOlder, hasMoreOlder, loadingOlder, olderFailed]);
 
   // Stay at the bottom if already there; otherwise keep the same messages on screen, whatever changed above them.
   const holdPosition = useCallback(() => {
@@ -173,7 +186,9 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     let cancelled = false;
     follow(false);
     const reveal = async () => {
-      const found = await chat.revealMessage(channelId, targetMessageId);
+      const found = parentId
+        ? await chat.revealReply(parentId, targetMessageId)
+        : await chat.revealMessage(channelId, targetMessageId);
       if (cancelled) return;
       if (found) {
         setHighlightedId(targetMessageId);
@@ -181,16 +196,14 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
       }
       // Nothing to bring into view, so go back to following the list from wherever it is.
       if (scrollRef.current) follow(isAtBottom(scrollRef.current));
-      setToast({
-        type: "error",
-        title: chat.getMessagesState(channelId)?.olderFailed ? loadFailedTitle : notFoundTitle,
-      });
+      const current = parentId ? chat.getThreadState(parentId) : chat.getMessagesState(channelId);
+      setToast({ type: "error", title: current?.olderFailed ? loadFailedTitle : notFoundTitle });
     };
     void reveal();
     return () => {
       cancelled = true;
     };
-  }, [chat, channelId, follow, loaded, targetMessageId, notFoundTitle, loadFailedTitle]);
+  }, [chat, channelId, parentId, follow, loaded, targetMessageId, notFoundTitle, loadFailedTitle]);
 
   useEffect(() => {
     if (!highlightedId) return;
@@ -229,7 +242,9 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
           size="sm"
           stretch="auto"
           label={t("messages.errors.retry")}
-          onClick={() => void chat.openChannel(channelId).catch(() => undefined)}
+          onClick={() =>
+            void (parentId ? chat.openThread(channelId, parentId) : chat.openChannel(channelId)).catch(() => undefined)
+          }
         />
       </div>
     );
@@ -240,7 +255,7 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
       ref={scrollRef}
       role="log"
       aria-live="polite"
-      aria-label={t("messages.list_label")}
+      aria-label={parentId ? t("messages.thread.list_label") : t("messages.list_label")}
       className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-2"
       onScroll={(event) => {
         const el = event.currentTarget;
@@ -263,7 +278,7 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
                 size="sm"
                 stretch="auto"
                 label={t("messages.errors.retry")}
-                onClick={() => void chat.loadOlderMessages(channelId)}
+                onClick={() => void loadOlder()}
               />
             ) : (
               loadingOlder && <Spinner />
@@ -282,6 +297,7 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
               workspaceSlug={workspaceSlug}
               continued={row.continued}
               highlighted={row.message.id === highlightedId}
+              inThread={!!parentId}
             />
           )
         )}

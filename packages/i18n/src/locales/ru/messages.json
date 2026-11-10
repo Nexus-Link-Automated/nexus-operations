@@ -122,6 +122,15 @@
       "automatic_sender": "Обновления рабочих элементов",
       "automatic": "Автоматически"
     },
+    "thread": {
+      "title": "Ветка",
+      "close": "Закрыть ветку",
+      "reply": "Ответить в ветке",
+      "reply_placeholder": "Ответить…",
+      "list_label": "Ответы",
+      "last_reply_today": "Последний ответ в {time}",
+      "last_reply_on": "Последний ответ {date}"
+    },
     "day": {
       "today": "Сегодня",
       "yesterday": "Вчера"

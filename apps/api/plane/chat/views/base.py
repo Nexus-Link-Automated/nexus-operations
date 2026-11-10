@@ -56,8 +56,11 @@ def annotate_channels(queryset, user):
 
 
 def annotate_messages(queryset):
-    """Add the thread summary `MessageSerializer` reads: how many replies, and when the last one came."""
-    replies = Message.objects.filter(parent=OuterRef("pk"))
+    """Add the thread summary `MessageSerializer` reads: how many replies, and when the last one came.
+
+    Removed replies don't count. They stay in the thread's pages as tombstones, so they remain valid cursors.
+    """
+    replies = Message.objects.filter(parent=OuterRef("pk"), removed_at__isnull=True)
     return queryset.annotate(
         reply_count=_count(replies, "parent"),
         last_reply_at=Subquery(replies.order_by("-created_at").values("created_at")[:1]),

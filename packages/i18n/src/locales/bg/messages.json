@@ -122,6 +122,15 @@
       "automatic_sender": "Актуализации на работни елементи",
       "automatic": "Автоматично"
     },
+    "thread": {
+      "title": "Нишка",
+      "close": "Затваряне на нишката",
+      "reply": "Отговор в нишка",
+      "reply_placeholder": "Отговор…",
+      "list_label": "Отговори",
+      "last_reply_today": "Последен отговор в {time}",
+      "last_reply_on": "Последен отговор на {date}"
+    },
     "day": {
       "today": "Днес",
       "yesterday": "Вчера"

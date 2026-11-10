@@ -30,6 +30,8 @@ export type TChatComposerBody = TChatOutgoingMessage & { body_json: Record<strin
 type Props = {
   workspaceSlug: string;
   channelId: string;
+  /** Replying in this thread (its first message) rather than writing in the channel. */
+  parentId?: string;
   placeholder: string;
   onSend: (body: TChatComposerBody) => void;
 };
@@ -45,14 +47,22 @@ const noUploads = async (): Promise<string> => {
  * text is kept in the store per channel, so it is still there after switching away and back. Files upload as soon
  * as they are added, and sending waits for all of them.
  */
-export const ChatComposer = observer(function ChatComposer({ workspaceSlug, channelId, placeholder, onSend }: Props) {
+export const ChatComposer = observer(function ChatComposer({
+  workspaceSlug,
+  channelId,
+  parentId,
+  placeholder,
+  onSend,
+}: Props) {
   const { t } = useTranslation();
   const { getWorkspaceBySlug } = useWorkspace();
   const workspaceId = getWorkspaceBySlug(workspaceSlug)?.id ?? "";
   const { getDraft, setDraft } = useChat();
   const editorRef = useRef<EditorRefApi>(null);
+  // A thread's reply box keeps its own unsent text, apart from the channel's.
+  const draftKey = parentId ? `${channelId}/${parentId}` : channelId;
   // Read once: the editor takes its initial value only when it mounts.
-  const [draft] = useState(() => getDraft(channelId));
+  const [draft] = useState(() => getDraft(draftKey));
   const [isEmpty, setIsEmpty] = useState(!draft);
   const { maxFileSize } = useFileSize();
   const attachments = useChatComposerAttachments(channelId, maxFileSize);
@@ -69,7 +79,7 @@ export const ChatComposer = observer(function ChatComposer({ workspaceSlug, chan
     });
     editorRef.current?.clearEditor();
     setIsEmpty(true);
-    setDraft(channelId, "");
+    setDraft(draftKey, "");
   };
   // The editor is built once and keeps the callback it was given, which needs the current state of the files.
   const latestSend = useRef(send);
@@ -112,17 +122,17 @@ export const ChatComposer = observer(function ChatComposer({ workspaceSlug, chan
           <LiteTextEditor
             editable
             ref={editorRef}
-            id={`chat-composer-${channelId}`}
+            id={parentId ? `chat-reply-${parentId}` : `chat-composer-${channelId}`}
             workspaceSlug={workspaceSlug}
             workspaceId={workspaceId}
             initialValue={draft ?? "<p></p>"}
-            // Opening a conversation means typing in it.
+            // Opening a conversation, or a thread, means typing in it.
             autofocus
             placeholder={placeholder}
             onChange={(_json, html) => {
               const empty = isCommentEmpty(html);
               setIsEmpty(empty);
-              setDraft(channelId, empty ? "" : html);
+              setDraft(draftKey, empty ? "" : html);
             }}
             onEnterKeyPress={handleEnter}
             uploadFile={noUploads}

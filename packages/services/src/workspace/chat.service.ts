@@ -153,6 +153,20 @@ export class ChatService extends APIService {
     return this.call(this.get(`${this.channel(workspaceSlug, channelId)}/messages/`, { params: query }));
   }
 
+  /** A page of one thread's replies (`parentId`: its first message), with the same cursors as `listMessages`. */
+  async listReplies(
+    workspaceSlug: string,
+    channelId: string,
+    parentId: string,
+    query: TChatMessagePageQuery = {}
+  ): Promise<TChatMessagePage> {
+    return this.call(
+      this.get(`${this.channel(workspaceSlug, channelId)}/messages/${encodeURIComponent(parentId)}/replies/`, {
+        params: query,
+      })
+    );
+  }
+
   async getMessage(workspaceSlug: string, channelId: string, messageId: string): Promise<TChatMessage> {
     return this.call(this.get(`${this.channel(workspaceSlug, channelId)}/messages/${encodeURIComponent(messageId)}/`));
   }

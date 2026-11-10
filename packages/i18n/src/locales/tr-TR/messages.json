@@ -122,6 +122,15 @@
       "automatic_sender": "İş öğesi güncellemeleri",
       "automatic": "Otomatik"
     },
+    "thread": {
+      "title": "Konu",
+      "close": "Konuyu kapat",
+      "reply": "Konuda yanıtla",
+      "reply_placeholder": "Yanıtla…",
+      "list_label": "Yanıtlar",
+      "last_reply_today": "Son yanıt {time}",
+      "last_reply_on": "Son yanıt {date}"
+    },
     "day": {
       "today": "Bugün",
       "yesterday": "Dün"

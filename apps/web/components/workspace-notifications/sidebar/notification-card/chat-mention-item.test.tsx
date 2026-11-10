@@ -83,6 +83,13 @@ describe("a chat mention in the inbox", () => {
     expect(mocks.peek).not.toHaveBeenCalled();
   });
 
+  it("opens a mention in a thread reply on that reply", async () => {
+    mocks.notification = notification({ data: { chat_message: chatMessage({ id: "r1", parent_id: "m1" }) } });
+    render(<NotificationItem workspaceSlug="acme" notificationId="n1" />);
+    await userEvent.click(screen.getByText("can you look at this"));
+    await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/acme/messages/c1?message=m1&reply=r1"));
+  });
+
   it("still goes to the message if marking it read fails", async () => {
     mocks.markRead.mockRejectedValue(new Error("offline"));
     render(<NotificationItem workspaceSlug="acme" notificationId="n1" />);

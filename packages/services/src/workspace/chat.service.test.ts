@@ -64,3 +64,18 @@ describe("ChatService attachments", () => {
     expect(seen).toEqual([25]);
   });
 });
+
+describe("ChatService threads", () => {
+  it("pages a thread's replies with the message cursors", async () => {
+    const chat = new ChatService("http://api");
+    const get = vi.spyOn(chat as unknown as { get: () => Promise<unknown> }, "get");
+    get.mockResolvedValue({ data: { results: [], has_more: false } });
+    await expect(chat.listReplies("acme", "c1", "m1", { before: "r9", limit: 50 })).resolves.toEqual({
+      results: [],
+      has_more: false,
+    });
+    expect(get).toHaveBeenCalledWith("/api/workspaces/acme/chat/channels/c1/messages/m1/replies/", {
+      params: { before: "r9", limit: 50 },
+    });
+  });
+});

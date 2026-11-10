@@ -104,24 +104,35 @@ vi.mock("@/components/dropdowns/project/project-select", () => ({
   ),
 }));
 // The rich-text editor, in the composer and when editing a message, is Plane's own and tested there; here it shows
-// its HTML as text. Its handle gives back what it started with, so the composer can send a draft.
+// its HTML as text. An editor asked to `autofocus` takes focus as it mounts, as Plane's does, and its handle gives back
+// what it started with, so the composer can send a draft.
 vi.mock("@/components/editor/lite-text", async () => {
-  const { useImperativeHandle } = await import("react");
+  const { useEffect, useImperativeHandle, useRef } = await import("react");
   return {
     LiteTextEditor: function LiteTextEditor({
       initialValue,
       id,
+      autofocus,
       ref,
     }: {
       initialValue: string;
       id: string;
+      autofocus?: boolean;
       ref?: React.Ref<unknown>;
     }) {
+      const element = useRef<HTMLDivElement>(null);
       useImperativeHandle(ref, () => ({
         getDocument: () => ({ html: initialValue, json: {} }),
         clearEditor: () => undefined,
       }));
-      return <div data-testid={id}>{new DOMParser().parseFromString(initialValue, "text/html").body.textContent}</div>;
+      useEffect(() => {
+        if (autofocus) element.current?.focus();
+      }, [autofocus]);
+      return (
+        <div ref={element} tabIndex={-1} data-testid={id}>
+          {new DOMParser().parseFromString(initialValue, "text/html").body.textContent}
+        </div>
+      );
     },
   };
 });
@@ -135,6 +146,7 @@ const { CreateChannelDialog } = await import("./create-channel-dialog");
 const { ChatMessageList } = await import("./message-list");
 const { BrowseChannelsDialog } = await import("./browse-channels-dialog");
 const { ChatUnreadCount } = await import("./unread-badge");
+const { MessagesRoot } = await import("./root");
 
 const channel = (overrides: Partial<TChatChannel>): TChatChannel => ({
   id: "c-general",
@@ -206,6 +218,7 @@ function makeStore(service: Partial<TChatStoreService> = {}) {
     leaveChannel: notCalled,
     markRead: notCalled,
     listMessages: async () => ({ results: [], has_more: false }),
+    listReplies: async () => ({ results: [], has_more: false }),
     getMessage: notCalled,
     sendMessage: notCalled,
     linkWorkItem: notCalled,
@@ -810,7 +823,7 @@ describe("ChatMessageList", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows an automatic message as Nexus's, with no actions on it", async () => {
+  it("shows an automatic message as Nexus's, with nothing to do but reply to it", async () => {
     const automatic = message("m1", ME, "EMP-142 moved to In Review", 0, {
       sender: null,
       system_event: "work_item_state",
@@ -828,7 +841,11 @@ describe("ChatMessageList", () => {
     expect(within(row).getByText("Work item updates")).toBeTruthy();
     expect(within(row).getByText("Automatic")).toBeTruthy();
     expect(within(row).getByText("EMP-142 moved to In Review")).toBeTruthy();
-    expect(within(row).queryByRole("button", { hidden: true })).toBeNull();
+    expect(
+      within(row)
+        .getAllByRole("button", { hidden: true })
+        .map((button) => button.getAttribute("aria-label"))
+    ).toEqual(["Reply in thread"]);
   });
 
   it("offers Edit and Delete only where the API would allow them", async () => {
@@ -1259,5 +1276,192 @@ describe("ChatComposer", () => {
     expect(send.hasAttribute("disabled")).toBe(false);
     await userEvent.click(send);
     expect(store.getDraft("c-general")).toBeUndefined();
+  });
+});
+
+describe("threads", () => {
+  const parent = (extra: Partial<TChatMessage> = {}) =>
+    message("p1", ADA, "the parent", 0, { reply_count: 2, last_reply_at: "2026-01-05T09:05:00Z", ...extra });
+  const replyTo = (id: string, text: string, minute: number, extra: Partial<TChatMessage> = {}) =>
+    message(id, ADA, text, minute, { parent: "p1", ...extra });
+
+  async function view(
+    options: { top?: TChatMessage[]; replies?: TChatMessage[]; channel?: Partial<TChatChannel> } = {},
+    service: Partial<TChatStoreService> = {}
+  ) {
+    const top = options.top ?? [parent(), message("m2", ADA, "next", 1)];
+    const replies = options.replies ?? [replyTo("r1", "first reply", 2), replyTo("r2", "second reply", 3)];
+    const { store } = makeStore({
+      listMessages: async () => ({ results: top, has_more: false }),
+      listReplies: async () => ({ results: replies, has_more: false }),
+      getMessage: async (_slug, _channel, id) => [...top, ...replies].find((m) => m.id === id)!,
+      markRead: async () => channel(options.channel ?? {}),
+      ...service,
+    });
+    mocks.chat = store;
+    await started(store, [channel(options.channel ?? {})]);
+    const rendered = inRouter(<MessagesRoot workspaceSlug="acme" channelId="c-general" />);
+    await within(await screen.findByRole("log", { name: "Messages" })).findAllByRole("article");
+    return { store, ...rendered };
+  }
+
+  const panel = () => screen.getByRole("complementary", { name: "Thread" });
+
+  it("keeps a thread's unsent reply apart from the channel's draft", async () => {
+    const { store } = await view();
+    store.setDraft("c-general/p1", "<p>reply text</p>");
+    await userEvent.click(screen.getByRole("button", { name: byTemplate("reply") }));
+    expect((await within(panel()).findByTestId("chat-reply-p1")).textContent).toBe("reply text");
+    expect(store.getDraft("c-general")).toBeUndefined();
+  });
+
+  it("shows a summary under a message with replies, and none under one without", async () => {
+    await view();
+    const [withReplies, without] = within(screen.getByRole("log", { name: "Messages" })).getAllByRole("article");
+    const summary = within(withReplies!).getByRole("button", { name: byTemplate("reply") });
+    expect(summary.textContent).toContain("Last reply");
+    expect(summary.getAttribute("aria-expanded")).toBe("false");
+    expect(within(without!).queryByRole("button", { name: byTemplate("reply") })).toBeNull();
+  });
+
+  it("opens beside the conversation: the parent, its replies oldest first, and a focused reply box", async () => {
+    const { store } = await view();
+    await userEvent.click(screen.getByRole("button", { name: byTemplate("reply") }));
+
+    const thread = await screen.findByRole("complementary", { name: "Thread" });
+    const log = within(thread).getByRole("log", { name: "Replies" });
+    await within(log).findByText("second reply");
+    const rows = within(log).getAllByRole("article");
+    expect(rows.map((row) => row.getAttribute("data-message-id"))).toEqual(["p1", "r1", "r2"]);
+    // The parent shows no summary or Reply of its own in the thread.
+    expect(within(rows[0]!).queryByRole("button", { name: byTemplate("reply"), hidden: true })).toBeNull();
+    expect(within(rows[0]!).queryByRole("button", { name: "Reply in thread", hidden: true })).toBeNull();
+    // Replies stay out of the channel.
+    expect(within(screen.getByRole("log", { name: "Messages" })).queryByText("first reply")).toBeNull();
+    expect(document.activeElement?.getAttribute("data-testid")).toBe("chat-reply-p1");
+    expect(store.activeThread).toEqual({ channelId: "c-general", parentId: "p1" });
+  });
+
+  it("starts a thread from Reply on a message without replies", async () => {
+    const { store } = await view({ replies: [] });
+    const next = within(screen.getByRole("log", { name: "Messages" })).getAllByRole("article")[1]!;
+    await userEvent.click(within(next).getByRole("button", { name: "Reply in thread", hidden: true }));
+    expect(store.activeThread?.parentId).toBe("m2");
+    expect(await screen.findByRole("complementary", { name: "Thread" })).toBeTruthy();
+  });
+
+  it("closes with Escape or the close button, and Escape while editing only cancels the edit", async () => {
+    const { store } = await view({ replies: [message("r1", ME, "my reply", 2, { parent: "p1" })] });
+    await userEvent.click(screen.getByRole("button", { name: byTemplate("reply") }));
+    await within(panel()).findByText("my reply");
+
+    const mine = within(panel()).getAllByRole("article")[1]!;
+    await userEvent.click(within(mine).getByRole("button", { name: "Edit message", hidden: true }));
+    fireEvent.keyDown(within(mine).getByRole("group", { name: "Edit message" }), { key: "Escape" });
+    expect(within(mine).queryByRole("group", { name: "Edit message" })).toBeNull();
+    expect(store.activeThread).not.toBeNull();
+
+    fireEvent.keyDown(within(panel()).getByTestId("chat-reply-p1"), { key: "Escape" });
+    expect(screen.queryByRole("complementary", { name: "Thread" })).toBeNull();
+    expect(store.activeThread).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: byTemplate("reply") }));
+    await userEvent.click(
+      within(await screen.findByRole("complementary", { name: "Thread" })).getByRole("button", {
+        name: "Close thread",
+      })
+    );
+    expect(screen.queryByRole("complementary", { name: "Thread" })).toBeNull();
+  });
+
+  it("leaves the thread open when Escape closes a dialog opened from it", async () => {
+    const { store } = await view({ replies: [message("r1", ME, "my reply", 2, { parent: "p1" })] });
+    await userEvent.click(screen.getByRole("button", { name: byTemplate("reply") }));
+    await within(panel()).findByText("my reply");
+    const mine = within(panel()).getAllByRole("article")[1]!;
+    await userEvent.click(within(mine).getByRole("button", { name: "Delete message", hidden: true }));
+    fireEvent.keyDown(await screen.findByRole("alertdialog"), { key: "Escape" });
+    expect(store.activeThread).not.toBeNull();
+    expect(screen.getByRole("complementary", { name: "Thread" })).toBeTruthy();
+  });
+
+  it("takes the conversation's place on a narrow screen instead of squeezing in beside it", async () => {
+    await view();
+    const conversation = screen.getByRole("log", { name: "Messages" }).parentElement!;
+    expect(conversation.className).not.toContain("max-lg:hidden");
+    await userEvent.click(screen.getByRole("button", { name: byTemplate("reply") }));
+    await screen.findByRole("complementary", { name: "Thread" });
+    expect(conversation.className).toContain("max-lg:hidden");
+    expect(panel().className).toContain("w-full");
+    expect(panel().className).toContain("lg:w-96");
+  });
+
+  it("shows a removed first message as removed, with its thread still reachable", async () => {
+    await view({ top: [parent({ removed_at: "2026-01-05T09:06:00Z", body_html: "", body_stripped: "" })] });
+    const removed = screen.getByText("This message was deleted.");
+    const row = removed.closest("article")!;
+    await userEvent.click(within(row).getByRole("button", { name: byTemplate("reply") }));
+    const thread = await screen.findByRole("complementary", { name: "Thread" });
+    expect(await within(thread).findByText("first reply")).toBeTruthy();
+    expect(within(thread).getByText("This message was deleted.")).toBeTruthy();
+    expect(within(thread).getByTestId("chat-reply-p1")).toBeTruthy();
+  });
+
+  it("sends a reply into the thread, showing it pending, and offers Retry when it fails", async () => {
+    const sendMessage = vi.fn((_slug: string, _channelId: string, _data: unknown) =>
+      Promise.reject(new Error("offline"))
+    );
+    const { store } = await view({}, { sendMessage });
+    await userEvent.click(screen.getByRole("button", { name: byTemplate("reply") }));
+    await within(panel()).findByText("second reply");
+    await act(async () => {
+      await store.sendReply("c-general", "p1", { body_html: "<p>my answer</p>" }).catch(() => undefined);
+    });
+    expect(sendMessage).toHaveBeenCalledWith("acme", "c-general", {
+      body_html: "<p>my answer</p>",
+      body_json: {},
+      parent_id: "p1",
+    });
+    const failed = within(panel()).getByRole("article", { name: "Not sent." });
+    expect(within(failed).getByText("my answer")).toBeTruthy();
+    expect(within(failed).getByRole("button", { name: "Retry" })).toBeTruthy();
+    // Not in the channel.
+    expect(within(screen.getByRole("log", { name: "Messages" })).queryByText("my answer")).toBeNull();
+  });
+
+  it("offers no reply box to a reader who hasn't joined, and focuses the panel instead", async () => {
+    await view({ channel: { is_member: false } });
+    await userEvent.click(screen.getByRole("button", { name: byTemplate("reply") }));
+    const thread = await screen.findByRole("complementary", { name: "Thread" });
+    await within(thread).findByText("first reply");
+    expect(within(thread).queryByTestId("chat-reply-p1")).toBeNull();
+    expect(document.activeElement).toBe(within(thread).getByRole("heading", { name: "Thread" }));
+  });
+
+  it("says so when the linked thread is gone, and offers to try again", async () => {
+    const { ChatServiceError } = await import("@plane/services");
+    const gone = () => Promise.reject(new ChatServiceError(404, {}));
+    const listReplies = vi.fn(gone);
+    mocks.search = "message=p-gone&reply=r-gone";
+    await view({}, { listReplies, getMessage: gone });
+    const thread = await screen.findByRole("complementary", { name: "Thread" });
+    expect(await within(thread).findByText("This message is no longer available.")).toBeTruthy();
+    expect(within(thread).queryByTestId("chat-reply-p-gone")).toBeNull();
+    await userEvent.click(within(thread).getByRole("button", { name: "Try again" }));
+    expect(listReplies).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens the thread from a link to a reply, with the reply highlighted", async () => {
+    const scrollIntoView = vi.fn();
+    // oxlint-disable-next-line no-extend-native -- jsdom doesn't implement scrollIntoView
+    Element.prototype.scrollIntoView = scrollIntoView;
+    mocks.search = "message=p1&reply=r2";
+    await view();
+    const thread = await screen.findByRole("complementary", { name: "Thread" });
+    await vi.waitFor(() =>
+      expect(thread.querySelector('[data-message-id="r2"]')?.className).toContain("bg-accent-subtle")
+    );
+    expect(thread.querySelector('[data-message-id="r1"]')?.className).not.toContain("bg-accent-subtle");
+    expect(mocks.toast).not.toHaveBeenCalled();
   });
 });

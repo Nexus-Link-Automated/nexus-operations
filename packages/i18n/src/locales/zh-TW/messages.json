@@ -122,6 +122,15 @@
       "automatic_sender": "工作項目更新",
       "automatic": "自動"
     },
+    "thread": {
+      "title": "討論串",
+      "close": "關閉討論串",
+      "reply": "在討論串中回覆",
+      "reply_placeholder": "回覆…",
+      "list_label": "回覆",
+      "last_reply_today": "最後回覆於 {time}",
+      "last_reply_on": "最後回覆於 {date}"
+    },
     "day": {
       "today": "今天",
       "yesterday": "昨天"

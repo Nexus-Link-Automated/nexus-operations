@@ -76,10 +76,11 @@ class TestLinking:
         assert issue_link.url == f"{WEB_URL}/{workspace.slug}/messages/{channel.id}?message={report.id}"
         assert issue_link.title == "Message in #development"
 
-        # A normal channel message from whoever clicked, visible today (not a thread reply), with the card too.
+        # A note in the message's thread from whoever clicked, with the card too; the channel has the card already.
         reply = response.data["reply"]
         assert reply["sender"] == member.user.id
-        assert reply["parent"] is None
+        assert reply["parent"] == report.id
+        assert response.data["message"]["reply_count"] == 1
         assert f"EMP-{issue.sequence_id}" in reply["body_html"]
         assert [r["id"] for r in reply["references"]] == [str(issue.id)]
 
@@ -100,17 +101,21 @@ class TestLinking:
         assert link(member, secret, message, issue.id).status_code == 201
         assert IssueLink.objects.get(issue=issue).title == "Message in Nexus Messages"
 
-    def test_a_thread_reply_links_to_its_thread(self, member, channel, report, send, link, in_project, issue):
+    def test_a_thread_reply_links_to_itself_in_its_thread(self, member, channel, report, send, link, in_project, issue):
         in_project(member)
         reply = send(channel, member.user, "still broken", parent=report)
-        assert link(member, channel, reply, issue.id).status_code == 201
-        assert IssueLink.objects.get(issue=issue).url.endswith(f"?message={report.id}")
+        response = link(member, channel, reply, issue.id)
+        assert response.status_code == 201
+        assert IssueLink.objects.get(issue=issue).url.endswith(f"?message={report.id}&reply={reply.id}")
+        # The note joins the same thread: threads are one level deep.
+        assert response.data["reply"]["parent"] == report.id
 
     @pytest.mark.django_db(transaction=True)
     def test_the_channel_hears_about_it_once(self, member, channel, report, link, in_project, issue, published):
         in_project(member)
         assert link(member, channel, report, issue.id).status_code == 201
         assert [event["type"] for event in published.events] == [EventType.MESSAGE_UPDATED, EventType.MESSAGE_CREATED]
+        assert published.events[1]["parent_id"] == str(report.id)
         assert link(member, channel, report, issue.id).status_code == 200
         assert len(published.events) == 2
 

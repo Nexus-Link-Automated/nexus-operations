@@ -122,6 +122,15 @@
       "automatic_sender": "Work item updates",
       "automatic": "Automatic"
     },
+    "thread": {
+      "title": "Thread",
+      "close": "Close thread",
+      "reply": "Reply in thread",
+      "reply_placeholder": "Reply…",
+      "list_label": "Replies",
+      "last_reply_today": "Last reply at {time}",
+      "last_reply_on": "Last reply on {date}"
+    },
     "day": {
       "today": "Today",
       "yesterday": "Yesterday"

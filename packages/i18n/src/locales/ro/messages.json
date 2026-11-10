@@ -122,6 +122,15 @@
       "automatic_sender": "Actualizări ale elementelor de lucru",
       "automatic": "Automat"
     },
+    "thread": {
+      "title": "Fir",
+      "close": "Închide firul",
+      "reply": "Răspunde în fir",
+      "reply_placeholder": "Răspunde…",
+      "list_label": "Răspunsuri",
+      "last_reply_today": "Ultimul răspuns la {time}",
+      "last_reply_on": "Ultimul răspuns pe {date}"
+    },
     "day": {
       "today": "Astăzi",
       "yesterday": "Ieri"

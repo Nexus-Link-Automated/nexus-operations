@@ -35,6 +35,7 @@ export type TChatStoreService = Pick<
   | "leaveChannel"
   | "markRead"
   | "listMessages"
+  | "listReplies"
   | "getMessage"
   | "sendMessage"
   | "linkWorkItem"
@@ -65,10 +66,21 @@ export type TChatChannelMessages = {
   error: boolean;
 };
 
-/** A message on its way to the API. Shown at the bottom of the channel until the API has it. */
+/**
+ * One thread's replies that the store holds, like `TChatChannelMessages`. Only the open thread is held: closing it
+ * drops this, so nothing has to keep a thread nobody is looking at up to date.
+ */
+export type TChatThreadMessages = TChatChannelMessages & { channelId: string };
+
+/** The thread open beside the conversation. `parentId` is its first message, the one the channel shows. */
+export type TChatActiveThread = { channelId: string; parentId: string };
+
+/** A message on its way to the API. Shown at the bottom of the channel, or of its thread, until the API has it. */
 export type TChatPendingMessage = {
   localId: string;
   channelId: string;
+  /** A thread reply's first message; null for a message in the channel. */
+  parentId: string | null;
   body_html: string;
   body_json: Record<string, unknown>;
   /** Already in storage: a retry sends these again by ID and never re-uploads them. */
@@ -130,7 +142,10 @@ export interface IChatStore {
   messageMap: Record<string, TChatMessage>;
   channelMessages: Record<string, TChatChannelMessages>;
   pendingMessages: Record<string, TChatPendingMessage[]>;
+  threadMessages: Record<string, TChatThreadMessages>;
+  pendingReplies: Record<string, TChatPendingMessage[]>;
   activeChannelId: string | null;
+  activeThread: TChatActiveThread | null;
   isDocumentVisible: boolean;
   /** The open channel's list is scrolled to its newest message. */
   isAtNewest: boolean;
@@ -148,8 +163,12 @@ export interface IChatStore {
   getChannelMessages: (channelId: string) => TChatMessage[];
   getMessagesState: (channelId: string) => TChatChannelMessages | undefined;
   getPendingMessages: (channelId: string) => TChatPendingMessage[];
-  getDraft: (channelId: string) => string | undefined;
-  setDraft: (channelId: string, html: string) => void;
+  /** Unsent text, by channel ID, or `<channel ID>/<thread ID>` for a thread's reply box. */
+  getDraft: (key: string) => string | undefined;
+  setDraft: (key: string, html: string) => void;
+  getThreadReplies: (parentId: string) => TChatMessage[];
+  getThreadState: (parentId: string) => TChatThreadMessages | undefined;
+  getPendingReplies: (parentId: string) => TChatPendingMessage[];
   // actions
   start: (workspaceSlug: string, userId: string) => Promise<void>;
   stop: () => void;
@@ -160,7 +179,12 @@ export interface IChatStore {
   setAtNewest: (channelId: string, atNewest: boolean) => void;
   loadOlderMessages: (channelId: string) => Promise<void>;
   revealMessage: (channelId: string, messageId: string) => Promise<boolean>;
+  openThread: (channelId: string, parentId: string) => Promise<void>;
+  closeThread: () => void;
+  loadOlderReplies: (parentId: string) => Promise<void>;
+  revealReply: (parentId: string, replyId: string) => Promise<boolean>;
   sendMessage: (channelId: string, body: TChatOutgoingMessage) => Promise<void>;
+  sendReply: (channelId: string, parentId: string, body: TChatOutgoingMessage) => Promise<void>;
   retryMessage: (channelId: string, localId: string) => Promise<void>;
   discardMessage: (channelId: string, localId: string) => void;
   editMessage: (channelId: string, messageId: string, body: TChatMessageEdit) => Promise<void>;
@@ -193,6 +217,10 @@ export interface IChatStore {
  * - A public channel the user is viewing but hasn't joined is `subscribe`d explicitly, and again after their own
  *   `member.removed`.
  * - Writes go through REST. A sent message shows as pending until the API returns it; its event is then a no-op.
+ * - Thread replies stay out of the channel's list and out of its unread count, like the API's. The open thread holds
+ *   its replies the way a channel holds its messages, and is caught up the same way. A reply's event re-reads its
+ *   parent, whose summary (`reply_count`, `last_reply_at`) changed; after a reconnect, only the parents on the
+ *   channel's newest page and the open thread's are re-read.
  */
 export class ChatStore implements IChatStore {
   workspaceSlug: string | null = null;
@@ -202,7 +230,12 @@ export class ChatStore implements IChatStore {
   messageMap: Record<string, TChatMessage> = {};
   channelMessages: Record<string, TChatChannelMessages> = {};
   pendingMessages: Record<string, TChatPendingMessage[]> = {};
+  /** By the thread's first message. */
+  threadMessages: Record<string, TChatThreadMessages> = {};
+  /** By the thread's first message. Kept when the thread closes, so a failed reply is still there to retry. */
+  pendingReplies: Record<string, TChatPendingMessage[]> = {};
   activeChannelId: string | null = null;
+  activeThread: TChatActiveThread | null = null;
   isDocumentVisible = true;
   isAtNewest = true;
   channelsLoaded = false;
@@ -225,12 +258,20 @@ export class ChatStore implements IChatStore {
   /** Where each channel's unbroken history ends, from the moment events may have been missed until it's caught up. */
   private readonly catchUpCursors = new Map<string, string>();
   private readonly olderPages = new Map<string, Promise<void>>();
+  private readonly threadLoads = new Map<string, { again: boolean; promise: Promise<void> }>();
+  private readonly olderReplyPages = new Map<string, Promise<void>>();
+  /** Like `catchUpCursors`, by the thread's first message. */
+  private readonly threadCatchUpCursors = new Map<string, string>();
+  private readonly messageRefetches = new Map<string, { again: boolean; promise: Promise<void> }>();
   private resyncing: { again: boolean; promise: Promise<void> } | null = null;
   /** Unsent composer HTML per channel. Not observable: the composer reads it once, when it mounts. */
   private readonly drafts = new Map<string, string>();
 
   constructor(options: { service?: TChatStoreService; createSocket?: TChatSocketFactory } = {}) {
-    makeObservable<ChatStore, "upsertChannel" | "removeChannelLocally" | "upsertMessages" | "handleEvent">(this, {
+    makeObservable<
+      ChatStore,
+      "upsertChannel" | "removeChannelLocally" | "upsertMessages" | "upsertReplies" | "handleEvent"
+    >(this, {
       // observables
       workspaceSlug: observable.ref,
       userId: observable.ref,
@@ -239,7 +280,10 @@ export class ChatStore implements IChatStore {
       messageMap: observable,
       channelMessages: observable,
       pendingMessages: observable,
+      threadMessages: observable,
+      pendingReplies: observable,
       activeChannelId: observable.ref,
+      activeThread: observable.ref,
       isDocumentVisible: observable.ref,
       isAtNewest: observable.ref,
       channelsLoaded: observable.ref,
@@ -262,7 +306,12 @@ export class ChatStore implements IChatStore {
       setAtNewest: action.bound,
       loadOlderMessages: action.bound,
       revealMessage: action.bound,
+      openThread: action.bound,
+      closeThread: action.bound,
+      loadOlderReplies: action.bound,
+      revealReply: action.bound,
       sendMessage: action.bound,
+      sendReply: action.bound,
       retryMessage: action.bound,
       discardMessage: action.bound,
       editMessage: action.bound,
@@ -281,6 +330,7 @@ export class ChatStore implements IChatStore {
       upsertChannel: action,
       removeChannelLocally: action,
       upsertMessages: action,
+      upsertReplies: action,
       handleEvent: action,
     });
     this.service = options.service ?? new ChatService();
@@ -336,6 +386,16 @@ export class ChatStore implements IChatStore {
   getMessagesState = (channelId: string): TChatChannelMessages | undefined => this.channelMessages[channelId];
 
   getPendingMessages = (channelId: string): TChatPendingMessage[] => this.pendingMessages[channelId] ?? [];
+
+  /** A thread's replies, oldest first. Removed ones are left out: unlike the channel's, nothing hangs off them. */
+  getThreadReplies = (parentId: string): TChatMessage[] =>
+    (this.threadMessages[parentId]?.ids ?? [])
+      .map((id) => this.messageMap[id])
+      .filter((m): m is TChatMessage => !!m && !m.removed_at);
+
+  getThreadState = (parentId: string): TChatThreadMessages | undefined => this.threadMessages[parentId];
+
+  getPendingReplies = (parentId: string): TChatPendingMessage[] => this.pendingReplies[parentId] ?? [];
 
   getDraft = (channelId: string): string | undefined => this.drafts.get(channelId);
 
@@ -395,8 +455,11 @@ export class ChatStore implements IChatStore {
     this.messageMap = {};
     this.channelMessages = {};
     this.pendingMessages = {};
+    this.threadMessages = {};
+    this.pendingReplies = {};
     this.activeChannelId = null;
     this.isAtNewest = true;
+    this.activeThread = null;
     this.channelsLoaded = false;
     this.channelsError = false;
     this.socketStatus = "idle";
@@ -410,6 +473,10 @@ export class ChatStore implements IChatStore {
     this.resyncing = null;
     this.olderPages.clear();
     this.drafts.clear();
+    this.threadLoads.clear();
+    this.olderReplyPages.clear();
+    this.threadCatchUpCursors.clear();
+    this.messageRefetches.clear();
   }
 
   /** Try the socket again now, e.g. from a "reconnect" button or when the browser comes back online. */
@@ -488,10 +555,27 @@ export class ChatStore implements IChatStore {
   }
 
   private dropChannelState(channelId: string): void {
+    if (this.activeThread?.channelId === channelId) this.activeThread = null;
+    for (const [parentId, thread] of Object.entries(this.threadMessages)) {
+      if (thread.channelId === channelId) this.dropThreadState(parentId);
+    }
+    for (const [parentId, replies] of Object.entries(this.pendingReplies)) {
+      if (replies.some((reply) => reply.channelId === channelId)) delete this.pendingReplies[parentId];
+    }
     for (const id of this.channelMessages[channelId]?.ids ?? []) delete this.messageMap[id];
     delete this.channelMessages[channelId];
     delete this.pendingMessages[channelId];
     this.catchUpCursors.delete(channelId);
+  }
+
+  /** Forget a thread's replies, and its first message unless the channel's list holds that too. */
+  private dropThreadState(parentId: string): void {
+    const thread = this.threadMessages[parentId];
+    for (const id of thread?.ids ?? []) delete this.messageMap[id];
+    const channelId = thread?.channelId ?? this.messageMap[parentId]?.channel;
+    if (channelId && !this.channelMessages[channelId]?.ids.includes(parentId)) delete this.messageMap[parentId];
+    delete this.threadMessages[parentId];
+    this.threadCatchUpCursors.delete(parentId);
   }
 
   /** Re-read one channel. Calls for the same channel while one is in flight collapse into one more read. */
@@ -563,6 +647,7 @@ export class ChatStore implements IChatStore {
   closeChannel(): void {
     const channelId = this.activeChannelId;
     if (!channelId) return;
+    if (this.activeThread?.channelId === channelId) this.closeThread();
     this.activeChannelId = null;
     // A channel opens at its newest messages.
     this.isAtNewest = true;
@@ -647,12 +732,32 @@ export class ChatStore implements IChatStore {
   }
 
   private upsertMessages(channelId: string, messages: TChatMessage[], position: "older" | "newer"): void {
-    const state = this.messagesState(channelId);
+    this.placeMessages(this.messagesState(channelId), messages, position, (message) => !message.parent);
+  }
+
+  /** Into the thread's list if it is held. A thread that isn't open holds nothing, so nothing goes stale. */
+  private upsertReplies(parentId: string, messages: TChatMessage[], position: "older" | "newer"): void {
+    const state = this.threadMessages[parentId];
+    if (state) this.placeMessages(state, messages, position, (message) => message.parent === parentId);
+  }
+
+  /** Hold `messages`, and add those that `belong` and are new to `state`'s list, in `(created_at, id)` order. */
+  private placeMessages(
+    state: TChatChannelMessages,
+    messages: TChatMessage[],
+    position: "older" | "newer",
+    belongs: (message: TChatMessage) => boolean
+  ): void {
     const known = new Set(state.ids);
+    // Before the oldest message loaded, with older pages still to load, a message isn't part of what is shown (a
+    // thread's first message, fetched on its own): listing it would make the next older page start before it and
+    // skip everything in between. It is held, and its page brings it in.
+    const first =
+      position === "newer" && state.hasMoreOlder && state.ids.length ? this.messageMap[state.ids[0]!] : undefined;
     const fresh: TChatMessage[] = [];
     for (const message of messages) {
       this.holdMessage(message);
-      if (!known.has(message.id) && !message.parent) fresh.push(message);
+      if (!known.has(message.id) && belongs(message) && !(first && isBefore(message, first))) fresh.push(message);
     }
     if (fresh.length === 0) return;
     if (position === "older") {
@@ -780,23 +885,200 @@ export class ChatStore implements IChatStore {
     }
   }
 
+  // threads
+
+  /**
+   * Open a thread beside the conversation: its first message (fetched if the channel's list doesn't hold it, as when
+   * following a link) and its newest page of replies. Opening another thread closes this one.
+   */
+  async openThread(channelId: string, parentId: string): Promise<void> {
+    const slug = this.workspaceSlug;
+    if (!slug) return;
+    if (this.activeThread?.parentId !== parentId) {
+      this.closeThread();
+      this.activeThread = { channelId, parentId };
+    }
+    // Already open: only what failed is asked for again.
+    const state = this.threadMessages[parentId];
+    const loads: Promise<void>[] = [];
+    if (!state?.loaded && !state?.loading) loads.push(this.loadNewestReplies(channelId, parentId));
+    if (!this.messageMap[parentId]) loads.push(this.fetchThreadParent(channelId, parentId));
+    await Promise.all(loads);
+  }
+
+  closeThread(): void {
+    const parentId = this.activeThread?.parentId;
+    if (!parentId) return;
+    this.activeThread = null;
+    this.dropThreadState(parentId);
+  }
+
+  private isThreadOpen(parentId: string): boolean {
+    return this.activeThread?.parentId === parentId;
+  }
+
+  private threadState(channelId: string, parentId: string): TChatThreadMessages {
+    if (!this.threadMessages[parentId]) this.threadMessages[parentId] = { ...emptyMessages(), channelId };
+    return this.threadMessages[parentId]!;
+  }
+
+  private async fetchThreadParent(channelId: string, parentId: string): Promise<void> {
+    const slug = this.workspaceSlug;
+    if (!slug) return;
+    const commit = this.guard();
+    try {
+      const parent = await this.service.getMessage(slug, channelId, parentId);
+      commit(() => {
+        if (this.isThreadOpen(parentId)) this.holdMessage(parent);
+      });
+    } catch {
+      // The panel offers a retry. The replies' page may well have loaded, so say so on the thread's state.
+      commit(() => {
+        if (this.isThreadOpen(parentId)) this.threadState(channelId, parentId).error = true;
+      });
+    }
+  }
+
+  /** Like `loadNewestMessages`, for the open thread. */
+  private loadNewestReplies(channelId: string, parentId: string): Promise<void> {
+    return this.coalesce(this.threadLoads, parentId, async () => {
+      const slug = this.workspaceSlug;
+      if (!slug || !this.isThreadOpen(parentId)) return;
+      const commit = this.guard();
+      commit(() => {
+        const state = this.threadState(channelId, parentId);
+        state.loading = true;
+        state.error = false;
+      });
+      try {
+        const page = await this.service.listReplies(slug, channelId, parentId, { limit: CHAT_PAGE_SIZE });
+        commit(() => {
+          this.threadCatchUpCursors.delete(parentId);
+          if (!this.isThreadOpen(parentId)) return;
+          this.threadMessages[parentId] = { ...emptyMessages(), channelId, loaded: true, hasMoreOlder: page.has_more };
+          this.upsertReplies(parentId, page.results, "newer");
+        });
+      } catch {
+        commit(() => {
+          const state = this.threadMessages[parentId];
+          if (state) {
+            state.loading = false;
+            state.error = true;
+          }
+        });
+      }
+    });
+  }
+
+  loadOlderReplies(parentId: string): Promise<void> {
+    const running = this.olderReplyPages.get(parentId);
+    if (running) return running;
+    const page = this.fetchOlderReplies(parentId).finally(() => {
+      if (this.olderReplyPages.get(parentId) === page) this.olderReplyPages.delete(parentId);
+    });
+    this.olderReplyPages.set(parentId, page);
+    return page;
+  }
+
+  private async fetchOlderReplies(parentId: string): Promise<void> {
+    const slug = this.workspaceSlug;
+    const state = this.threadMessages[parentId];
+    if (!slug || !state?.loaded || !state.hasMoreOlder || state.loadingOlder || state.ids.length === 0) return;
+    state.loadingOlder = true;
+    state.olderFailed = false;
+    const commit = this.guard();
+    try {
+      const page = await this.service.listReplies(slug, state.channelId, parentId, {
+        before: state.ids[0],
+        limit: CHAT_PAGE_SIZE,
+      });
+      commit(() => {
+        const current = this.threadMessages[parentId];
+        if (!current) return;
+        current.loadingOlder = false;
+        current.hasMoreOlder = page.has_more;
+        this.upsertReplies(parentId, page.results, "older");
+      });
+    } catch {
+      commit(() => {
+        const current = this.threadMessages[parentId];
+        if (current) {
+          current.loadingOlder = false;
+          current.olderFailed = true;
+        }
+      });
+    }
+  }
+
+  /** Like `revealMessage`, in the open thread. A removed reply isn't shown, so it can't be revealed. */
+  async revealReply(parentId: string, replyId: string): Promise<boolean> {
+    const isLoaded = () => !!this.threadMessages[parentId]?.ids.includes(replyId);
+    for (let page = 0; page < REVEAL_MAX_PAGES && !isLoaded(); page += 1) {
+      if (!this.threadMessages[parentId]?.hasMoreOlder) return false;
+      // oxlint-disable-next-line no-await-in-loop -- each page's cursor comes from the one before it
+      await this.loadOlderReplies(parentId);
+      if (this.threadMessages[parentId]?.olderFailed) return false;
+    }
+    return isLoaded() && !this.messageMap[replyId]?.removed_at;
+  }
+
+  /** Like `fetchMessage`, for a reply in the open thread. */
+  private async fetchReply(channelId: string, parentId: string, replyId: string): Promise<void> {
+    const slug = this.workspaceSlug;
+    const state = this.threadMessages[parentId];
+    if (!slug || !state) return;
+    if (state.loading) {
+      await this.loadNewestReplies(channelId, parentId);
+      return;
+    }
+    if (!state.loaded) return;
+    const commit = this.guard();
+    try {
+      const reply = await this.service.getMessage(slug, channelId, replyId);
+      commit(() => {
+        if (this.threadMessages[parentId]?.loaded) this.upsertReplies(parentId, [reply], "newer");
+      });
+    } catch {
+      // Removed for good, or the channel went: its own events or the next resync say so.
+    }
+  }
+
+  // sending
+
   async sendMessage(channelId: string, body: TChatOutgoingMessage): Promise<void> {
+    if (!this.pendingMessages[channelId]) this.pendingMessages[channelId] = [];
+    this.pendingMessages[channelId]!.push(this.newPending(channelId, null, body));
+    await this.deliver(this.pendingMessages[channelId]!.at(-1)!);
+  }
+
+  /** Reply in a thread. Shown as pending at the bottom of the thread, with the same retry as a message. */
+  async sendReply(channelId: string, parentId: string, body: TChatOutgoingMessage): Promise<void> {
+    if (!this.pendingReplies[parentId]) this.pendingReplies[parentId] = [];
+    this.pendingReplies[parentId]!.push(this.newPending(channelId, parentId, body));
+    await this.deliver(this.pendingReplies[parentId]!.at(-1)!);
+  }
+
+  private newPending(channelId: string, parentId: string | null, body: TChatOutgoingMessage): TChatPendingMessage {
     this.localIds += 1;
-    const pending: TChatPendingMessage = {
+    return {
       localId: `local-${this.localIds}`,
       channelId,
+      parentId,
       body_html: body.body_html,
       body_json: body.body_json ?? {},
       attachments: body.attachments ?? [],
       status: "sending",
     };
-    if (!this.pendingMessages[channelId]) this.pendingMessages[channelId] = [];
-    this.pendingMessages[channelId]!.push(pending);
-    await this.deliver(this.pendingMessages[channelId]!.at(-1)!);
+  }
+
+  /** A message or reply still on its way, or failed. Local IDs are unique across both. */
+  private findPending(channelId: string, localId: string): TChatPendingMessage | undefined {
+    const matches = (p: TChatPendingMessage) => p.channelId === channelId && p.localId === localId;
+    return this.pendingMessages[channelId]?.find(matches) ?? Object.values(this.pendingReplies).flat().find(matches);
   }
 
   async retryMessage(channelId: string, localId: string): Promise<void> {
-    const pending = this.pendingMessages[channelId]?.find((p) => p.localId === localId);
+    const pending = this.findPending(channelId, localId);
     if (!pending || pending.status !== "failed") return;
     pending.status = "sending";
     await this.deliver(pending);
@@ -804,38 +1086,48 @@ export class ChatStore implements IChatStore {
 
   /** Give up on a message that failed to send, and on any files uploaded for it. */
   discardMessage(channelId: string, localId: string): void {
-    const pending = this.pendingMessages[channelId]?.find((p) => p.localId === localId);
-    this.forgetPending(channelId, localId);
-    for (const attachment of pending?.attachments ?? []) this.deleteAttachment(channelId, attachment.id);
+    const pending = this.findPending(channelId, localId);
+    if (!pending) return;
+    this.forgetPending(pending);
+    for (const attachment of pending.attachments) this.deleteAttachment(channelId, attachment.id);
   }
 
-  private forgetPending(channelId: string, localId: string): void {
-    const list = this.pendingMessages[channelId];
-    if (list) this.pendingMessages[channelId] = list.filter((p) => p.localId !== localId);
+  private forgetPending({ channelId, parentId, localId }: TChatPendingMessage): void {
+    const lists = parentId ? this.pendingReplies : this.pendingMessages;
+    const key = parentId ?? channelId;
+    const list = lists[key];
+    if (list) lists[key] = list.filter((p) => p.localId !== localId);
   }
 
   private async deliver(pending: TChatPendingMessage): Promise<void> {
     this.socket?.noteActivity();
     const slug = this.requireSlug();
-    const { channelId, localId } = pending;
+    const { channelId, localId, parentId } = pending;
     const commit = this.guard();
     try {
       const message = await this.service.sendMessage(slug, channelId, {
         body_html: pending.body_html,
         body_json: pending.body_json,
+        ...(parentId && { parent_id: parentId }),
         ...(pending.attachments.length > 0 && { attachment_ids: pending.attachments.map((file) => file.id) }),
       });
       commit(() => {
-        this.forgetPending(channelId, localId);
+        this.forgetPending(pending);
+        if (parentId) {
+          this.upsertReplies(parentId, [message], "newer");
+          return;
+        }
         if (this.channelMessages[channelId]?.loaded) this.upsertMessages(channelId, [message], "newer");
         const channel = this.channelMap[channelId];
         if (channel) channel.last_message_at = message.created_at;
       });
+      // A reply changes its parent's summary. Its event says so too, but not while the socket is down.
+      if (parentId) await this.refetchMessage(channelId, parentId);
       // Sending in a channel means having read it.
-      if (this.activeChannelId === channelId) await this.markRead(channelId);
+      else if (this.activeChannelId === channelId) await this.markRead(channelId);
     } catch (error) {
       commit(() => {
-        const current = this.pendingMessages[channelId]?.find((p) => p.localId === localId);
+        const current = this.findPending(channelId, localId);
         if (current) current.status = "failed";
       });
       throw error;
@@ -867,19 +1159,28 @@ export class ChatStore implements IChatStore {
 
   async removeMessage(channelId: string, messageId: string): Promise<void> {
     const slug = this.requireSlug();
+    const parentId = this.messageMap[messageId]?.parent;
     await this.service.removeMessage(slug, channelId, messageId);
+    if (parentId) {
+      // A reply: it isn't in the channel's list, and its parent's summary changed.
+      await Promise.all([this.refetchMessage(channelId, messageId), this.refetchMessage(channelId, parentId)]);
+      return;
+    }
     await this.fetchMessage(channelId, messageId);
   }
 
-  /** Tie a work item just created from a message to it, and post the note saying so. */
+  /** Tie a work item just created from a message to it, and post the note saying so in the message's thread. */
   async linkWorkItem(channelId: string, messageId: string, issueId: string): Promise<void> {
     const slug = this.requireSlug();
     const commit = this.guard();
     const { message, reply } = await this.service.linkWorkItem(slug, channelId, messageId, issueId);
     commit(() => {
-      if (!this.channelMessages[channelId]?.loaded) return;
-      this.upsertMessages(channelId, reply ? [message, reply] : [message], "newer");
+      if (message.parent) this.upsertReplies(message.parent, [message], "newer");
+      else if (this.channelMessages[channelId]?.loaded) this.upsertMessages(channelId, [message], "newer");
+      if (reply?.parent) this.upsertReplies(reply.parent, [reply], "newer");
     });
+    // Linked from a reply: the note joined that reply's thread, so its parent's summary changed.
+    if (reply?.parent && reply.parent !== message.id) await this.refetchMessage(channelId, reply.parent);
   }
 
   /** Move the read cursor to the newest loaded message, if it isn't there already. */
@@ -921,8 +1222,11 @@ export class ChatStore implements IChatStore {
     switch (event.type) {
       case "message.created": {
         if (event.parent_id) {
-          // A thread reply: the parent's reply count changed.
+          // A thread reply: the parent's summary changed, and an open thread shows it. It isn't counted as unread.
           if (this.messageMap[event.parent_id]) void this.refetchMessage(channelId, event.parent_id);
+          if (event.message_id && this.threadMessages[event.parent_id] && !this.messageMap[event.message_id]) {
+            void this.fetchReply(channelId, event.parent_id, event.message_id);
+          }
           return;
         }
         const channel = this.channelMap[channelId];
@@ -977,19 +1281,25 @@ export class ChatStore implements IChatStore {
     if (viewing) await this.markRead(channelId);
   }
 
-  /** Re-read a message the store already holds (an edit, a removal, a new reply). */
-  private async refetchMessage(channelId: string, messageId: string): Promise<void> {
-    const slug = this.workspaceSlug;
-    if (!slug) return;
-    const commit = this.guard();
-    try {
-      const message = await this.service.getMessage(slug, channelId, messageId);
-      commit(() => {
-        if (this.messageMap[messageId]) this.holdMessage(message);
-      });
-    } catch {
-      // The channel is gone or unreadable; its own events or the next resync say so.
-    }
+  /**
+   * Re-read a message the store already holds (an edit, a removal, a new reply). Calls while one is in flight collapse
+   * into one more read: a new reply doesn't change its parent's `updated_at`, so an older answer landing last would
+   * otherwise put back an older reply count.
+   */
+  private refetchMessage(channelId: string, messageId: string): Promise<void> {
+    return this.coalesce(this.messageRefetches, messageId, async () => {
+      const slug = this.workspaceSlug;
+      if (!slug || !this.messageMap[messageId]) return;
+      const commit = this.guard();
+      try {
+        const message = await this.service.getMessage(slug, channelId, messageId);
+        commit(() => {
+          if (this.messageMap[messageId]) this.holdMessage(message);
+        });
+      } catch {
+        // The channel is gone or unreadable; its own events or the next resync say so.
+      }
+    });
   }
 
   /** After a reconnect or a `resync`: what may have happened while events weren't arriving. */
@@ -1010,8 +1320,9 @@ export class ChatStore implements IChatStore {
           await this.fetchChannels();
           if (generation !== this.generation) return;
           const loaded = Object.keys(this.channelMessages).filter((id) => this.channelMessages[id]?.loaded);
+          const threads = Object.keys(this.threadMessages).filter((id) => this.threadMessages[id]?.loaded);
           // oxlint-disable-next-line no-await-in-loop -- see above
-          await Promise.all(loaded.map((id) => this.catchUp(id)));
+          await Promise.all([...loaded.map((id) => this.catchUp(id)), ...threads.map((id) => this.catchUpThread(id))]);
         } while (entry.again && generation === this.generation);
       } finally {
         if (this.resyncing === entry) this.resyncing = null;
@@ -1021,11 +1332,17 @@ export class ChatStore implements IChatStore {
     return entry.promise;
   }
 
-  /** Records where each loaded channel's unbroken history ends, unless an earlier gap already has. */
+  /** Records where each loaded channel's and thread's unbroken history ends, unless an earlier gap already has. */
   private noteCatchUpCursors(): void {
     for (const [channelId, state] of Object.entries(this.channelMessages)) {
       const newest = state.ids[state.ids.length - 1];
       if (state.loaded && newest && !this.catchUpCursors.has(channelId)) this.catchUpCursors.set(channelId, newest);
+    }
+    for (const [parentId, state] of Object.entries(this.threadMessages)) {
+      const newest = state.ids[state.ids.length - 1];
+      if (state.loaded && newest && !this.threadCatchUpCursors.has(parentId)) {
+        this.threadCatchUpCursors.set(parentId, newest);
+      }
     }
   }
 
@@ -1069,6 +1386,48 @@ export class ChatStore implements IChatStore {
       if (this.isViewing(channelId)) await this.markRead(channelId);
     } catch (error) {
       if (isNotFound(error)) commit(() => this.removeChannelLocally(channelId));
+    }
+  }
+
+  /** Like `catchUp`, for the open thread, then re-read its first message, whose summary may have changed. */
+  private async catchUpThread(parentId: string): Promise<void> {
+    const slug = this.workspaceSlug;
+    const channelId = this.threadMessages[parentId]?.channelId;
+    if (!slug || !channelId) return;
+    const commit = this.guard();
+    const generation = this.generation;
+    try {
+      let cursor = this.threadCatchUpCursors.get(parentId);
+      let pages = 0;
+      let hasMore = true;
+      while (cursor && hasMore && pages < MAX_CATCH_UP_PAGES) {
+        // oxlint-disable-next-line no-await-in-loop -- each page's cursor is the previous page's newest reply
+        const page: TChatMessagePage = await this.service.listReplies(slug, channelId, parentId, {
+          after: cursor,
+          limit: CHAT_PAGE_SIZE,
+        });
+        if (generation !== this.generation || !this.isThreadOpen(parentId)) return;
+        pages += 1;
+        hasMore = page.has_more;
+        cursor = page.results.at(-1)?.id ?? cursor;
+        const reached = cursor;
+        commit(() => {
+          this.upsertReplies(parentId, page.results, "newer");
+          this.threadCatchUpCursors.set(parentId, reached);
+        });
+      }
+      if (!cursor || hasMore) {
+        await this.loadNewestReplies(channelId, parentId);
+      } else {
+        const latest = await this.service.listReplies(slug, channelId, parentId, { limit: CHAT_PAGE_SIZE });
+        commit(() => {
+          this.upsertReplies(parentId, latest.results, "newer");
+          this.threadCatchUpCursors.delete(parentId);
+        });
+      }
+      await this.refetchMessage(channelId, parentId);
+    } catch {
+      // The channel's own catch-up finds out if it went; the thread is tried again on the next resync.
     }
   }
 }

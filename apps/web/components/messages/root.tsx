@@ -13,16 +13,19 @@ import { useChat } from "@/hooks/store/use-chat";
 import { ChatChannelView } from "./channel-view";
 import { ChannelSidebar } from "./channel-sidebar";
 import { ChatConnectionBanner } from "./connection-banner";
+import { ChatThreadPanel } from "./thread-panel";
 
 type Props = {
   workspaceSlug: string;
   channelId?: string;
 };
 
-/** The Messages page: channels and DMs on the left, the open one on the right. */
+/** The Messages page: channels and DMs on the left, the open one on the right, and its open thread beside that. */
 export const MessagesRoot = observer(function MessagesRoot({ workspaceSlug, channelId }: Props) {
   const { t } = useTranslation();
   const chat = useChat();
+  const thread = chat.activeThread?.channelId === channelId ? chat.activeThread : null;
+  const threadChannel = thread ? chat.channelMap[thread.channelId] : undefined;
 
   return (
     <div className="flex h-full w-full overflow-hidden">
@@ -34,7 +37,17 @@ export const MessagesRoot = observer(function MessagesRoot({ workspaceSlug, chan
           onReconnect={() => chat.reconnect()}
         />
         {channelId ? (
-          <ChatChannelView key={channelId} workspaceSlug={workspaceSlug} channelId={channelId} />
+          <div className="flex min-h-0 flex-1">
+            <ChatChannelView key={channelId} workspaceSlug={workspaceSlug} channelId={channelId} />
+            {thread && threadChannel && (
+              <ChatThreadPanel
+                key={thread.parentId}
+                workspaceSlug={workspaceSlug}
+                channel={threadChannel}
+                parentId={thread.parentId}
+              />
+            )}
+          </div>
         ) : (
           <div className="flex flex-1 items-center justify-center">
             <EmptyStateCompact

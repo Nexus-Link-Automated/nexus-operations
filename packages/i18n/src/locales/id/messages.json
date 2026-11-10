@@ -122,6 +122,15 @@
       "automatic_sender": "Pembaruan item kerja",
       "automatic": "Otomatis"
     },
+    "thread": {
+      "title": "Utas",
+      "close": "Tutup utas",
+      "reply": "Balas di utas",
+      "reply_placeholder": "Balas…",
+      "list_label": "Balasan",
+      "last_reply_today": "Balasan terakhir pukul {time}",
+      "last_reply_on": "Balasan terakhir pada {date}"
+    },
     "day": {
       "today": "Hari ini",
       "yesterday": "Kemarin"

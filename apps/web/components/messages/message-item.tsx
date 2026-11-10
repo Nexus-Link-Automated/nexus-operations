@@ -9,7 +9,7 @@ import { observer } from "mobx-react";
 // plane imports
 import { Button } from "@makeplane/propel/components/button";
 import { IconButton } from "@makeplane/propel/components/icon-button";
-import { DeleteOutline, EditOutline, WorkItemsOutline } from "@makeplane/propel/icons";
+import { DeleteOutline, EditOutline, ReplyOutline, WorkItemsOutline } from "@makeplane/propel/icons";
 import { ConfirmDialog } from "@plane/blocks/dialog";
 import { setToast } from "@plane/blocks/toast";
 import type { EditorRefApi } from "@plane/editor";
@@ -29,6 +29,7 @@ import { ChatMessageAttachments, ChatPendingAttachments } from "./attachments";
 import { ChatCreateWorkItemAction } from "./create-work-item-action";
 import { MemberAvatar } from "./member-avatar";
 import { ChatMessageBody } from "./message-body";
+import { ChatThreadSummary } from "./thread-summary";
 import { ChatWorkItemCards } from "./work-item-card";
 
 const noUploads = async (): Promise<string> => {
@@ -42,12 +43,16 @@ type Props = {
   highlighted?: boolean;
   /** Follows the same sender's previous message: no avatar or name. */
   continued: boolean;
+  /** Shown in the thread panel, as its first message or a reply: no thread summary, and no Reply. */
+  inThread?: boolean;
 };
 
 type ActionsProps = {
   message: TChatMessage;
   workspaceSlug: string;
   mine: boolean;
+  /** Set for a message that can start or continue a thread from here. */
+  onReply?: () => void;
   onEdit: () => void;
   onRemove: () => void;
 };
@@ -57,13 +62,24 @@ const MessageActions = observer(function MessageActions({
   message,
   workspaceSlug,
   mine,
+  onReply,
   onEdit,
   onRemove,
 }: ActionsProps) {
   const { t } = useTranslation();
   return (
     <div className="absolute top-1 right-4 hidden items-center gap-0.5 rounded-md border border-subtle bg-layer-1 p-0.5 shadow-raised-100 group-focus-within:flex group-hover:flex">
-      <ChatCreateWorkItemAction message={message} workspaceSlug={workspaceSlug} />
+      {onReply && (
+        <IconButton
+          variant="ghost"
+          size="sm"
+          icon={<ReplyOutline />}
+          aria-label={t("messages.thread.reply")}
+          onClick={onReply}
+        />
+      )}
+      {/* Nobody typed an automatic message, so there's nothing to edit or turn into a work item. */}
+      {!message.system_event && <ChatCreateWorkItemAction message={message} workspaceSlug={workspaceSlug} />}
       {mine && (
         <>
           <IconButton
@@ -91,9 +107,10 @@ export const ChatMessageItem = observer(function ChatMessageItem({
   workspaceSlug,
   continued,
   highlighted,
+  inThread,
 }: Props) {
   const { t } = useTranslation();
-  const { userId, channelMap, editMessage, removeMessage } = useChat();
+  const { userId, channelMap, editMessage, removeMessage, openThread } = useChat();
   const { getUserDetails } = useMember();
   const { getWorkspaceBySlug } = useWorkspace();
   const [editing, setEditing] = useState(false);
@@ -109,6 +126,8 @@ export const ChatMessageItem = observer(function ChatMessageItem({
   const removed = !!message.removed_at;
   // Posted by Nexus, not typed by anyone: no sender to show, and nothing to edit or turn into a work item.
   const automatic = !!message.system_event;
+  // Anyone can reply to a message in the channel, an automatic one included. Threads are one level deep.
+  const canReply = canChange && !removed && !inThread && !message.parent;
   const name = automatic
     ? t("messages.message.automatic_sender")
     : (message.sender && getUserDetails(message.sender)?.display_name) || t("messages.unknown_member");
@@ -195,7 +214,10 @@ export const ChatMessageItem = observer(function ChatMessageItem({
             aria-label={t("messages.message.edit")}
             className="mt-1 flex flex-col gap-2 rounded-md border border-subtle bg-layer-1 p-2"
             onKeyDown={(event) => {
-              if (event.key === "Escape") setEditing(false);
+              if (event.key !== "Escape") return;
+              // Cancelling the edit, not closing the thread panel around it.
+              event.stopPropagation();
+              setEditing(false);
             }}
           >
             <LiteTextEditor
@@ -246,17 +268,15 @@ export const ChatMessageItem = observer(function ChatMessageItem({
         {!removed && !editing && message.edited_at && (
           <span className="text-caption-sm-regular text-tertiary">{t("messages.message.edited")}</span>
         )}
-        {message.reply_count > 0 && (
-          <p className="text-caption-md-medium text-accent-primary">
-            {t("messages.message.replies", { count: message.reply_count })}
-          </p>
-        )}
+        {/* Shown on a removed message too: its thread stays reachable. */}
+        {!inThread && <ChatThreadSummary message={message} />}
       </div>
-      {canChange && !removed && !editing && !automatic && (
+      {canChange && !removed && !editing && (canReply || !automatic) && (
         <MessageActions
           message={message}
           workspaceSlug={workspaceSlug}
           mine={mine}
+          onReply={canReply ? () => void openThread(message.channel, message.id) : undefined}
           onEdit={() => setEditing(true)}
           onRemove={() => setConfirmingRemove(true)}
         />
