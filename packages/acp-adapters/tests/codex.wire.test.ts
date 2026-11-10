@@ -517,6 +517,101 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
     });
   });
 
+  describe("web search follows the level", () => {
+    const start = async (modeId: string, env: NodeJS.ProcessEnv = {}) => {
+      const fake = fakeCodexEnv(env);
+      const spawned = spawnClient("codex", fake.env);
+      client = spawned;
+      await spawned.agent.request("initialize", { protocolVersion: 1 });
+      const { sessionId } = await spawned.agent.request("session/new", {
+        cwd: tempDir(),
+        mcpServers: [planeMcp],
+        _meta: { "plane/initialModeId": modeId },
+      });
+      const prompt = (text: string) =>
+        spawned.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] });
+      const setMode = (next: string) => spawned.agent.request("session/set_mode", { sessionId, modeId: next });
+      const calls = () => fake.log().filter((message) => typeof message.method === "string");
+      const methods = () =>
+        calls()
+          .map((message) => message.method)
+          .filter((method) => method === "thread/start" || method === "thread/fork" || method === "turn/start");
+      const params = (method: string) =>
+        calls()
+          .filter((message) => message.method === method)
+          .map((message) => message.params as any);
+      return { spawned, prompt, setMode, methods, params };
+    };
+
+    it("forks the thread with web search off before the next turn when a yolo chat is tightened", async () => {
+      const { spawned, prompt, setMode, methods, params } = await start("yolo");
+      await prompt("hello");
+      await setMode("ask_writes");
+      await expect(prompt("hello")).resolves.toMatchObject({ stopReason: "end_turn" });
+
+      expect(methods()).toEqual(["thread/start", "turn/start", "thread/fork", "turn/start"]);
+      expect(params("thread/fork")[0]).toMatchObject({
+        threadId: "thread-1",
+        approvalPolicy: "untrusted",
+        sandbox: "danger-full-access",
+        config: {
+          mcp_servers: { plane: { url: "http://mcp.internal/mcp" } },
+          shell_environment_policy: { exclude: expect.arrayContaining(["*KEY*"]) },
+          web_search: "disabled",
+        },
+      });
+      expect(params("turn/start").map((turn) => turn.threadId)).toEqual(["thread-1", "fork-1"]);
+      expect(params("thread/unsubscribe")).toEqual([{ threadId: "thread-1" }]);
+      // The fork's events reach the chat.
+      expect(textOf(spawned.updates, "agent_message_chunk")).toBe("Hi thereHi there");
+    });
+
+    it("starts a new thread with web search off when tightened before the first turn", async () => {
+      const { prompt, setMode, methods, params } = await start("yolo");
+      await setMode("ask_all");
+      await prompt("hello");
+
+      expect(methods()).toEqual(["thread/start", "thread/start", "turn/start"]);
+      expect(params("thread/start")[0].config).not.toHaveProperty("web_search");
+      expect(params("thread/start")[1].config).toMatchObject({ web_search: "disabled" });
+      expect(params("turn/start")[0].threadId).toBe("thread-2");
+    });
+
+    it("fails the turn without starting it when the fork fails, and tries again next turn", async () => {
+      const { prompt, setMode, methods } = await start("yolo", { FAKE_CODEX_FORK: "fail" });
+      await prompt("hello");
+      await setMode("ask_writes");
+
+      await expect(prompt("hello")).rejects.toMatchObject({ message: expect.stringContaining("fork failed") });
+      await expect(prompt("hello")).rejects.toMatchObject({ message: expect.stringContaining("fork failed") });
+      expect(methods()).toEqual(["thread/start", "turn/start", "thread/fork", "thread/fork"]);
+    });
+
+    it("forks with Codex's default web search when loosened to yolo", async () => {
+      const { prompt, setMode, methods, params } = await start("ask_writes");
+      await prompt("hello");
+      await setMode("yolo");
+      await prompt("hello");
+
+      expect(methods()).toEqual(["thread/start", "turn/start", "thread/fork", "turn/start"]);
+      expect(params("thread/fork")[0]).toMatchObject({ threadId: "thread-1", approvalPolicy: "on-request" });
+      expect(params("thread/fork")[0].config).not.toHaveProperty("web_search");
+    });
+
+    it.each([
+      ["yolo", "yolo"],
+      ["ask_writes", "ask_all"],
+      ["ask_all", "ask_writes"],
+    ])("keeps the thread going from %s to %s", async (from, to) => {
+      const { prompt, setMode, methods } = await start(from);
+      await prompt("hello");
+      await setMode(to);
+      await prompt("hello");
+
+      expect(methods()).toEqual(["thread/start", "turn/start", "turn/start"]);
+    });
+  });
+
   describe("waiting on a person", () => {
     const start = async (env: NodeJS.ProcessEnv) => {
       const fake = fakeCodexEnv(env);

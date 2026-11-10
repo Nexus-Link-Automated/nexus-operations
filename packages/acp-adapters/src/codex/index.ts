@@ -197,6 +197,10 @@ class CodexSession implements AdapterSession {
   readonly #options: CodexAdapterOptions;
   #client: CodexAppServerClient | undefined;
   #threadId = "";
+  /** Whether the current thread was made with Codex's web search on. */
+  #webSearch = false;
+  /** A turn has started on the current thread, so Codex has saved it and it can be forked. */
+  #threadHasTurns = false;
   #catalog: ModelCatalog | undefined;
   #turn: TurnState | undefined;
   /** Turns the adapter gave up on: Codex still reports their end, maybe during the next turn. */
@@ -235,25 +239,11 @@ class CodexSession implements AdapterSession {
 
     const listed = await client.request("model/list", { includeHidden: false }).catch(() => ({}) as JsonObject);
     const override = host.env[MODEL_ENV]?.trim();
-    const thread = await client.request(
-      "thread/start",
-      {
-        cwd: host.cwd,
-        approvalPolicy: approvalPolicyFor(host.mode()),
-        sandbox: "danger-full-access",
-        config: {
-          mcp_servers: toCodexMcpServers(this.#init.mcpServers),
-          // Codex already drops *KEY*/*SECRET*/*TOKEN* from shell commands; make it explicit.
-          shell_environment_policy: { inherit: "all", ignore_default_excludes: false, exclude: SECRET_ENV_GLOBS },
-          // Codex runs its web search without an approval request, so it is only on when nothing would ask.
-          ...(host.mode() === "yolo" ? {} : { web_search: "disabled" }),
-        },
-        ...(override ? { model: override } : {}),
-      },
-      60_000
-    );
+    const mode = host.mode();
+    const thread = await client.request("thread/start", this.#threadParams(mode), 60_000);
     this.#threadId = stringValue(objectValue(thread.thread).id);
     if (!this.#threadId) throw new Error("codex thread/start returned no thread id");
+    this.#webSearch = mode === "yolo";
     const current = override || stringValue(thread.model);
     const options = arrayValue(listed.data)
       .map(objectValue)
@@ -268,6 +258,49 @@ class CodexSession implements AdapterSession {
     if (current && !options.some((model) => model.value === current))
       options.unshift({ value: current, name: current });
     this.#catalog = { options, current: current || options[0]?.value || "" };
+  }
+
+  /** `thread/start` and `thread/fork` settings for a thread run at `mode`. */
+  #threadParams(mode: PermissionModeId): JsonObject {
+    const override = this.#host.env[MODEL_ENV]?.trim();
+    return {
+      cwd: this.#host.cwd,
+      approvalPolicy: approvalPolicyFor(mode),
+      sandbox: "danger-full-access",
+      config: {
+        mcp_servers: toCodexMcpServers(this.#init.mcpServers),
+        // Codex already drops *KEY*/*SECRET*/*TOKEN* from shell commands; make it explicit.
+        shell_environment_policy: { inherit: "all", ignore_default_excludes: false, exclude: SECRET_ENV_GLOBS },
+        // Codex runs its web search without an approval request, so it is only on when nothing would ask.
+        ...(mode === "yolo" ? {} : { web_search: "disabled" }),
+      },
+      ...(override ? { model: override } : {}),
+    };
+  }
+
+  /**
+   * A thread's web search setting is fixed when it starts and `turn/start` cannot change it, so
+   * when the level no longer matches it the chat moves to a fork of the thread (same history) made
+   * with the setting for the current level. A thread with no turn yet has nothing saved to fork
+   * (Codex refuses it) and nothing to keep, so it is replaced by a new one. A failure fails the
+   * turn rather than letting it run with the old setting.
+   */
+  async #matchWebSearchToMode(client: CodexAppServerClient): Promise<void> {
+    const mode = this.#host.mode();
+    const webSearch = mode === "yolo";
+    if (webSearch === this.#webSearch) return;
+    const previous = this.#threadId;
+    const method = this.#threadHasTurns ? "thread/fork" : "thread/start";
+    const params = this.#threadHasTurns
+      ? { threadId: previous, excludeTurns: true, ...this.#threadParams(mode) }
+      : this.#threadParams(mode);
+    const thread = await client.request(method, params, 60_000);
+    const threadId = stringValue(objectValue(thread.thread).id);
+    if (!threadId) throw new Error(`codex ${method} returned no thread id`);
+    this.#threadId = threadId;
+    this.#webSearch = webSearch;
+    // Stops the old thread's events and lets Codex unload it.
+    void client.request("thread/unsubscribe", { threadId: previous }).catch(() => {});
   }
 
   describeFailure(error: unknown): string {
@@ -327,6 +360,7 @@ class CodexSession implements AdapterSession {
     );
 
     try {
+      await this.#matchWebSearchToMode(client);
       const started = await client.request("turn/start", {
         threadId: this.#threadId,
         input: [{ type: "text", text: promptToText(context.prompt), text_elements: [] }],
@@ -334,6 +368,7 @@ class CodexSession implements AdapterSession {
         ...(this.#host.model() ? { model: this.#host.model() } : {}),
         ...(this.#host.effort() ? { effort: this.#host.effort() } : {}),
       });
+      this.#threadHasTurns = true;
       state.turnId = stringValue(objectValue(started.turn).id);
       if (context.signal.aborted) onAbort();
       else await this.#stopIfTightened(state);
@@ -419,8 +454,15 @@ class CodexSession implements AdapterSession {
   }
 
   async #onNotification({ method, params }: CodexNotification): Promise<void> {
+    // Can come before the response that names the thread, so it is not matched against `#threadId`.
     if (method === "mcpServer/startupStatus/updated" && stringValue(params.status) === "failed") {
       this.#pendingNotices.push(`MCP server ${stringValue(params.name)} failed to start`);
+    }
+    // A thread the chat has moved off (see `#matchWebSearchToMode`) may still report a turn's end.
+    const threadId = stringValue(params.threadId);
+    if (threadId && threadId !== this.#threadId) {
+      if (method === "turn/completed") this.#abandonedTurns.delete(stringValue(objectValue(params.turn).id));
+      return;
     }
     const state = this.#turn;
     if (!state) return;
@@ -534,7 +576,8 @@ class CodexSession implements AdapterSession {
     if (!client) return;
     const state = this.#turn;
     const { method, params } = request;
-    if (!state) {
+    const threadId = stringValue(params.threadId);
+    if (!state || (threadId && threadId !== this.#threadId)) {
       client.respondError(request.id, -32000, "no active turn");
       return;
     }
