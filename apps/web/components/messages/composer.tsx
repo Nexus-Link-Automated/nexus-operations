@@ -15,6 +15,7 @@ import { isCommentEmpty } from "@plane/utils";
 // components
 import { LiteTextEditor } from "@/components/editor/lite-text";
 // hooks
+import { useChat } from "@/hooks/store/use-chat";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 
 export type TChatComposerBody = { body_html: string; body_json: Record<string, unknown> };
@@ -33,14 +34,18 @@ const noUploads = async (): Promise<string> => {
 
 /**
  * The message box: Plane's lite rich-text editor with @mentions. Enter sends, Shift+Enter adds a line. The editor
- * clears at once; the store shows the message as pending until the API has it, with a retry if it fails.
+ * clears at once; the store shows the message as pending until the API has it, with a retry if it fails. Unsent
+ * text is kept in the store per channel, so it is still there after switching away and back.
  */
 export const ChatComposer = observer(function ChatComposer({ workspaceSlug, channelId, placeholder, onSend }: Props) {
   const { t } = useTranslation();
   const { getWorkspaceBySlug } = useWorkspace();
   const workspaceId = getWorkspaceBySlug(workspaceSlug)?.id ?? "";
+  const { getDraft, setDraft } = useChat();
   const editorRef = useRef<EditorRefApi>(null);
-  const [isEmpty, setIsEmpty] = useState(true);
+  // Read once: the editor takes its initial value only when it mounts.
+  const [draft] = useState(() => getDraft(channelId));
+  const [isEmpty, setIsEmpty] = useState(!draft);
 
   const send = () => {
     const document = editorRef.current?.getDocument();
@@ -48,6 +53,7 @@ export const ChatComposer = observer(function ChatComposer({ workspaceSlug, chan
     onSend({ body_html: document.html, body_json: (document.json ?? {}) as Record<string, unknown> });
     editorRef.current?.clearEditor();
     setIsEmpty(true);
+    setDraft(channelId, "");
   };
 
   return (
@@ -59,11 +65,15 @@ export const ChatComposer = observer(function ChatComposer({ workspaceSlug, chan
           id={`chat-composer-${channelId}`}
           workspaceSlug={workspaceSlug}
           workspaceId={workspaceId}
-          initialValue="<p></p>"
+          initialValue={draft ?? "<p></p>"}
           // Opening a conversation means typing in it.
           autofocus
           placeholder={placeholder}
-          onChange={(_json, html) => setIsEmpty(isCommentEmpty(html))}
+          onChange={(_json, html) => {
+            const empty = isCommentEmpty(html);
+            setIsEmpty(empty);
+            setDraft(channelId, empty ? "" : html);
+          }}
           onEnterKeyPress={send}
           uploadFile={noUploads}
           duplicateFile={noUploads}

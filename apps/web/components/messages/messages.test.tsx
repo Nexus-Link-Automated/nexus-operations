@@ -64,11 +64,27 @@ vi.mock("@/hooks/store/use-member", () => {
   };
 });
 // The rich-text editor is Plane's own and tested there; here a message body is just its HTML as text.
-vi.mock("@/components/editor/lite-text", () => ({
-  LiteTextEditor: ({ initialValue, id }: { initialValue: string; id: string }) => (
-    <div data-testid={id}>{new DOMParser().parseFromString(initialValue, "text/html").body.textContent}</div>
-  ),
-}));
+// Its handle gives back what it started with, so the composer can send a draft.
+vi.mock("@/components/editor/lite-text", async () => {
+  const { useImperativeHandle } = await import("react");
+  return {
+    LiteTextEditor: function LiteTextEditor({
+      initialValue,
+      id,
+      ref,
+    }: {
+      initialValue: string;
+      id: string;
+      ref?: React.Ref<unknown>;
+    }) {
+      useImperativeHandle(ref, () => ({
+        getDocument: () => ({ html: initialValue, json: {} }),
+        clearEditor: () => undefined,
+      }));
+      return <div data-testid={id}>{new DOMParser().parseFromString(initialValue, "text/html").body.textContent}</div>;
+    },
+  };
+});
 
 // Imported after the mocks are declared (vi.mock is hoisted above these anyway).
 const { ChannelSidebar } = await import("./channel-sidebar");
@@ -1025,5 +1041,29 @@ describe("GuestDmAccessDialog", () => {
     });
     inRouter(<ChannelSidebar workspaceSlug="acme" activeChannelId={undefined} />);
     expect(screen.getByRole("button", { name: "Guest access" })).toBeTruthy();
+  });
+});
+
+describe("ChatComposer", () => {
+  it("starts from the channel's unsent draft, and forgets it once sent", async () => {
+    const { store } = makeStore({
+      markRead: async () => channel({}),
+      sendMessage: () => new Promise(() => undefined),
+    });
+    mocks.chat = store;
+    await started(store, [channel({}), channel({ id: "c-random", name: "random" })]);
+    store.setDraft("c-general", "<p>half written</p>");
+
+    const first = render(<ChatChannelView workspaceSlug="acme" channelId="c-random" />);
+    expect((await screen.findByTestId("chat-composer-c-random")).textContent).toBe("");
+    expect(screen.getByRole("button", { name: "Send message" }).hasAttribute("disabled")).toBe(true);
+    first.unmount();
+
+    render(<ChatChannelView workspaceSlug="acme" channelId="c-general" />);
+    expect((await screen.findByTestId("chat-composer-c-general")).textContent).toBe("half written");
+    const send = screen.getByRole("button", { name: "Send message" });
+    expect(send.hasAttribute("disabled")).toBe(false);
+    await userEvent.click(send);
+    expect(store.getDraft("c-general")).toBeUndefined();
   });
 });

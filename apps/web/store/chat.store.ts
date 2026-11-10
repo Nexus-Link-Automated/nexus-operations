@@ -134,6 +134,8 @@ export interface IChatStore {
   getChannelMessages: (channelId: string) => TChatMessage[];
   getMessagesState: (channelId: string) => TChatChannelMessages | undefined;
   getPendingMessages: (channelId: string) => TChatPendingMessage[];
+  getDraft: (channelId: string) => string | undefined;
+  setDraft: (channelId: string, html: string) => void;
   // actions
   start: (workspaceSlug: string, userId: string) => Promise<void>;
   stop: () => void;
@@ -203,6 +205,8 @@ export class ChatStore implements IChatStore {
   private readonly catchUpCursors = new Map<string, string>();
   private readonly olderPages = new Map<string, Promise<void>>();
   private resyncing: { again: boolean; promise: Promise<void> } | null = null;
+  /** Unsent composer HTML per channel. Not observable: the composer reads it once, when it mounts. */
+  private readonly drafts = new Map<string, string>();
 
   constructor(options: { service?: TChatStoreService; createSocket?: TChatSocketFactory } = {}) {
     makeObservable<ChatStore, "upsertChannel" | "removeChannelLocally" | "upsertMessages" | "handleEvent">(this, {
@@ -309,6 +313,14 @@ export class ChatStore implements IChatStore {
 
   getPendingMessages = (channelId: string): TChatPendingMessage[] => this.pendingMessages[channelId] ?? [];
 
+  getDraft = (channelId: string): string | undefined => this.drafts.get(channelId);
+
+  /** An empty `html` forgets the draft. */
+  setDraft = (channelId: string, html: string): void => {
+    if (html) this.drafts.set(channelId, html);
+    else this.drafts.delete(channelId);
+  };
+
   /** The user can see the channel's newest messages: it is open, the tab is visible, and the list is at the bottom. */
   private isViewing(channelId: string): boolean {
     return this.activeChannelId === channelId && this.isDocumentVisible && this.isAtNewest;
@@ -373,6 +385,7 @@ export class ChatStore implements IChatStore {
     this.catchUpCursors.clear();
     this.resyncing = null;
     this.olderPages.clear();
+    this.drafts.clear();
   }
 
   /** Try the socket again now, e.g. from a "reconnect" button or when the browser comes back online. */

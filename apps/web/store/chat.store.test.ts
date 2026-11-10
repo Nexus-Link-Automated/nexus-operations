@@ -426,6 +426,20 @@ describe("ChatStore", () => {
     expect(store.channelMap["c-general"]!.unread_count).toBe(0);
   });
 
+  it("keeps an unsent draft per channel until it is cleared or the workspace changes", async () => {
+    const { store } = await setup();
+    store.setDraft("c-general", "<p>half written</p>");
+    store.setDraft("c-random", "<p>other</p>");
+    await store.openChannel("c-random");
+    await store.openChannel("c-general");
+    expect(store.getDraft("c-general")).toBe("<p>half written</p>");
+    expect(store.getDraft("c-random")).toBe("<p>other</p>");
+    store.setDraft("c-general", "");
+    expect(store.getDraft("c-general")).toBeUndefined();
+    store.stop();
+    expect(store.getDraft("c-random")).toBeUndefined();
+  });
+
   it("starts the next channel at the bottom, and ignores a list that isn't the open one", async () => {
     const { store, server, socket } = await setup();
     await store.openChannel("c-general");
