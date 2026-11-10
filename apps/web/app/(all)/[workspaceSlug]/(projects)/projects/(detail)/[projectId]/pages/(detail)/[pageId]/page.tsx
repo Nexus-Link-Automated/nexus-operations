@@ -65,7 +65,7 @@ function PageDetailsPage({ params }: Route.ComponentProps) {
   // editor config
   const { getEditorFileHandlers } = useEditorConfig();
   // fetch page details
-  const { error: pageDetailsError } = useSWR(
+  const { data: pageDetails, error: pageDetailsError } = useSWR(
     `PAGE_DETAILS_${pageId}`,
     () => fetchPageDetails(workspaceSlug, projectId, pageId),
     {
@@ -157,7 +157,8 @@ function PageDetailsPage({ params }: Route.ComponentProps) {
       </div>
     );
 
-  if (pageDetailsError || !canCurrentUserAccessPage)
+  // A failed background refresh keeps the page that is already open; only a failed first load is "not found".
+  if ((pageDetailsError && !pageDetails) || !canCurrentUserAccessPage)
     return (
       <div className="flex h-full w-full flex-col items-center justify-center">
         <h3 className="text-center text-body-md-semibold">Page not found</h3>

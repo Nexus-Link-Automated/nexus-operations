@@ -104,7 +104,8 @@ export const IssueDetailsPage = observer(function IssueDetailsPage({ params }: R
     );
   }
 
-  if (error && !isLoading) {
+  // A failed background refresh keeps the work item that is already open, unless it is gone.
+  if (error && !isLoading && (!data || error.status === 404)) {
     return (
       <EmptyStateDetailed
         align="center"

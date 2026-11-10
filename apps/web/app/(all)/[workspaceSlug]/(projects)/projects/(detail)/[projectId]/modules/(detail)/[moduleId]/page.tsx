@@ -32,7 +32,7 @@ function ModuleIssuesPage({ params }: Route.ComponentProps) {
   const { setValue, storedValue } = useLocalStorage("module_sidebar_collapsed", "false");
   const isSidebarCollapsed = storedValue ? (storedValue === "true" ? true : false) : false;
   // fetching module details
-  const { error } = useSWR(`CURRENT_MODULE_DETAILS_${moduleId}`, () =>
+  const { data: moduleDetails, error } = useSWR(`CURRENT_MODULE_DETAILS_${moduleId}`, () =>
     fetchModuleDetails(workspaceSlug, projectId, moduleId)
   );
   // derived values
@@ -48,7 +48,8 @@ function ModuleIssuesPage({ params }: Route.ComponentProps) {
   return (
     <>
       <PageHead title={pageTitle} />
-      {error ? (
+      {/* A failed background refresh keeps the module that is already open. */}
+      {error && !moduleDetails ? (
         <EmptyStateDetailed
           align="center"
           assetKey="module"
