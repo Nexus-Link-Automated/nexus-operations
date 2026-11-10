@@ -144,8 +144,8 @@ export class TitleSyncExtension implements Extension {
     if (updateManager) {
       // Force immediate save and wait for it to complete
       await updateManager.forceSave();
-      // Clean up the manager
-      this.titleUpdateManagers.delete(documentName);
+      // Keep the manager. If a client connects while this runs, Hocuspocus keeps the document loaded and
+      // skips afterUnloadDocument, so later renames still need it. afterUnloadDocument removes it.
     }
   }
 
@@ -170,7 +170,7 @@ export class TitleSyncExtension implements Extension {
     // Clean up the observer data map to prevent memory leak
     this.titleObserverData.delete(documentName);
 
-    // Ensure manager is cleaned up if beforeUnloadDocument somehow didn't run
+    // beforeUnloadDocument has already saved the title, so this only clears the manager's timers
     if (this.titleUpdateManagers.has(documentName)) {
       const manager = this.titleUpdateManagers.get(documentName)!;
       manager.cancel();

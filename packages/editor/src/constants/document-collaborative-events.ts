@@ -29,6 +29,8 @@ export type ErrorPayload = CreatePayload<{
   error_code?: "content_too_large" | "page_locked" | "page_archived";
   should_disconnect?: boolean;
 }>;
+// Sent when a page saves again after a failed save.
+export type SavedPayload = BaseActionPayload;
 
 // Enhanced DocumentCollaborativeEvents with payload types.
 // Both the client name and server name are defined, and we add a "payloadType" property
@@ -93,5 +95,10 @@ export const DocumentCollaborativeEvents = {
     client: "error",
     server: "error",
     payloadType: {} as ErrorPayload,
+  },
+  saved: {
+    client: "saved",
+    server: "saved",
+    payloadType: {} as SavedPayload,
   },
 } as const;

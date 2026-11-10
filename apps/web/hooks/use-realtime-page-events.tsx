@@ -145,15 +145,21 @@ export const useRealtimePageEvents = ({
           const errorCode = data.error_code;
 
           if (page.id && pageIds.includes(page.id)) {
+            const pageInstance = getPageById(page.id);
+            // Every later failed save repeats this event; the header keeps showing the first one.
+            const isRepeatedSaveError = errorType === "store" && !!pageInstance?.hasSaveError;
+            if (errorType === "store") pageInstance?.setHasSaveError(true);
+
             // Show toast notification
-            setToast({
-              type: "error",
-              title: errorType === "fetch" ? "Failed to load page" : "Failed to save page",
-              message: errorMessage,
-            });
+            if (!isRepeatedSaveError) {
+              setToast({
+                type: "error",
+                title: errorType === "fetch" ? "Failed to load page" : "Failed to save page",
+                message: errorMessage,
+              });
+            }
 
             // Handle specific error codes
-            const pageInstance = getPageById(page.id);
             if (pageInstance) {
               if (errorCode === "page_locked") {
                 // Lock the page if not already locked
@@ -168,6 +174,10 @@ export const useRealtimePageEvents = ({
               }
             }
           }
+        },
+
+        saved: ({ pageIds }: { pageIds: string[] }) => {
+          pageIds.forEach((pageId) => getPageById(pageId)?.setHasSaveError(false));
         },
 
         ...customRealtimeEventHandlers,

@@ -110,7 +110,7 @@ export const PageDetailsHeader = observer(function PageDetailsHeader() {
         </div>
       </Header.LeftItem>
       <Header.RightItem>
-        <PageSyncingBadge syncStatus={page.isSyncingWithServer} />
+        <PageSyncingBadge syncStatus={page.isSyncingWithServer} hasSaveError={page.hasSaveError} />
         <PageHeaderActions page={page} storeType={storeType} />
       </Header.RightItem>
     </Header>

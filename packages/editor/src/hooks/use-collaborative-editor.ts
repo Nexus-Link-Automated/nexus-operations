@@ -16,6 +16,8 @@ import { HeadingListExtension, SideMenuExtension } from "@/extensions";
 import { useEditor } from "@/hooks/use-editor";
 // plane editor extensions
 import { DocumentEditorAdditionalExtensions } from "@/extensions/document-extensions";
+// helpers
+import { routePageEvents } from "@/helpers/realtime-page-events";
 // types
 import type {
   TCollaborativeEditorHookProps,
@@ -197,6 +199,12 @@ export const useCollaborativeEditor = (props: UseCollaborativeEditorArgs) => {
   );
 
   const titleEditor = useTitleEditor(titleEditorConfig as Parameters<typeof useTitleEditor>[0]);
+
+  // The live server reports save failures and other page events as JSON stateless messages.
+  useEffect(() => {
+    if (!updatePageProperties) return;
+    return routePageEvents(provider, updatePageProperties);
+  }, [provider, updatePageProperties]);
 
   useEffect(() => {
     if (editor && titleEditor) {

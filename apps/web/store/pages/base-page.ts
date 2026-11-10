@@ -20,6 +20,8 @@ export type TBasePage = TPage & {
   // observables
   isSubmitting: TNameDescriptionLoader;
   isSyncingWithServer: "syncing" | "synced" | "error";
+  // true from a failed save reported by the live server until it reports a successful one
+  hasSaveError: boolean;
   // computed
   asJSON: TPage | undefined;
   isCurrentUserOwner: boolean;
@@ -43,6 +45,7 @@ export type TBasePage = TPage & {
   duplicate: () => Promise<TPage | undefined>;
   mutateProperties: (data: Partial<TPage>, shouldUpdateName?: boolean) => void;
   setSyncingStatus: (status: "syncing" | "synced" | "error") => void;
+  setHasSaveError: (value: boolean) => void;
   // sub-store
   editor: PageEditorInstance;
 };
@@ -82,6 +85,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
   // loaders
   isSubmitting: TNameDescriptionLoader = "saved";
   isSyncingWithServer: "syncing" | "synced" | "error" = "syncing";
+  hasSaveError: boolean = false;
   // page properties
   id: string | undefined;
   name: string | undefined;
@@ -165,6 +169,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
       updated_at: observable.ref,
       deleted_at: observable.ref,
       isSyncingWithServer: observable.ref,
+      hasSaveError: observable.ref,
       // helpers
       oldName: observable.ref,
       setIsSubmitting: action,
@@ -187,6 +192,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
       removePageFromFavorites: action,
       duplicate: action,
       mutateProperties: action,
+      setHasSaveError: action,
     });
 
     // init
@@ -550,5 +556,9 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
     runInAction(() => {
       this.isSyncingWithServer = status;
     });
+  };
+
+  setHasSaveError = (value: boolean) => {
+    this.hasSaveError = value;
   };
 }
