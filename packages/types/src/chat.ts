@@ -133,6 +133,18 @@ export type TChatChannelMember = {
   created_at: string;
 };
 
+/** A guest's chat grants in one workspace (`chat/guests/dm-access/`). */
+export type TChatGuestPermission = {
+  id: string;
+  workspace: string;
+  user: string;
+  can_open_dms: boolean;
+  created_at: string;
+  created_by: string | null;
+  updated_at: string;
+  updated_by: string | null;
+};
+
 export type TChatEventType =
   | "message.created"
   | "message.updated"

@@ -30,6 +30,16 @@
       "not_found_title": "Nie znaleziono rozmowy",
       "not_found_description": "Nie istnieje lub nie masz do niej dostępu."
     },
+    "members": {
+      "open": "Członkowie",
+      "title": "Członkowie",
+      "description": "Osoby w #{name}.",
+      "admin": "Administrator",
+      "remove": "Usuń {name}",
+      "add_title": "Dodaj osoby",
+      "search": "Szukaj osób",
+      "no_candidates": "Nie ma nikogo więcej do dodania."
+    },
     "dm": {
       "intro_title": "To jest początek rozmowy z: {name}",
       "intro_description": "Tylko osoby w tej rozmowie mogą ją zobaczyć."
@@ -58,6 +68,12 @@
       "search": "Szukaj osób",
       "empty": "Brak wyników.",
       "submit": "Rozpocznij rozmowę"
+    },
+    "guest_access": {
+      "open": "Dostęp gości",
+      "title": "Dostęp gości do wiadomości",
+      "description": "Goście mogą rozpoczynać wiadomości bezpośrednie tylko wtedy, gdy na to tutaj zezwolisz. Wyłączenie nie usuwa ich z rozmów, w których już są.",
+      "empty": "W tym obszarze roboczym nie ma gości."
     },
     "composer": {
       "send": "Wyślij wiadomość",
@@ -106,7 +122,12 @@
       "edit_failed": "Nie udało się zapisać zmiany",
       "remove_failed": "Nie udało się usunąć wiadomości",
       "message_not_found": "Ta wiadomość nie jest już dostępna.",
-      "link_work_item_failed": "Element pracy został utworzony, ale nie udało się powiązać go z tą wiadomością."
+      "link_work_item_failed": "Element pracy został utworzony, ale nie udało się powiązać go z tą wiadomością.",
+      "load_members_failed": "Nie udało się wczytać członków",
+      "add_members_failed": "Nie udało się dodać osób",
+      "remove_member_failed": "Nie udało się usunąć z kanału",
+      "load_guest_access_failed": "Nie udało się wczytać dostępu gości",
+      "update_guest_access_failed": "Nie udało się zmienić dostępu gościa"
     }
   }
 }

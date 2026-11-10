@@ -30,6 +30,16 @@
       "not_found_title": "Conversa não encontrada",
       "not_found_description": "Ela não existe ou você não tem acesso a ela."
     },
+    "members": {
+      "open": "Membros",
+      "title": "Membros",
+      "description": "Pessoas em #{name}.",
+      "admin": "Administrador",
+      "remove": "Remover {name}",
+      "add_title": "Adicionar pessoas",
+      "search": "Pesquisar pessoas",
+      "no_candidates": "Não há mais ninguém para adicionar."
+    },
     "dm": {
       "intro_title": "Este é o início da sua conversa com {name}",
       "intro_description": "Somente as pessoas desta conversa podem vê-la."
@@ -58,6 +68,12 @@
       "search": "Pesquisar pessoas",
       "empty": "Nenhum resultado.",
       "submit": "Iniciar conversa"
+    },
+    "guest_access": {
+      "open": "Acesso de convidados",
+      "title": "Acesso de convidados às mensagens",
+      "description": "Convidados só podem iniciar mensagens diretas se você permitir aqui. Desativar não os remove das conversas de que já participam.",
+      "empty": "Este espaço de trabalho não tem convidados."
     },
     "composer": {
       "send": "Enviar mensagem",
@@ -106,7 +122,12 @@
       "edit_failed": "Não foi possível salvar a edição",
       "remove_failed": "Não foi possível excluir a mensagem",
       "message_not_found": "Esta mensagem não está mais disponível.",
-      "link_work_item_failed": "O item de trabalho foi criado, mas não foi possível vinculá-lo a esta mensagem."
+      "link_work_item_failed": "O item de trabalho foi criado, mas não foi possível vinculá-lo a esta mensagem.",
+      "load_members_failed": "Não foi possível carregar os membros",
+      "add_members_failed": "Não foi possível adicionar as pessoas",
+      "remove_member_failed": "Não foi possível remover do canal",
+      "load_guest_access_failed": "Não foi possível carregar o acesso de convidados",
+      "update_guest_access_failed": "Não foi possível alterar o acesso do convidado"
     }
   }
 }

@@ -405,6 +405,54 @@ describe("ChatStore", () => {
     expect(store.channelMap["c-general"]!.unread_count).toBe(0);
   });
 
+  it("doesn't mark read while the list is scrolled up, and does when it is back at the bottom", async () => {
+    const { store, server, socket } = await setup();
+    await store.openChannel("c-general");
+    store.setAtNewest("c-general", false);
+    socket.emit(server.createdEvent(server.post("c-general", ADA, "while reading older")));
+    await settle();
+    expect(bodies(store, "c-general")).toEqual(["while reading older"]);
+    expect(store.channelMap["c-general"]!.unread_count).toBe(1);
+    // Coming back to the tab, or a reconnect, isn't seeing the newest messages either.
+    store.setDocumentVisible(false);
+    store.setDocumentVisible(true);
+    socket.ready(true);
+    await settle();
+    expect(server.calls.filter((call) => call.startsWith("markRead"))).toEqual([]);
+    expect(store.channelMap["c-general"]!.unread_count).toBe(1);
+
+    store.setAtNewest("c-general", true);
+    await settle();
+    expect(store.channelMap["c-general"]!.unread_count).toBe(0);
+  });
+
+  it("keeps an unsent draft per channel until it is cleared or the workspace changes", async () => {
+    const { store } = await setup();
+    store.setDraft("c-general", "<p>half written</p>");
+    store.setDraft("c-random", "<p>other</p>");
+    await store.openChannel("c-random");
+    await store.openChannel("c-general");
+    expect(store.getDraft("c-general")).toBe("<p>half written</p>");
+    expect(store.getDraft("c-random")).toBe("<p>other</p>");
+    store.setDraft("c-general", "");
+    expect(store.getDraft("c-general")).toBeUndefined();
+    store.stop();
+    expect(store.getDraft("c-random")).toBeUndefined();
+  });
+
+  it("starts the next channel at the bottom, and ignores a list that isn't the open one", async () => {
+    const { store, server, socket } = await setup();
+    await store.openChannel("c-general");
+    store.setAtNewest("c-general", false);
+    await store.openChannel("c-random");
+    expect(store.isAtNewest).toBe(true);
+    store.setAtNewest("c-general", false);
+    expect(store.isAtNewest).toBe(true);
+    socket.emit(server.createdEvent(server.post("c-random", ADA)));
+    await settle();
+    expect(store.channelMap["c-random"]!.unread_count).toBe(0);
+  });
+
   it("shows a sent message as pending, then once, and ignores its own event", async () => {
     const { store, server, socket } = await setup();
     await store.openChannel("c-general");

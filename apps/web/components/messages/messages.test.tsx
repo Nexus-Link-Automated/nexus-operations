@@ -9,12 +9,15 @@ import userEvent from "@testing-library/user-event";
 import { runInAction } from "mobx";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
+import { ChatService } from "@plane/services";
 import type { TChatChannel, TChatEvent, TChatMessage } from "@plane/types";
 import { ChatStore } from "@/store/chat.store";
 import type { TChatStoreService, TChatStoreSocket } from "@/store/chat.store";
 
 const ME = "user-me";
 const ADA = "user-ada";
+const BOB = "user-bob";
+const GUS = "user-gus";
 
 const mocks = vi.hoisted(() => ({
   chat: undefined as unknown as ChatStore,
@@ -42,28 +45,52 @@ vi.mock("@/hooks/store/use-member", () => {
     "user-me": { id: "user-me", display_name: "Me", first_name: "", last_name: "" },
     "user-ada": { id: "user-ada", display_name: "Ada", first_name: "Ada", last_name: "Lovelace" },
     "user-bob": { id: "user-bob", display_name: "Bob", first_name: "Bob", last_name: "" },
+    "user-gus": { id: "user-gus", display_name: "Gus", first_name: "Gus", last_name: "" },
   };
   return {
     useMember: () => ({
       getUserDetails: (id: string) => users[id],
       workspace: {
         workspaceMemberIds: Object.keys(users),
-        getWorkspaceMemberDetails: (id: string) => ({ id, role: 15, is_active: true, member: users[id] }),
+        // Gus is a guest.
+        getWorkspaceMemberDetails: (id: string) => ({
+          id,
+          role: id === "user-gus" ? 5 : 15,
+          is_active: true,
+          member: users[id],
+        }),
       },
     }),
   };
 });
 // The rich-text editor is Plane's own and tested there; here a message body is just its HTML as text.
-vi.mock("@/components/editor/lite-text", () => ({
-  LiteTextEditor: ({ initialValue, id }: { initialValue: string; id: string }) => (
-    <div data-testid={id}>{new DOMParser().parseFromString(initialValue, "text/html").body.textContent}</div>
-  ),
-}));
+// Its handle gives back what it started with, so the composer can send a draft.
+vi.mock("@/components/editor/lite-text", async () => {
+  const { useImperativeHandle } = await import("react");
+  return {
+    LiteTextEditor: function LiteTextEditor({
+      initialValue,
+      id,
+      ref,
+    }: {
+      initialValue: string;
+      id: string;
+      ref?: React.Ref<unknown>;
+    }) {
+      useImperativeHandle(ref, () => ({
+        getDocument: () => ({ html: initialValue, json: {} }),
+        clearEditor: () => undefined,
+      }));
+      return <div data-testid={id}>{new DOMParser().parseFromString(initialValue, "text/html").body.textContent}</div>;
+    },
+  };
+});
 
 // Imported after the mocks are declared (vi.mock is hoisted above these anyway).
 const { ChannelSidebar } = await import("./channel-sidebar");
 const { ChatChannelView } = await import("./channel-view");
 const { ChatConnectionBanner } = await import("./connection-banner");
+const { GuestDmAccessDialog } = await import("./guest-dm-access-dialog");
 const { CreateChannelDialog } = await import("./create-channel-dialog");
 const { ChatMessageList } = await import("./message-list");
 const { BrowseChannelsDialog } = await import("./browse-channels-dialog");
@@ -480,6 +507,33 @@ describe("ChatMessageList", () => {
       expect(scrollTop).toBe(50);
     });
 
+    it("leaves a message unread while scrolled up, and reads it on scrolling back down", async () => {
+      const markRead = vi.fn(async () => channel({}));
+      const store = await open({
+        listMessages: newestOnly,
+        getMessage: async () => message("m10", ADA, "new", 30),
+        markRead,
+      });
+      renderBodies(NEWEST);
+      resized();
+      scrollTo(50);
+      expect(store.isAtNewest).toBe(false);
+      markRead.mockClear();
+
+      await incoming(store, "m10");
+      renderBodies(["m10"]);
+      resized();
+      expect(store.channelMap["c-general"]!.unread_count).toBe(1);
+      expect(markRead).not.toHaveBeenCalled();
+
+      await act(async () => {
+        scrollTo(maxScroll());
+        await settle();
+      });
+      expect(store.isAtNewest).toBe(true);
+      expect(markRead).toHaveBeenCalledWith("acme", "c-general", "m10");
+    });
+
     it("comes back down for the user's own message when scrolled up", async () => {
       let deliver!: (sent: TChatMessage) => void;
       const store = await open({
@@ -836,5 +890,180 @@ describe("BrowseChannelsDialog", () => {
     await act(async () => finish(channel({ id: "c-open", name: "open" })));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(push).toHaveBeenCalledWith("/acme/messages/c-open");
+  });
+});
+
+const channelMember = (user: string, role: "admin" | "member" = "member") => ({
+  id: `cm-${user}`,
+  channel: "c-secret",
+  user,
+  role,
+  created_at: "2026-01-01T00:00:00Z",
+});
+
+describe("ChannelMembersDialog", () => {
+  const secret = (overrides: Partial<TChatChannel> = {}) =>
+    channel({ id: "c-secret", name: "secret", kind: "private", ...overrides });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  const openMembers = async (overrides: Partial<TChatChannel>) => {
+    const { store } = makeStore({ markRead: async () => secret(overrides) });
+    mocks.chat = store;
+    await started(store, [secret(overrides)]);
+    render(<ChatChannelView workspaceSlug="acme" channelId="c-secret" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Members" }));
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByRole("list", { name: "Members" });
+    return dialog;
+  };
+  // Each row starts with its avatar's fallback initial.
+  const listed = (dialog: HTMLElement) =>
+    within(within(dialog).getByRole("list", { name: "Members" }))
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
+
+  it("lists who is in a private channel, and adds people from the workspace", async () => {
+    vi.spyOn(ChatService.prototype, "listMembers")
+      .mockResolvedValueOnce([channelMember(ME), channelMember(ADA, "admin")])
+      .mockResolvedValueOnce([channelMember(ME), channelMember(ADA, "admin"), channelMember(BOB)]);
+    const addMembers = vi.spyOn(ChatService.prototype, "addMembers").mockResolvedValue([channelMember(BOB)]);
+    const dialog = await openMembers({});
+
+    expect(listed(dialog)).toEqual(["MMe (You)", "AAdaAdmin"]);
+    // A plain member can add people, but not remove them.
+    expect(within(dialog).queryByRole("button", { name: /^Remove/ })).toBeNull();
+    expect(within(dialog).queryByRole("checkbox", { name: "Ada" })).toBeNull();
+    await userEvent.click(within(dialog).getByRole("checkbox", { name: "Bob" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+    expect(addMembers).toHaveBeenCalledWith("acme", "c-secret", [BOB]);
+    await vi.waitFor(() => expect(listed(dialog)).toEqual(["MMe (You)", "AAdaAdmin", "BBob"]));
+  });
+
+  it("lets a channel admin remove someone else", async () => {
+    vi.spyOn(ChatService.prototype, "listMembers")
+      .mockResolvedValueOnce([channelMember(ME, "admin"), channelMember(ADA)])
+      .mockResolvedValueOnce([channelMember(ME, "admin")]);
+    const removeMember = vi.spyOn(ChatService.prototype, "removeMember").mockResolvedValue(undefined);
+    const dialog = await openMembers({ my_role: "admin" });
+
+    // Leaving is the header's job, not this list's.
+    const remove = within(dialog).getAllByRole("button", { name: /^Remove/ });
+    expect(remove).toHaveLength(1);
+    await userEvent.click(remove[0]!);
+    expect(removeMember).toHaveBeenCalledWith("acme", "c-secret", ADA);
+    await vi.waitFor(() => expect(listed(dialog)).toEqual(["MMe (You)Admin"]));
+  });
+
+  it("only lists the members of an archived channel", async () => {
+    vi.spyOn(ChatService.prototype, "listMembers").mockResolvedValue([channelMember(ME, "admin"), channelMember(ADA)]);
+    const dialog = await openMembers({ my_role: "admin", archived_at: "2026-01-02T00:00:00Z" });
+    expect(within(dialog).queryByRole("button", { name: /^Remove/ })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Add" })).toBeNull();
+    expect(within(dialog).queryByRole("checkbox")).toBeNull();
+  });
+
+  it("says so when the members can't be loaded, and tries again", async () => {
+    const listMembers = vi
+      .spyOn(ChatService.prototype, "listMembers")
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce([channelMember(ME)]);
+    const { store } = makeStore({ markRead: async () => secret() });
+    mocks.chat = store;
+    await started(store, [secret()]);
+    render(<ChatChannelView workspaceSlug="acme" channelId="c-secret" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Members" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText("Couldn't load the members")).toBeTruthy();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Try again" }));
+    expect(await within(dialog).findByRole("list", { name: "Members" })).toBeTruthy();
+    expect(listMembers).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("GuestDmAccessDialog", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("lists the workspace's guests, and grants and revokes their DM access", async () => {
+    vi.spyOn(ChatService.prototype, "listGuestDmAccess").mockResolvedValue([]);
+    const grant = vi.spyOn(ChatService.prototype, "grantGuestDmAccess").mockResolvedValue({
+      id: "g1",
+      workspace: "ws-1",
+      user: GUS,
+      can_open_dms: true,
+      created_at: "2026-01-01T00:00:00Z",
+      created_by: ME,
+      updated_at: "2026-01-01T00:00:00Z",
+      updated_by: null,
+    });
+    const revoke = vi.spyOn(ChatService.prototype, "revokeGuestDmAccess").mockResolvedValue(undefined);
+    render(<GuestDmAccessDialog workspaceSlug="acme" onClose={() => undefined} />);
+
+    const toggle = await screen.findByRole("switch", { name: "Gus" });
+    // Members can already open DMs: only guests are listed.
+    expect(screen.getAllByRole("switch")).toHaveLength(1);
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    await userEvent.click(toggle);
+    expect(grant).toHaveBeenCalledWith("acme", GUS);
+    await vi.waitFor(() =>
+      expect(screen.getByRole("switch", { name: "Gus" }).getAttribute("aria-checked")).toBe("true")
+    );
+    await vi.waitFor(() =>
+      expect(screen.getByRole("switch", { name: "Gus" }).hasAttribute("data-disabled")).toBe(false)
+    );
+    await userEvent.click(screen.getByRole("switch", { name: "Gus" }));
+    expect(revoke).toHaveBeenCalledWith("acme", GUS);
+    await vi.waitFor(() =>
+      expect(screen.getByRole("switch", { name: "Gus" }).getAttribute("aria-checked")).toBe("false")
+    );
+  });
+
+  it("keeps the switch as it was when the change fails", async () => {
+    vi.spyOn(ChatService.prototype, "listGuestDmAccess").mockResolvedValue([]);
+    vi.spyOn(ChatService.prototype, "grantGuestDmAccess").mockRejectedValue(new Error("offline"));
+    render(<GuestDmAccessDialog workspaceSlug="acme" onClose={() => undefined} />);
+    await userEvent.click(await screen.findByRole("switch", { name: "Gus" }));
+    await vi.waitFor(() =>
+      expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't change guest access" }))
+    );
+    expect(screen.getByRole("switch", { name: "Gus" }).getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("is offered to workspace admins only", async () => {
+    const { store } = makeStore();
+    mocks.chat = store;
+    await started(store, []);
+    const { unmount } = inRouter(<ChannelSidebar workspaceSlug="acme" activeChannelId={undefined} />);
+    expect(screen.queryByRole("button", { name: "Guest access" })).toBeNull();
+    unmount();
+    runInAction(() => {
+      store.me = { ...store.me!, is_workspace_admin: true };
+    });
+    inRouter(<ChannelSidebar workspaceSlug="acme" activeChannelId={undefined} />);
+    expect(screen.getByRole("button", { name: "Guest access" })).toBeTruthy();
+  });
+});
+
+describe("ChatComposer", () => {
+  it("starts from the channel's unsent draft, and forgets it once sent", async () => {
+    const { store } = makeStore({
+      markRead: async () => channel({}),
+      sendMessage: () => new Promise(() => undefined),
+    });
+    mocks.chat = store;
+    await started(store, [channel({}), channel({ id: "c-random", name: "random" })]);
+    store.setDraft("c-general", "<p>half written</p>");
+
+    const first = render(<ChatChannelView workspaceSlug="acme" channelId="c-random" />);
+    expect((await screen.findByTestId("chat-composer-c-random")).textContent).toBe("");
+    expect(screen.getByRole("button", { name: "Send message" }).hasAttribute("disabled")).toBe(true);
+    first.unmount();
+
+    render(<ChatChannelView workspaceSlug="acme" channelId="c-general" />);
+    expect((await screen.findByTestId("chat-composer-c-general")).textContent).toBe("half written");
+    const send = screen.getByRole("button", { name: "Send message" });
+    expect(send.hasAttribute("disabled")).toBe(false);
+    await userEvent.click(send);
+    expect(store.getDraft("c-general")).toBeUndefined();
   });
 });

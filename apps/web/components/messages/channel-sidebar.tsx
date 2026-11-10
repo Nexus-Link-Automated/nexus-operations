@@ -9,7 +9,7 @@ import { observer } from "mobx-react";
 import Link from "next/link";
 // plane imports
 import { IconButton } from "@makeplane/propel/components/icon-button";
-import { AddOutline, HashOutline, LockOutline, SearchOutline } from "@makeplane/propel/icons";
+import { AddOutline, HashOutline, LockOutline, SearchOutline, UserCogOutline } from "@makeplane/propel/icons";
 import { useTranslation } from "@plane/i18n";
 import type { TChatChannel } from "@plane/types";
 import { cn } from "@plane/utils";
@@ -19,6 +19,7 @@ import { useMember } from "@/hooks/store/use-member";
 // local imports
 import { BrowseChannelsDialog } from "./browse-channels-dialog";
 import { CreateChannelDialog } from "./create-channel-dialog";
+import { GuestDmAccessDialog } from "./guest-dm-access-dialog";
 import { channelDisplayName, otherMemberIds } from "./helpers";
 import { MemberAvatar } from "./member-avatar";
 import { NewDirectMessageDialog } from "./new-dm-dialog";
@@ -32,7 +33,7 @@ type Props = {
 export const ChannelSidebar = observer(function ChannelSidebar({ workspaceSlug, activeChannelId }: Props) {
   const { t } = useTranslation();
   const { joinedChannels, directMessages, me, channelsLoaded } = useChat();
-  const [dialog, setDialog] = useState<"create" | "browse" | "dm" | null>(null);
+  const [dialog, setDialog] = useState<"create" | "browse" | "dm" | "guests" | null>(null);
 
   return (
     <nav
@@ -78,15 +79,26 @@ export const ChannelSidebar = observer(function ChannelSidebar({ workspaceSlug, 
       <Section
         title={t("messages.dms.title")}
         actions={
-          me?.can_open_dms !== false && (
-            <IconButton
-              variant="ghost"
-              size="sm"
-              icon={<AddOutline />}
-              aria-label={t("messages.dms.new")}
-              onClick={() => setDialog("dm")}
-            />
-          )
+          <>
+            {me?.is_workspace_admin && (
+              <IconButton
+                variant="ghost"
+                size="sm"
+                icon={<UserCogOutline />}
+                aria-label={t("messages.guest_access.open")}
+                onClick={() => setDialog("guests")}
+              />
+            )}
+            {me?.can_open_dms !== false && (
+              <IconButton
+                variant="ghost"
+                size="sm"
+                icon={<AddOutline />}
+                aria-label={t("messages.dms.new")}
+                onClick={() => setDialog("dm")}
+              />
+            )}
+          </>
         }
       >
         {channelsLoaded && directMessages.length === 0 && (
@@ -105,6 +117,7 @@ export const ChannelSidebar = observer(function ChannelSidebar({ workspaceSlug, 
       {dialog === "create" && <CreateChannelDialog workspaceSlug={workspaceSlug} onClose={() => setDialog(null)} />}
       {dialog === "browse" && <BrowseChannelsDialog workspaceSlug={workspaceSlug} onClose={() => setDialog(null)} />}
       {dialog === "dm" && <NewDirectMessageDialog workspaceSlug={workspaceSlug} onClose={() => setDialog(null)} />}
+      {dialog === "guests" && <GuestDmAccessDialog workspaceSlug={workspaceSlug} onClose={() => setDialog(null)} />}
     </nav>
   );
 });

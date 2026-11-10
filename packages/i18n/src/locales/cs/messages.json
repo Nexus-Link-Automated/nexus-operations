@@ -30,6 +30,16 @@
       "not_found_title": "Konverzace nenalezena",
       "not_found_description": "Neexistuje, nebo k ní nemáte přístup."
     },
+    "members": {
+      "open": "Členové",
+      "title": "Členové",
+      "description": "Lidé v #{name}.",
+      "admin": "Správce",
+      "remove": "Odebrat {name}",
+      "add_title": "Přidat lidi",
+      "search": "Hledat lidi",
+      "no_candidates": "Nikoho dalšího nelze přidat."
+    },
     "dm": {
       "intro_title": "Toto je začátek vaší konverzace s: {name}",
       "intro_description": "Vidí ji jen lidé v této konverzaci."
@@ -58,6 +68,12 @@
       "search": "Hledat lidi",
       "empty": "Žádné výsledky.",
       "submit": "Zahájit konverzaci"
+    },
+    "guest_access": {
+      "open": "Přístup hostů",
+      "title": "Přístup hostů ke zprávám",
+      "description": "Hosté mohou zahajovat přímé zprávy, jen pokud to zde povolíte. Vypnutím je neodeberete z konverzací, ve kterých už jsou.",
+      "empty": "V tomto pracovním prostoru nejsou žádní hosté."
     },
     "composer": {
       "send": "Odeslat zprávu",
@@ -106,7 +122,12 @@
       "edit_failed": "Úpravu se nepodařilo uložit",
       "remove_failed": "Zprávu se nepodařilo smazat",
       "message_not_found": "Tato zpráva již není dostupná.",
-      "link_work_item_failed": "Pracovní položka byla vytvořena, ale nepodařilo se ji propojit s touto zprávou."
+      "link_work_item_failed": "Pracovní položka byla vytvořena, ale nepodařilo se ji propojit s touto zprávou.",
+      "load_members_failed": "Členy se nepodařilo načíst",
+      "add_members_failed": "Lidi se nepodařilo přidat",
+      "remove_member_failed": "Z kanálu se nepodařilo odebrat",
+      "load_guest_access_failed": "Přístup hostů se nepodařilo načíst",
+      "update_guest_access_failed": "Přístup hosta se nepodařilo změnit"
     }
   }
 }

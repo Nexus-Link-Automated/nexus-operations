@@ -30,6 +30,16 @@
       "not_found_title": "找不到對話",
       "not_found_description": "此對話不存在，或您沒有存取權。"
     },
+    "members": {
+      "open": "成員",
+      "title": "成員",
+      "description": "#{name} 中的成員。",
+      "admin": "管理員",
+      "remove": "移除 {name}",
+      "add_title": "新增成員",
+      "search": "搜尋成員",
+      "no_candidates": "沒有其他可新增的人。"
+    },
     "dm": {
       "intro_title": "這是您與 {name} 對話的開頭",
       "intro_description": "只有此對話中的成員可以檢視。"
@@ -58,6 +68,12 @@
       "search": "搜尋成員",
       "empty": "沒有符合的成員。",
       "submit": "開始對話"
+    },
+    "guest_access": {
+      "open": "訪客權限",
+      "title": "訪客的訊息權限",
+      "description": "只有在這裡獲得允許的訪客才能發起私訊。關閉後，他們仍會留在已參與的對話中。",
+      "empty": "此工作區沒有訪客。"
     },
     "composer": {
       "send": "傳送訊息",
@@ -106,7 +122,12 @@
       "edit_failed": "無法儲存編輯",
       "remove_failed": "無法刪除訊息",
       "message_not_found": "此訊息已無法使用。",
-      "link_work_item_failed": "工作事項已建立，但無法連結至此訊息。"
+      "link_work_item_failed": "工作事項已建立，但無法連結至此訊息。",
+      "load_members_failed": "無法載入成員",
+      "add_members_failed": "無法新增成員",
+      "remove_member_failed": "無法從頻道中移除",
+      "load_guest_access_failed": "無法載入訪客權限",
+      "update_guest_access_failed": "無法變更訪客權限"
     }
   }
 }

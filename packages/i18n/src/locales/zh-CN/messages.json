@@ -30,6 +30,16 @@
       "not_found_title": "未找到对话",
       "not_found_description": "该对话不存在，或您无权访问。"
     },
+    "members": {
+      "open": "成员",
+      "title": "成员",
+      "description": "#{name} 中的成员。",
+      "admin": "管理员",
+      "remove": "移除 {name}",
+      "add_title": "添加成员",
+      "search": "搜索成员",
+      "no_candidates": "没有其他可添加的人。"
+    },
     "dm": {
       "intro_title": "这是您与 {name} 对话的开始",
       "intro_description": "只有此对话中的成员可以查看。"
@@ -58,6 +68,12 @@
       "search": "搜索成员",
       "empty": "没有匹配的成员。",
       "submit": "开始对话"
+    },
+    "guest_access": {
+      "open": "访客权限",
+      "title": "访客的消息权限",
+      "description": "只有在这里获得允许的访客才能发起私信。关闭后，他们仍会留在已参与的对话中。",
+      "empty": "此工作区没有访客。"
     },
     "composer": {
       "send": "发送消息",
@@ -106,7 +122,12 @@
       "edit_failed": "无法保存编辑",
       "remove_failed": "无法删除消息",
       "message_not_found": "此消息已不可用。",
-      "link_work_item_failed": "工作项已创建，但无法关联到此消息。"
+      "link_work_item_failed": "工作项已创建，但无法关联到此消息。",
+      "load_members_failed": "无法加载成员",
+      "add_members_failed": "无法添加成员",
+      "remove_member_failed": "无法从频道中移除",
+      "load_guest_access_failed": "无法加载访客权限",
+      "update_guest_access_failed": "无法更改访客权限"
     }
   }
 }

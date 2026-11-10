@@ -30,6 +30,16 @@
       "not_found_title": "Conversation introuvable",
       "not_found_description": "Elle n'existe pas, ou vous n'y avez pas accès."
     },
+    "members": {
+      "open": "Membres",
+      "title": "Membres",
+      "description": "Personnes dans #{name}.",
+      "admin": "Admin",
+      "remove": "Retirer {name}",
+      "add_title": "Ajouter des personnes",
+      "search": "Rechercher des personnes",
+      "no_candidates": "Personne d'autre à ajouter."
+    },
     "dm": {
       "intro_title": "Début de votre conversation avec {name}",
       "intro_description": "Seules les personnes de cette conversation peuvent la voir."
@@ -58,6 +68,12 @@
       "search": "Rechercher des personnes",
       "empty": "Aucun résultat.",
       "submit": "Démarrer la conversation"
+    },
+    "guest_access": {
+      "open": "Accès des invités",
+      "title": "Accès des invités aux messages",
+      "description": "Les invités ne peuvent démarrer des messages directs que si vous l'autorisez ici. Le désactiver ne les retire pas des conversations dont ils font déjà partie.",
+      "empty": "Cet espace de travail n'a aucun invité."
     },
     "composer": {
       "send": "Envoyer le message",
@@ -106,7 +122,12 @@
       "edit_failed": "Impossible d'enregistrer la modification",
       "remove_failed": "Impossible de supprimer le message",
       "message_not_found": "Ce message n'est plus disponible.",
-      "link_work_item_failed": "L'élément de travail a été créé, mais n'a pas pu être lié à ce message."
+      "link_work_item_failed": "L'élément de travail a été créé, mais n'a pas pu être lié à ce message.",
+      "load_members_failed": "Impossible de charger les membres",
+      "add_members_failed": "Impossible d'ajouter ces personnes",
+      "remove_member_failed": "Impossible de retirer cette personne du canal",
+      "load_guest_access_failed": "Impossible de charger l'accès des invités",
+      "update_guest_access_failed": "Impossible de modifier l'accès de l'invité"
     }
   }
 }

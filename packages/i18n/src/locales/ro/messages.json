@@ -30,6 +30,16 @@
       "not_found_title": "Conversația nu a fost găsită",
       "not_found_description": "Nu există sau nu aveți acces la ea."
     },
+    "members": {
+      "open": "Membri",
+      "title": "Membri",
+      "description": "Persoane din #{name}.",
+      "admin": "Administrator",
+      "remove": "Eliminați pe {name}",
+      "add_title": "Adăugați persoane",
+      "search": "Căutați persoane",
+      "no_candidates": "Nu mai este nimeni de adăugat."
+    },
     "dm": {
       "intro_title": "Acesta este începutul conversației cu {name}",
       "intro_description": "Doar persoanele din această conversație o pot vedea."
@@ -58,6 +68,12 @@
       "search": "Căutați persoane",
       "empty": "Niciun rezultat.",
       "submit": "Începeți conversația"
+    },
+    "guest_access": {
+      "open": "Acces invitați",
+      "title": "Accesul invitaților la mesaje",
+      "description": "Invitații pot începe mesaje directe doar dacă permiteți acest lucru aici. Dezactivarea nu îi scoate din conversațiile în care sunt deja.",
+      "empty": "Acest spațiu de lucru nu are invitați."
     },
     "composer": {
       "send": "Trimiteți mesajul",
@@ -106,7 +122,12 @@
       "edit_failed": "Modificarea nu a putut fi salvată",
       "remove_failed": "Mesajul nu a putut fi șters",
       "message_not_found": "Acest mesaj nu mai este disponibil.",
-      "link_work_item_failed": "Activitatea a fost creată, dar nu a putut fi asociată acestui mesaj."
+      "link_work_item_failed": "Activitatea a fost creată, dar nu a putut fi asociată acestui mesaj.",
+      "load_members_failed": "Membrii nu au putut fi încărcați",
+      "add_members_failed": "Persoanele nu au putut fi adăugate",
+      "remove_member_failed": "Eliminarea din canal nu a reușit",
+      "load_guest_access_failed": "Accesul invitaților nu a putut fi încărcat",
+      "update_guest_access_failed": "Accesul invitatului nu a putut fi schimbat"
     }
   }
 }

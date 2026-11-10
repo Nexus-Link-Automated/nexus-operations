@@ -30,6 +30,16 @@
       "not_found_title": "Unterhaltung nicht gefunden",
       "not_found_description": "Sie existiert nicht, oder Sie haben keinen Zugriff darauf."
     },
+    "members": {
+      "open": "Mitglieder",
+      "title": "Mitglieder",
+      "description": "Personen in #{name}.",
+      "admin": "Admin",
+      "remove": "{name} entfernen",
+      "add_title": "Personen hinzufügen",
+      "search": "Personen suchen",
+      "no_candidates": "Niemand weiteres zum Hinzufügen."
+    },
     "dm": {
       "intro_title": "Das ist der Anfang Ihrer Unterhaltung mit {name}",
       "intro_description": "Nur die Personen in dieser Unterhaltung können sie sehen."
@@ -58,6 +68,12 @@
       "search": "Personen suchen",
       "empty": "Keine Treffer.",
       "submit": "Unterhaltung starten"
+    },
+    "guest_access": {
+      "open": "Gastzugriff",
+      "title": "Gastzugriff auf Nachrichten",
+      "description": "Gäste können nur Direktnachrichten beginnen, wenn Sie es hier erlauben. Das Ausschalten entfernt sie nicht aus Unterhaltungen, an denen sie bereits teilnehmen.",
+      "empty": "Dieser Arbeitsbereich hat keine Gäste."
     },
     "composer": {
       "send": "Nachricht senden",
@@ -106,7 +122,12 @@
       "edit_failed": "Änderung konnte nicht gespeichert werden",
       "remove_failed": "Nachricht konnte nicht gelöscht werden",
       "message_not_found": "Diese Nachricht ist nicht mehr verfügbar.",
-      "link_work_item_failed": "Das Arbeitselement wurde erstellt, konnte aber nicht mit dieser Nachricht verknüpft werden."
+      "link_work_item_failed": "Das Arbeitselement wurde erstellt, konnte aber nicht mit dieser Nachricht verknüpft werden.",
+      "load_members_failed": "Mitglieder konnten nicht geladen werden",
+      "add_members_failed": "Personen konnten nicht hinzugefügt werden",
+      "remove_member_failed": "Konnte nicht aus dem Kanal entfernt werden",
+      "load_guest_access_failed": "Gastzugriff konnte nicht geladen werden",
+      "update_guest_access_failed": "Gastzugriff konnte nicht geändert werden"
     }
   }
 }

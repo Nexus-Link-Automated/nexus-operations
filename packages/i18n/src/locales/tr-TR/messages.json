@@ -30,6 +30,16 @@
       "not_found_title": "Sohbet bulunamadı",
       "not_found_description": "Sohbet mevcut değil veya erişiminiz yok."
     },
+    "members": {
+      "open": "Üyeler",
+      "title": "Üyeler",
+      "description": "#{name} kanalındaki kişiler.",
+      "admin": "Yönetici",
+      "remove": "{name} kişisini çıkar",
+      "add_title": "Kişi ekle",
+      "search": "Kişi arayın",
+      "no_candidates": "Eklenecek başka kimse yok."
+    },
     "dm": {
       "intro_title": "{name} ile sohbetinizin başlangıcı",
       "intro_description": "Bu sohbeti yalnızca içindeki kişiler görebilir."
@@ -58,6 +68,12 @@
       "search": "Kişi arayın",
       "empty": "Eşleşen kimse yok.",
       "submit": "Sohbet başlat"
+    },
+    "guest_access": {
+      "open": "Misafir erişimi",
+      "title": "Misafirlerin mesajlara erişimi",
+      "description": "Misafirler yalnızca burada izin verirseniz doğrudan mesaj başlatabilir. Kapatmak, onları zaten içinde oldukları konuşmalardan çıkarmaz.",
+      "empty": "Bu çalışma alanında misafir yok."
     },
     "composer": {
       "send": "Mesaj gönder",
@@ -106,7 +122,12 @@
       "edit_failed": "Düzenleme kaydedilemedi",
       "remove_failed": "Mesaj silinemedi",
       "message_not_found": "Bu mesaj artık kullanılamıyor.",
-      "link_work_item_failed": "İş öğesi oluşturuldu ancak bu mesaja bağlanamadı."
+      "link_work_item_failed": "İş öğesi oluşturuldu ancak bu mesaja bağlanamadı.",
+      "load_members_failed": "Üyeler yüklenemedi",
+      "add_members_failed": "Kişiler eklenemedi",
+      "remove_member_failed": "Kanaldan çıkarılamadı",
+      "load_guest_access_failed": "Misafir erişimi yüklenemedi",
+      "update_guest_access_failed": "Misafir erişimi değiştirilemedi"
     }
   }
 }

@@ -30,6 +30,16 @@
       "not_found_title": "会話が見つかりません",
       "not_found_description": "存在しないか、アクセス権がありません。"
     },
+    "members": {
+      "open": "メンバー",
+      "title": "メンバー",
+      "description": "#{name} のメンバー。",
+      "admin": "管理者",
+      "remove": "{name} を削除",
+      "add_title": "メンバーを追加",
+      "search": "メンバーを検索",
+      "no_candidates": "追加できる人はいません。"
+    },
     "dm": {
       "intro_title": "{name} さんとの会話の始まりです",
       "intro_description": "この会話に参加している人だけが閲覧できます。"
@@ -58,6 +68,12 @@
       "search": "メンバーを検索",
       "empty": "該当するメンバーはいません。",
       "submit": "会話を開始"
+    },
+    "guest_access": {
+      "open": "ゲストのアクセス",
+      "title": "メッセージへのゲストのアクセス",
+      "description": "ここで許可したゲストだけがダイレクトメッセージを開始できます。オフにしても、すでに参加している会話からは外れません。",
+      "empty": "このワークスペースにゲストはいません。"
     },
     "composer": {
       "send": "メッセージを送信",
@@ -106,7 +122,12 @@
       "edit_failed": "編集内容を保存できませんでした",
       "remove_failed": "メッセージを削除できませんでした",
       "message_not_found": "このメッセージは利用できなくなりました。",
-      "link_work_item_failed": "作業項目は作成されましたが、このメッセージにリンクできませんでした。"
+      "link_work_item_failed": "作業項目は作成されましたが、このメッセージにリンクできませんでした。",
+      "load_members_failed": "メンバーを読み込めませんでした",
+      "add_members_failed": "メンバーを追加できませんでした",
+      "remove_member_failed": "チャンネルから削除できませんでした",
+      "load_guest_access_failed": "ゲストのアクセスを読み込めませんでした",
+      "update_guest_access_failed": "ゲストのアクセスを変更できませんでした"
     }
   }
 }
