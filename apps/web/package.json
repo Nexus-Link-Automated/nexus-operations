@@ -59,6 +59,7 @@
     "react-masonry-component": "catalog:",
     "react-pdf-html": "catalog:",
     "react-router": "catalog:",
+    "remark-gfm": "catalog:",
     "serve": "catalog:",
     "smooth-scroll-into-view-if-needed": "catalog:",
     "swr": "catalog:",
