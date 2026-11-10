@@ -16,6 +16,8 @@
 // a moment (FAKE_CODEX_LOGIN=fail fails it, =hang never completes) and writes $CODEX_HOME/auth.json.
 // FAKE_CODEX_APPROVAL_PAUSE_MS: stay silent this long after an approval answer before going on.
 // FAKE_CODEX_TURN_START_DELAY_MS: hold the `turn/start` response this long.
+// Threads: each `thread/start` makes thread-1, thread-2, ...; `thread/fork` makes fork-1, ... and
+// fails with FAKE_CODEX_FORK=fail. Events name the thread the last start or fork made.
 "use strict";
 
 const fs = require("node:fs");
@@ -31,6 +33,9 @@ const pendingReplies = new Map();
 let activeTurn;
 let turnCount = 0;
 let threadCwd = "/work";
+let threadCount = 0;
+let forkCount = 0;
+let currentThread = "thread-1";
 
 function send(payload) {
   process.stdout.write(`${JSON.stringify(payload)}
@@ -38,12 +43,12 @@ function send(payload) {
 }
 
 function notify(method, params) {
-  send({ method, params: { threadId: "thread-1", ...params } });
+  send({ method, params: { threadId: currentThread, ...params } });
 }
 
 function ask(method, params) {
   const id = `srv-${nextServerRequest++}`;
-  send({ id, method, params: { threadId: "thread-1", turnId: activeTurn, ...params } });
+  send({ id, method, params: { threadId: currentThread, turnId: activeTurn, ...params } });
   return new Promise((resolve) => pendingReplies.set(id, resolve));
 }
 
@@ -328,10 +333,12 @@ function handle(msg) {
       return;
     case "thread/start":
       threadCwd = msg.params.cwd;
+      threadCount += 1;
+      currentThread = `thread-${threadCount}`;
       send({
         id: msg.id,
         result: {
-          thread: { id: "thread-1" },
+          thread: { id: currentThread },
           model: "gpt-test",
           reasoningEffort: process.env.FAKE_CODEX_REASONING_EFFORT || null,
         },
@@ -341,6 +348,18 @@ function handle(msg) {
         status: process.env.FAKE_CODEX_BROKEN_MCP ? "failed" : "ready",
         error: null,
       });
+      return;
+    case "thread/fork":
+      if (process.env.FAKE_CODEX_FORK === "fail") {
+        send({ id: msg.id, error: { code: -32600, message: "fork failed" } });
+        return;
+      }
+      forkCount += 1;
+      currentThread = `fork-${forkCount}`;
+      send({ id: msg.id, result: { thread: { id: currentThread }, model: "gpt-test", reasoningEffort: null } });
+      return;
+    case "thread/unsubscribe":
+      send({ id: msg.id, result: { status: "unsubscribed" } });
       return;
     case "turn/start": {
       turnCount += 1;
