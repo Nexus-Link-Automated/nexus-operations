@@ -480,6 +480,33 @@ describe("ChatMessageList", () => {
       expect(scrollTop).toBe(50);
     });
 
+    it("leaves a message unread while scrolled up, and reads it on scrolling back down", async () => {
+      const markRead = vi.fn(async () => channel({}));
+      const store = await open({
+        listMessages: newestOnly,
+        getMessage: async () => message("m10", ADA, "new", 30),
+        markRead,
+      });
+      renderBodies(NEWEST);
+      resized();
+      scrollTo(50);
+      expect(store.isAtNewest).toBe(false);
+      markRead.mockClear();
+
+      await incoming(store, "m10");
+      renderBodies(["m10"]);
+      resized();
+      expect(store.channelMap["c-general"]!.unread_count).toBe(1);
+      expect(markRead).not.toHaveBeenCalled();
+
+      await act(async () => {
+        scrollTo(maxScroll());
+        await settle();
+      });
+      expect(store.isAtNewest).toBe(true);
+      expect(markRead).toHaveBeenCalledWith("acme", "c-general", "m10");
+    });
+
     it("comes back down for the user's own message when scrolled up", async () => {
       let deliver!: (sent: TChatMessage) => void;
       const store = await open({

@@ -118,6 +118,8 @@ export interface IChatStore {
   pendingMessages: Record<string, TChatPendingMessage[]>;
   activeChannelId: string | null;
   isDocumentVisible: boolean;
+  /** The open channel's list is scrolled to its newest message. */
+  isAtNewest: boolean;
   channelsLoaded: boolean;
   channelsError: boolean;
   socketStatus: TChatSocketStatus;
@@ -139,6 +141,7 @@ export interface IChatStore {
   openChannel: (channelId: string) => Promise<void>;
   closeChannel: () => void;
   setDocumentVisible: (visible: boolean) => void;
+  setAtNewest: (channelId: string, atNewest: boolean) => void;
   loadOlderMessages: (channelId: string) => Promise<void>;
   revealMessage: (channelId: string, messageId: string) => Promise<boolean>;
   sendMessage: (channelId: string, body: Pick<TChatMessageWrite, "body_html" | "body_json">) => Promise<void>;
@@ -178,6 +181,7 @@ export class ChatStore implements IChatStore {
   pendingMessages: Record<string, TChatPendingMessage[]> = {};
   activeChannelId: string | null = null;
   isDocumentVisible = true;
+  isAtNewest = true;
   channelsLoaded = false;
   channelsError = false;
   socketStatus: TChatSocketStatus = "idle";
@@ -212,6 +216,7 @@ export class ChatStore implements IChatStore {
       pendingMessages: observable,
       activeChannelId: observable.ref,
       isDocumentVisible: observable.ref,
+      isAtNewest: observable.ref,
       channelsLoaded: observable.ref,
       channelsError: observable.ref,
       socketStatus: observable.ref,
@@ -229,6 +234,7 @@ export class ChatStore implements IChatStore {
       openChannel: action.bound,
       closeChannel: action.bound,
       setDocumentVisible: action.bound,
+      setAtNewest: action.bound,
       loadOlderMessages: action.bound,
       revealMessage: action.bound,
       sendMessage: action.bound,
@@ -303,8 +309,9 @@ export class ChatStore implements IChatStore {
 
   getPendingMessages = (channelId: string): TChatPendingMessage[] => this.pendingMessages[channelId] ?? [];
 
+  /** The user can see the channel's newest messages: it is open, the tab is visible, and the list is at the bottom. */
   private isViewing(channelId: string): boolean {
-    return this.activeChannelId === channelId && this.isDocumentVisible;
+    return this.activeChannelId === channelId && this.isDocumentVisible && this.isAtNewest;
   }
 
   /** Runs `fn` only if the store is still on the workspace it was on when the request started. */
@@ -353,6 +360,7 @@ export class ChatStore implements IChatStore {
     this.channelMessages = {};
     this.pendingMessages = {};
     this.activeChannelId = null;
+    this.isAtNewest = true;
     this.channelsLoaded = false;
     this.channelsError = false;
     this.socketStatus = "idle";
@@ -512,13 +520,15 @@ export class ChatStore implements IChatStore {
       this.socket?.subscribe(channelId);
     }
     if (!this.channelMessages[channelId]?.loaded) await this.loadNewestMessages(channelId);
-    if (this.activeChannelId === channelId) await this.markRead(channelId);
+    if (this.isViewing(channelId)) await this.markRead(channelId);
   }
 
   closeChannel(): void {
     const channelId = this.activeChannelId;
     if (!channelId) return;
     this.activeChannelId = null;
+    // A channel opens at its newest messages.
+    this.isAtNewest = true;
     const channel = this.channelMap[channelId];
     if (channel && !channel.is_member) {
       this.socket?.unsubscribe(channelId);
@@ -529,7 +539,14 @@ export class ChatStore implements IChatStore {
 
   setDocumentVisible(visible: boolean): void {
     this.isDocumentVisible = visible;
-    if (visible && this.activeChannelId) void this.markRead(this.activeChannelId);
+    if (this.activeChannelId && this.isViewing(this.activeChannelId)) void this.markRead(this.activeChannelId);
+  }
+
+  /** The message list says whether it is scrolled to the newest message. Reaching it marks the channel read. */
+  setAtNewest(channelId: string, atNewest: boolean): void {
+    if (this.activeChannelId !== channelId || this.isAtNewest === atNewest) return;
+    this.isAtNewest = atNewest;
+    if (this.isViewing(channelId)) void this.markRead(channelId);
   }
 
   async createChannel(data: TChatChannelCreate): Promise<TChatChannel> {

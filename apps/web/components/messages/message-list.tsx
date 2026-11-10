@@ -94,6 +94,14 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
   const pendingCount = useRef(pending.length);
   /** The message opened from a link, held in place while the rows around it are still rendering. */
   const revealRow = useRef<Element | null>(null);
+  // The store marks the channel read only while the list is at the bottom, where the newest messages are.
+  const follow = useCallback(
+    (value: boolean) => {
+      atBottom.current = value;
+      chat.setAtNewest(channelId, value);
+    },
+    [chat, channelId]
+  );
 
   const firstId = messages[0]?.id;
   const lastId = messages[messages.length - 1]?.id;
@@ -141,10 +149,10 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
 
   useLayoutEffect(() => {
     // Sending shows the message: its row, and Retry if it fails, must not end up out of sight.
-    if (pending.length > pendingCount.current) atBottom.current = true;
+    if (pending.length > pendingCount.current) follow(true);
     pendingCount.current = pending.length;
     holdPosition();
-  }, [holdPosition, firstId, lastId, messages.length, pending.length]);
+  }, [follow, holdPosition, firstId, lastId, messages.length, pending.length]);
 
   // Message bodies are editors that render after their row does, so the content grows after the commit above.
   const observeContent = useCallback(
@@ -162,7 +170,7 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
   useEffect(() => {
     if (!loaded || !targetMessageId) return;
     let cancelled = false;
-    atBottom.current = false;
+    follow(false);
     const reveal = async () => {
       const found = await chat.revealMessage(channelId, targetMessageId);
       if (cancelled) return;
@@ -171,7 +179,7 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
         return;
       }
       // Nothing to bring into view, so go back to following the list from wherever it is.
-      if (scrollRef.current) atBottom.current = isAtBottom(scrollRef.current);
+      if (scrollRef.current) follow(isAtBottom(scrollRef.current));
       setToast({
         type: "error",
         title: chat.getMessagesState(channelId)?.olderFailed ? loadFailedTitle : notFoundTitle,
@@ -181,7 +189,7 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     return () => {
       cancelled = true;
     };
-  }, [chat, channelId, loaded, targetMessageId, notFoundTitle, loadFailedTitle]);
+  }, [chat, channelId, follow, loaded, targetMessageId, notFoundTitle, loadFailedTitle]);
 
   useEffect(() => {
     if (!highlightedId) return;
@@ -197,11 +205,11 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     }
     const timer = setTimeout(() => {
       revealRow.current = null;
-      if (scrollRef.current) atBottom.current = isAtBottom(scrollRef.current);
+      if (scrollRef.current) follow(isAtBottom(scrollRef.current));
       setHighlightedId(null);
     }, HIGHLIGHT_MS);
     return () => clearTimeout(timer);
-  }, [highlightedId]);
+  }, [follow, highlightedId]);
 
   if (!state || (state.loading && !state.loaded)) {
     return (
@@ -239,7 +247,7 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
         // The content changed height since this scroll was queued. That isn't the user leaving the bottom, and the
         // observer is about to run.
         if (!content || content.offsetHeight !== position.current.contentHeight) return;
-        atBottom.current = isAtBottom(el);
+        follow(isAtBottom(el));
         position.current = readScrollPosition(el, content, revealRow.current);
       }}
     >
