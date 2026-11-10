@@ -127,7 +127,7 @@ docker compose up -d
 docker compose ps
 ```
 
-`migrator` exits with status 0 when it finishes, and the API waits for it. `chat-gateway`, `agent-bridge` and `agent-runner` start with the rest; no agent is available until you register one (see [Agent chat](#agent-chat)). The gateway listens on loopback only. Expose it to the tailnet:
+`migrator` exits with status 0 when it finishes, and the API waits for it. `docker compose ps` shows each long-running service as `healthy` once it passes its check; the API and both workers pass only after migrations have finished. `chat-gateway`, `agent-bridge` and `agent-runner` start with the rest; no agent is available until you register one (see [Agent chat](#agent-chat)). The gateway listens on loopback only. Expose it to the tailnet:
 
 ```bash
 tailscale serve --bg --tcp=8080 tcp://localhost:8080

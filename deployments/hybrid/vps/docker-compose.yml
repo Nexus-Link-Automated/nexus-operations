@@ -69,6 +69,12 @@ services:
       - 127.0.0.1:${GATEWAY_PORT:-8080}:80
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1/__gateway/health]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks: [app, data]
     depends_on:
       - api
@@ -88,6 +94,15 @@ services:
       <<: *app-env
     volumes:
       - logs_api:/code/plane/logs
+    healthcheck:
+      # GET / answers without the database, so a database restart does not fail this check.
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8000/]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # The API first waits for the migrator, which can take minutes on an upgrade.
+      # The period ends at the first passing check.
+      start_period: 300s
     networks: [app, data]
     depends_on:
       plane-db: { condition: service_healthy }
@@ -102,6 +117,14 @@ services:
       <<: *app-env
     volumes:
       - logs_worker:/code/plane/logs
+    healthcheck:
+      # This worker answers a ping through RabbitMQ. It loads the app, so check less often.
+      test: [CMD-SHELL, 'celery -A plane inspect ping -d "celery@$$HOSTNAME" --timeout 10 >/dev/null']
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      # Like the API, it first waits for migrations.
+      start_period: 300s
     networks: [app, data]
     depends_on:
       - api
@@ -114,6 +137,14 @@ services:
       <<: *app-env
     volumes:
       - logs_beat-worker:/code/plane/logs
+    healthcheck:
+      # Beat answers no ping, so this only shows it got past waiting for migrations and is
+      # running. Exec form: under a shell, pgrep would match the shell's own command line.
+      test: [CMD, pgrep, -f, celery -A plane beat]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 300s
     networks: [app, data]
     depends_on:
       - api
@@ -139,6 +170,12 @@ services:
       <<: *redis-env
       API_BASE_URL: http://api:8000
       LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY:?run generate-env.sh}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:3000/live/health]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     networks: [app, data]
     depends_on:
       - api
@@ -169,6 +206,14 @@ services:
       PLANE_BASE_URL: https://${APP_DOMAIN:?set APP_DOMAIN}
       PLANE_INTERNAL_BASE_URL: http://gateway
       LOG_PAYLOADS: "false"
+    healthcheck:
+      # There is no health route. A GET of /mcp gets 405 without touching Plane, and any
+      # HTTP answer passes: curl fails only if nothing answers.
+      test: [CMD, curl, -s, -o, /dev/null, http://127.0.0.1:8211/mcp]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     # agents: the agent runner reaches it as http://mcp:8211/mcp.
     networks: [app, agents]
     depends_on:
@@ -324,6 +369,12 @@ services:
     environment:
       MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:?run generate-env.sh}
       MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:?run generate-env.sh}
+    healthcheck:
+      test: [CMD, curl, -fsS, -o, /dev/null, http://127.0.0.1:9000/minio/health/live]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     volumes:
       - uploads:/export
     networks: [data]
