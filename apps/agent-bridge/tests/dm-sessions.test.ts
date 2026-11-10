@@ -55,6 +55,14 @@ async function reportFor(h: Harness, runId: string): Promise<Record<string, unkn
   return waitUntil(() => h.api.replies.find((reply) => reply.run_id === runId));
 }
 
+/** Stop the turn until the bridge no longer has it (it may still be reporting); the last answer's status. */
+async function stopUntilGone(h: Harness, runId: string, tries = 100): Promise<number> {
+  const { status } = await cancel(h, runId);
+  if (status === 404 || tries === 0) return status;
+  await sleep(10);
+  return stopUntilGone(h, runId, tries - 1);
+}
+
 const chunk = (text: string) => ({ sessionUpdate: "agent_message_chunk", content: { type: "text", text } });
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const promptTexts = (agent: FakeAgent) =>
@@ -350,8 +358,7 @@ describe("POST /internal/dm-turns", () => {
     const agent = harness.transport.agents[0]!;
     expect(agent.received.find((m) => m.method === "session/cancel")!.params).toEqual({ sessionId: "fake-session-1" });
     // Once the report is in, the turn is gone.
-    for (let tries = 0; tries < 100 && (await cancel(harness, RUN_A)).status !== 404; tries++) await sleep(10);
-    expect((await cancel(harness, RUN_A)).status).toBe(404);
+    expect(await stopUntilGone(harness, RUN_A)).toBe(404);
     // A stopped turn keeps the session for the next message.
     expect(harness.bridge.dmSessionCount).toBe(1);
     expect(agent.closed).toBe(false);
