@@ -66,11 +66,12 @@ class ModuleCreateSerializer(BaseSerializer):
             raise serializers.ValidationError("Project not found")
         if not project.module_view:
             raise serializers.ValidationError("Modules are not enabled for this project")
-        if (
-            data.get("start_date", None) is not None
-            and data.get("target_date", None) is not None
-            and data.get("start_date", None) > data.get("target_date", None)
-        ):
+        # Compare with the stored value of a date that is not sent. Only checked when a
+        # date changes, so rows already out of order can still be edited otherwise.
+        start_date = data.get("start_date", getattr(self.instance, "start_date", None))
+        target_date = data.get("target_date", getattr(self.instance, "target_date", None))
+        dates_changed = "start_date" in data or "target_date" in data
+        if dates_changed and start_date is not None and target_date is not None and start_date > target_date:
             raise serializers.ValidationError("Start date cannot exceed target date")
 
         lead = data.get("lead")

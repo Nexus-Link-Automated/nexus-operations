@@ -68,7 +68,12 @@ class ProjectSerializer(BaseSerializer):
         if project_id:
             project = project.exclude(id=project_id)
 
-        if project.exists():
+        # Identifiers are also reserved in ProjectIdentifier, which rejects a duplicate at insert.
+        reserved = ProjectIdentifier.objects.filter(name=identifier.strip().upper(), workspace_id=workspace_id)
+        if project_id:
+            reserved = reserved.exclude(project_id=project_id)
+
+        if project.exists() or reserved.exists():
             raise serializers.ValidationError(
                 detail="PROJECT_IDENTIFIER_ALREADY_EXIST",
             )
@@ -95,6 +100,14 @@ class ProjectSerializer(BaseSerializer):
 
         ProjectIdentifier.objects.create(name=project.identifier, project=project, workspace_id=workspace_id)
 
+        return project
+
+    def update(self, instance, validated_data):
+        previous_identifier = instance.identifier
+        project = super().update(instance, validated_data)
+        # Release the old identifier so another project can use it.
+        if project.identifier != previous_identifier:
+            ProjectIdentifier.objects.filter(project=project).update(name=project.identifier)
         return project
 
 

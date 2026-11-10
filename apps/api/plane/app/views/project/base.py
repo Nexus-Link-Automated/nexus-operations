@@ -8,6 +8,7 @@ import json
 
 # Django imports
 from django.core.serializers.json import DjangoJSONEncoder
+from django.db import transaction
 from django.db.models import Exists, F, Max, OuterRef, Prefetch, Q, Subquery, Count
 from django.utils import timezone
 
@@ -270,39 +271,41 @@ class ProjectViewSet(BaseViewSet):
 
         serializer = ProjectSerializer(data={**request.data}, context={"workspace_id": workspace.id})
         if serializer.is_valid():
-            serializer.save()
+            # All or nothing: a failure part way must not leave a project without members or states.
+            with transaction.atomic():
+                serializer.save()
 
-            # Add the user as Administrator to the project
-            _ = ProjectMember.objects.create(
-                project_id=serializer.data["id"],
-                member=request.user,
-                role=ROLE.ADMIN.value,
-            )
-
-            if serializer.data["project_lead"] is not None and str(serializer.data["project_lead"]) != str(
-                request.user.id
-            ):
-                ProjectMember.objects.create(
+                # Add the user as Administrator to the project
+                _ = ProjectMember.objects.create(
                     project_id=serializer.data["id"],
-                    member_id=serializer.data["project_lead"],
+                    member=request.user,
                     role=ROLE.ADMIN.value,
                 )
 
-            State.objects.bulk_create(
-                [
-                    State(
-                        name=state["name"],
-                        color=state["color"],
-                        project=serializer.instance,
-                        sequence=state["sequence"],
-                        workspace=serializer.instance.workspace,
-                        group=state["group"],
-                        default=state.get("default", False),
-                        created_by=request.user,
+                if serializer.data["project_lead"] is not None and str(serializer.data["project_lead"]) != str(
+                    request.user.id
+                ):
+                    ProjectMember.objects.create(
+                        project_id=serializer.data["id"],
+                        member_id=serializer.data["project_lead"],
+                        role=ROLE.ADMIN.value,
                     )
-                    for state in DEFAULT_STATES
-                ]
-            )
+
+                State.objects.bulk_create(
+                    [
+                        State(
+                            name=state["name"],
+                            color=state["color"],
+                            project=serializer.instance,
+                            sequence=state["sequence"],
+                            workspace=serializer.instance.workspace,
+                            group=state["group"],
+                            default=state.get("default", False),
+                            created_by=request.user,
+                        )
+                        for state in DEFAULT_STATES
+                    ]
+                )
 
             project = self.get_queryset().filter(pk=serializer.data["id"]).first()
 

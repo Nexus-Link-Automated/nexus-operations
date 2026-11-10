@@ -9,7 +9,7 @@ import logging
 import secrets
 
 # Django imports
-from django.db.models import Case, Count, IntegerField, Q, When
+from django.db.models import Exists, OuterRef
 from django.contrib.auth import logout
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -289,19 +289,18 @@ class UserEndpoint(BaseViewSet):
         projects_to_deactivate = []
         workspaces_to_deactivate = []
 
+        # The annotations used to count over the user's own membership row only, so they
+        # never found another member and every check passed.
+        other_project_members = ProjectMember.objects.filter(project_id=OuterRef("project_id"), is_active=True).exclude(
+            member=request.user
+        )
         projects = ProjectMember.objects.filter(member=request.user, is_active=True).annotate(
-            other_admin_exists=Count(
-                Case(
-                    When(Q(role=20, is_active=True) & ~Q(member=request.user), then=1),
-                    default=0,
-                    output_field=IntegerField(),
-                )
-            ),
-            total_members=Count("id"),
+            other_admin_exists=Exists(other_project_members.filter(role=20)),
+            other_member_exists=Exists(other_project_members),
         )
 
         for project in projects:
-            if project.other_admin_exists > 0 or (project.total_members == 1):
+            if project.role != 20 or project.other_admin_exists or not project.other_member_exists:
                 project.is_active = False
                 projects_to_deactivate.append(project)
             else:
@@ -310,19 +309,16 @@ class UserEndpoint(BaseViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        other_workspace_members = WorkspaceMember.objects.filter(
+            workspace_id=OuterRef("workspace_id"), is_active=True
+        ).exclude(member=request.user)
         workspaces = WorkspaceMember.objects.filter(member=request.user, is_active=True).annotate(
-            other_admin_exists=Count(
-                Case(
-                    When(Q(role=20, is_active=True) & ~Q(member=request.user), then=1),
-                    default=0,
-                    output_field=IntegerField(),
-                )
-            ),
-            total_members=Count("id"),
+            other_admin_exists=Exists(other_workspace_members.filter(role=20)),
+            other_member_exists=Exists(other_workspace_members),
         )
 
         for workspace in workspaces:
-            if workspace.other_admin_exists > 0 or (workspace.total_members == 1):
+            if workspace.role != 20 or workspace.other_admin_exists or not workspace.other_member_exists:
                 workspace.is_active = False
                 workspaces_to_deactivate.append(workspace)
             else:

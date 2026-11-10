@@ -31,6 +31,7 @@ from plane.utils.content_validator import (
     validate_html_content,
     validate_binary_data,
 )
+from plane.utils.issue_hierarchy import PARENT_CYCLE_ERROR, creates_parent_cycle
 
 from .base import BaseSerializer
 from .cycle import CycleLiteSerializer, CycleSerializer
@@ -92,11 +93,12 @@ class IssueSerializer(BaseSerializer):
         return fields
 
     def validate(self, data):
-        if (
-            data.get("start_date", None) is not None
-            and data.get("target_date", None) is not None
-            and data.get("start_date", None) > data.get("target_date", None)
-        ):
+        # Compare with the stored value of a date that is not sent. Only checked when a
+        # date changes, so rows already out of order can still be edited otherwise.
+        start_date = data.get("start_date", getattr(self.instance, "start_date", None))
+        target_date = data.get("target_date", getattr(self.instance, "target_date", None))
+        dates_changed = "start_date" in data or "target_date" in data
+        if dates_changed and start_date is not None and target_date is not None and start_date > target_date:
             raise serializers.ValidationError("Start date cannot exceed target date")
 
         try:
@@ -178,6 +180,13 @@ class IssueSerializer(BaseSerializer):
             ).exists()
         ):
             raise serializers.ValidationError("Parent is not valid issue_id please pass a valid issue_id")
+
+        if (
+            self.instance is not None
+            and data.get("parent")
+            and creates_parent_cycle(self.instance.id, data.get("parent").id)
+        ):
+            raise serializers.ValidationError(PARENT_CYCLE_ERROR)
 
         if (
             data.get("estimate_point")

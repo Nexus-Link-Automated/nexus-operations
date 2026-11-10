@@ -14,27 +14,30 @@ from plane.utils.timezone_converter import convert_to_utc
 
 class CycleWriteSerializer(BaseSerializer):
     def validate(self, data):
-        if (
-            data.get("start_date", None) is not None
-            and data.get("end_date", None) is not None
-            and data.get("start_date", None) > data.get("end_date", None)
-        ):
-            raise serializers.ValidationError("Start date cannot exceed end date")
-        if data.get("start_date", None) is not None and data.get("end_date", None) is not None:
-            project_id = (
-                self.initial_data.get("project_id", None)
-                or (self.instance and self.instance.project_id)
-                or self.context.get("project_id", None)
-            )
+        project_id = (
+            self.initial_data.get("project_id", None)
+            or (self.instance and self.instance.project_id)
+            or self.context.get("project_id", None)
+        )
+        # Each date is placed in the project's timezone, including one sent on its own.
+        if data.get("start_date", None) is not None:
             data["start_date"] = convert_to_utc(
                 date=str(data.get("start_date").date()),
                 project_id=project_id,
                 is_start_date=True,
             )
+        if data.get("end_date", None) is not None:
             data["end_date"] = convert_to_utc(
                 date=str(data.get("end_date", None).date()),
                 project_id=project_id,
             )
+        # Compare with the stored value of a date that is not sent. Only checked when a
+        # date changes, so rows already out of order can still be edited otherwise.
+        start_date = data.get("start_date", getattr(self.instance, "start_date", None))
+        end_date = data.get("end_date", getattr(self.instance, "end_date", None))
+        dates_changed = "start_date" in data or "end_date" in data
+        if dates_changed and start_date is not None and end_date is not None and start_date > end_date:
+            raise serializers.ValidationError("Start date cannot exceed end date")
         return data
 
     class Meta:

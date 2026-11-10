@@ -14,6 +14,7 @@ from .base import BaseAPIView
 from plane.app.permissions import ROLE
 from plane.db.models import Issue, IssueRelation
 from plane.utils.issue_search import search_issues
+from plane.utils.issue_hierarchy import get_ancestor_ids, get_descendant_ids
 
 
 class IssueSearchEndpoint(BaseAPIView):
@@ -42,7 +43,7 @@ class IssueSearchEndpoint(BaseAPIView):
 
         issue = Issue.issue_objects.filter(pk=issue_id).first()
         if issue:
-            issues = issues.filter(~Q(pk=issue_id), ~Q(pk=issue.parent_id), ~Q(parent_id=issue_id))
+            issues = issues.filter(~Q(pk=issue_id), ~Q(pk=issue.parent_id)).exclude(pk__in=get_descendant_ids(issue_id))
         return issues
 
     def filter_issues_excluding_related_issues(self, issue_id: str, issues: QuerySet) -> QuerySet:
@@ -73,7 +74,7 @@ class IssueSearchEndpoint(BaseAPIView):
         if issue:
             issues = issues.filter(~Q(pk=issue_id), parent__isnull=True)
         if issue.parent:
-            issues = issues.filter(~Q(pk=issue.parent_id))
+            issues = issues.exclude(pk__in=get_ancestor_ids(issue_id))
         return issues
 
     def exclude_issues_in_cycles(self, issues: QuerySet) -> QuerySet:

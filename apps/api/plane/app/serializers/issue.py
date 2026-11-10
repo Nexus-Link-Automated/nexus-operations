@@ -47,6 +47,7 @@ from plane.utils.content_validator import (
     validate_html_content,
     validate_binary_data,
 )
+from plane.utils.issue_hierarchy import PARENT_CYCLE_ERROR, creates_parent_cycle
 
 
 class IssueFlatSerializer(BaseSerializer):
@@ -135,11 +136,12 @@ class IssueCreateSerializer(BaseSerializer):
         allow_triage = self.context.get("allow_triage_state", False)
         state_manager = State.triage_objects if allow_triage else State.objects
 
-        if (
-            attrs.get("start_date", None) is not None
-            and attrs.get("target_date", None) is not None
-            and attrs.get("start_date", None) > attrs.get("target_date", None)
-        ):
+        # Compare with the stored value of a date that is not sent. Only checked when a
+        # date changes, so rows already out of order can still be edited otherwise.
+        start_date = attrs.get("start_date", getattr(self.instance, "start_date", None))
+        target_date = attrs.get("target_date", getattr(self.instance, "target_date", None))
+        dates_changed = "start_date" in attrs or "target_date" in attrs
+        if dates_changed and start_date is not None and target_date is not None and start_date > target_date:
             raise serializers.ValidationError("Start date cannot exceed target date")
 
         # Validate description content for security
@@ -194,6 +196,13 @@ class IssueCreateSerializer(BaseSerializer):
             ).exists()
         ):
             raise serializers.ValidationError("Parent is not valid issue_id please pass a valid issue_id")
+
+        if (
+            self.instance is not None
+            and attrs.get("parent")
+            and creates_parent_cycle(self.instance.id, attrs.get("parent").id)
+        ):
+            raise serializers.ValidationError(PARENT_CYCLE_ERROR)
 
         if (
             attrs.get("estimate_point")
