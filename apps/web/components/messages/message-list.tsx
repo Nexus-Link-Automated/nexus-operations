@@ -154,7 +154,8 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
     holdPosition();
   }, [follow, holdPosition, firstId, lastId, messages.length, pending.length]);
 
-  // Message bodies are editors that render after their row does, so the content grows after the commit above.
+  // Rows can still change height after the commit above: an edit box mounts its editor late, and mentions, work item
+  // cards and the list's width can all change.
   const observeContent = useCallback(
     (content: HTMLDivElement | null) => {
       contentRef.current = content;
@@ -285,7 +286,7 @@ export const ChatMessageList = observer(function ChatMessageList({ workspaceSlug
           )
         )}
         {pending.map((item) => (
-          <ChatPendingMessageItem key={item.localId} pending={item} workspaceSlug={workspaceSlug} />
+          <ChatPendingMessageItem key={item.localId} pending={item} />
         ))}
       </div>
     </div>
