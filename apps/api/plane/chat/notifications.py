@@ -12,7 +12,6 @@ The entry is a snapshot, so what the inbox lists is checked when it is read: an 
 disappears once its message is removed or its receiver can no longer see the channel.
 """
 
-import html
 import uuid
 
 from django.db import transaction
@@ -82,8 +81,7 @@ def _data(message):
             "channel_name": channel.name,
             "channel_kind": channel.kind,
             "parent_id": str(message.parent_id) if message.parent_id else None,
-            # `body_stripped` keeps HTML entities, and the inbox shows this as plain text.
-            "preview": html.unescape(message.body_stripped).strip()[:PREVIEW_LENGTH],
+            "preview": message.body_stripped.strip()[:PREVIEW_LENGTH],
         }
     }
 

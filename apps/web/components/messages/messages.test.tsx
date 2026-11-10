@@ -10,7 +10,7 @@ import { runInAction } from "mobx";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { ChatService } from "@plane/services";
-import type { TChatChannel, TChatEvent, TChatMessage } from "@plane/types";
+import type { TChatChannel, TChatEvent, TChatMessage, TChatSearchQuery, TChatSearchResult } from "@plane/types";
 import { ChatStore } from "@/store/chat.store";
 import type { TChatStoreService, TChatStoreSocket } from "@/store/chat.store";
 
@@ -100,6 +100,15 @@ vi.mock("@/components/dropdowns/project/project-select", () => ({
             {project.name}
           </option>
         ))}
+    </select>
+  ),
+}));
+// Plane's member picker is tested on its own; here it is a plain select of the people it would offer.
+vi.mock("@/components/dropdowns/member/member-select", () => ({
+  MemberSelect: ({ value, onChange }: { value: string | null; onChange: (id: string) => void }) => (
+    <select aria-label="From" value={value ?? ""} onChange={(event) => onChange(event.target.value)}>
+      <option value="">Anyone</option>
+      <option value="user-ada">Ada</option>
     </select>
   ),
 }));
@@ -219,6 +228,7 @@ function makeStore(service: Partial<TChatStoreService> = {}) {
     markRead: notCalled,
     listMessages: async () => ({ results: [], has_more: false }),
     listReplies: async () => ({ results: [], has_more: false }),
+    searchMessages: notCalled,
     getMessage: notCalled,
     sendMessage: notCalled,
     linkWorkItem: notCalled,
@@ -1463,5 +1473,194 @@ describe("threads", () => {
     );
     expect(thread.querySelector('[data-message-id="r1"]')?.className).not.toContain("bg-accent-subtle");
     expect(mocks.toast).not.toHaveBeenCalled();
+  });
+});
+
+describe("search", () => {
+  const general = {
+    id: "c-general",
+    kind: "public",
+    name: "general",
+    archived_at: null,
+    is_member: true,
+    dm_member_ids: [],
+  };
+  const hit = (found: TChatMessage, extra: Partial<TChatSearchResult> = {}): TChatSearchResult => ({
+    message: found,
+    channel: { ...general, kind: "public" },
+    snippet: [
+      { text: "we ", match: false },
+      { text: "deploy", match: true },
+      { text: " <b>today</b>", match: false },
+    ],
+    ...extra,
+  });
+
+  async function view(
+    results: TChatSearchResult[] = [hit(message("m1", ADA, "we deploy today", 1))],
+    options: { searchMessages?: TChatStoreService["searchMessages"]; channelId?: string } = {}
+  ) {
+    const searchMessages = vi.fn(
+      options.searchMessages ?? (async (_slug: string, _query: TChatSearchQuery) => ({ results, has_more: false }))
+    );
+    const top = [message("p1", ADA, "the parent", 0, { reply_count: 1 }), message("m1", ADA, "we deploy today", 1)];
+    const { store } = makeStore({
+      searchMessages,
+      listMessages: async () => ({ results: top, has_more: false }),
+      listReplies: async () => ({
+        results: [message("r1", ADA, "deploy in a thread", 2, { parent: "p1" })],
+        has_more: false,
+      }),
+      getMessage: async (_slug, _channel, id) => top.find((m) => m.id === id)!,
+      markRead: async () => channel({}),
+    });
+    mocks.chat = store;
+    await started(store, [channel({}), channel({ id: "dm-1", kind: "dm", name: "", dm_member_ids: [ADA, ME] })]);
+    const rendered = inRouter(<MessagesRoot workspaceSlug="acme" channelId={options.channelId} />);
+    return { store, searchMessages, ...rendered };
+  }
+
+  const box = () => screen.getByRole("searchbox", { name: "Search messages" });
+  const results = () => screen.getByRole("complementary", { name: "Search results" });
+
+  it("searches once typing pauses, and shows each result's channel, sender and matching words", async () => {
+    const { searchMessages } = await view();
+    await userEvent.type(box(), "deploy");
+    const panel = await screen.findByRole("complementary", { name: "Search results" });
+    expect(searchMessages).toHaveBeenCalledTimes(1);
+    expect(searchMessages).toHaveBeenCalledWith("acme", { q: "deploy", limit: 20 });
+
+    const link = within(panel).getByRole("link");
+    expect(link.getAttribute("href")).toContain("/acme/messages/c-general");
+    expect(link.getAttribute("href")).toContain("message=m1");
+    expect(link.textContent).toContain("general");
+    expect(link.textContent).toContain("Ada");
+    expect(within(link).getByText("deploy").tagName).toBe("MARK");
+    // The snippet is text from the API: what looks like markup in it stays text.
+    expect(link.querySelector("b")).toBeNull();
+    expect(link.textContent).toContain("<b>today</b>");
+  });
+
+  it("doesn't search one character, searches at once on Enter, and Escape clears", async () => {
+    const { store, searchMessages } = await view();
+    await userEvent.type(box(), "d");
+    await act(() => new Promise((resolve) => setTimeout(resolve, 400)));
+    expect(searchMessages).not.toHaveBeenCalled();
+    expect(screen.queryByRole("complementary", { name: "Search results" })).toBeNull();
+
+    await userEvent.type(box(), "e{Enter}");
+    expect(searchMessages).toHaveBeenCalledWith("acme", { q: "de", limit: 20 });
+    await screen.findByRole("complementary", { name: "Search results" });
+
+    await userEvent.type(box(), "{Escape}");
+    expect((box() as HTMLInputElement).value).toBe("");
+    expect(store.search).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Search results" })).toBeNull();
+  });
+
+  it("shows loading, then says when nothing matches", async () => {
+    let answer!: (page: { results: TChatSearchResult[]; has_more: boolean }) => void;
+    await view([], { searchMessages: () => new Promise((resolve) => (answer = resolve)) });
+    await userEvent.type(box(), "zebra{Enter}");
+    expect(within(results()).getByRole("status", { name: "Searching…" })).toBeTruthy();
+    await act(async () => answer({ results: [], has_more: false }));
+    expect(within(results()).getByText("No results")).toBeTruthy();
+    expect(within(results()).getByText(byTemplate("No messages match"))).toBeTruthy();
+  });
+
+  it("says when the search failed, and tries again", async () => {
+    const searchMessages = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue({ results: [hit(message("m1", ADA, "we deploy today", 1))], has_more: false });
+    await view([], { searchMessages });
+    await userEvent.type(box(), "deploy{Enter}");
+    expect(await within(results()).findByText("Couldn't search messages.")).toBeTruthy();
+    await userEvent.click(within(results()).getByRole("button", { name: "Try again" }));
+    expect(await within(results()).findByRole("link")).toBeTruthy();
+  });
+
+  it("narrows to this conversation, a person, or leaves out automatic messages", async () => {
+    const { searchMessages } = await view(undefined, { channelId: "c-general" });
+    await userEvent.type(box(), "deploy{Enter}");
+    await userEvent.click(await within(results()).findByRole("checkbox", { name: byTemplate("Only in") }));
+    expect(searchMessages).toHaveBeenLastCalledWith("acme", { q: "deploy", limit: 20, channel: "c-general" });
+
+    await userEvent.click(within(results()).getByRole("checkbox", { name: "Include work item updates" }));
+    expect(searchMessages).toHaveBeenLastCalledWith("acme", {
+      q: "deploy",
+      limit: 20,
+      channel: "c-general",
+      automatic: false,
+    });
+
+    await userEvent.selectOptions(within(results()).getByRole("combobox", { name: "From" }), ADA);
+    expect(searchMessages).toHaveBeenLastCalledWith("acme", {
+      q: "deploy",
+      limit: 20,
+      channel: "c-general",
+      sender: ADA,
+      automatic: false,
+    });
+    // A new search keeps the filters.
+    await userEvent.type(box(), "s{Enter}");
+    expect(searchMessages).toHaveBeenLastCalledWith("acme", expect.objectContaining({ q: "deploys", sender: ADA }));
+  });
+
+  it("loads older results on request", async () => {
+    const first = Array.from({ length: 20 }, (_, i) => hit(message(`m${20 - i}`, ADA, "deploy", 20 - i)));
+    const searchMessages = vi
+      .fn()
+      .mockResolvedValueOnce({ results: first, has_more: true })
+      .mockResolvedValueOnce({ results: [hit(message("m0", ADA, "deploy", 0))], has_more: false });
+    await view([], { searchMessages });
+    await userEvent.type(box(), "deploy{Enter}");
+    await userEvent.click(await within(results()).findByRole("button", { name: "Show more results" }));
+    expect(searchMessages).toHaveBeenLastCalledWith("acme", { q: "deploy", limit: 20, before: "m1" });
+    await vi.waitFor(() => expect(within(results()).getAllByRole("link")).toHaveLength(21));
+    expect(within(results()).queryByRole("button", { name: "Show more results" })).toBeNull();
+  });
+
+  it("names a DM by its people, and marks a reply and an archived channel", async () => {
+    const reply = message("r1", ADA, "deploy in a thread", 2, { parent: "p1", channel: "dm-1" });
+    await view([
+      hit(reply, { channel: { ...general, id: "dm-1", kind: "dm", name: "", dm_member_ids: [ADA, ME] } }),
+      hit(message("m9", ADA, "old deploy", 3), { channel: { ...general, archived_at: "2026-01-02T00:00:00Z" } }),
+    ]);
+    await userEvent.type(box(), "deploy{Enter}");
+    const [dm, archived] = await within(results()).findAllByRole("link");
+    expect(dm!.getAttribute("href")).toContain("message=p1&reply=r1");
+    expect(dm!.textContent).toContain("In a thread");
+    expect(dm!.textContent).toContain("Ada");
+    expect(archived!.textContent).toContain("Archived");
+  });
+
+  it("closes with the close button or Escape, which empties the box", async () => {
+    const { store } = await view();
+    await userEvent.type(box(), "deploy{Enter}");
+    await userEvent.click(await within(results()).findByRole("button", { name: "Close search" }));
+    expect(store.search).toBeNull();
+    expect((box() as HTMLInputElement).value).toBe("");
+
+    await userEvent.type(box(), "deploy{Enter}");
+    fireEvent.keyDown(await within(results()).findByRole("link"), { key: "Escape" });
+    expect(store.search).toBeNull();
+  });
+
+  it("lets a thread opened from a reply cover the results until it closes", async () => {
+    const { store } = await view(undefined, { channelId: "c-general" });
+    await userEvent.type(box(), "deploy{Enter}");
+    await within(results()).findByRole("link");
+    // Opening the result's link opens its thread, as a link to a reply does.
+    await act(() => store.openThread("c-general", "p1"));
+    expect(await screen.findByRole("complementary", { name: "Thread" })).toBeTruthy();
+    expect(screen.queryByRole("complementary", { name: "Search results" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Close thread" }));
+    expect(await screen.findByRole("complementary", { name: "Search results" })).toBeTruthy();
+    // Searching again closes a thread that is open.
+    await act(() => store.openThread("c-general", "p1"));
+    await userEvent.type(box(), "s{Enter}");
+    expect(store.activeThread).toBeNull();
+    expect(results()).toBeTruthy();
   });
 });

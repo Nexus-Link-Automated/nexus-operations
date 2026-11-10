@@ -23,14 +23,17 @@ import { GuestDmAccessDialog } from "./guest-dm-access-dialog";
 import { channelDisplayName, otherMemberIds } from "./helpers";
 import { MemberAvatar } from "./member-avatar";
 import { NewDirectMessageDialog } from "./new-dm-dialog";
+import { ChatSearchBox } from "./search";
 import { ChatUnreadCount } from "./unread-badge";
 
 type Props = {
   workspaceSlug: string;
   activeChannelId: string | undefined;
+  /** A search was started or its box focused: show the results. */
+  onSearch?: () => void;
 };
 
-export const ChannelSidebar = observer(function ChannelSidebar({ workspaceSlug, activeChannelId }: Props) {
+export const ChannelSidebar = observer(function ChannelSidebar({ workspaceSlug, activeChannelId, onSearch }: Props) {
   const { t } = useTranslation();
   const { joinedChannels, directMessages, me, channelsLoaded } = useChat();
   const [dialog, setDialog] = useState<"create" | "browse" | "dm" | "guests" | null>(null);
@@ -40,6 +43,7 @@ export const ChannelSidebar = observer(function ChannelSidebar({ workspaceSlug, 
       aria-label={t("messages.title")}
       className="flex h-full w-64 flex-shrink-0 flex-col overflow-y-auto border-r border-subtle bg-layer-1 py-3"
     >
+      <ChatSearchBox onSearch={() => onSearch?.()} />
       <Section
         title={t("messages.channels.title")}
         actions={

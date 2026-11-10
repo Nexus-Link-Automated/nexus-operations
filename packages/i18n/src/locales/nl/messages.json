@@ -131,6 +131,23 @@
       "last_reply_today": "Laatste antwoord om {time}",
       "last_reply_on": "Laatste antwoord op {date}"
     },
+    "search": {
+      "placeholder": "Berichten doorzoeken",
+      "title": "Zoekresultaten",
+      "close": "Zoeken sluiten",
+      "loading": "Zoeken…",
+      "only_in": "Alleen in {name}",
+      "from": "Van",
+      "anyone": "Iedereen",
+      "include_automatic": "Updates van werkitems meenemen",
+      "empty_title": "Geen resultaten",
+      "empty": "Geen berichten komen overeen met \"{query}\".",
+      "failed": "Kan berichten niet doorzoeken.",
+      "load_more": "Meer resultaten tonen",
+      "more_failed": "Kan geen resultaten meer laden.",
+      "in_thread": "In een thread",
+      "archived": "Gearchiveerd"
+    },
     "day": {
       "today": "Vandaag",
       "yesterday": "Gisteren"

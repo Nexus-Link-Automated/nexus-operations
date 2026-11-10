@@ -79,3 +79,24 @@ describe("ChatService threads", () => {
     });
   });
 });
+
+describe("ChatService search", () => {
+  it("searches the workspace with the query and filters as params", async () => {
+    const chat = new ChatService("http://api");
+    const get = vi.spyOn(chat as unknown as { get: () => Promise<unknown> }, "get");
+    get.mockResolvedValue({ data: { results: [], has_more: false } });
+    const query = { q: "deploy", channel: "c1", automatic: false, before: "m9", limit: 20 };
+    await expect(chat.searchMessages("acme", query)).resolves.toEqual({ results: [], has_more: false });
+    expect(get).toHaveBeenCalledWith("/api/workspaces/acme/chat/search/", { params: query });
+  });
+
+  it("turns a refused search into a ChatServiceError with the API's message", async () => {
+    const chat = new ChatService("http://api");
+    const get = vi.spyOn(chat as unknown as { get: () => Promise<unknown> }, "get");
+    get.mockRejectedValue({ response: { status: 400, data: { error: "Type at least 2 characters." } } });
+    await expect(chat.searchMessages("acme", { q: "a" })).rejects.toSatisfy(
+      (error) =>
+        error instanceof ChatServiceError && error.status === 400 && error.message === "Type at least 2 characters."
+    );
+  });
+});

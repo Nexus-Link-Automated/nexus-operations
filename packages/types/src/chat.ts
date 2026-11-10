@@ -122,6 +122,45 @@ export type TChatMessagePageQuery = {
   limit?: number;
 };
 
+/** Search terms and filters (`search/`). `q` is 2 to 200 characters; its last word also matches as a prefix. */
+export type TChatSearchQuery = {
+  q: string;
+  /** Only this channel or DM. */
+  channel?: string;
+  /** Only this person's messages, which leaves out automatic and agent messages. */
+  sender?: string;
+  /** ISO 8601: from this moment on. */
+  since?: string;
+  /** ISO 8601: before this moment. */
+  until?: string;
+  /** `false` leaves out automatic messages. */
+  automatic?: boolean;
+  /** A result's message ID: the results just older than it. */
+  before?: string;
+  limit?: number;
+};
+
+/** Part of a result's snippet: plain text, to render as text, with `match` set on the words that matched. */
+export type TChatSearchSnippetSegment = { text: string; match: boolean };
+
+/** A result's channel, enough to name it and link to it. It may be archived, which the channel list leaves out. */
+export type TChatSearchChannel = Pick<
+  TChatChannel,
+  "id" | "kind" | "name" | "archived_at" | "is_member" | "dm_member_ids"
+>;
+
+export type TChatSearchResult = {
+  message: TChatMessage;
+  channel: TChatSearchChannel;
+  snippet: TChatSearchSnippetSegment[];
+};
+
+/** One page of results, newest first. `has_more`: there are older ones. */
+export type TChatSearchPage = {
+  results: TChatSearchResult[];
+  has_more: boolean;
+};
+
 export type TChatMessageWrite = {
   body_html: string;
   body_json?: Record<string, unknown>;

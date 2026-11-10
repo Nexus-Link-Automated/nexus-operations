@@ -16,6 +16,8 @@ messages arrive. Messages are instead paged by their position in the order
 and `has_more` says whether there are more messages in the direction asked for
 (older for the first page and `before`, newer for `after`). Removed messages stay
 in the order as tombstones, so a removed message is still a valid cursor.
+
+Search results are paged the same way, but newest first and only with `before` (`paginate_newest_first`).
 """
 
 import uuid
@@ -28,15 +30,15 @@ DEFAULT_LIMIT = 50
 MAX_LIMIT = 100
 
 
-def _limit(raw):
+def _limit(raw, default=DEFAULT_LIMIT, maximum=MAX_LIMIT):
     if raw in (None, ""):
-        return DEFAULT_LIMIT
+        return default
     try:
         limit = int(raw)
     except (TypeError, ValueError):
         raise BadRequest("limit must be a whole number.")
-    if not 1 <= limit <= MAX_LIMIT:
-        raise BadRequest(f"limit must be between 1 and {MAX_LIMIT}.")
+    if not 1 <= limit <= maximum:
+        raise BadRequest(f"limit must be between 1 and {maximum}.")
     return limit
 
 
@@ -70,3 +72,20 @@ def paginate_messages(queryset, params):
         queryset = queryset.filter(older)
     page = list(queryset.order_by("-created_at", "-id")[: limit + 1])
     return page[:limit][::-1], len(page) > limit
+
+
+def paginate_newest_first(queryset, params, cursors, default_limit=DEFAULT_LIMIT, max_limit=MAX_LIMIT):
+    """Return `(messages, has_more)` for one page of `queryset`, newest first, like search results.
+
+    `before=<id>` continues after that message, which must be in `cursors`: a wider set than `queryset`, so that a
+    page's last message still works as a cursor if it stops matching (an edit, say).
+    """
+    limit = _limit(params.get("limit"), default_limit, max_limit)
+    before = params.get("before")
+    if before:
+        cursor = _cursor(cursors, before, "before")
+        queryset = queryset.filter(
+            Q(created_at__lt=cursor["created_at"]) | Q(created_at=cursor["created_at"], id__lt=cursor["id"])
+        )
+    page = list(queryset.order_by("-created_at", "-id")[: limit + 1])
+    return page[:limit], len(page) > limit

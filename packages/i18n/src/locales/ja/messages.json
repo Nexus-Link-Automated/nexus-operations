@@ -131,6 +131,23 @@
       "last_reply_today": "最終返信 {time}",
       "last_reply_on": "最終返信 {date}"
     },
+    "search": {
+      "placeholder": "メッセージを検索",
+      "title": "検索結果",
+      "close": "検索を閉じる",
+      "loading": "検索中…",
+      "only_in": "{name} のみ",
+      "from": "送信者",
+      "anyone": "すべてのユーザー",
+      "include_automatic": "作業項目の更新を含める",
+      "empty_title": "結果がありません",
+      "empty": "「{query}」に一致するメッセージはありません。",
+      "failed": "メッセージを検索できませんでした。",
+      "load_more": "さらに結果を表示",
+      "more_failed": "これ以上の結果を読み込めませんでした。",
+      "in_thread": "スレッド内",
+      "archived": "アーカイブ済み"
+    },
     "day": {
       "today": "今日",
       "yesterday": "昨日"

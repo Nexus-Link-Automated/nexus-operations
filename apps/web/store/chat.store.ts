@@ -19,6 +19,7 @@ import type {
   TChatMessageEdit,
   TChatMessagePage,
   TChatMessageWrite,
+  TChatSearchResult,
   TChatUploadedAttachment,
 } from "@plane/types";
 
@@ -36,6 +37,7 @@ export type TChatStoreService = Pick<
   | "markRead"
   | "listMessages"
   | "listReplies"
+  | "searchMessages"
   | "getMessage"
   | "sendMessage"
   | "linkWorkItem"
@@ -95,12 +97,51 @@ export type TChatOutgoingMessage = Pick<TChatMessageWrite, "body_html" | "body_j
   attachments?: TChatUploadedAttachment[];
 };
 
+/** What to search for besides the words: one channel or DM, one person, and whether automatic messages count. */
+export type TChatSearchFilters = {
+  channelId?: string;
+  senderId?: string;
+  /** Leave out automatic messages. */
+  excludeAutomatic?: boolean;
+};
+
+/** The latest search and its results, newest first. Results are a snapshot: they don't follow live updates. */
+export type TChatSearch = {
+  query: string;
+  filters: TChatSearchFilters;
+  results: TChatSearchResult[];
+  hasMore: boolean;
+  /** The first page is on its way. */
+  loading: boolean;
+  loadingMore: boolean;
+  /** The first page failed. */
+  error: boolean;
+  /** The last try at a further page failed; the panel offers a retry. */
+  moreFailed: boolean;
+};
+
+/** The API refuses shorter searches (`MIN_QUERY_LENGTH`), and the panel doesn't send them. */
+export const CHAT_SEARCH_MIN_LENGTH = 2;
+/** The API refuses longer ones (`MAX_QUERY_LENGTH`). */
+export const CHAT_SEARCH_MAX_LENGTH = 200;
+const CHAT_SEARCH_PAGE_SIZE = 20;
+
 /** A page fetches this many messages at a time. */
 const CHAT_PAGE_SIZE = 50;
 /** The catch-up after a reconnect stops after this many pages and reloads the channel instead. */
 const MAX_CATCH_UP_PAGES = 20;
 /** Following a link to an old message loads back at most this many pages looking for it. */
 const REVEAL_MAX_PAGES = 20;
+
+function searchParams(q: string, filters: TChatSearchFilters) {
+  return {
+    q,
+    limit: CHAT_SEARCH_PAGE_SIZE,
+    ...(filters.channelId ? { channel: filters.channelId } : {}),
+    ...(filters.senderId ? { sender: filters.senderId } : {}),
+    ...(filters.excludeAutomatic ? { automatic: false } : {}),
+  };
+}
 
 const isNotFound = (error: unknown) => error instanceof ChatServiceError && error.isNotFound;
 
@@ -146,6 +187,7 @@ export interface IChatStore {
   pendingReplies: Record<string, TChatPendingMessage[]>;
   activeChannelId: string | null;
   activeThread: TChatActiveThread | null;
+  search: TChatSearch | null;
   isDocumentVisible: boolean;
   /** The open channel's list is scrolled to its newest message. */
   isAtNewest: boolean;
@@ -183,6 +225,9 @@ export interface IChatStore {
   closeThread: () => void;
   loadOlderReplies: (parentId: string) => Promise<void>;
   revealReply: (parentId: string, replyId: string) => Promise<boolean>;
+  searchMessages: (query: string, filters?: TChatSearchFilters) => Promise<void>;
+  loadMoreSearchResults: () => Promise<void>;
+  clearSearch: () => void;
   sendMessage: (channelId: string, body: TChatOutgoingMessage) => Promise<void>;
   sendReply: (channelId: string, parentId: string, body: TChatOutgoingMessage) => Promise<void>;
   retryMessage: (channelId: string, localId: string) => Promise<void>;
@@ -236,6 +281,7 @@ export class ChatStore implements IChatStore {
   pendingReplies: Record<string, TChatPendingMessage[]> = {};
   activeChannelId: string | null = null;
   activeThread: TChatActiveThread | null = null;
+  search: TChatSearch | null = null;
   isDocumentVisible = true;
   isAtNewest = true;
   channelsLoaded = false;
@@ -266,6 +312,8 @@ export class ChatStore implements IChatStore {
   private resyncing: { again: boolean; promise: Promise<void> } | null = null;
   /** Unsent composer HTML per channel. Not observable: the composer reads it once, when it mounts. */
   private readonly drafts = new Map<string, string>();
+  /** Bumped by every new search, so an answer to an older one is dropped. */
+  private searchGeneration = 0;
 
   constructor(options: { service?: TChatStoreService; createSocket?: TChatSocketFactory } = {}) {
     makeObservable<
@@ -284,6 +332,7 @@ export class ChatStore implements IChatStore {
       pendingReplies: observable,
       activeChannelId: observable.ref,
       activeThread: observable.ref,
+      search: observable.ref,
       isDocumentVisible: observable.ref,
       isAtNewest: observable.ref,
       channelsLoaded: observable.ref,
@@ -310,6 +359,9 @@ export class ChatStore implements IChatStore {
       closeThread: action.bound,
       loadOlderReplies: action.bound,
       revealReply: action.bound,
+      searchMessages: action.bound,
+      loadMoreSearchResults: action.bound,
+      clearSearch: action.bound,
       sendMessage: action.bound,
       sendReply: action.bound,
       retryMessage: action.bound,
@@ -460,6 +512,8 @@ export class ChatStore implements IChatStore {
     this.activeChannelId = null;
     this.isAtNewest = true;
     this.activeThread = null;
+    this.search = null;
+    this.searchGeneration += 1;
     this.channelsLoaded = false;
     this.channelsError = false;
     this.socketStatus = "idle";
@@ -1041,6 +1095,71 @@ export class ChatStore implements IChatStore {
     } catch {
       // Removed for good, or the channel went: its own events or the next resync say so.
     }
+  }
+
+  // search
+
+  /** Search the messages the user may read. A newer search replaces this one, and an older answer is dropped. */
+  async searchMessages(query: string, filters: TChatSearchFilters = {}): Promise<void> {
+    const workspaceSlug = this.workspaceSlug;
+    const q = query.trim();
+    if (!workspaceSlug || q.length < CHAT_SEARCH_MIN_LENGTH) return this.clearSearch();
+    const generation = ++this.searchGeneration;
+    this.search = {
+      query: q,
+      filters,
+      results: [],
+      hasMore: false,
+      loading: true,
+      loadingMore: false,
+      error: false,
+      moreFailed: false,
+    };
+    const commit = this.searchGuard(generation);
+    try {
+      const page = await this.service.searchMessages(workspaceSlug, searchParams(q, filters));
+      commit((search) => ({ ...search, results: page.results, hasMore: page.has_more, loading: false }));
+    } catch {
+      commit((search) => ({ ...search, loading: false, error: true }));
+    }
+  }
+
+  /** The results just older than those held. */
+  async loadMoreSearchResults(): Promise<void> {
+    const workspaceSlug = this.workspaceSlug;
+    const search = this.search;
+    const last = search?.results[search.results.length - 1];
+    if (!workspaceSlug || !search || !last || !search.hasMore || search.loading || search.loadingMore) return;
+    this.search = { ...search, loadingMore: true, moreFailed: false };
+    const commit = this.searchGuard(this.searchGeneration);
+    try {
+      const page = await this.service.searchMessages(workspaceSlug, {
+        ...searchParams(search.query, search.filters),
+        before: last.message.id,
+      });
+      commit((current) => {
+        // An edit can move a message between pages; show it once.
+        const held = new Set(current.results.map((result) => result.message.id));
+        const fresh = page.results.filter((result) => !held.has(result.message.id));
+        return { ...current, results: [...current.results, ...fresh], hasMore: page.has_more, loadingMore: false };
+      });
+    } catch {
+      commit((current) => ({ ...current, loadingMore: false, moreFailed: true }));
+    }
+  }
+
+  clearSearch(): void {
+    this.searchGeneration += 1;
+    this.search = null;
+  }
+
+  /** Applies `update` only while the search started at `generation` is still the current one. */
+  private searchGuard(generation: number): (update: (search: TChatSearch) => TChatSearch) => void {
+    const guard = this.guard();
+    return (update) =>
+      guard(() => {
+        if (generation === this.searchGeneration && this.search) this.search = update(this.search);
+      });
   }
 
   // sending
