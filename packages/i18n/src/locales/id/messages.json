@@ -30,6 +30,16 @@
       "not_found_title": "Percakapan tidak ditemukan",
       "not_found_description": "Percakapan tidak ada, atau Anda tidak memiliki akses ke sana."
     },
+    "members": {
+      "open": "Anggota",
+      "title": "Anggota",
+      "description": "Orang di #{name}.",
+      "admin": "Admin",
+      "remove": "Keluarkan {name}",
+      "add_title": "Tambahkan orang",
+      "search": "Cari orang",
+      "no_candidates": "Tidak ada orang lain untuk ditambahkan."
+    },
     "dm": {
       "intro_title": "Ini adalah awal percakapan Anda dengan {name}",
       "intro_description": "Hanya orang dalam percakapan ini yang dapat melihatnya."
@@ -58,6 +68,12 @@
       "search": "Cari orang",
       "empty": "Tidak ada yang cocok.",
       "submit": "Mulai percakapan"
+    },
+    "guest_access": {
+      "open": "Akses tamu",
+      "title": "Akses tamu ke pesan",
+      "description": "Tamu hanya dapat memulai pesan langsung jika Anda mengizinkannya di sini. Menonaktifkannya tidak mengeluarkan mereka dari percakapan yang sudah mereka ikuti.",
+      "empty": "Ruang kerja ini tidak memiliki tamu."
     },
     "composer": {
       "send": "Kirim pesan",
@@ -106,7 +122,12 @@
       "edit_failed": "Tidak dapat menyimpan perubahan",
       "remove_failed": "Tidak dapat menghapus pesan",
       "message_not_found": "Pesan ini tidak lagi tersedia.",
-      "link_work_item_failed": "Item kerja telah dibuat, tetapi tidak dapat ditautkan ke pesan ini."
+      "link_work_item_failed": "Item kerja telah dibuat, tetapi tidak dapat ditautkan ke pesan ini.",
+      "load_members_failed": "Tidak dapat memuat anggota",
+      "add_members_failed": "Tidak dapat menambahkan orang",
+      "remove_member_failed": "Tidak dapat mengeluarkan dari kanal",
+      "load_guest_access_failed": "Tidak dapat memuat akses tamu",
+      "update_guest_access_failed": "Tidak dapat mengubah akses tamu"
     }
   }
 }

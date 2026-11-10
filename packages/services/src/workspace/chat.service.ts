@@ -10,6 +10,7 @@ import type {
   TChatChannelCreate,
   TChatChannelMember,
   TChatChannelUpdate,
+  TChatGuestPermission,
   TChatMe,
   TChatMessage,
   TChatMessageEdit,
@@ -115,8 +116,28 @@ export class ChatService extends APIService {
     return this.call(this.get(`${this.channel(workspaceSlug, channelId)}/members/`));
   }
 
+  /** Add people to a named channel. Any member can; people already in it are skipped. Returns those added. */
   async addMembers(workspaceSlug: string, channelId: string, memberIds: string[]): Promise<TChatChannelMember[]> {
     return this.call(this.post(`${this.channel(workspaceSlug, channelId)}/members/`, { member_ids: memberIds }));
+  }
+
+  /** Remove someone from a named channel: a channel or workspace admin. */
+  async removeMember(workspaceSlug: string, channelId: string, userId: string): Promise<void> {
+    await this.call(this.delete(`${this.channel(workspaceSlug, channelId)}/members/${encodeURIComponent(userId)}/`));
+  }
+
+  /** The guests allowed to open DMs. Workspace admins only, as are the two calls below. */
+  async listGuestDmAccess(workspaceSlug: string): Promise<TChatGuestPermission[]> {
+    return this.call(this.get(`${this.base(workspaceSlug)}/guests/dm-access/`));
+  }
+
+  async grantGuestDmAccess(workspaceSlug: string, userId: string): Promise<TChatGuestPermission> {
+    return this.call(this.put(`${this.base(workspaceSlug)}/guests/${encodeURIComponent(userId)}/dm-access/`, {}));
+  }
+
+  /** Stops the guest opening new DMs; the ones they are already in keep working. */
+  async revokeGuestDmAccess(workspaceSlug: string, userId: string): Promise<void> {
+    await this.call(this.delete(`${this.base(workspaceSlug)}/guests/${encodeURIComponent(userId)}/dm-access/`));
   }
 
   /** A page of top-level messages, oldest to newest. */

@@ -30,6 +30,16 @@
       "not_found_title": "Không tìm thấy cuộc trò chuyện",
       "not_found_description": "Cuộc trò chuyện không tồn tại hoặc bạn không có quyền truy cập."
     },
+    "members": {
+      "open": "Thành viên",
+      "title": "Thành viên",
+      "description": "Những người trong #{name}.",
+      "admin": "Quản trị viên",
+      "remove": "Xóa {name}",
+      "add_title": "Thêm người",
+      "search": "Tìm người",
+      "no_candidates": "Không còn ai để thêm."
+    },
     "dm": {
       "intro_title": "Đây là phần đầu cuộc trò chuyện của bạn với {name}",
       "intro_description": "Chỉ những người trong cuộc trò chuyện này mới xem được."
@@ -58,6 +68,12 @@
       "search": "Tìm người",
       "empty": "Không có ai phù hợp.",
       "submit": "Bắt đầu trò chuyện"
+    },
+    "guest_access": {
+      "open": "Quyền truy cập của khách",
+      "title": "Quyền truy cập tin nhắn của khách",
+      "description": "Khách chỉ có thể bắt đầu tin nhắn trực tiếp nếu bạn cho phép tại đây. Tắt quyền này không xóa họ khỏi các cuộc trò chuyện họ đã tham gia.",
+      "empty": "Không gian làm việc này không có khách."
     },
     "composer": {
       "send": "Gửi tin nhắn",
@@ -106,7 +122,12 @@
       "edit_failed": "Không thể lưu nội dung sửa",
       "remove_failed": "Không thể xóa tin nhắn",
       "message_not_found": "Tin nhắn này không còn khả dụng.",
-      "link_work_item_failed": "Mục công việc đã được tạo nhưng không thể liên kết với tin nhắn này."
+      "link_work_item_failed": "Mục công việc đã được tạo nhưng không thể liên kết với tin nhắn này.",
+      "load_members_failed": "Không thể tải danh sách thành viên",
+      "add_members_failed": "Không thể thêm người",
+      "remove_member_failed": "Không thể xóa khỏi kênh",
+      "load_guest_access_failed": "Không thể tải quyền truy cập của khách",
+      "update_guest_access_failed": "Không thể thay đổi quyền truy cập của khách"
     }
   }
 }

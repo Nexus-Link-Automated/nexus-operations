@@ -30,6 +30,16 @@
       "not_found_title": "Konverzácia sa nenašla",
       "not_found_description": "Neexistuje alebo k nej nemáte prístup."
     },
+    "members": {
+      "open": "Členovia",
+      "title": "Členovia",
+      "description": "Ľudia v #{name}.",
+      "admin": "Správca",
+      "remove": "Odobrať {name}",
+      "add_title": "Pridať ľudí",
+      "search": "Hľadať ľudí",
+      "no_candidates": "Nie je koho ďalšieho pridať."
+    },
     "dm": {
       "intro_title": "Toto je začiatok vašej konverzácie s: {name}",
       "intro_description": "Vidia ju iba ľudia v tejto konverzácii."
@@ -58,6 +68,12 @@
       "search": "Hľadať ľudí",
       "empty": "Žiadne výsledky.",
       "submit": "Začať konverzáciu"
+    },
+    "guest_access": {
+      "open": "Prístup hostí",
+      "title": "Prístup hostí k správam",
+      "description": "Hostia môžu začínať priame správy, len ak to tu povolíte. Vypnutím ich neodstránite z konverzácií, v ktorých už sú.",
+      "empty": "V tomto pracovnom priestore nie sú žiadni hostia."
     },
     "composer": {
       "send": "Odoslať správu",
@@ -106,7 +122,12 @@
       "edit_failed": "Úpravu sa nepodarilo uložiť",
       "remove_failed": "Správu sa nepodarilo odstrániť",
       "message_not_found": "Táto správa už nie je dostupná.",
-      "link_work_item_failed": "Pracovná položka bola vytvorená, ale nepodarilo sa ju prepojiť s touto správou."
+      "link_work_item_failed": "Pracovná položka bola vytvorená, ale nepodarilo sa ju prepojiť s touto správou.",
+      "load_members_failed": "Členov sa nepodarilo načítať",
+      "add_members_failed": "Ľudí sa nepodarilo pridať",
+      "remove_member_failed": "Z kanála sa nepodarilo odobrať",
+      "load_guest_access_failed": "Prístup hostí sa nepodarilo načítať",
+      "update_guest_access_failed": "Prístup hosťa sa nepodarilo zmeniť"
     }
   }
 }

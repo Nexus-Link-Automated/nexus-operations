@@ -8,7 +8,8 @@ import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
 // plane imports
 import { Button } from "@makeplane/propel/components/button";
-import { ArchiveOutline, HashOutline, LockOutline } from "@makeplane/propel/icons";
+import { IconButton } from "@makeplane/propel/components/icon-button";
+import { ArchiveOutline, HashOutline, LockOutline, MembersOutline } from "@makeplane/propel/icons";
 import { EmptyStateCompact } from "@plane/blocks/empty-state";
 import { setToast } from "@plane/blocks/toast";
 import { useTranslation } from "@plane/i18n";
@@ -19,6 +20,7 @@ import { useChat } from "@/hooks/store/use-chat";
 import { useMember } from "@/hooks/store/use-member";
 import { useAppRouter } from "@/hooks/use-app-router";
 // local imports
+import { ChannelMembersDialog } from "./channel-members-dialog";
 import { ChatComposer } from "./composer";
 import { channelDisplayName } from "./helpers";
 import { ChatMessageList } from "./message-list";
@@ -36,6 +38,7 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
   const router = useAppRouter();
   const [notFound, setNotFound] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [showMembers, setShowMembers] = useState(false);
   const channel = chat.channelMap[channelId];
   const started = chat.workspaceSlug === workspaceSlug;
   // A channel that was shown and then went away: the user lost access (removed, or a private channel left).
@@ -122,6 +125,15 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
             </p>
           )}
         </div>
+        {isNamed && (
+          <IconButton
+            variant="ghost"
+            size="sm"
+            icon={<MembersOutline />}
+            aria-label={t("messages.members.open")}
+            onClick={() => setShowMembers(true)}
+          />
+        )}
         {isNamed && channel.is_member && !archived && (
           <Button
             variant="ghost"
@@ -132,6 +144,9 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
           />
         )}
       </header>
+      {showMembers && (
+        <ChannelMembersDialog workspaceSlug={workspaceSlug} channel={channel} onClose={() => setShowMembers(false)} />
+      )}
 
       <ChatMessageList
         workspaceSlug={workspaceSlug}

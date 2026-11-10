@@ -30,6 +30,16 @@
       "not_found_title": "Conversation not found",
       "not_found_description": "It doesn't exist, or you don't have access to it."
     },
+    "members": {
+      "open": "Members",
+      "title": "Members",
+      "description": "People in #{name}.",
+      "admin": "Admin",
+      "remove": "Remove {name}",
+      "add_title": "Add people",
+      "search": "Search people",
+      "no_candidates": "No one else to add."
+    },
     "dm": {
       "intro_title": "This is the start of your conversation with {name}",
       "intro_description": "Only the people in this conversation can see it."
@@ -58,6 +68,12 @@
       "search": "Search people",
       "empty": "No one matches.",
       "submit": "Start conversation"
+    },
+    "guest_access": {
+      "open": "Guest access",
+      "title": "Guest access to messages",
+      "description": "Guests can start direct messages only if you allow it here. Turning it off doesn't remove them from conversations they're already in.",
+      "empty": "This workspace has no guests."
     },
     "composer": {
       "send": "Send message",
@@ -106,7 +122,12 @@
       "edit_failed": "Couldn't save the edit",
       "remove_failed": "Couldn't delete the message",
       "message_not_found": "This message is no longer available.",
-      "link_work_item_failed": "The work item was created, but it couldn't be linked to this message."
+      "link_work_item_failed": "The work item was created, but it couldn't be linked to this message.",
+      "load_members_failed": "Couldn't load the members",
+      "add_members_failed": "Couldn't add people",
+      "remove_member_failed": "Couldn't remove them from the channel",
+      "load_guest_access_failed": "Couldn't load guest access",
+      "update_guest_access_failed": "Couldn't change guest access"
     }
   }
 }

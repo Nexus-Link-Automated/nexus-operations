@@ -30,6 +30,16 @@
       "not_found_title": "Gesprek niet gevonden",
       "not_found_description": "Het bestaat niet, of je hebt er geen toegang toe."
     },
+    "members": {
+      "open": "Leden",
+      "title": "Leden",
+      "description": "Personen in #{name}.",
+      "admin": "Beheerder",
+      "remove": "{name} verwijderen",
+      "add_title": "Personen toevoegen",
+      "search": "Personen zoeken",
+      "no_candidates": "Niemand anders om toe te voegen."
+    },
     "dm": {
       "intro_title": "Dit is het begin van je gesprek met {name}",
       "intro_description": "Alleen de mensen in dit gesprek kunnen het zien."
@@ -58,6 +68,12 @@
       "search": "Personen zoeken",
       "empty": "Geen resultaten.",
       "submit": "Gesprek starten"
+    },
+    "guest_access": {
+      "open": "Gasttoegang",
+      "title": "Gasttoegang tot berichten",
+      "description": "Gasten kunnen alleen directe berichten starten als je dat hier toestaat. Uitzetten haalt ze niet uit gesprekken waar ze al in zitten.",
+      "empty": "Deze werkruimte heeft geen gasten."
     },
     "composer": {
       "send": "Bericht sturen",
@@ -106,7 +122,12 @@
       "edit_failed": "De wijziging kon niet worden opgeslagen",
       "remove_failed": "Het bericht kon niet worden verwijderd",
       "message_not_found": "Dit bericht is niet meer beschikbaar.",
-      "link_work_item_failed": "Het werkitem is gemaakt, maar kon niet aan dit bericht worden gekoppeld."
+      "link_work_item_failed": "Het werkitem is gemaakt, maar kon niet aan dit bericht worden gekoppeld.",
+      "load_members_failed": "De leden konden niet worden geladen",
+      "add_members_failed": "De personen konden niet worden toegevoegd",
+      "remove_member_failed": "Verwijderen uit het kanaal is mislukt",
+      "load_guest_access_failed": "De gasttoegang kon niet worden geladen",
+      "update_guest_access_failed": "De gasttoegang kon niet worden gewijzigd"
     }
   }
 }
