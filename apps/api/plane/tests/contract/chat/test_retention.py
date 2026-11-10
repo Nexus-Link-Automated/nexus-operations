@@ -183,6 +183,22 @@ class TestTheCutoff:
         assert not _exists(post)
         assert not MessageReference.all_objects.filter(message_id=post.pk).exists()
 
+    def test_an_automatic_post_with_newer_replies_is_emptied_of_its_lines(
+        self, channel, keep_for, storage, issue, send, member
+    ):
+        keep_for(30)
+        post = Message.objects.create(
+            channel=channel,
+            system_event=MessageSystemEvent.WORK_ITEM_STATE,
+            body_html="<p>1 work item changed state</p>",
+            system_data={"lines": [{"issue": str(issue.id), "state": "Done"}], "more": 0},
+        )
+        _at(post, _days_ago(31))
+        send(channel, member.user, parent=post)
+        _run()
+        post.refresh_from_db()
+        assert post.removed_at is not None and post.system_data is None
+
 
 @pytest.mark.contract
 class TestBatches:

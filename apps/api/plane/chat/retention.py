@@ -204,7 +204,7 @@ def _empty_batch(candidates, now):
         MessageReference.all_objects.filter(message_id__in=ids).delete()
         PendingMentionEmail.objects.filter(message_id__in=ids).delete()
         Message.all_objects.filter(pk__in=ids).update(
-            body_html="", body_json={}, body_stripped="", removed_at=now, updated_at=now
+            body_html="", body_json={}, body_stripped="", system_data=None, removed_at=now, updated_at=now
         )
     return len(ids)
 
