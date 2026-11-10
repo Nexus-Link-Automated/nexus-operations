@@ -50,6 +50,7 @@ IMAGE_REGISTRY=$registry
 APP_RELEASE=$release
 POSTGRES_PASSWORD=$(openssl rand -hex 16)
 RABBITMQ_PASSWORD=$(openssl rand -hex 16)
+VALKEY_PASSWORD=$(openssl rand -hex 16)
 AWS_ACCESS_KEY_ID=$(openssl rand -hex 16)
 AWS_SECRET_ACCESS_KEY=$(openssl rand -hex 32)
 SECRET_KEY=$(openssl rand -hex 32)
