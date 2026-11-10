@@ -25,6 +25,12 @@ export function localDay(iso: string): string {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
+/** Whether two messages have the same sender: the same person, or both automatic posts of the same kind. */
+function sameSender(a: TChatMessage, b: TChatMessage): boolean {
+  if (a.sender || b.sender) return !!a.sender && a.sender === b.sender;
+  return !!a.system_event && a.system_event === b.system_event;
+}
+
 /**
  * Rows for the message list: a divider at each new day, and each message marked `continued` when it follows the
  * same sender's previous message on that day within `MESSAGE_GROUP_WINDOW_MS` (so the name and avatar show once).
@@ -44,8 +50,7 @@ export function buildMessageRows(messages: readonly TChatMessage[]): TMessageRow
       !!previous &&
       !previous.removed_at &&
       !message.removed_at &&
-      !!message.sender &&
-      previous.sender === message.sender &&
+      sameSender(previous, message) &&
       Date.parse(message.created_at) - Date.parse(previous.created_at) < MESSAGE_GROUP_WINDOW_MS;
     rows.push({ kind: "message", key: message.id, message, continued });
     previous = message;

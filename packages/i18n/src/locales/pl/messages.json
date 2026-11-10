@@ -55,6 +55,19 @@
       "private_help": "Tylko dodane osoby mogą zobaczyć kanał i jego wiadomości.",
       "submit": "Utwórz kanał"
     },
+    "project": {
+      "label": "Projekt",
+      "none": "Brak projektu",
+      "hidden": "Projekt, do którego nie należysz",
+      "unlink": "Odłącz",
+      "help": "Zmiany stanu elementów pracy z tego projektu są publikowane na kanale.",
+      "linked": "Połączono z {name}"
+    },
+    "channel_settings": {
+      "title": "Ustawienia kanału",
+      "description": "Ustawienia #{name}.",
+      "save": "Zapisz"
+    },
     "browse": {
       "title": "Przeglądaj kanały",
       "description": "Kanały publiczne, do których nie dołączono.",
@@ -105,7 +118,9 @@
       "sending": "Wysyłanie…",
       "failed": "Nie wysłano.",
       "retry": "Ponów",
-      "discard": "Odrzuć"
+      "discard": "Odrzuć",
+      "automatic_sender": "Aktualizacje elementów pracy",
+      "automatic": "Automatycznie"
     },
     "day": {
       "today": "Dzisiaj",
@@ -134,6 +149,7 @@
       "remove_failed": "Nie udało się usunąć wiadomości",
       "message_not_found": "Ta wiadomość nie jest już dostępna.",
       "link_work_item_failed": "Element pracy został utworzony, ale nie udało się powiązać go z tą wiadomością.",
+      "update_channel_failed": "Nie udało się zapisać ustawień kanału",
       "load_members_failed": "Nie udało się wczytać członków",
       "add_members_failed": "Nie udało się dodać osób",
       "remove_member_failed": "Nie udało się usunąć z kanału",

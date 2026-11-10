@@ -8,6 +8,8 @@ Everyone who can see a channel can read it; sending, editing and removing your o
 messages need channel membership. Messages
 are always sent as the caller. Removing a message calls `Message.remove()`, which
 leaves a tombstone so replies and read cursors keep working; it is never deleted.
+Automatic messages (`system_event`, see `project_feed`) have no sender, so only an
+admin can remove one and nobody can edit it.
 """
 
 from html import escape
@@ -180,6 +182,8 @@ class MessageWorkItemEndpoint(ChatBaseEndpoint):
             raise NotFound("Message not found.")
         require_channel_member(channel)
         require_not_archived(channel)
+        if message.system_event is not None:
+            raise BadRequest("An automatic message can't be turned into a work item.")
         serializer = MessageWorkItemSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         issue = visible_work_item(serializer.validated_data["issue_id"], request.user, message.workspace_id)

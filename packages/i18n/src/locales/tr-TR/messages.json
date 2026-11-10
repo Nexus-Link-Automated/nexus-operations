@@ -55,6 +55,19 @@
       "private_help": "Kanalı ve mesajlarını yalnızca eklenen kişiler görebilir.",
       "submit": "Kanal oluştur"
     },
+    "project": {
+      "label": "Proje",
+      "none": "Proje yok",
+      "hidden": "Üyesi olmadığınız bir proje",
+      "unlink": "Bağlantıyı kaldır",
+      "help": "Bu projenin iş öğelerindeki durum değişiklikleri kanalda paylaşılır.",
+      "linked": "{name} ile bağlantılı"
+    },
+    "channel_settings": {
+      "title": "Kanal ayarları",
+      "description": "#{name} ayarları.",
+      "save": "Kaydet"
+    },
     "browse": {
       "title": "Kanallara göz atın",
       "description": "Katılmadığınız herkese açık kanallar.",
@@ -105,7 +118,9 @@
       "sending": "Gönderiliyor…",
       "failed": "Gönderilmedi.",
       "retry": "Yeniden dene",
-      "discard": "Vazgeç"
+      "discard": "Vazgeç",
+      "automatic_sender": "İş öğesi güncellemeleri",
+      "automatic": "Otomatik"
     },
     "day": {
       "today": "Bugün",
@@ -134,6 +149,7 @@
       "remove_failed": "Mesaj silinemedi",
       "message_not_found": "Bu mesaj artık kullanılamıyor.",
       "link_work_item_failed": "İş öğesi oluşturuldu ancak bu mesaja bağlanamadı.",
+      "update_channel_failed": "Kanal ayarları kaydedilemedi",
       "load_members_failed": "Üyeler yüklenemedi",
       "add_members_failed": "Kişiler eklenemedi",
       "remove_member_failed": "Kanaldan çıkarılamadı",

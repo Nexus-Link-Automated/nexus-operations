@@ -55,6 +55,19 @@
       "private_help": "추가된 사람만 채널과 메시지를 볼 수 있습니다.",
       "submit": "채널 만들기"
     },
+    "project": {
+      "label": "프로젝트",
+      "none": "프로젝트 없음",
+      "hidden": "참여하지 않은 프로젝트",
+      "unlink": "연결 해제",
+      "help": "이 프로젝트의 작업 항목 상태 변경이 채널에 게시됩니다.",
+      "linked": "{name}에 연결됨"
+    },
+    "channel_settings": {
+      "title": "채널 설정",
+      "description": "#{name} 설정.",
+      "save": "저장"
+    },
     "browse": {
       "title": "채널 둘러보기",
       "description": "아직 참여하지 않은 공개 채널입니다.",
@@ -105,7 +118,9 @@
       "sending": "보내는 중…",
       "failed": "보내지 못했습니다.",
       "retry": "다시 시도",
-      "discard": "삭제"
+      "discard": "삭제",
+      "automatic_sender": "작업 항목 업데이트",
+      "automatic": "자동"
     },
     "day": {
       "today": "오늘",
@@ -134,6 +149,7 @@
       "remove_failed": "메시지를 삭제하지 못했습니다",
       "message_not_found": "이 메시지는 더 이상 사용할 수 없습니다.",
       "link_work_item_failed": "작업 항목이 생성되었지만 이 메시지에 연결하지 못했습니다.",
+      "update_channel_failed": "채널 설정을 저장할 수 없습니다",
       "load_members_failed": "멤버를 불러오지 못했습니다",
       "add_members_failed": "사람을 추가하지 못했습니다",
       "remove_member_failed": "채널에서 내보내지 못했습니다",

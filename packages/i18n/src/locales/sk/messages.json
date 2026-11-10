@@ -55,6 +55,19 @@
       "private_help": "Kanál a jeho správy vidia iba pridaní ľudia.",
       "submit": "Vytvoriť kanál"
     },
+    "project": {
+      "label": "Projekt",
+      "none": "Žiadny projekt",
+      "hidden": "Projekt, ktorého nie ste členom",
+      "unlink": "Odpojiť",
+      "help": "Zmeny stavu pracovných položiek tohto projektu sa zverejňujú v kanáli.",
+      "linked": "Prepojené s {name}"
+    },
+    "channel_settings": {
+      "title": "Nastavenia kanála",
+      "description": "Nastavenia pre #{name}.",
+      "save": "Uložiť"
+    },
     "browse": {
       "title": "Prehľadávať kanály",
       "description": "Verejné kanály, ku ktorým ste sa nepripojili.",
@@ -105,7 +118,9 @@
       "sending": "Odosiela sa…",
       "failed": "Neodoslané.",
       "retry": "Skúsiť znova",
-      "discard": "Zahodiť"
+      "discard": "Zahodiť",
+      "automatic_sender": "Aktualizácie pracovných položiek",
+      "automatic": "Automaticky"
     },
     "day": {
       "today": "Dnes",
@@ -134,6 +149,7 @@
       "remove_failed": "Správu sa nepodarilo odstrániť",
       "message_not_found": "Táto správa už nie je dostupná.",
       "link_work_item_failed": "Pracovná položka bola vytvorená, ale nepodarilo sa ju prepojiť s touto správou.",
+      "update_channel_failed": "Nastavenia kanála sa nepodarilo uložiť",
       "load_members_failed": "Členov sa nepodarilo načítať",
       "add_members_failed": "Ľudí sa nepodarilo pridať",
       "remove_member_failed": "Z kanála sa nepodarilo odobrať",

@@ -26,6 +26,7 @@ export type TChatChannel = {
   /** Empty for DMs and group DMs: name them from `dm_member_ids`. */
   name: string;
   description: string;
+  /** The linked project, whose work items' state changes are posted here. Never set on DMs and group DMs. */
   project: string | null;
   archived_at: string | null;
   created_by: string | null;
@@ -76,13 +77,20 @@ export type TChatWorkItemLink = {
   reply: TChatMessage | null;
 };
 
-/** A message, or a removed message's tombstone (empty body, `removed_at` set). */
+/** What an automatic message announces. */
+export type TChatSystemEvent = "work_item_state";
+
+/**
+ * A message, or a removed message's tombstone (empty body, `removed_at` set). Exactly one of `sender`,
+ * `sender_agent` and `system_event` is set; an automatic message (`system_event`) has no sender and can't be edited.
+ */
 export type TChatMessage = {
   id: string;
   workspace: string;
   channel: string;
   sender: string | null;
   sender_agent: string | null;
+  system_event: TChatSystemEvent | null;
   body_html: string;
   body_json: Record<string, unknown>;
   body_stripped: string;
@@ -132,11 +140,15 @@ export type TChatChannelCreate = {
   name: string;
   description?: string;
   kind?: "public" | "private";
+  /** A project the caller is a member or admin of. */
+  project?: string | null;
 };
 
 export type TChatChannelUpdate = {
   name?: string;
   description?: string;
+  /** Linking needs membership of the project; `null` unlinks. */
+  project?: string | null;
 };
 
 /** What the caller may do in this workspace's chat (`chat/me/`). */

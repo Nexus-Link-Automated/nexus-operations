@@ -31,6 +31,7 @@ type ServerChannel = {
   name: string;
   members: Set<string>;
   archived: boolean;
+  project: string | null;
   cursors: Map<string, string>;
 };
 
@@ -59,6 +60,7 @@ class FakeChatServer {
       name: options.name ?? id,
       members: new Set(options.members ?? [ME]),
       archived: false,
+      project: null,
       cursors: new Map(),
     });
   }
@@ -73,6 +75,7 @@ class FakeChatServer {
       channel: channelId,
       sender,
       sender_agent: null,
+      system_event: null,
       body_html: `<p>${text}</p>`,
       body_json: {},
       body_stripped: text,
@@ -135,7 +138,7 @@ class FakeChatServer {
       kind: channel.kind,
       name: channel.kind === "dm" || channel.kind === "group_dm" ? "" : channel.name,
       description: "",
-      project: null,
+      project: channel.project,
       archived_at: channel.archived ? "2026-01-02T00:00:00Z" : null,
       created_by: ME,
       created_at: "2026-01-01T00:00:00Z",
@@ -186,6 +189,12 @@ class FakeChatServer {
         const id = `c-${data.name}`;
         this.addChannel(id, { kind: data.kind ?? "public", name: data.name });
         return this.payload(this.channels.get(id)!);
+      },
+      updateChannel: async (_slug, channelId, data) => {
+        log(`updateChannel ${channelId}`);
+        const channel = this.channelOr404(channelId);
+        if (data.project !== undefined) channel.project = data.project;
+        return this.payload(channel);
       },
       openDm: async (_slug, memberIds) => {
         const id = `dm-${sortBy([ME, ...memberIds]).join("-")}`;
@@ -908,6 +917,29 @@ describe("ChatStore", () => {
     expect(store.joinedChannels.map((c) => c.id)).toContain(channel.id);
     const dm = await store.openDm([ADA]);
     expect(store.directMessages.map((c) => c.id)).toEqual([dm.id]);
+  });
+
+  it("links a channel to a project and unlinks it", async () => {
+    const { store } = await setup();
+    const { updateChannel } = store;
+    await expect(updateChannel("c-general", { project: "p-1" })).resolves.toMatchObject({ project: "p-1" });
+    expect(store.channelMap["c-general"]?.project).toBe("p-1");
+    await updateChannel("c-general", { project: null });
+    expect(store.channelMap["c-general"]?.project).toBeNull();
+  });
+
+  it("counts an automatic message, which has no actor, as unread", async () => {
+    const { store, server, socket } = await setup();
+    const before = store.channelMap["c-random"]!.unread_count;
+    const posted = server.post("c-random", ADA, "EMP-1 moved to Done");
+    const message = { ...posted, sender: null, system_event: "work_item_state" as const };
+    server.messages[server.messages.length - 1] = message;
+    // Posted by a job, so its event has no actor.
+    const event = server.createdEvent(message);
+    expect(event.actor_id).toBeUndefined();
+    socket.emit(event);
+    await settle();
+    expect(store.channelMap["c-random"]!.unread_count).toBe(before + 1);
   });
 
   it("keeps an archived channel open, and drops one that is gone", async () => {

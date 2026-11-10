@@ -55,6 +55,19 @@
       "private_help": "Kanál a jeho zprávy vidí jen přidaní lidé.",
       "submit": "Vytvořit kanál"
     },
+    "project": {
+      "label": "Projekt",
+      "none": "Žádný projekt",
+      "hidden": "Projekt, jehož nejste členem",
+      "unlink": "Odpojit",
+      "help": "Změny stavu pracovních položek tohoto projektu se zveřejňují v kanálu.",
+      "linked": "Propojeno s {name}"
+    },
+    "channel_settings": {
+      "title": "Nastavení kanálu",
+      "description": "Nastavení pro #{name}.",
+      "save": "Uložit"
+    },
     "browse": {
       "title": "Procházet kanály",
       "description": "Veřejné kanály, ke kterým jste se nepřipojili.",
@@ -105,7 +118,9 @@
       "sending": "Odesílání…",
       "failed": "Neodesláno.",
       "retry": "Zkusit znovu",
-      "discard": "Zahodit"
+      "discard": "Zahodit",
+      "automatic_sender": "Aktualizace pracovních položek",
+      "automatic": "Automaticky"
     },
     "day": {
       "today": "Dnes",
@@ -134,6 +149,7 @@
       "remove_failed": "Zprávu se nepodařilo smazat",
       "message_not_found": "Tato zpráva již není dostupná.",
       "link_work_item_failed": "Pracovní položka byla vytvořena, ale nepodařilo se ji propojit s touto zprávou.",
+      "update_channel_failed": "Nastavení kanálu se nepodařilo uložit",
       "load_members_failed": "Členy se nepodařilo načíst",
       "add_members_failed": "Lidi se nepodařilo přidat",
       "remove_member_failed": "Z kanálu se nepodařilo odebrat",

@@ -25,10 +25,11 @@ fetches what it needs over REST, where permissions are enforced.
 What is published, by write. A write that changes nothing publishes nothing.
 
     send / edit / remove a message    message.created / message.updated / message.removed
+    post work item state changes      message.created, with no actor_id (see `project_feed.py`)
     create a channel                  member.added (the creator), then channel.created
     open a new DM or group DM         member.added for each person, then channel.created
     restore a DM's lost member        member.added
-    rename or edit a channel          channel.updated
+    rename, edit or link a channel    channel.updated
     archive / unarchive               channel.archived / channel.unarchived
     join or add members               member.added, once per person newly in the channel
     leave or remove                   member.removed

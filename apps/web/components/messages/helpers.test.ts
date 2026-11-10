@@ -25,6 +25,7 @@ const message = (id: string, sender: string | null, at: Date, removed = false): 
   channel: "c",
   sender,
   sender_agent: null,
+  system_event: null,
   body_html: "<p>x</p>",
   body_json: {},
   body_stripped: "x",
@@ -70,6 +71,29 @@ describe("buildMessageRows", () => {
       message("3", "ada", at(6, 0, 6)),
     ]);
     expect(rows.flatMap((r) => (r.kind === "message" ? [r.continued] : []))).toEqual([false, false, false]);
+  });
+
+  it("groups automatic posts of one kind, but never with a person's messages", () => {
+    const automatic = (id: string, time: Date) => ({
+      ...message(id, null, time),
+      system_event: "work_item_state" as const,
+    });
+    const rows = buildMessageRows([
+      automatic("1", at(5, 9, 0)),
+      automatic("2", at(5, 9, 1)),
+      message("3", "ada", at(5, 9, 2)),
+      automatic("4", at(5, 9, 3)),
+      message("5", null, at(5, 9, 4)),
+      message("6", null, at(5, 9, 5)),
+    ]);
+    expect(rows.flatMap((r) => (r.kind === "message" ? [r.continued] : []))).toEqual([
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+    ]);
   });
 
   it("never groups across a removed message", () => {

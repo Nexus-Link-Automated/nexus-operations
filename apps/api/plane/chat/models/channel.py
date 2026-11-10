@@ -118,6 +118,7 @@ class Channel(BaseModel):
     # Required for public and private channels, empty for DMs and group DMs.
     name = models.CharField(max_length=80, blank=True, default="")
     description = models.TextField(blank=True, default="")
+    # Its work items' state changes are posted here (`plane.chat.project_feed`). Public and private channels only.
     project = models.ForeignKey(
         "db.Project", on_delete=models.SET_NULL, null=True, blank=True, related_name="chat_channels"
     )
@@ -135,6 +136,10 @@ class Channel(BaseModel):
                 condition=(Q(kind__in=NAMED_KINDS) & Q(name__regex=r"\S") & Q(dm_key__isnull=True))
                 | (Q(kind__in=DIRECT_KINDS) & Q(name="") & Q(dm_key__isnull=False)),
                 name="chat_channel_name_or_dm_key_by_kind",
+            ),
+            models.CheckConstraint(
+                condition=Q(kind__in=NAMED_KINDS) | Q(project__isnull=True),
+                name="chat_channel_project_on_named_only",
             ),
             models.UniqueConstraint(
                 F("workspace"),

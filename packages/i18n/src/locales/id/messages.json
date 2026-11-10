@@ -55,6 +55,19 @@
       "private_help": "Hanya orang yang ditambahkan yang dapat melihat kanal ini beserta pesannya.",
       "submit": "Buat kanal"
     },
+    "project": {
+      "label": "Proyek",
+      "none": "Tidak ada proyek",
+      "hidden": "Proyek yang tidak Anda ikuti",
+      "unlink": "Putuskan tautan",
+      "help": "Perubahan status item kerja proyek ini diposting di kanal.",
+      "linked": "Tertaut ke {name}"
+    },
+    "channel_settings": {
+      "title": "Pengaturan kanal",
+      "description": "Pengaturan untuk #{name}.",
+      "save": "Simpan"
+    },
     "browse": {
       "title": "Jelajahi kanal",
       "description": "Kanal publik yang belum Anda ikuti.",
@@ -105,7 +118,9 @@
       "sending": "Mengirim…",
       "failed": "Tidak terkirim.",
       "retry": "Coba lagi",
-      "discard": "Buang"
+      "discard": "Buang",
+      "automatic_sender": "Pembaruan item kerja",
+      "automatic": "Otomatis"
     },
     "day": {
       "today": "Hari ini",
@@ -134,6 +149,7 @@
       "remove_failed": "Tidak dapat menghapus pesan",
       "message_not_found": "Pesan ini tidak lagi tersedia.",
       "link_work_item_failed": "Item kerja telah dibuat, tetapi tidak dapat ditautkan ke pesan ini.",
+      "update_channel_failed": "Tidak dapat menyimpan pengaturan kanal",
       "load_members_failed": "Tidak dapat memuat anggota",
       "add_members_failed": "Tidak dapat menambahkan orang",
       "remove_member_failed": "Tidak dapat mengeluarkan dari kanal",

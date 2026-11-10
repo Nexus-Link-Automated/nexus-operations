@@ -55,6 +55,19 @@
       "private_help": "Nur hinzugefügte Personen können ihn und seine Nachrichten sehen.",
       "submit": "Kanal erstellen"
     },
+    "project": {
+      "label": "Projekt",
+      "none": "Kein Projekt",
+      "hidden": "Ein Projekt, in dem du nicht Mitglied bist",
+      "unlink": "Verknüpfung aufheben",
+      "help": "Statusänderungen der Arbeitselemente dieses Projekts werden im Kanal gepostet.",
+      "linked": "Verknüpft mit {name}"
+    },
+    "channel_settings": {
+      "title": "Kanaleinstellungen",
+      "description": "Einstellungen für #{name}.",
+      "save": "Speichern"
+    },
     "browse": {
       "title": "Kanäle durchsuchen",
       "description": "Öffentliche Kanäle, denen Sie nicht beigetreten sind.",
@@ -105,7 +118,9 @@
       "sending": "Wird gesendet…",
       "failed": "Nicht gesendet.",
       "retry": "Erneut versuchen",
-      "discard": "Verwerfen"
+      "discard": "Verwerfen",
+      "automatic_sender": "Updates zu Arbeitselementen",
+      "automatic": "Automatisch"
     },
     "day": {
       "today": "Heute",
@@ -134,6 +149,7 @@
       "remove_failed": "Nachricht konnte nicht gelöscht werden",
       "message_not_found": "Diese Nachricht ist nicht mehr verfügbar.",
       "link_work_item_failed": "Das Arbeitselement wurde erstellt, konnte aber nicht mit dieser Nachricht verknüpft werden.",
+      "update_channel_failed": "Die Kanaleinstellungen konnten nicht gespeichert werden",
       "load_members_failed": "Mitglieder konnten nicht geladen werden",
       "add_members_failed": "Personen konnten nicht hinzugefügt werden",
       "remove_member_failed": "Konnte nicht aus dem Kanal entfernt werden",
