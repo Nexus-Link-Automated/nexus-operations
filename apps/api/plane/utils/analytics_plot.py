@@ -8,7 +8,7 @@ from itertools import groupby
 
 # Django import
 from django.db import models
-from django.db.models import Case, CharField, Count, F, Sum, Value, When, FloatField
+from django.db.models import Case, CharField, Count, F, FilteredRelation, Q, Sum, Value, When, FloatField
 from django.db.models.functions import (
     Coalesce,
     Concat,
@@ -39,6 +39,12 @@ VALID_ANALYTICS_FIELDS = [
 
 VALID_YAXIS = ["issue_count", "estimate"]
 
+# Removing an assignee or label soft-deletes its link row, so these axes read only live rows.
+LIVE_LINK_AXES = {
+    "labels__id": ("label_issue", "label_id"),
+    "assignees__id": ("issue_assignee", "assignee_id"),
+}
+
 
 def annotate_with_monthly_dimension(queryset, field_name, attribute):
     # Get the year and the months
@@ -50,7 +56,7 @@ def annotate_with_monthly_dimension(queryset, field_name, attribute):
     return queryset.annotate(**{attribute: dimension})
 
 
-def extract_axis(queryset, x_axis):
+def extract_axis(queryset, x_axis, field=None):
     if x_axis not in VALID_ANALYTICS_FIELDS:
         raise ValueError(f"Invalid x_axis value: {x_axis}")
     # Format the dimension when the axis is in date
@@ -58,7 +64,24 @@ def extract_axis(queryset, x_axis):
         queryset = annotate_with_monthly_dimension(queryset, x_axis, "dimension")
         return queryset, "dimension"
     else:
-        return queryset.annotate(dimension=F(x_axis)), "dimension"
+        return queryset.annotate(dimension=F(field or x_axis)), "dimension"
+
+
+def annotate_live_links(queryset, axes):
+    """Join the live link rows for assignee and label axes, and return the field to read for each."""
+    fields = {}
+    for axis in axes:
+        if axis in LIVE_LINK_AXES and axis not in fields:
+            relation, value_field = LIVE_LINK_AXES[axis]
+            queryset = queryset.annotate(
+                **{
+                    f"live_{relation}": FilteredRelation(
+                        relation, condition=Q(**{f"{relation}__deleted_at__isnull": True})
+                    )
+                }
+            )
+            fields[axis] = f"live_{relation}__{value_field}"
+    return queryset, fields
 
 
 def sort_data(data, temp_axis):
@@ -80,8 +103,9 @@ def build_graph_plot(queryset, x_axis, y_axis, segment=None):
 
     # temp x_axis
     temp_axis = x_axis
+    queryset, live_fields = annotate_live_links(queryset, [x_axis, segment])
     # Extract the x_axis and queryset
-    queryset, x_axis = extract_axis(queryset, x_axis)
+    queryset, x_axis = extract_axis(queryset, x_axis, live_fields.get(x_axis))
     if x_axis == "dimension":
         queryset = queryset.exclude(dimension__isnull=True)
 
@@ -102,14 +126,14 @@ def build_graph_plot(queryset, x_axis, y_axis, segment=None):
             ),
             dimension_ex=Coalesce("dimension", Value("null")),
         ).values("dimension")
-        queryset = queryset.annotate(segment=F(segment)) if segment else queryset
+        queryset = queryset.annotate(segment=F(live_fields.get(segment, segment))) if segment else queryset
         queryset = queryset.values("dimension", "segment") if segment else queryset.values("dimension")
         queryset = queryset.annotate(count=Count("*")).order_by("dimension")
 
     # Estimate
     else:
         queryset = queryset.annotate(estimate=Sum(Cast("estimate_point__value", FloatField()))).order_by(x_axis)
-        queryset = queryset.annotate(segment=F(segment)) if segment else queryset
+        queryset = queryset.annotate(segment=F(live_fields.get(segment, segment))) if segment else queryset
         queryset = (
             queryset.values("dimension", "segment", "estimate") if segment else queryset.values("dimension", "estimate")
         )

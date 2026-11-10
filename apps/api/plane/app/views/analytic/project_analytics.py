@@ -21,7 +21,7 @@ from plane.db.models import (
     ModuleIssue,
 )
 from django.db import models
-from django.db.models import F, Case, When, Value
+from django.db.models import F, Case, FilteredRelation, When, Value
 from django.db.models.functions import Cast, Concat
 from plane.utils.build_chart import build_analytics_chart
 from plane.utils.date_utils import (
@@ -131,22 +131,30 @@ class ProjectAdvanceAnalyticsStatsEndpoint(ProjectAdvanceAnalyticsBaseView):
         else:
             base_queryset = Issue.issue_objects.filter(**self.filters["base_filters"], project_id=project_id)
         return (
-            base_queryset.annotate(display_name=F("assignees__display_name"))
-            .annotate(assignee_id=F("assignees__id"))
-            .annotate(avatar=F("assignees__avatar"))
+            base_queryset.annotate(
+                live_issue_assignee=FilteredRelation(
+                    "issue_assignee", condition=Q(issue_assignee__deleted_at__isnull=True)
+                )
+            )
+            .annotate(display_name=F("live_issue_assignee__assignee__display_name"))
+            .annotate(assignee_id=F("live_issue_assignee__assignee__id"))
+            .annotate(avatar=F("live_issue_assignee__assignee__avatar"))
             .annotate(
                 avatar_url=Case(
                     # If `avatar_asset` exists, use it to generate the asset URL
                     When(
-                        assignees__avatar_asset__isnull=False,
+                        live_issue_assignee__assignee__avatar_asset__isnull=False,
                         then=Concat(
                             Value("/api/assets/v2/static/"),
-                            Cast("assignees__avatar_asset", models.CharField()),
+                            Cast("live_issue_assignee__assignee__avatar_asset", models.CharField()),
                             Value("/"),
                         ),
                     ),
                     # If `avatar_asset` is None, fall back to using `avatar` field directly
-                    When(assignees__avatar_asset__isnull=True, then="assignees__avatar"),
+                    When(
+                        live_issue_assignee__assignee__avatar_asset__isnull=True,
+                        then="live_issue_assignee__assignee__avatar",
+                    ),
                     default=Value(None),
                     output_field=models.CharField(),
                 )

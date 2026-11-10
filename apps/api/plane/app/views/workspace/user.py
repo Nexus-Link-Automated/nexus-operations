@@ -331,6 +331,7 @@ class WorkspaceUserProfileEndpoint(BaseAPIView):
                 .annotate(
                     created_issues=Count(
                         "project_issue",
+                        distinct=True,
                         filter=Q(
                             project_issue__created_by_id=user_id,
                             project_issue__archived_at__isnull=True,
@@ -342,8 +343,10 @@ class WorkspaceUserProfileEndpoint(BaseAPIView):
                 .annotate(
                     assigned_issues=Count(
                         "project_issue",
+                        distinct=True,
                         filter=Q(
                             project_issue__assignees__in=[user_id],
+                            project_issue__issue_assignee__deleted_at__isnull=True,
                             project_issue__archived_at__isnull=True,
                             project_issue__is_draft=False,
                         )
@@ -353,9 +356,11 @@ class WorkspaceUserProfileEndpoint(BaseAPIView):
                 .annotate(
                     completed_issues=Count(
                         "project_issue",
+                        distinct=True,
                         filter=Q(
                             project_issue__completed_at__isnull=False,
                             project_issue__assignees__in=[user_id],
+                            project_issue__issue_assignee__deleted_at__isnull=True,
                             project_issue__archived_at__isnull=True,
                             project_issue__is_draft=False,
                         )
@@ -365,6 +370,7 @@ class WorkspaceUserProfileEndpoint(BaseAPIView):
                 .annotate(
                     pending_issues=Count(
                         "project_issue",
+                        distinct=True,
                         filter=Q(
                             project_issue__state__group__in=[
                                 "backlog",
@@ -372,6 +378,7 @@ class WorkspaceUserProfileEndpoint(BaseAPIView):
                                 "started",
                             ],
                             project_issue__assignees__in=[user_id],
+                            project_issue__issue_assignee__deleted_at__isnull=True,
                             project_issue__archived_at__isnull=True,
                             project_issue__is_draft=False,
                         )
