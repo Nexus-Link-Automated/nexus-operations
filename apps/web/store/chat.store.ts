@@ -11,7 +11,10 @@ import { ChatService, ChatServiceError, ChatSocket } from "@plane/services";
 import type { TChatSocketClosedReason, TChatSocketHandlers, TChatSocketStatus } from "@plane/services";
 import type {
   TChatChannel,
+  TChatChannelAgent,
+  TChatChannelAgentAdd,
   TChatChannelCreate,
+  TChatChannelMember,
   TChatChannelUpdate,
   TChatEvent,
   TChatMe,
@@ -21,6 +24,7 @@ import type {
   TChatMessageWrite,
   TChatSearchResult,
   TChatUploadedAttachment,
+  TWorkspaceAgent,
 } from "@plane/types";
 
 /** The REST calls the store makes. `ChatService` in the app; a fake in tests. */
@@ -45,6 +49,13 @@ export type TChatStoreService = Pick<
   | "removeMessage"
   | "uploadAttachment"
   | "deleteAttachment"
+  | "listMembers"
+  | "addMembers"
+  | "removeMember"
+  | "listAgents"
+  | "addAgent"
+  | "removeAgent"
+  | "listAvailableAgents"
 >;
 
 /** The socket calls the store makes. `ChatSocket` in the app; a fake in tests. */
@@ -200,6 +211,9 @@ export interface IChatStore {
   channelsError: boolean;
   socketStatus: TChatSocketStatus;
   socketClosedReason: TChatSocketClosedReason | null;
+  channelMembers: Record<string, TChatChannelMember[]>;
+  channelAgents: Record<string, TChatChannelAgent[]>;
+  availableAgents: TWorkspaceAgent[] | null;
   // computed
   joinedChannels: TChatChannel[];
   browsableChannels: TChatChannel[];
@@ -252,6 +266,14 @@ export interface IChatStore {
   openDm: (memberIds: string[]) => Promise<TChatChannel>;
   joinChannel: (channelId: string) => Promise<void>;
   leaveChannel: (channelId: string) => Promise<void>;
+  fetchChannelMembers: (channelId: string) => Promise<void>;
+  fetchChannelAgents: (channelId: string) => Promise<void>;
+  forgetChannelMembers: (channelId: string) => void;
+  addChannelMembers: (channelId: string, memberIds: string[]) => Promise<void>;
+  removeChannelMember: (channelId: string, userId: string) => Promise<void>;
+  fetchAvailableAgents: () => Promise<void>;
+  addChannelAgent: (channelId: string, data: TChatChannelAgentAdd) => Promise<TChatChannelAgent>;
+  removeChannelAgent: (channelId: string, agentId: string) => Promise<void>;
   reconnect: () => void;
   noteActivity: () => void;
 }
@@ -267,6 +289,9 @@ export interface IChatStore {
  * - A public channel the user is viewing but hasn't joined is `subscribe`d explicitly, and again after their own
  *   `member.removed`.
  * - Writes go through REST. A sent message shows as pending until the API returns it; its event is then a no-op.
+ * - A channel's people and agents are held only while something shows them (`fetchChannelMembers`,
+ *   `fetchChannelAgents`, until `forgetChannelMembers`), and re-read on their `member.*` events and on resync. An event
+ *   about an agent names it with `agent_id` and no `user_id`; it changes nothing else.
  * - Thread replies stay out of the channel's list and out of its unread count, like the API's. The open thread holds
  *   its replies the way a channel holds its messages, and is caught up the same way. A reply's event re-reads its
  *   parent, whose summary (`reply_count`, `last_reply_at`) changed; after a reconnect, only the parents on the
@@ -293,6 +318,12 @@ export class ChatStore implements IChatStore {
   channelsError = false;
   socketStatus: TChatSocketStatus = "idle";
   socketClosedReason: TChatSocketClosedReason | null = null;
+  /** By channel, while its member list is shown. */
+  channelMembers: Record<string, TChatChannelMember[]> = {};
+  /** By channel, while its member list is shown. */
+  channelAgents: Record<string, TChatChannelAgent[]> = {};
+  /** The registry's agents enabled for the workspace, once asked for: what a channel can be given. */
+  availableAgents: TWorkspaceAgent[] | null = null;
 
   private readonly service: TChatStoreService;
   private readonly createSocket: TChatSocketFactory;
@@ -317,6 +348,10 @@ export class ChatStore implements IChatStore {
   private resyncing: { again: boolean; promise: Promise<void> } | null = null;
   /** Unsent composer HTML per channel. Not observable: the composer reads it once, when it mounts. */
   private readonly drafts = new Map<string, string>();
+  private readonly memberLoads = new Map<string, { again: boolean; promise: Promise<void> }>();
+  private readonly agentLoads = new Map<string, { again: boolean; promise: Promise<void> }>();
+  /** Channels whose people and agents something shows, from `fetchChannelMembers` until `forgetChannelMembers`. */
+  private readonly shownMembers = new Set<string>();
   /** Bumped by every new search, so an answer to an older one is dropped. */
   private searchGeneration = 0;
 
@@ -344,6 +379,9 @@ export class ChatStore implements IChatStore {
       channelsError: observable.ref,
       socketStatus: observable.ref,
       socketClosedReason: observable.ref,
+      channelMembers: observable,
+      channelAgents: observable,
+      availableAgents: observable.ref,
       // computed
       joinedChannels: computed,
       browsableChannels: computed,
@@ -382,6 +420,14 @@ export class ChatStore implements IChatStore {
       openDm: action.bound,
       joinChannel: action.bound,
       leaveChannel: action.bound,
+      fetchChannelMembers: action.bound,
+      fetchChannelAgents: action.bound,
+      forgetChannelMembers: action.bound,
+      addChannelMembers: action.bound,
+      removeChannelMember: action.bound,
+      fetchAvailableAgents: action.bound,
+      addChannelAgent: action.bound,
+      removeChannelAgent: action.bound,
       reconnect: action.bound,
       noteActivity: action.bound,
       upsertChannel: action,
@@ -523,6 +569,12 @@ export class ChatStore implements IChatStore {
     this.channelsError = false;
     this.socketStatus = "idle";
     this.socketClosedReason = null;
+    this.channelMembers = {};
+    this.channelAgents = {};
+    this.availableAgents = null;
+    this.memberLoads.clear();
+    this.agentLoads.clear();
+    this.shownMembers.clear();
     this.channelRefreshes.clear();
     this.readsInFlight.clear();
     this.messageLoads.clear();
@@ -624,6 +676,8 @@ export class ChatStore implements IChatStore {
     for (const id of this.channelMessages[channelId]?.ids ?? []) delete this.messageMap[id];
     delete this.channelMessages[channelId];
     delete this.pendingMessages[channelId];
+    delete this.channelMembers[channelId];
+    delete this.channelAgents[channelId];
     this.catchUpCursors.delete(channelId);
   }
 
@@ -766,6 +820,109 @@ export class ChatStore implements IChatStore {
     const slug = this.requireSlug();
     await this.service.leaveChannel(slug, channelId);
     await this.refreshChannel(channelId);
+  }
+
+  // members
+
+  /** Load the channel's people, and keep them current until `forgetChannelMembers`. */
+  fetchChannelMembers(channelId: string): Promise<void> {
+    this.shownMembers.add(channelId);
+    return this.coalesce(this.memberLoads, channelId, async () => {
+      const slug = this.requireSlug();
+      const commit = this.guard();
+      const members = await this.service.listMembers(slug, channelId);
+      // Closed while this loaded: holding the list again would keep re-reading it for nobody.
+      commit(() => {
+        if (this.shownMembers.has(channelId)) this.channelMembers[channelId] = members;
+      });
+    });
+  }
+
+  /** Load the channel's agents, and keep them current until `forgetChannelMembers`. */
+  fetchChannelAgents(channelId: string): Promise<void> {
+    this.shownMembers.add(channelId);
+    return this.coalesce(this.agentLoads, channelId, async () => {
+      const slug = this.requireSlug();
+      const commit = this.guard();
+      const agents = await this.service.listAgents(slug, channelId);
+      commit(() => {
+        if (this.shownMembers.has(channelId)) this.channelAgents[channelId] = agents;
+      });
+    });
+  }
+
+  /** Nothing shows the channel's members any more: stop keeping them. */
+  forgetChannelMembers(channelId: string): void {
+    this.shownMembers.delete(channelId);
+    delete this.channelMembers[channelId];
+    delete this.channelAgents[channelId];
+  }
+
+  /** Add people to a named channel. Any member can; people already in it are skipped. */
+  async addChannelMembers(channelId: string, memberIds: string[]): Promise<void> {
+    const slug = this.requireSlug();
+    const commit = this.guard();
+    const added = await this.service.addMembers(slug, channelId, memberIds);
+    commit(() => {
+      const held = this.channelMembers[channelId];
+      if (!held) return;
+      const known = new Set(held.map((member) => member.user));
+      this.channelMembers[channelId] = [...held, ...added.filter((member) => !known.has(member.user))];
+    });
+  }
+
+  /** Remove someone from a named channel: a channel or workspace admin. */
+  async removeChannelMember(channelId: string, userId: string): Promise<void> {
+    const slug = this.requireSlug();
+    const commit = this.guard();
+    await this.service.removeMember(slug, channelId, userId);
+    commit(() => {
+      const held = this.channelMembers[channelId];
+      if (held) this.channelMembers[channelId] = held.filter((member) => member.user !== userId);
+    });
+  }
+
+  async fetchAvailableAgents(): Promise<void> {
+    const slug = this.requireSlug();
+    const commit = this.guard();
+    const agents = await this.service.listAvailableAgents(slug);
+    commit(() => (this.availableAgents = agents));
+  }
+
+  /** Add an agent from the registry to a channel. Adding one already there changes nothing. */
+  async addChannelAgent(channelId: string, data: TChatChannelAgentAdd): Promise<TChatChannelAgent> {
+    const slug = this.requireSlug();
+    const commit = this.guard();
+    const added = await this.service.addAgent(slug, channelId, data);
+    commit(() => {
+      const held = this.channelAgents[channelId];
+      if (held) this.channelAgents[channelId] = [...held.filter((agent) => agent.agent !== added.agent), added];
+    });
+    return added;
+  }
+
+  async removeChannelAgent(channelId: string, agentId: string): Promise<void> {
+    const slug = this.requireSlug();
+    const commit = this.guard();
+    try {
+      await this.service.removeAgent(slug, channelId, agentId);
+    } catch (error) {
+      // Gone already, whoever removed it; anything else (no right to, archived) is for the caller to say.
+      if (!isNotFound(error)) throw error;
+      if (this.channelAgents[channelId]) void this.fetchChannelAgents(channelId).catch(() => undefined);
+    }
+    commit(() => {
+      const held = this.channelAgents[channelId];
+      if (held) this.channelAgents[channelId] = held.filter((agent) => agent.agent !== agentId);
+    });
+  }
+
+  /** Re-read whatever member lists are shown, after events may have been missed. */
+  private refreshShownMembers(): Promise<unknown> {
+    return Promise.all([
+      ...Object.keys(this.channelMembers).map((id) => this.fetchChannelMembers(id).catch(() => undefined)),
+      ...Object.keys(this.channelAgents).map((id) => this.fetchChannelAgents(id).catch(() => undefined)),
+    ]);
   }
 
   private requireSlug(): string {
@@ -1393,8 +1550,14 @@ export class ChatStore implements IChatStore {
       case "member.added":
       case "member.removed":
       case "member.updated":
+        // An agent (a gateway too old to pass `agent_id` on sends neither ID): only the channel's agents changed.
+        if (event.agent_id !== undefined || event.user_id === undefined) {
+          if (this.channelAgents[channelId]) void this.fetchChannelAgents(channelId).catch(() => undefined);
+          return;
+        }
         // My own: the channel appears, goes, or my role changed. Someone else's: the member count changed.
         if (aboutMe || known) void this.refreshChannel(channelId);
+        if (this.channelMembers[channelId]) void this.fetchChannelMembers(channelId).catch(() => undefined);
         return;
       case "read.updated":
         // Read in another tab.
@@ -1452,7 +1615,11 @@ export class ChatStore implements IChatStore {
           const loaded = Object.keys(this.channelMessages).filter((id) => this.channelMessages[id]?.loaded);
           const threads = Object.keys(this.threadMessages).filter((id) => this.threadMessages[id]?.loaded);
           // oxlint-disable-next-line no-await-in-loop -- see above
-          await Promise.all([...loaded.map((id) => this.catchUp(id)), ...threads.map((id) => this.catchUpThread(id))]);
+          await Promise.all([
+            ...loaded.map((id) => this.catchUp(id)),
+            ...threads.map((id) => this.catchUpThread(id)),
+            this.refreshShownMembers(),
+          ]);
         } while (entry.again && generation === this.generation);
       } finally {
         if (this.resyncing === entry) this.resyncing = null;

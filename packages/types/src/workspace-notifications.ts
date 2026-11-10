@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import type { TAgentAdapter } from "./agent";
 import type { ENotificationFilterType } from "./enums";
 import type { IUserLite } from "./users";
 
@@ -35,6 +36,11 @@ export type TNotificationChatMessage = {
   channel_kind: "public" | "private" | "dm" | "group_dm";
   parent_id: string | null;
   preview: string;
+  /**
+   * The agent that sent it, as the registry had it when the entry was made; null for a person, absent on older
+   * entries. `name` and `adapter` are null when the registry no longer had the agent: show "Removed agent".
+   */
+  sender_agent?: { slug: string; name: string | null; adapter: TAgentAdapter | null } | null;
 };
 
 export type TNotificationData = {

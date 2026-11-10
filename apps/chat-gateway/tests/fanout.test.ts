@@ -178,6 +178,26 @@ for (const kind of ["memory", "redis"] as const) {
       expect(eventsOf(ada).map((e) => e.type)).toEqual(["member.removed", "message.created"]);
     });
 
+    it("tells a channel's members an agent joined or left it, and changes nobody's feed", async () => {
+      const team = h.api.addChannel({ kind: "private", members: [ADA.id] });
+      const general = h.api.addChannel({ members: [ADA.id, BEN.id] });
+      const ada = await h.open(ADA.cookie);
+      const ben = await h.open(BEN.cookie);
+      const agentId = randomUUID();
+
+      const added = chatEvent("member.added", { channel_id: team, agent_id: agentId, actor_id: ADA.id });
+      const removed = chatEvent("member.removed", { channel_id: team, agent_id: agentId, actor_id: ADA.id });
+      await h.publish(added);
+      await h.publish(removed);
+      const later = chatEvent("message.created", { channel_id: team, message_id: randomUUID() });
+      await h.publish(later);
+      await h.barrier(general, ada, ben);
+
+      // Ada is still in the channel after the agent left it; Ben was never told about it.
+      expect(eventsOf(ada)).toEqual([added, removed, later]);
+      expect(eventsOf(ben)).toEqual([]);
+    });
+
     it("keeps an archived channel in the feed, so unarchiving it reaches its members", async () => {
       const dormant = h.api.addChannel({ members: [ADA.id], archived: true });
       const ada = await h.open(ADA.cookie);

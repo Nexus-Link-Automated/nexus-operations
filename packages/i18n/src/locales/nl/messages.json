@@ -33,8 +33,23 @@
     "members": {
       "open": "Leden",
       "title": "Leden",
-      "description": "Personen in #{name}.",
+      "description": "Wie er in #{name} zit.",
+      "load_failed": "De leden konden niet worden geladen.",
+      "agents": "Agents",
+      "people": "Personen",
       "admin": "Beheerder",
+      "add_agent": "Een agent toevoegen",
+      "add": "Agent toevoegen",
+      "no_agents": "Geen agents in dit kanaal.",
+      "unavailable": "Niet beschikbaar",
+      "remove_agent": "{name} verwijderen",
+      "agents_inert": "Agents in een kanaal nemen nog niet deel aan gesprekken.",
+      "agents_load_failed": "De agents die je kunt toevoegen konden niet worden geladen.",
+      "no_available_agents": "Er zijn geen andere agents beschikbaar. Een instantiebeheerder kan agents toevoegen.",
+      "choose_agent": "Agent",
+      "permission_level": "Machtigingsniveau",
+      "private_notice": "Dit kanaal is privé. {name} kan de berichten erin lezen, die nu alleen de mensen in het kanaal zien.",
+      "public_notice": "{name} kan de berichten van dit kanaal lezen.",
       "remove": "{name} verwijderen",
       "add_title": "Personen toevoegen",
       "search": "Personen zoeken",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "Het werkitem is gemaakt, maar kon niet aan dit bericht worden gekoppeld.",
       "update_channel_failed": "Kan de kanaalinstellingen niet opslaan",
       "rate_limited": "Je doet dat te vaak. Wacht even en probeer het opnieuw.",
+      "add_agent_failed": "De agent kon niet worden toegevoegd",
+      "remove_agent_failed": "De agent kon niet worden verwijderd",
       "load_members_failed": "De leden konden niet worden geladen",
       "add_members_failed": "De personen konden niet worden toegevoegd",
       "remove_member_failed": "Verwijderen uit het kanaal is mislukt",
@@ -255,6 +272,10 @@
           "work_item": "Een werkitem maken van een bericht"
         }
       }
+    },
+    "agent": {
+      "tag": "Agent",
+      "removed": "Verwijderde agent"
     }
   }
 }

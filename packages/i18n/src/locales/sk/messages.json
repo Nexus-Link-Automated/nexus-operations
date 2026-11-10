@@ -33,8 +33,23 @@
     "members": {
       "open": "Členovia",
       "title": "Členovia",
-      "description": "Ľudia v #{name}.",
+      "description": "Kto je v #{name}.",
+      "load_failed": "Členov sa nepodarilo načítať.",
+      "agents": "Agenti",
+      "people": "Ľudia",
       "admin": "Správca",
+      "add_agent": "Pridať agenta",
+      "add": "Pridať agenta",
+      "no_agents": "V tomto kanáli nie sú žiadni agenti.",
+      "unavailable": "Nedostupný",
+      "remove_agent": "Odstrániť {name}",
+      "agents_inert": "Agenti v kanáli sa zatiaľ nezúčastňujú konverzácií.",
+      "agents_load_failed": "Agentov, ktorých môžete pridať, sa nepodarilo načítať.",
+      "no_available_agents": "Ďalší agenti nie sú k dispozícii. Agentov môže pridať správca inštancie.",
+      "choose_agent": "Agent",
+      "permission_level": "Úroveň oprávnení",
+      "private_notice": "Tento kanál je súkromný. {name} bude môcť čítať jeho správy, ktoré teraz vidia len ľudia v ňom.",
+      "public_notice": "{name} bude môcť čítať správy tohto kanála.",
       "remove": "Odobrať {name}",
       "add_title": "Pridať ľudí",
       "search": "Hľadať ľudí",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "Pracovná položka bola vytvorená, ale nepodarilo sa ju prepojiť s touto správou.",
       "update_channel_failed": "Nastavenia kanála sa nepodarilo uložiť",
       "rate_limited": "Robíte to príliš často. Chvíľu počkajte a skúste to znova.",
+      "add_agent_failed": "Agenta sa nepodarilo pridať",
+      "remove_agent_failed": "Agenta sa nepodarilo odstrániť",
       "load_members_failed": "Členov sa nepodarilo načítať",
       "add_members_failed": "Ľudí sa nepodarilo pridať",
       "remove_member_failed": "Z kanála sa nepodarilo odobrať",
@@ -255,6 +272,10 @@
           "work_item": "Vytvoriť pracovnú položku zo správy"
         }
       }
+    },
+    "agent": {
+      "tag": "Agent",
+      "removed": "Odstránený agent"
     }
   }
 }

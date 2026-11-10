@@ -33,8 +33,23 @@
     "members": {
       "open": "Membros",
       "title": "Membros",
-      "description": "Pessoas em #{name}.",
+      "description": "Quem está em #{name}.",
+      "load_failed": "Não foi possível carregar os membros.",
+      "agents": "Agentes",
+      "people": "Pessoas",
       "admin": "Administrador",
+      "add_agent": "Adicionar um agente",
+      "add": "Adicionar agente",
+      "no_agents": "Nenhum agente neste canal.",
+      "unavailable": "Indisponível",
+      "remove_agent": "Remover {name}",
+      "agents_inert": "Os agentes de um canal ainda não participam das conversas.",
+      "agents_load_failed": "Não foi possível carregar os agentes que você pode adicionar.",
+      "no_available_agents": "Não há mais agentes disponíveis. Um administrador da instância pode adicionar agentes.",
+      "choose_agent": "Agente",
+      "permission_level": "Nível de permissão",
+      "private_notice": "Este canal é privado. {name} poderá ler as mensagens dele, que agora só as pessoas do canal podem ver.",
+      "public_notice": "{name} poderá ler as mensagens deste canal.",
       "remove": "Remover {name}",
       "add_title": "Adicionar pessoas",
       "search": "Pesquisar pessoas",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "O item de trabalho foi criado, mas não foi possível vinculá-lo a esta mensagem.",
       "update_channel_failed": "Não foi possível salvar as configurações do canal",
       "rate_limited": "Você está fazendo isso com muita frequência. Aguarde um momento e tente novamente.",
+      "add_agent_failed": "Não foi possível adicionar o agente",
+      "remove_agent_failed": "Não foi possível remover o agente",
       "load_members_failed": "Não foi possível carregar os membros",
       "add_members_failed": "Não foi possível adicionar as pessoas",
       "remove_member_failed": "Não foi possível remover do canal",
@@ -255,6 +272,10 @@
           "work_item": "Criar um item de trabalho a partir de uma mensagem"
         }
       }
+    },
+    "agent": {
+      "tag": "Agente",
+      "removed": "Agente removido"
     }
   }
 }

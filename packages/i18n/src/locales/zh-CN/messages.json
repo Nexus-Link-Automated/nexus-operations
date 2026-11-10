@@ -34,7 +34,22 @@
       "open": "成员",
       "title": "成员",
       "description": "#{name} 中的成员。",
+      "load_failed": "无法加载成员。",
+      "agents": "代理",
+      "people": "人员",
       "admin": "管理员",
+      "add_agent": "添加代理",
+      "add": "添加代理",
+      "no_agents": "此频道中没有代理。",
+      "unavailable": "不可用",
+      "remove_agent": "移除 {name}",
+      "agents_inert": "频道中的代理暂时还不参与对话。",
+      "agents_load_failed": "无法加载可添加的代理。",
+      "no_available_agents": "没有更多可用的代理。实例管理员可以添加代理。",
+      "choose_agent": "代理",
+      "permission_level": "权限级别",
+      "private_notice": "这是一个私有频道。{name} 将能够阅读其中的消息，而这些消息目前只有频道中的人可以看到。",
+      "public_notice": "{name} 将能够阅读此频道的消息。",
       "remove": "移除 {name}",
       "add_title": "添加成员",
       "search": "搜索成员",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "工作项已创建，但无法关联到此消息。",
       "update_channel_failed": "无法保存频道设置",
       "rate_limited": "操作过于频繁。请稍候再试。",
+      "add_agent_failed": "无法添加代理",
+      "remove_agent_failed": "无法移除代理",
       "load_members_failed": "无法加载成员",
       "add_members_failed": "无法添加成员",
       "remove_member_failed": "无法从频道中移除",
@@ -255,6 +272,10 @@
           "work_item": "从消息创建工作项"
         }
       }
+    },
+    "agent": {
+      "tag": "代理",
+      "removed": "已删除的代理"
     }
   }
 }

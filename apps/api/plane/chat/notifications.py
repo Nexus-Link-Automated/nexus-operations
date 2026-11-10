@@ -20,6 +20,7 @@ from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 
 from plane.bgtasks.notification_task import get_new_comment_mentions
+from plane.chat.agents import REMOVED_AGENT_NAME, agents_by_slug
 from plane.chat.models import ChannelKind, ChannelMember, ChannelNotificationLevel, Message, PendingMentionEmail
 from plane.chat.permissions import can_browse_public_channels
 from plane.db.models import Notification, WorkspaceMember
@@ -74,6 +75,18 @@ def _entries(message):
     return Notification.objects.filter(entity_name=CHAT_MESSAGE_ENTITY, entity_identifier=message.id)
 
 
+def _sender_agent(message):
+    """The agent that sent `message` as the registry has it (name None once it's gone), or None for anyone else."""
+    if not message.sender_agent:
+        return None
+    agent = agents_by_slug([message.sender_agent]).get(message.sender_agent)
+    return {
+        "slug": message.sender_agent,
+        "name": agent.name if agent is not None else None,
+        "adapter": agent.adapter if agent is not None else None,
+    }
+
+
 def _data(message):
     channel = message.channel
     return {
@@ -84,6 +97,8 @@ def _data(message):
             "channel_kind": channel.kind,
             "parent_id": str(message.parent_id) if message.parent_id else None,
             "preview": message.body_stripped.strip()[:PREVIEW_LENGTH],
+            # The inbox names a person from `triggered_by`; an agent has no user, so it is named here.
+            "sender_agent": _sender_agent(message),
         }
     }
 
@@ -101,9 +116,13 @@ def _notify(message, previous_html):
     if not mentioned:
         return
     already_notified = set(_entries(message).filter(receiver_id__in=mentioned).values_list("receiver_id", flat=True))
-    actor_name = message.sender.display_name if message.sender else message.sender_agent
-    title = f"{actor_name} mentioned you in a message"
     data = _data(message)
+    sender_agent = data["chat_message"]["sender_agent"]
+    if message.sender:
+        actor_name = message.sender.display_name
+    else:
+        actor_name = sender_agent and (sender_agent["name"] or REMOVED_AGENT_NAME)
+    title = f"{actor_name} mentioned you in a message"
     entries = Notification.objects.bulk_create(
         [
             Notification(

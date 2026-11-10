@@ -33,8 +33,23 @@
     "members": {
       "open": "Anggota",
       "title": "Anggota",
-      "description": "Orang di #{name}.",
+      "description": "Siapa saja di #{name}.",
+      "load_failed": "Tidak dapat memuat anggota.",
+      "agents": "Agen",
+      "people": "Orang",
       "admin": "Admin",
+      "add_agent": "Tambahkan agen",
+      "add": "Tambahkan agen",
+      "no_agents": "Tidak ada agen di kanal ini.",
+      "unavailable": "Tidak tersedia",
+      "remove_agent": "Hapus {name}",
+      "agents_inert": "Agen di kanal belum ikut serta dalam percakapan.",
+      "agents_load_failed": "Tidak dapat memuat agen yang dapat Anda tambahkan.",
+      "no_available_agents": "Tidak ada agen lain yang tersedia. Admin instans dapat menambahkan agen.",
+      "choose_agent": "Agen",
+      "permission_level": "Tingkat izin",
+      "private_notice": "Kanal ini privat. {name} akan dapat membaca pesannya, yang saat ini hanya dapat dilihat oleh orang di dalamnya.",
+      "public_notice": "{name} akan dapat membaca pesan di kanal ini.",
       "remove": "Keluarkan {name}",
       "add_title": "Tambahkan orang",
       "search": "Cari orang",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "Item kerja telah dibuat, tetapi tidak dapat ditautkan ke pesan ini.",
       "update_channel_failed": "Tidak dapat menyimpan pengaturan kanal",
       "rate_limited": "Anda melakukannya terlalu sering. Tunggu sebentar lalu coba lagi.",
+      "add_agent_failed": "Tidak dapat menambahkan agen",
+      "remove_agent_failed": "Tidak dapat menghapus agen",
       "load_members_failed": "Tidak dapat memuat anggota",
       "add_members_failed": "Tidak dapat menambahkan orang",
       "remove_member_failed": "Tidak dapat mengeluarkan dari kanal",
@@ -255,6 +272,10 @@
           "work_item": "Membuat item kerja dari pesan"
         }
       }
+    },
+    "agent": {
+      "tag": "Agen",
+      "removed": "Agen yang dihapus"
     }
   }
 }

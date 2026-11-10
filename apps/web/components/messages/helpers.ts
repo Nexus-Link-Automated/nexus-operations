@@ -5,7 +5,7 @@
  */
 
 import { ChatServiceError } from "@plane/services";
-import type { TChatChannel, TChatMessage } from "@plane/types";
+import type { TAgentAdapter, TChatChannel, TChatMessage } from "@plane/types";
 
 /** Messages by one sender closer together than this are shown as one block, under one name. */
 const MESSAGE_GROUP_WINDOW_MS = 5 * 60_000;
@@ -25,10 +25,43 @@ export function localDay(iso: string): string {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-/** Whether two messages have the same sender: the same person, or both automatic posts of the same kind. */
+/** Whether two messages have the same sender: the same person, the same agent, or automatic posts of one kind. */
 function sameSender(a: TChatMessage, b: TChatMessage): boolean {
   if (a.sender || b.sender) return !!a.sender && a.sender === b.sender;
+  if (a.sender_agent || b.sender_agent) return !!a.sender_agent && a.sender_agent === b.sender_agent;
   return !!a.system_event && a.system_event === b.system_event;
+}
+
+/** Who a message is from, as `chatSenderName` and the avatar tell it. */
+export type TChatSender =
+  | { kind: "user"; userId: string | null }
+  | { kind: "agent"; name: string | null; adapter: TAgentAdapter | null }
+  | { kind: "automatic" };
+
+export function chatSender(
+  message: Pick<TChatMessage, "sender" | "sender_agent" | "sender_agent_details" | "system_event">
+): TChatSender {
+  if (message.system_event) return { kind: "automatic" };
+  if (message.sender_agent) {
+    const details = message.sender_agent_details;
+    // No details: the registry has deleted the agent, so its name is unknown.
+    return { kind: "agent", name: details?.name ?? null, adapter: details?.adapter ?? null };
+  }
+  return { kind: "user", userId: message.sender };
+}
+
+type TTranslate = (key: string, params?: Record<string, unknown>) => string;
+
+/** The name a message shows: a person's, an agent's from the registry ("Removed agent" once it's gone), or "automatic". */
+export function chatSenderName(
+  message: Pick<TChatMessage, "sender" | "sender_agent" | "sender_agent_details" | "system_event">,
+  getName: (userId: string) => string | undefined,
+  t: TTranslate
+): string {
+  const sender = chatSender(message);
+  if (sender.kind === "automatic") return t("messages.message.automatic_sender");
+  if (sender.kind === "agent") return sender.name ?? t("messages.agent.removed");
+  return (sender.userId && getName(sender.userId)) || t("messages.unknown_member");
 }
 
 /**

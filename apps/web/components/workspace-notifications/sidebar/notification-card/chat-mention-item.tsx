@@ -12,6 +12,7 @@ import { useTranslation } from "@plane/i18n";
 import { calculateTimeAgo, cn, getFileURL } from "@plane/utils";
 // components
 import { chatMessagePermalink } from "@/components/messages/helpers";
+import { ChatAgentAvatar } from "@/components/messages/member-avatar";
 // hooks
 import { useNotification } from "@/hooks/store/notifications/use-notification";
 import { useAppRouter } from "@/hooks/use-app-router";
@@ -39,7 +40,11 @@ export const ChatMentionNotificationItem = observer(function ChatMentionNotifica
 
   const isUnread = notification.read_at === null;
   const sender = notification.triggered_by_details;
-  const name = sender?.display_name || sender?.first_name || t("messages.unknown_member");
+  // An agent has no user: the entry names it itself.
+  const agent = chatMessage.sender_agent;
+  const name = agent
+    ? (agent.name ?? t("messages.agent.removed"))
+    : sender?.display_name || sender?.first_name || t("messages.unknown_member");
   const isConversation = chatMessage.channel_kind === "dm" || chatMessage.channel_kind === "group_dm";
 
   const open = async () => {
@@ -58,8 +63,12 @@ export const ChatMentionNotificationItem = observer(function ChatMentionNotifica
       )}
       <div className="relative flex w-full gap-2">
         <div className="relative flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-layer-1">
-          {sender && (
-            <Avatar alt={name} fallback={name[0]?.toUpperCase()} src={getFileURL(sender.avatar_url)} size="xl" />
+          {agent ? (
+            <ChatAgentAvatar adapter={agent.adapter} size="lg" name={name} />
+          ) : (
+            sender && (
+              <Avatar alt={name} fallback={name[0]?.toUpperCase()} src={getFileURL(sender.avatar_url)} size="xl" />
+            )
           )}
         </div>
         <div className="w-full min-w-0 space-y-1">

@@ -10,6 +10,7 @@ import { ChatServiceError } from "@plane/services";
 import type { TChatSocketHandlers } from "@plane/services";
 import type {
   TChatChannel,
+  TChatChannelAgent,
   TChatChannelKind,
   TChatEvent,
   TChatMessage,
@@ -18,6 +19,7 @@ import type {
   TChatSearchPage,
   TChatSearchQuery,
   TChatWorkItemLink,
+  TWorkspaceAgent,
 } from "@plane/types";
 import { ChatStore } from "./chat.store";
 import type { TChatStoreService, TChatStoreSocket } from "./chat.store";
@@ -54,6 +56,11 @@ class FakeChatServer {
   /** Holds the next answer of a call back until the promise resolves. The answer is read when the call arrives. */
   holds = new Map<string, Promise<void>>();
   nextLink: TChatWorkItemLink | undefined;
+  /** By channel. */
+  agents = new Map<string, TChatChannelAgent[]>();
+  registry: TWorkspaceAgent[] = [];
+  /** What removing an agent throws instead, if set. */
+  removeAgentFailure: ChatServiceError | undefined;
   private clock = 0;
   private ids = 0;
 
@@ -79,6 +86,7 @@ class FakeChatServer {
       channel: channelId,
       sender,
       sender_agent: null,
+      sender_agent_details: null,
       system_event: null,
       body_html: `<p>${text}</p>`,
       body_json: {},
@@ -231,6 +239,7 @@ class FakeChatServer {
           is_workspace_admin: false,
           can_create_channels: true,
           can_open_dms: true,
+          can_add_agents: true,
         };
       },
       listChannels: async () => {
@@ -334,8 +343,85 @@ class FakeChatServer {
         log(`removeMessage ${messageId}`);
         this.remove(messageId);
       },
+      listMembers: async (_slug, channelId) => {
+        log(`listMembers ${channelId}`);
+        return [...this.channelOr404(channelId).members].map((user) => ({
+          id: `m-${user}`,
+          channel: channelId,
+          user,
+          role: "member" as const,
+          created_at: "2026-01-01T00:00:00Z",
+        }));
+      },
+      addMembers: async (_slug, channelId, memberIds) => {
+        log(`addMembers ${channelId} ${memberIds.join(",")}`);
+        const channel = this.channelOr404(channelId);
+        const added = memberIds.filter((user) => !channel.members.has(user));
+        for (const user of added) channel.members.add(user);
+        return added.map((user) => ({
+          id: `m-${user}`,
+          channel: channelId,
+          user,
+          role: "member" as const,
+          created_at: "2026-01-01T00:00:00Z",
+        }));
+      },
+      removeMember: async (_slug, channelId, userId) => {
+        log(`removeMember ${channelId} ${userId}`);
+        const channel = this.channelOr404(channelId);
+        if (!channel.members.delete(userId)) throw new ChatServiceError(404, {});
+      },
+      listAgents: async (_slug, channelId) => {
+        log(`listAgents ${channelId}`);
+        this.channelOr404(channelId);
+        return this.held("listAgents", clone(this.agents.get(channelId) ?? []));
+      },
+      addAgent: async (_slug, channelId, data) => {
+        log(`addAgent ${channelId} ${data.agent_id} ${data.permission_level}`);
+        this.channelOr404(channelId);
+        const held = this.agents.get(channelId) ?? [];
+        const existing = held.find((agent) => agent.agent === data.agent_id);
+        if (existing) return clone(existing);
+        const added = channelAgent(channelId, data.agent_id, data.permission_level);
+        this.agents.set(channelId, [...held, added]);
+        return clone(added);
+      },
+      removeAgent: async (_slug, channelId, agentId) => {
+        log(`removeAgent ${channelId} ${agentId}`);
+        if (this.removeAgentFailure) throw this.removeAgentFailure;
+        const held = this.agents.get(channelId) ?? [];
+        if (!held.some((agent) => agent.agent === agentId)) throw new ChatServiceError(404, {});
+        this.agents.set(
+          channelId,
+          held.filter((agent) => agent.agent !== agentId)
+        );
+      },
+      listAvailableAgents: async () => {
+        log("listAvailableAgents");
+        return clone(this.registry);
+      },
     };
   }
+}
+
+function channelAgent(
+  channelId: string,
+  agentId: string,
+  level: TChatChannelAgent["permission_level"] = "ask_writes"
+): TChatChannelAgent {
+  return {
+    id: `seat-${channelId}-${agentId}`,
+    channel: channelId,
+    agent: agentId,
+    slug: agentId,
+    name: `Agent ${agentId}`,
+    description: "",
+    adapter: "claude",
+    permission_level: level,
+    is_available: true,
+    added_by: ME,
+    added_at: "2026-01-01T00:00:00Z",
+  };
 }
 
 class FakeSocket implements TChatStoreSocket {
@@ -1620,5 +1706,172 @@ describe("ChatStore search", () => {
     await store.searchMessages("deploy");
     store.stop();
     expect(store.search).toBeNull();
+  });
+});
+
+describe("ChatStore channel members and agents", () => {
+  const agentEvent = (type: "member.added" | "member.removed", channelId: string, agentId: string): TChatEvent => ({
+    type,
+    workspace_id: WORKSPACE_ID,
+    channel_id: channelId,
+    agent_id: agentId,
+    actor_id: ADA,
+    at: "t",
+  });
+
+  it("loads a channel's people and agents only when asked", async () => {
+    const { store, server } = await setup((s) => s.agents.set("c-general", [channelAgent("c-general", "bot")]));
+    expect(server.calls).toEqual([]);
+    await Promise.all([store.fetchChannelMembers("c-general"), store.fetchChannelAgents("c-general")]);
+    expect(store.channelMembers["c-general"]!.map((m) => m.user)).toEqual([ME]);
+    expect(store.channelAgents["c-general"]!.map((a) => a.agent)).toEqual(["bot"]);
+  });
+
+  it("re-reads only the agents on an agent's member event, and only while they're shown", async () => {
+    const { store, server, socket } = await setup();
+    await Promise.all([store.fetchChannelMembers("c-general"), store.fetchChannelAgents("c-general")]);
+    server.calls = [];
+
+    server.agents.set("c-general", [channelAgent("c-general", "bot")]);
+    socket.emit(agentEvent("member.added", "c-general", "bot"));
+    await settle();
+    // Not the channel, whose member count is people only, and not its people.
+    expect(server.calls).toEqual(["listAgents c-general"]);
+    expect(store.channelAgents["c-general"]!.map((a) => a.agent)).toEqual(["bot"]);
+
+    store.forgetChannelMembers("c-general");
+    server.calls = [];
+    socket.emit(agentEvent("member.removed", "c-general", "bot"));
+    await settle();
+    expect(server.calls).toEqual([]);
+    expect(store.channelAgents["c-general"]).toBeUndefined();
+  });
+
+  it("drops agents that load after the list was closed, and so stops re-reading them", async () => {
+    const { store, server, socket } = await setup((s) => s.agents.set("c-general", [channelAgent("c-general", "bot")]));
+    const slow = holdOpen();
+    server.holds.set("listAgents", slow.opened);
+    const loading = store.fetchChannelAgents("c-general");
+    store.forgetChannelMembers("c-general");
+    slow.open();
+    await loading;
+    expect(store.channelAgents["c-general"]).toBeUndefined();
+
+    server.calls = [];
+    socket.emit(agentEvent("member.removed", "c-general", "bot"));
+    await settle();
+    expect(server.calls).toEqual([]);
+
+    // Shown again: loads as usual.
+    await store.fetchChannelAgents("c-general");
+    expect(store.channelAgents["c-general"]!.map((a) => a.agent)).toEqual(["bot"]);
+  });
+
+  it("treats a member event naming nobody as an agent's, from a gateway that drops agent_id", async () => {
+    const { store, server, socket } = await setup();
+    await store.fetchChannelAgents("c-general");
+    server.calls = [];
+    socket.emit({ type: "member.removed", workspace_id: WORKSPACE_ID, channel_id: "c-general", at: "t" });
+    await settle();
+    expect(server.calls).toEqual(["listAgents c-general"]);
+  });
+
+  it("re-reads the people shown, and the channel, on a person's member event", async () => {
+    const { store, server, socket } = await setup();
+    await store.fetchChannelMembers("c-general");
+    server.calls = [];
+    server.channels.get("c-general")!.members.add(ADA);
+    socket.emit({ type: "member.added", workspace_id: WORKSPACE_ID, channel_id: "c-general", user_id: ADA, at: "t" });
+    await settle();
+    expect(sortBy(server.calls)).toEqual(["getChannel c-general", "listMembers c-general"]);
+    expect(store.channelMembers["c-general"]!.map((m) => m.user)).toEqual([ME, ADA]);
+    expect(store.channelMap["c-general"]!.member_count).toBe(2);
+  });
+
+  it("adds people to the list shown, and removes one", async () => {
+    const { store, server } = await setup();
+    await store.fetchChannelMembers("c-general");
+    await store.addChannelMembers("c-general", [ADA, ME]);
+    expect(server.calls).toContain(`addMembers c-general ${ADA},${ME}`);
+    expect(store.channelMembers["c-general"]!.map((m) => m.user)).toEqual([ME, ADA]);
+
+    await store.removeChannelMember("c-general", ADA);
+    expect(server.calls).toContain(`removeMember c-general ${ADA}`);
+    expect(store.channelMembers["c-general"]!.map((m) => m.user)).toEqual([ME]);
+
+    // Nothing shows the list: the change is made, and no list is held for it.
+    store.forgetChannelMembers("c-general");
+    await store.addChannelMembers("c-general", [ADA]);
+    expect(store.channelMembers["c-general"]).toBeUndefined();
+  });
+
+  it("adds an agent once, and removes it", async () => {
+    const { store, server } = await setup();
+    await store.fetchChannelAgents("c-general");
+    await store.addChannelAgent("c-general", { agent_id: "bot", permission_level: "ask_all" });
+    await store.addChannelAgent("c-general", { agent_id: "bot" });
+    expect(store.channelAgents["c-general"]!.map((a) => [a.agent, a.permission_level])).toEqual([["bot", "ask_all"]]);
+    expect(server.calls).toContain("addAgent c-general bot ask_all");
+
+    await store.removeChannelAgent("c-general", "bot");
+    expect(store.channelAgents["c-general"]).toEqual([]);
+  });
+
+  it("drops an agent someone else removed first, and re-reads the rest", async () => {
+    const { store, server } = await setup((s) =>
+      s.agents.set("c-general", [channelAgent("c-general", "bot"), channelAgent("c-general", "helper")])
+    );
+    await store.fetchChannelAgents("c-general");
+    server.agents.set("c-general", [channelAgent("c-general", "helper")]);
+    await store.removeChannelAgent("c-general", "bot");
+    await settle();
+    expect(store.channelAgents["c-general"]!.map((a) => a.agent)).toEqual(["helper"]);
+    expect(server.calls).toContain("listAgents c-general");
+  });
+
+  it("passes on a refusal to remove", async () => {
+    const { store, server } = await setup((s) => s.agents.set("c-general", [channelAgent("c-general", "bot")]));
+    await store.fetchChannelAgents("c-general");
+    const refusal = new ChatServiceError(403, { error: "Only a channel admin or a workspace admin can do this." });
+    server.removeAgentFailure = refusal;
+    await expect(store.removeChannelAgent("c-general", "bot")).rejects.toBe(refusal);
+    expect(store.channelAgents["c-general"]!.map((a) => a.agent)).toEqual(["bot"]);
+  });
+
+  it("re-reads the lists shown after a resync, when events may have been missed", async () => {
+    const { store, server, socket } = await setup();
+    await Promise.all([store.fetchChannelMembers("c-general"), store.fetchChannelAgents("c-general")]);
+    server.agents.set("c-general", [channelAgent("c-general", "bot")]);
+    server.calls = [];
+    socket.handlers.onResync?.("events_missed");
+    await settle();
+    expect(server.calls).toContain("listAgents c-general");
+    expect(server.calls).toContain("listMembers c-general");
+    expect(store.channelAgents["c-general"]!.map((a) => a.agent)).toEqual(["bot"]);
+  });
+
+  it("lists the registry's agents, and forgets everything on stop", async () => {
+    const { store, server } = await setup((s) => {
+      s.registry = [
+        {
+          id: "bot",
+          name: "Bot",
+          slug: "bot",
+          description: "",
+          adapter: "claude",
+          default_permission_level: "ask_all",
+          max_permission_level: "ask_writes",
+          credential_source: "instance",
+        },
+      ];
+    });
+    await store.fetchAvailableAgents();
+    await store.fetchChannelAgents("c-general");
+    expect(store.availableAgents!.map((a) => a.id)).toEqual(["bot"]);
+    expect(server.calls).toContain("listAvailableAgents");
+    store.stop();
+    expect(store.availableAgents).toBeNull();
+    expect(store.channelAgents).toEqual({});
+    expect(store.channelMembers).toEqual({});
   });
 });

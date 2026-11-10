@@ -33,8 +33,23 @@
     "members": {
       "open": "Thành viên",
       "title": "Thành viên",
-      "description": "Những người trong #{name}.",
+      "description": "Những ai có trong #{name}.",
+      "load_failed": "Không thể tải thành viên.",
+      "agents": "Tác nhân",
+      "people": "Mọi người",
       "admin": "Quản trị viên",
+      "add_agent": "Thêm tác nhân",
+      "add": "Thêm tác nhân",
+      "no_agents": "Kênh này không có tác nhân nào.",
+      "unavailable": "Không khả dụng",
+      "remove_agent": "Xóa {name}",
+      "agents_inert": "Tác nhân trong kênh chưa tham gia vào các cuộc trò chuyện.",
+      "agents_load_failed": "Không thể tải các tác nhân bạn có thể thêm.",
+      "no_available_agents": "Không còn tác nhân nào khả dụng. Quản trị viên phiên bản có thể thêm tác nhân.",
+      "choose_agent": "Tác nhân",
+      "permission_level": "Mức quyền",
+      "private_notice": "Kênh này là kênh riêng tư. {name} sẽ có thể đọc tin nhắn của kênh, mà hiện chỉ những người trong kênh mới xem được.",
+      "public_notice": "{name} sẽ có thể đọc tin nhắn của kênh này.",
       "remove": "Xóa {name}",
       "add_title": "Thêm người",
       "search": "Tìm người",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "Mục công việc đã được tạo nhưng không thể liên kết với tin nhắn này.",
       "update_channel_failed": "Không thể lưu cài đặt kênh",
       "rate_limited": "Bạn thực hiện thao tác này quá thường xuyên. Hãy đợi một chút rồi thử lại.",
+      "add_agent_failed": "Không thể thêm tác nhân",
+      "remove_agent_failed": "Không thể xóa tác nhân",
       "load_members_failed": "Không thể tải danh sách thành viên",
       "add_members_failed": "Không thể thêm người",
       "remove_member_failed": "Không thể xóa khỏi kênh",
@@ -255,6 +272,10 @@
           "work_item": "Tạo mục công việc từ tin nhắn"
         }
       }
+    },
+    "agent": {
+      "tag": "Tác nhân",
+      "removed": "Tác nhân đã bị xóa"
     }
   }
 }

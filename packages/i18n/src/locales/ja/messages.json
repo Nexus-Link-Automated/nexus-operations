@@ -34,7 +34,22 @@
       "open": "メンバー",
       "title": "メンバー",
       "description": "#{name} のメンバー。",
+      "load_failed": "メンバーを読み込めませんでした。",
+      "agents": "エージェント",
+      "people": "ユーザー",
       "admin": "管理者",
+      "add_agent": "エージェントを追加",
+      "add": "エージェントを追加",
+      "no_agents": "このチャンネルにエージェントはいません。",
+      "unavailable": "利用不可",
+      "remove_agent": "{name} を削除",
+      "agents_inert": "チャンネル内のエージェントは、まだ会話に参加しません。",
+      "agents_load_failed": "追加できるエージェントを読み込めませんでした。",
+      "no_available_agents": "追加できるエージェントはもうありません。インスタンス管理者がエージェントを追加できます。",
+      "choose_agent": "エージェント",
+      "permission_level": "権限レベル",
+      "private_notice": "このチャンネルはプライベートです。{name} はこのチャンネルのメッセージを読めるようになります。現在はチャンネル内の人だけが見られるメッセージです。",
+      "public_notice": "{name} はこのチャンネルのメッセージを読めるようになります。",
       "remove": "{name} を削除",
       "add_title": "メンバーを追加",
       "search": "メンバーを検索",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "作業項目は作成されましたが、このメッセージにリンクできませんでした。",
       "update_channel_failed": "チャンネル設定を保存できませんでした",
       "rate_limited": "操作の回数が多すぎます。少し待ってからもう一度お試しください。",
+      "add_agent_failed": "エージェントを追加できませんでした",
+      "remove_agent_failed": "エージェントを削除できませんでした",
       "load_members_failed": "メンバーを読み込めませんでした",
       "add_members_failed": "メンバーを追加できませんでした",
       "remove_member_failed": "チャンネルから削除できませんでした",
@@ -255,6 +272,10 @@
           "work_item": "メッセージからワークアイテムを作成"
         }
       }
+    },
+    "agent": {
+      "tag": "エージェント",
+      "removed": "削除されたエージェント"
     }
   }
 }

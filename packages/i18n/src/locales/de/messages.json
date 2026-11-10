@@ -33,8 +33,23 @@
     "members": {
       "open": "Mitglieder",
       "title": "Mitglieder",
-      "description": "Personen in #{name}.",
+      "description": "Wer in #{name} ist.",
+      "load_failed": "Die Mitglieder konnten nicht geladen werden.",
+      "agents": "Agenten",
+      "people": "Personen",
       "admin": "Admin",
+      "add_agent": "Agent hinzufügen",
+      "add": "Agent hinzufügen",
+      "no_agents": "Keine Agenten in diesem Kanal.",
+      "unavailable": "Nicht verfügbar",
+      "remove_agent": "{name} entfernen",
+      "agents_inert": "Agenten in einem Kanal nehmen noch nicht an Unterhaltungen teil.",
+      "agents_load_failed": "Die Agenten, die Sie hinzufügen können, konnten nicht geladen werden.",
+      "no_available_agents": "Keine weiteren Agenten verfügbar. Ein Instanz-Admin kann Agenten hinzufügen.",
+      "choose_agent": "Agent",
+      "permission_level": "Berechtigungsstufe",
+      "private_notice": "Dieser Kanal ist privat. {name} kann seine Nachrichten lesen, die jetzt nur die Personen darin sehen.",
+      "public_notice": "{name} kann die Nachrichten dieses Kanals lesen.",
       "remove": "{name} entfernen",
       "add_title": "Personen hinzufügen",
       "search": "Personen suchen",
@@ -180,6 +195,8 @@
       "link_work_item_failed": "Das Arbeitselement wurde erstellt, konnte aber nicht mit dieser Nachricht verknüpft werden.",
       "update_channel_failed": "Die Kanaleinstellungen konnten nicht gespeichert werden",
       "rate_limited": "Sie tun das zu oft. Warten Sie einen Moment und versuchen Sie es erneut.",
+      "add_agent_failed": "Der Agent konnte nicht hinzugefügt werden",
+      "remove_agent_failed": "Der Agent konnte nicht entfernt werden",
       "load_members_failed": "Mitglieder konnten nicht geladen werden",
       "add_members_failed": "Personen konnten nicht hinzugefügt werden",
       "remove_member_failed": "Konnte nicht aus dem Kanal entfernt werden",
@@ -255,6 +272,10 @@
           "work_item": "Arbeitselement aus einer Nachricht erstellen"
         }
       }
+    },
+    "agent": {
+      "tag": "Agent",
+      "removed": "Entfernter Agent"
     }
   }
 }

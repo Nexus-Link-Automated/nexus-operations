@@ -26,10 +26,18 @@ from rest_framework.test import APIClient
 
 from plane.celery import app
 from plane.chat.export import build_message_export, delete_expired_exports
-from plane.chat.models import Channel, ChannelKind, ChannelMember, Message, MessageExport, MessageExportStatus
+from plane.chat.models import (
+    Channel,
+    ChannelAgent,
+    ChannelKind,
+    ChannelMember,
+    Message,
+    MessageExport,
+    MessageExportStatus,
+)
 from plane.chat.retention import RETENTION_DAYS_HELP, RETENTION_KEY
 from plane.db.models import FileAsset, User, WorkspaceMember
-from plane.license.models import Instance, InstanceAdmin, InstanceConfiguration
+from plane.license.models import AgentDefinition, Instance, InstanceAdmin, InstanceConfiguration
 
 SETTINGS_URL = "/api/instances/chat/settings/"
 EXPORTS_URL = "/api/instances/chat/exports/"
@@ -299,6 +307,40 @@ class TestExports:
         people = {person["id"]: person for person in files["users"]}
         assert people[str(channels["other"].id)]["display_name"] == "Other"
         assert set(people) == {str(channels["messages"]["public"].sender_id), str(channels["other"].id)}
+
+    def test_agent_members_are_in_it_marked_as_agents(
+        self, god, workspace, channels, stored, django_capture_on_commit_callbacks
+    ):
+        agent = AgentDefinition.objects.create(name="Release bot", slug="release-bot", adapter="codex")
+        adder = User.objects.create(
+            email="adder@example.com", username=f"a-{uuid.uuid4().hex[:8]}", display_name="Adder"
+        )
+        seat = ChannelAgent(channel=channels["public"], agent=agent, permission_level="ask_all")
+        seat.save(created_by_id=adder.id)
+        ChannelAgent(channel=channels["private"], agent=agent, permission_level="ask_all").save()
+        _start(god, workspace, django_capture_on_commit_callbacks)
+        build_message_export(str(MessageExport.objects.get().id))
+        _, files = _archive(stored)
+
+        people_rows = [row for row in files["members"] if row["member_type"] == "user"]
+        agent_rows = [row for row in files["members"] if row["member_type"] == "agent"]
+        assert [row["user_id"] for row in people_rows] == [str(channels["messages"]["public"].sender_id)]
+        # The private channel's agent isn't in a public-only export.
+        assert agent_rows == [
+            {
+                "channel_id": str(channels["public"].id),
+                "member_type": "agent",
+                "agent_id": str(agent.id),
+                "agent_slug": "release-bot",
+                "agent_name": "Release bot",
+                "permission_level": "ask_all",
+                "is_available": True,
+                "added_by_id": str(adder.id),
+                "joined_at": seat.created_at.isoformat(),
+            }
+        ]
+        # Who added it is named in users.jsonl, like everyone the other files mention.
+        assert {person["id"]: person["display_name"] for person in files["users"]}[str(adder.id)] == "Adder"
 
     def test_ready_then_downloaded_through_a_short_lived_link(
         self, god, workspace, channels, stored, django_capture_on_commit_callbacks

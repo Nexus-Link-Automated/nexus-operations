@@ -26,9 +26,9 @@ import { useWorkspace } from "@/hooks/store/use-workspace";
 import type { TChatPendingMessage } from "@/store/chat.store";
 // local imports
 import { ChatMessageAttachments, ChatPendingAttachments } from "./attachments";
-import { isChatRateLimited } from "./helpers";
+import { chatSender, chatSenderName, isChatRateLimited } from "./helpers";
 import { ChatCreateWorkItemAction } from "./create-work-item-action";
-import { MemberAvatar } from "./member-avatar";
+import { ChatAgentAvatar, ChatAgentTag, MemberAvatar } from "./member-avatar";
 import { ChatMessageBody } from "./message-body";
 import { ChatThreadSummary } from "./thread-summary";
 import { ChatWorkItemCards } from "./work-item-card";
@@ -127,11 +127,10 @@ export const ChatMessageItem = observer(function ChatMessageItem({
   const removed = !!message.removed_at;
   // Posted by Nexus, not typed by anyone: no sender to show, and nothing to edit or turn into a work item.
   const automatic = !!message.system_event;
+  const sender = chatSender(message);
   // Anyone can reply to a message in the channel, an automatic one included. Threads are one level deep.
   const canReply = canChange && !removed && !inThread && !message.parent;
-  const name = automatic
-    ? t("messages.message.automatic_sender")
-    : (message.sender && getUserDetails(message.sender)?.display_name) || t("messages.unknown_member");
+  const name = chatSenderName(message, (id) => getUserDetails(id)?.display_name, t);
   const time = renderFormattedTime(message.created_at, "12-hour");
 
   const save = async () => {
@@ -198,6 +197,8 @@ export const ChatMessageItem = observer(function ChatMessageItem({
           <span className="grid size-8 place-items-center rounded-full bg-layer-2 text-secondary">
             <WorkItemsOutline className="size-4" aria-hidden />
           </span>
+        ) : sender.kind === "agent" ? (
+          <ChatAgentAvatar adapter={sender.adapter} size="md" />
         ) : (
           <MemberAvatar userId={message.sender} size="md" />
         )}
@@ -211,6 +212,7 @@ export const ChatMessageItem = observer(function ChatMessageItem({
                 {t("messages.message.automatic")}
               </span>
             )}
+            {sender.kind === "agent" && <ChatAgentTag />}
             <time dateTime={message.created_at} className="text-caption-sm-regular text-tertiary">
               {time}
             </time>

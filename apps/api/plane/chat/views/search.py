@@ -6,6 +6,7 @@
 
 from rest_framework.response import Response
 
+from plane.chat.agents import agents_by_slug
 from plane.chat.attachments import attachments_for
 from plane.chat.pagination import paginate_newest_first
 from plane.chat.permissions import visible_channels
@@ -62,6 +63,7 @@ class MessageSearchEndpoint(ChatBaseEndpoint):
         context = {
             "references": references_for([message.id for message in messages], user),
             "attachments": attachments_for(messages, user),
+            "agents": agents_by_slug(message.sender_agent for message in messages),
         }
         return Response(
             {

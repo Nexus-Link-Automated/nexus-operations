@@ -27,6 +27,11 @@ can remove it.
 Opening a DM or group DM needs a workspace member or admin, or a guest a workspace
 admin has granted it to (`ChatGuestPermission`).
 
+Agents from the registry can be members of public and private channels, never of DMs or
+group DMs (`plane.chat.agents`). Adding one needs a channel admin or a workspace admin who
+may also run agents, so never a guest. Removing one needs a channel admin or a workspace
+admin, as removing anyone else does: whoever added it gets no say of their own.
+
 Linking a public or private channel to a project (`can_link_project`) needs a channel
 admin or a workspace admin who is also a member or admin of that project. Unlinking
 needs only the channel admin: it stops the posts and shows nobody anything.
@@ -35,6 +40,7 @@ needs only the channel admin: it stops the posts and shows nobody anything.
 from django.db.models import Exists, OuterRef, Q
 
 from plane.app.permissions.base import ROLE
+from plane.chat.agents import can_add_agents
 from plane.chat.exceptions import Conflict, Forbidden, NotFound
 from plane.chat.models import Channel, ChannelKind, ChannelMember, ChannelMemberRole, ChatGuestPermission
 from plane.db.models import ProjectMember, WorkspaceMember
@@ -100,6 +106,13 @@ def is_channel_admin(channel, role):
 def require_channel_admin(channel, role):
     if not is_channel_admin(channel, role):
         raise Forbidden("Only a channel admin or a workspace admin can do this.")
+
+
+def require_can_add_agents(channel, role):
+    """Adding an agent: a channel admin or workspace admin who may run agents in the workspace."""
+    if not can_add_agents(role):
+        raise Forbidden("Guests can't add agents.")
+    require_channel_admin(channel, role)
 
 
 def require_not_archived(channel):

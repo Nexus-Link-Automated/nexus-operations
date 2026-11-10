@@ -12,6 +12,8 @@ from django.urls import path
 from plane.chat.views import (
     AttachmentDetailEndpoint,
     AttachmentEndpoint,
+    ChannelAgentDetailEndpoint,
+    ChannelAgentEndpoint,
     ChannelArchiveEndpoint,
     ChannelDetailEndpoint,
     ChannelEndpoint,
@@ -47,6 +49,8 @@ urlpatterns = [
     path(f"{CHANNEL}read/", ChannelReadEndpoint.as_view(), name="chat-channel-read"),
     path(f"{CHANNEL}members/", ChannelMemberEndpoint.as_view(), name="chat-channel-members"),
     path(f"{CHANNEL}members/<uuid:user_id>/", ChannelMemberDetailEndpoint.as_view(), name="chat-channel-member"),
+    path(f"{CHANNEL}agents/", ChannelAgentEndpoint.as_view(), name="chat-channel-agents"),
+    path(f"{CHANNEL}agents/<uuid:agent_id>/", ChannelAgentDetailEndpoint.as_view(), name="chat-channel-agent"),
     path(f"{CHANNEL}attachments/", AttachmentEndpoint.as_view(), name="chat-attachments"),
     path(f"{CHANNEL}attachments/<uuid:asset_id>/", AttachmentDetailEndpoint.as_view(), name="chat-attachment"),
     path(f"{CHANNEL}messages/", MessageEndpoint.as_view(), name="chat-messages"),

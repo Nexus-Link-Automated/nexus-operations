@@ -15,6 +15,7 @@ Each is one JSON object, published to Redis on `chat:workspace:<workspace_id>`:
     message_id    `message.*`: the message. `read.updated`: the message the read cursor moved to
     parent_id     `message.*`, when the message is a thread reply
     user_id       `member.*`, `read.updated` and `access.revoked`: the person it is about
+    agent_id      `member.*` about an agent (`ChannelAgent`) instead of a person: the agent's registry ID
     actor_id      who made the change; absent when no request did (a job, a signal outside a request)
     at            when it was made, ISO 8601 in UTC
 
@@ -34,6 +35,9 @@ What is published, by write. A write that changes nothing publishes nothing.
     join or add members               member.added, once per person newly in the channel
     leave or remove                   member.removed
     change a member's role            member.updated
+    add / remove an agent             member.added / member.removed, with agent_id and no user_id
+    disable, enable or delete an      member.removed, member.added or member.removed, with agent_id, for
+      agent in the registry             each channel it is in (see `signals.py`)
     move the read cursor forward      read.updated, private to `user_id` (the gateway enforces it)
     leave the workspace or            member.removed for each channel ended and member.updated for
       deactivate the account          anyone handed a private channel (see `signals.py`), then
@@ -80,8 +84,8 @@ def events_channel(workspace_id):
     return f"chat:workspace:{workspace_id}"
 
 
-def _event(event_type, workspace_id, **ids):
-    ids["actor_id"] = getattr(get_current_user(), "id", None)
+def _event(event_type, workspace_id, *, with_actor=True, **ids):
+    ids["actor_id"] = getattr(get_current_user(), "id", None) if with_actor else None
     event = {"type": EventType(event_type).value, "workspace_id": str(workspace_id)}
     event.update((key, str(value)) for key, value in ids.items() if value is not None)
     event["at"] = timezone.now().isoformat()
@@ -104,6 +108,20 @@ def channel_event(event_type, channel):
 
 def member_event(event_type, member):
     return _event(event_type, member.workspace_id, channel_id=member.channel_id, user_id=member.user_id)
+
+
+def agent_member_event(event_type, channel_agent, *, by_registry=False):
+    """An agent joined or left a channel. It names the agent and no person, so no one's own access changes.
+
+    `by_registry`: an instance admin changed the agent itself, who needn't be in the workspace, so isn't named.
+    """
+    return _event(
+        event_type,
+        channel_agent.workspace_id,
+        with_actor=not by_registry,
+        channel_id=channel_agent.channel_id,
+        agent_id=channel_agent.agent_id,
+    )
 
 
 def read_event(member):

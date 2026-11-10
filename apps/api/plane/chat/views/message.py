@@ -19,6 +19,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 
+from plane.chat.agents import agents_by_slug
 from plane.chat.attachments import attachments_for, claim_attachments, has_attachments
 from plane.chat.events import EventType, message_event, publish_on_commit
 from plane.chat.exceptions import BadRequest, Conflict, Forbidden, NotFound
@@ -40,7 +41,11 @@ from plane.utils.host import base_host
 
 def _serialized(messages, user, many):
     ids = [message.id for message in messages]
-    context = {"references": references_for(ids, user), "attachments": attachments_for(messages, user)}
+    context = {
+        "references": references_for(ids, user),
+        "attachments": attachments_for(messages, user),
+        "agents": agents_by_slug(message.sender_agent for message in messages),
+    }
     return MessageSerializer(messages if many else messages[0], many=many, context=context).data
 
 

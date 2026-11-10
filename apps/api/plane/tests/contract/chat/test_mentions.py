@@ -79,6 +79,7 @@ class TestWhoIsNotified:
             "channel_kind": "public",
             "parent_id": None,
             "preview": "please review",
+            "sender_agent": None,
         }
         assert row["is_mentioned_notification"] is True
         assert unread_mentions(member2) == 1

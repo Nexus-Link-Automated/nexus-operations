@@ -41,6 +41,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from plane.bgtasks.email_notification_task import remove_unwanted_characters
+from plane.chat.agents import agent_display_name, agents_by_slug
 from plane.chat.models import ChannelMember, ChannelNotificationLevel, PendingMentionEmail
 from plane.chat.notifications import message_url, visible_chat_mentions
 from plane.db.models import Notification, UserNotificationPreference, WorkspaceMember
@@ -107,11 +108,19 @@ def _take(receiver_id, due_before):
     return [pending for pending in taken if pending.worth_emailing]
 
 
-def _mention(pending, base_url):
+def _sender_name(message, agents):
+    if message.sender:
+        return message.sender.display_name or "Someone"
+    if message.sender_agent:
+        return agent_display_name(message.sender_agent, agents)
+    return "Someone"
+
+
+def _mention(pending, base_url, agents):
     message = pending.message
     channel = message.channel
     return {
-        "sender": (message.sender.display_name if message.sender else message.sender_agent) or "Someone",
+        "sender": _sender_name(message, agents),
         "place": "a direct message" if channel.is_direct else f"#{channel.name}",
         "workspace": channel.workspace.name,
         "preview": _preview(message.body_stripped),
@@ -192,7 +201,9 @@ def send_mention_digests():
             if not taken:
                 continue
             receiver = taken[0].receiver
-            subject, text, html = _email([_mention(pending, base_url) for pending in taken], receiver, base_url)
+            agents = agents_by_slug(pending.message.sender_agent for pending in taken)
+            mentions = [_mention(pending, base_url, agents) for pending in taken]
+            subject, text, html = _email(mentions, receiver, base_url)
             send_mention_digest_email.delay(receiver.email, subject, text, html)
         except Exception as error:
             log_exception(error)

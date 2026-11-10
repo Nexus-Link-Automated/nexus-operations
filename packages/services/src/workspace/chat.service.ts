@@ -8,6 +8,8 @@ import { API_BASE_URL } from "@plane/constants";
 import type {
   TChatAttachmentUploadSlot,
   TChatChannel,
+  TChatChannelAgent,
+  TChatChannelAgentAdd,
   TChatChannelCreate,
   TChatChannelMember,
   TChatChannelUpdate,
@@ -22,6 +24,7 @@ import type {
   TChatSearchQuery,
   TChatUploadedAttachment,
   TChatWorkItemLink,
+  TWorkspaceAgent,
 } from "@plane/types";
 import { APIService } from "../api.service";
 import { FileUploadService } from "../file/file-upload.service";
@@ -160,6 +163,25 @@ export class ChatService extends APIService {
   /** Stops the guest opening new DMs; the ones they are already in keep working. */
   async revokeGuestDmAccess(workspaceSlug: string, userId: string): Promise<void> {
     await this.call(this.delete(`${this.base(workspaceSlug)}/guests/${encodeURIComponent(userId)}/dm-access/`));
+  }
+
+  /** The agents in a channel, those the registry has disabled included (`is_available: false`). */
+  async listAgents(workspaceSlug: string, channelId: string): Promise<TChatChannelAgent[]> {
+    return this.call(this.get(`${this.channel(workspaceSlug, channelId)}/agents/`));
+  }
+
+  /** Add an agent from the registry: a channel admin or a workspace admin, never a guest. Adding it again is a no-op. */
+  async addAgent(workspaceSlug: string, channelId: string, data: TChatChannelAgentAdd): Promise<TChatChannelAgent> {
+    return this.call(this.post(`${this.channel(workspaceSlug, channelId)}/agents/`, data));
+  }
+
+  async removeAgent(workspaceSlug: string, channelId: string, agentId: string): Promise<void> {
+    await this.call(this.delete(`${this.channel(workspaceSlug, channelId)}/agents/${encodeURIComponent(agentId)}/`));
+  }
+
+  /** The registry's agents enabled for this workspace, which a channel can have (`GET workspaces/<slug>/agents/`). */
+  async listAvailableAgents(workspaceSlug: string): Promise<TWorkspaceAgent[]> {
+    return this.call(this.get(`/api/workspaces/${encodeURIComponent(workspaceSlug)}/agents/`));
   }
 
   /** A page of top-level messages, oldest to newest. */

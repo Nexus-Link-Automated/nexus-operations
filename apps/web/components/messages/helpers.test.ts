@@ -12,6 +12,8 @@ import {
   channelDisplayName,
   chatErrorMessage,
   chatMessagePermalink,
+  chatSender,
+  chatSenderName,
   defaultWorkItemAssignee,
   defaultWorkItemProject,
   localDay,
@@ -25,6 +27,7 @@ const message = (id: string, sender: string | null, at: Date, removed = false): 
   channel: "c",
   sender,
   sender_agent: null,
+  sender_agent_details: null,
   system_event: null,
   body_html: "<p>x</p>",
   body_json: {},
@@ -44,6 +47,43 @@ const message = (id: string, sender: string | null, at: Date, removed = false): 
 // Local times, so the day dividers don't depend on the test machine's time zone.
 const at = (day: number, hour: number, minute: number) => new Date(2026, 0, day, hour, minute);
 
+const fromAgent = (id: string, slug: string, time: Date, name: string | null = "Release bot"): TChatMessage => ({
+  ...message(id, null, time),
+  sender_agent: slug,
+  sender_agent_details: name ? { id: `a-${slug}`, slug, name, adapter: "codex", is_available: true } : null,
+});
+
+// `t` as the tests see it: the key itself, so which string was picked shows.
+const t = (key: string) => key;
+
+describe("chatSenderName", () => {
+  const names: Record<string, string> = { ada: "Ada" };
+  const getName = (id: string) => names[id];
+
+  it("names a person, an agent from the registry, and an automatic post", () => {
+    expect(chatSenderName(message("1", "ada", at(5, 9, 0)), getName, t)).toBe("Ada");
+    expect(chatSenderName(fromAgent("2", "release", at(5, 9, 0)), getName, t)).toBe("Release bot");
+    expect(chatSenderName({ ...message("3", null, at(5, 9, 0)), system_event: "work_item_state" }, getName, t)).toBe(
+      "messages.message.automatic_sender"
+    );
+  });
+
+  it("calls an agent the registry deleted a removed agent, never an unknown member", () => {
+    expect(chatSenderName(fromAgent("1", "gone", at(5, 9, 0), null), getName, t)).toBe("messages.agent.removed");
+    expect(chatSenderName(message("2", "bob", at(5, 9, 0)), getName, t)).toBe("messages.unknown_member");
+  });
+
+  it("tells the avatar which agent to show", () => {
+    expect(chatSender(fromAgent("1", "release", at(5, 9, 0)))).toEqual({
+      kind: "agent",
+      name: "Release bot",
+      adapter: "codex",
+    });
+    expect(chatSender(fromAgent("2", "gone", at(5, 9, 0), null))).toEqual({ kind: "agent", name: null, adapter: null });
+    expect(chatSender(message("3", "ada", at(5, 9, 0)))).toEqual({ kind: "user", userId: "ada" });
+  });
+});
+
 describe("buildMessageRows", () => {
   it("adds a divider per day and groups one sender's messages within five minutes", () => {
     const rows = buildMessageRows([
@@ -61,6 +101,23 @@ describe("buildMessageRows", () => {
       "4",
       "2026-01-06",
       "5",
+    ]);
+  });
+
+  it("groups one agent's messages, but not two agents' or an agent's with a person's", () => {
+    const rows = buildMessageRows([
+      fromAgent("1", "release", at(5, 9, 0)),
+      fromAgent("2", "release", at(5, 9, 1)),
+      fromAgent("3", "review", at(5, 9, 2)),
+      message("4", "ada", at(5, 9, 3)),
+      fromAgent("5", "review", at(5, 9, 4)),
+    ]);
+    expect(rows.flatMap((r) => (r.kind === "message" ? [r.continued] : []))).toEqual([
+      false,
+      true,
+      false,
+      false,
+      false,
     ]);
   });
 

@@ -8,6 +8,7 @@ import re
 from rest_framework import serializers
 
 from plane.app.serializers.base import BaseSerializer
+from plane.chat.agents import agent_details, agents_by_slug
 from plane.chat.attachments import MAX_ATTACHMENTS_PER_MESSAGE
 from plane.chat.models import Message, MessageSystemEvent
 from plane.chat.project_feed import body_for_reader
@@ -50,6 +51,7 @@ class MessageSerializer(BaseSerializer):
     references = serializers.SerializerMethodField()
     attachments = serializers.SerializerMethodField()
     attachment_count = serializers.SerializerMethodField()
+    sender_agent_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
@@ -59,6 +61,7 @@ class MessageSerializer(BaseSerializer):
             "channel",
             "sender",
             "sender_agent",
+            "sender_agent_details",
             "system_event",
             "body_html",
             "body_json",
@@ -90,6 +93,15 @@ class MessageSerializer(BaseSerializer):
     def get_attachments(self, message):
         """Its files, for a channel member only (`attachments_for`)."""
         return self.context.get("attachments", {}).get(message.id, {}).get("files", [])
+
+    def get_sender_agent_details(self, message):
+        """The agent that sent it, as the registry has it now (`agents_by_slug`); None once the registry has lost it."""
+        if not message.sender_agent:
+            return None
+        agents = self.context.get("agents")
+        if agents is None:
+            agents = agents_by_slug([message.sender_agent])
+        return agent_details(agents.get(message.sender_agent))
 
     def get_attachment_count(self, message):
         """How many files it has, which a reader who isn't in the channel sees instead of the files."""

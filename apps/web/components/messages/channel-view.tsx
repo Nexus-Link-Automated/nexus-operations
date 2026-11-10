@@ -176,9 +176,7 @@ export const ChatChannelView = observer(function ChatChannelView({ workspaceSlug
           />
         )}
       </header>
-      {showMembers && (
-        <ChannelMembersDialog workspaceSlug={workspaceSlug} channel={channel} onClose={() => setShowMembers(false)} />
-      )}
+      {showMembers && <ChannelMembersDialog channel={channel} onClose={() => setShowMembers(false)} />}
       {settingsOpen && (
         <ChannelSettingsDialog workspaceSlug={workspaceSlug} channel={channel} onClose={() => setSettingsOpen(false)} />
       )}

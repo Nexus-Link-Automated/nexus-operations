@@ -10,6 +10,7 @@ channel to follow, in one call that only an active member of the workspace gets 
 
 from rest_framework.response import Response
 
+from plane.chat.agents import can_add_agents
 from plane.chat.permissions import can_create_channels, can_open_dms, is_workspace_admin
 from plane.chat.views.base import ChatBaseEndpoint
 
@@ -24,5 +25,7 @@ class ChatMeEndpoint(ChatBaseEndpoint):
                 "is_workspace_admin": is_workspace_admin(self.role),
                 "can_create_channels": can_create_channels(self.role),
                 "can_open_dms": can_open_dms(request.user, self.workspace.id, self.role),
+                # In a channel they administer, or any channel as a workspace admin.
+                "can_add_agents": can_add_agents(self.role),
             }
         )

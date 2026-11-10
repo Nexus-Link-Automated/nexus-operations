@@ -22,60 +22,72 @@ import {
 } from "@makeplane/propel/components/dialog";
 import { IconButton } from "@makeplane/propel/components/icon-button";
 import { InputField } from "@makeplane/propel/components/input-field";
-import { CloseOutline } from "@makeplane/propel/icons";
+import { RadioGroupField, RadioGroupFieldOption } from "@makeplane/propel/components/radio-group-field";
+import { AddOutline, CloseOutline } from "@makeplane/propel/icons";
 import { Spinner } from "@plane/blocks/spinner";
 import { setToast } from "@plane/blocks/toast";
+import { AGENT_PERMISSION_LEVELS } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
-import { ChatService } from "@plane/services";
-import type { IUserLite, TChatChannel, TChatChannelMember } from "@plane/types";
+import type { IUserLite, TAgentPermissionLevel, TChatChannel, TChatChannelAgent } from "@plane/types";
 // hooks
 import { useChat } from "@/hooks/store/use-chat";
 import { useMember } from "@/hooks/store/use-member";
 // local imports
 import { chatErrorMessage } from "./helpers";
-import { MemberAvatar } from "./member-avatar";
-
-const chatService = new ChatService();
+import { ChatAgentAvatar, ChatAgentTag, MemberAvatar } from "./member-avatar";
 
 type Props = {
-  workspaceSlug: string;
   channel: TChatChannel;
   onClose: () => void;
 };
 
+/** The levels up to `max`, least permissive first: what the registry lets anyone who may run the agent choose. */
+const levelsUpTo = (max: TAgentPermissionLevel): TAgentPermissionLevel[] =>
+  AGENT_PERMISSION_LEVELS.slice(0, AGENT_PERMISSION_LEVELS.indexOf(max) + 1);
+
 /**
- * Who is in a named channel. Members can add people from the workspace, and channel or workspace admins can remove
- * them, as the API allows. The channel's member count follows from the member events.
+ * Who is in a named channel: its agents and its people. Members can add people from the workspace, and channel or
+ * workspace admins can remove them. A channel or workspace admin can add and remove agents; adding one also needs
+ * someone who may run agents, so never a guest. The store keeps both lists current while this is open, and the
+ * channel's member count follows from the member events.
  */
-export const ChannelMembersDialog = observer(function ChannelMembersDialog({ workspaceSlug, channel, onClose }: Props) {
+export const ChannelMembersDialog = observer(function ChannelMembersDialog({ channel, onClose }: Props) {
   const { t } = useTranslation();
-  const { me, userId } = useChat();
+  const chat = useChat();
   const {
     getUserDetails,
     workspace: { workspaceMemberIds, getWorkspaceMemberDetails },
   } = useMember();
-  const [members, setMembers] = useState<TChatChannelMember[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
-  const canAdd = channel.is_member && !channel.archived_at;
-  const canRemove = canAdd && (channel.my_role === "admin" || !!me?.is_workspace_admin);
+  const [addingAgent, setAddingAgent] = useState(false);
+  const [removingAgent, setRemovingAgent] = useState<string | null>(null);
+  const archived = !!channel.archived_at;
+  const isAdmin = channel.my_role === "admin" || !!chat.me?.is_workspace_admin;
+  const canAddPeople = channel.is_member && !archived;
+  const canRemovePeople = canAddPeople && isAdmin;
+  // What the API checks for agents: a channel admin or a workspace admin (`is_channel_admin`), and for adding,
+  // someone who may run agents (`can_add_agents`).
+  const canManageAgents = !archived && isAdmin;
+  const canAddAgents = canManageAgents && !!chat.me?.can_add_agents;
+  const members = chat.channelMembers[channel.id];
+  const agents = chat.channelAgents[channel.id];
   const nameOf = (id: string) => getUserDetails(id)?.display_name || t("messages.unknown_member");
 
-  const load = useCallback(async () => {
+  const load = useCallback(() => {
     setLoadFailed(false);
-    try {
-      setMembers(await chatService.listMembers(workspaceSlug, channel.id));
-    } catch {
-      setLoadFailed(true);
-    }
-  }, [workspaceSlug, channel.id]);
+    Promise.all([chat.fetchChannelMembers(channel.id), chat.fetchChannelAgents(channel.id)]).catch(() =>
+      setLoadFailed(true)
+    );
+  }, [chat, channel.id]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    load();
+    return () => chat.forgetChannelMembers(channel.id);
+  }, [chat, channel.id, load]);
 
   const inChannel = new Set((members ?? []).map((member) => member.user));
   const needle = query.trim().toLowerCase();
@@ -97,10 +109,9 @@ export const ChannelMembersDialog = observer(function ChannelMembersDialog({ wor
     if (selected.length === 0) return;
     setIsAdding(true);
     try {
-      await chatService.addMembers(workspaceSlug, channel.id, selected);
+      await chat.addChannelMembers(channel.id, selected);
       setSelected([]);
       setQuery("");
-      await load();
     } catch (caught) {
       setToast({ type: "error", title: t("messages.errors.add_members_failed"), message: chatErrorMessage(caught) });
     } finally {
@@ -111,12 +122,22 @@ export const ChannelMembersDialog = observer(function ChannelMembersDialog({ wor
   const remove = async (memberId: string) => {
     setRemoving(memberId);
     try {
-      await chatService.removeMember(workspaceSlug, channel.id, memberId);
-      await load();
+      await chat.removeChannelMember(channel.id, memberId);
     } catch (caught) {
       setToast({ type: "error", title: t("messages.errors.remove_member_failed"), message: chatErrorMessage(caught) });
     } finally {
       setRemoving(null);
+    }
+  };
+
+  const removeAgent = async (agent: TChatChannelAgent) => {
+    setRemovingAgent(agent.agent);
+    try {
+      await chat.removeChannelAgent(channel.id, agent.agent);
+    } catch (caught) {
+      setToast({ type: "error", title: t("messages.errors.remove_agent_failed"), message: chatErrorMessage(caught) });
+    } finally {
+      setRemovingAgent(null);
     }
   };
 
@@ -145,76 +166,141 @@ export const ChannelMembersDialog = observer(function ChannelMembersDialog({ wor
                     size="sm"
                     stretch="auto"
                     label={t("messages.errors.retry")}
-                    onClick={() => void load()}
+                    onClick={load}
                   />
                 </div>
-              ) : members === null ? (
+              ) : !members || !agents ? (
                 <div className="flex justify-center py-4">
                   <Spinner />
                 </div>
               ) : (
-                <ul aria-label={t("messages.members.title")} className="flex max-h-60 flex-col gap-1 overflow-y-auto">
-                  {members.map((member) => {
-                    const name = nameOf(member.user);
-                    return (
-                      <li key={member.user} className="flex items-center gap-2 px-1 py-0.5">
-                        <MemberAvatar userId={member.user} size="sm" />
-                        <span className="min-w-0 flex-1 truncate text-body-sm-regular text-primary">
-                          {name}
-                          {member.user === userId && <span className="text-tertiary"> ({t("common.you")})</span>}
-                        </span>
-                        {member.role === "admin" && (
-                          <span className="text-caption-md-medium text-tertiary">{t("messages.members.admin")}</span>
-                        )}
-                        {canRemove && member.user !== userId && (
-                          <IconButton
-                            variant="ghost"
-                            size="sm"
-                            icon={<CloseOutline />}
-                            aria-label={t("messages.members.remove", { name })}
-                            loading={removing === member.user}
-                            disabled={removing !== null}
-                            onClick={() => void remove(member.user)}
-                          />
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              {canAdd && members !== null && (
-                <section className="flex flex-col gap-2">
-                  <h3 className="text-body-sm-semibold text-primary">{t("messages.members.add_title")}</h3>
-                  <InputField
-                    id="chat-members-search"
-                    name="search"
-                    size="lg"
-                    orientation="vertical"
-                    label={t("messages.members.search")}
-                    autoComplete="off"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                  />
-                  {candidates.length === 0 ? (
-                    <p className="py-2 text-center text-body-sm-regular text-tertiary">
-                      {t("messages.members.no_candidates")}
-                    </p>
-                  ) : (
-                    <ul className="flex max-h-48 flex-col gap-1 overflow-y-auto">
-                      {candidates.map((user) => (
-                        <li key={user.id} className="flex items-center gap-2 px-1">
-                          <MemberAvatar userId={user.id} size="sm" />
-                          <CheckboxField
-                            size="md"
-                            label={user.display_name}
-                            checked={selected.includes(user.id)}
-                            onCheckedChange={(value) => toggle(user.id, value === true)}
-                          />
-                        </li>
-                      ))}
+                <>
+                  <section aria-labelledby="chat-members-agents" className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 id="chat-members-agents" className="text-body-sm-semibold text-primary">
+                        {t("messages.members.agents")}
+                      </h3>
+                      {canAddAgents && !addingAgent && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          stretch="auto"
+                          icon={<AddOutline />}
+                          label={t("messages.members.add_agent")}
+                          onClick={() => setAddingAgent(true)}
+                        />
+                      )}
+                    </div>
+                    {addingAgent && <AddAgentForm channel={channel} onDone={() => setAddingAgent(false)} />}
+                    {agents.length === 0 && !addingAgent && (
+                      <p className="text-body-sm-regular text-tertiary">{t("messages.members.no_agents")}</p>
+                    )}
+                    {agents.length > 0 && (
+                      <ul className="flex flex-col gap-1">
+                        {agents.map((agent) => (
+                          <li key={agent.id} className="flex items-center gap-2 py-1">
+                            <ChatAgentAvatar adapter={agent.adapter} size="sm" />
+                            <span className="truncate text-body-sm-medium text-primary">{agent.name}</span>
+                            <ChatAgentTag />
+                            {!agent.is_available && (
+                              <span className="text-caption-sm-regular text-tertiary">
+                                {t("messages.members.unavailable")}
+                              </span>
+                            )}
+                            <span className="ml-auto flex-shrink-0 text-caption-md-regular text-tertiary">
+                              {t(`agents.permission.levels.${agent.permission_level}.name`)}
+                            </span>
+                            {canManageAgents && (
+                              <IconButton
+                                variant="ghost"
+                                size="sm"
+                                icon={<CloseOutline />}
+                                aria-label={t("messages.members.remove_agent", { name: agent.name })}
+                                disabled={removingAgent === agent.agent}
+                                onClick={() => void removeAgent(agent)}
+                              />
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {/* Nothing reaches an agent from a channel yet; say so rather than let a mention look ignored. */}
+                    <p className="text-caption-md-regular text-tertiary">{t("messages.members.agents_inert")}</p>
+                  </section>
+
+                  <section aria-labelledby="chat-members-people" className="flex flex-col gap-2">
+                    <h3 id="chat-members-people" className="text-body-sm-semibold text-primary">
+                      {t("messages.members.people")}
+                    </h3>
+                    <ul aria-labelledby="chat-members-people" className="flex max-h-60 flex-col gap-1 overflow-y-auto">
+                      {members.map((member) => {
+                        const name = nameOf(member.user);
+                        return (
+                          <li key={member.user} className="flex items-center gap-2 px-1 py-0.5">
+                            <MemberAvatar userId={member.user} size="sm" />
+                            <span className="min-w-0 flex-1 truncate text-body-sm-regular text-primary">
+                              {name}
+                              {member.user === chat.userId && (
+                                <span className="text-tertiary"> ({t("common.you")})</span>
+                              )}
+                            </span>
+                            {member.role === "admin" && (
+                              <span className="text-caption-md-medium text-tertiary">
+                                {t("messages.members.admin")}
+                              </span>
+                            )}
+                            {canRemovePeople && member.user !== chat.userId && (
+                              <IconButton
+                                variant="ghost"
+                                size="sm"
+                                icon={<CloseOutline />}
+                                aria-label={t("messages.members.remove", { name })}
+                                loading={removing === member.user}
+                                disabled={removing !== null}
+                                onClick={() => void remove(member.user)}
+                              />
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
+                  </section>
+
+                  {canAddPeople && (
+                    <section className="flex flex-col gap-2">
+                      <h3 className="text-body-sm-semibold text-primary">{t("messages.members.add_title")}</h3>
+                      <InputField
+                        id="chat-members-search"
+                        name="search"
+                        size="lg"
+                        orientation="vertical"
+                        label={t("messages.members.search")}
+                        autoComplete="off"
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                      />
+                      {candidates.length === 0 ? (
+                        <p className="py-2 text-center text-body-sm-regular text-tertiary">
+                          {t("messages.members.no_candidates")}
+                        </p>
+                      ) : (
+                        <ul className="flex max-h-48 flex-col gap-1 overflow-y-auto">
+                          {candidates.map((user) => (
+                            <li key={user.id} className="flex items-center gap-2 px-1">
+                              <MemberAvatar userId={user.id} size="sm" />
+                              <CheckboxField
+                                size="md"
+                                label={user.display_name}
+                                checked={selected.includes(user.id)}
+                                onCheckedChange={(value) => toggle(user.id, value === true)}
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </section>
                   )}
-                </section>
+                </>
               )}
             </div>
           </DialogBody>
@@ -228,7 +314,7 @@ export const ChannelMembersDialog = observer(function ChannelMembersDialog({ wor
             disabled={isAdding}
             onClick={onClose}
           />
-          {canAdd && (
+          {canAddPeople && (
             <Button
               variant="primary"
               size="md"
@@ -242,5 +328,147 @@ export const ChannelMembersDialog = observer(function ChannelMembersDialog({ wor
         </DialogActions>
       </DialogContent>
     </Dialog>
+  );
+});
+
+type AddAgentProps = { channel: TChatChannel; onDone: () => void };
+
+/** Pick an enabled agent from the registry and the level it works at, up to the registry's maximum for it. */
+const AddAgentForm = observer(function AddAgentForm({ channel, onDone }: AddAgentProps) {
+  const { t } = useTranslation();
+  const chat = useChat();
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const [level, setLevel] = useState<TAgentPermissionLevel | null>(null);
+  const [error, setError] = useState<string | undefined>();
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    chat.fetchAvailableAgents().catch(() => setLoadFailed(true));
+  }, [chat]);
+
+  const inChannel = new Set((chat.channelAgents[channel.id] ?? []).map((agent) => agent.agent));
+  const choices = (chat.availableAgents ?? []).filter((agent) => !inChannel.has(agent.id));
+  const chosen = choices.find((agent) => agent.id === agentId);
+
+  const submit = async () => {
+    if (!chosen) return;
+    setError(undefined);
+    setSubmitting(true);
+    try {
+      await chat.addChannelAgent(channel.id, {
+        agent_id: chosen.id,
+        permission_level: level ?? chosen.default_permission_level,
+      });
+      onDone();
+    } catch (caught) {
+      const message = chatErrorMessage(caught);
+      if (message) setError(message);
+      else setToast({ type: "error", title: t("messages.errors.add_agent_failed") });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loadFailed) {
+    return (
+      <p role="alert" className="text-body-sm-regular text-danger-primary">
+        {t("messages.members.agents_load_failed")}
+      </p>
+    );
+  }
+  if (!chat.availableAgents) return null;
+
+  return (
+    <form
+      noValidate
+      aria-label={t("messages.members.add_agent")}
+      className="flex flex-col gap-3 rounded-md border border-subtle p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+    >
+      {choices.length === 0 ? (
+        <p className="text-body-sm-regular text-tertiary">{t("messages.members.no_available_agents")}</p>
+      ) : (
+        <RadioGroupField
+          name="agent"
+          label={t("messages.members.choose_agent")}
+          size="md"
+          density="compact"
+          value={agentId ?? ""}
+          onValueChange={(value) => {
+            setAgentId(value || null);
+            setLevel(null);
+          }}
+        >
+          {choices.map((agent) => (
+            <RadioGroupFieldOption
+              key={agent.id}
+              value={agent.id}
+              label={agent.name}
+              {...(agent.description ? { description: agent.description } : {})}
+            />
+          ))}
+        </RadioGroupField>
+      )}
+      {chosen && (
+        <RadioGroupField
+          name="permission_level"
+          label={t("messages.members.permission_level")}
+          size="md"
+          density="compact"
+          value={level ?? chosen.default_permission_level}
+          onValueChange={(value) => setLevel(value as TAgentPermissionLevel)}
+        >
+          {levelsUpTo(chosen.max_permission_level).map((id) => (
+            <RadioGroupFieldOption
+              key={id}
+              value={id}
+              label={t(`agents.permission.levels.${id}.name`)}
+              description={t(`agents.permission.levels.${id}.description`)}
+            />
+          ))}
+        </RadioGroupField>
+      )}
+      {chosen && (
+        <p
+          className={
+            channel.kind === "private"
+              ? "rounded-md bg-warning-subtle px-3 py-2 text-body-sm-regular text-primary"
+              : "text-body-sm-regular text-secondary"
+          }
+        >
+          {channel.kind === "private"
+            ? t("messages.members.private_notice", { name: chosen.name })
+            : t("messages.members.public_notice", { name: chosen.name })}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="text-caption-md-regular text-danger-primary">
+          {error}
+        </p>
+      )}
+      <div className="flex justify-end gap-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          stretch="auto"
+          label={t("common.cancel")}
+          disabled={submitting}
+          onClick={onDone}
+        />
+        <Button
+          variant="primary"
+          size="sm"
+          stretch="auto"
+          type="submit"
+          label={t("messages.members.add")}
+          disabled={!chosen}
+          loading={submitting}
+        />
+      </div>
+    </form>
   );
 });
