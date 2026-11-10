@@ -232,7 +232,7 @@ export class AgentBridge {
     this.#sweep ??= sweepEndedMemberships({
       api: this.#api,
       runner: this.#memberRunner,
-      liveMembers: () => [...this.#sessions].map((session) => session.member),
+      liveMembers: () => [...[...this.#sessions].map((session) => session.member), ...this.#dm.heldMembers()],
       closeChats: (member) => this.#closeChats(member),
       log: this.#log,
       maxPerPass: this.#config.offboardMaxPerPass,
@@ -256,7 +256,8 @@ export class AgentBridge {
       (session) => session.member.workspaceId === member.workspaceId && session.member.userId === member.userId
     );
     for (const session of sessions) session.socket.close(CloseCode.forbidden, "Workspace membership ended");
-    await Promise.all(sessions.map((session) => session.finished));
+    // Agent DM sessions held between turns are theirs too.
+    await Promise.all([...sessions.map((session) => session.finished), this.#dm.closeMember(member)]);
   }
 
   /** Stop accepting connections, close the open ones (which revokes their tokens), then stop. */

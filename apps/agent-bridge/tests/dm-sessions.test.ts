@@ -387,6 +387,23 @@ describe("POST /internal/dm-turns", () => {
     await waitUntil(() => harness!.api.revoked.length === 1);
   });
 
+  it("closes the DM sessions held for someone whose workspace membership ended", async () => {
+    harness = await startHarness();
+    harness.transport.script = answering;
+    await start(harness);
+    await reportFor(harness, RUN_A);
+    expect(harness.bridge.dmSessionCount).toBe(1);
+    const agent = harness.transport.agents[0]!;
+
+    harness.api.members.delete(USER_ID);
+    const offboarded = await harness.bridge.sweepEndedMemberships();
+
+    expect(offboarded).toEqual([{ workspaceId: WORKSPACE_ID, userId: USER_ID }]);
+    expect(harness.bridge.dmSessionCount).toBe(0);
+    await waitUntil(() => agent.closed);
+    await waitUntil(() => harness!.api.revoked.length === 1);
+  });
+
   it("runs one turn at a time per DM", async () => {
     harness = await startHarness();
     let release!: () => void;

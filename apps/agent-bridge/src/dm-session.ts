@@ -19,7 +19,7 @@ import { INITIAL_MODE_META_KEY, clampPermissionLevel, type PermissionLevel } fro
 
 import { MAX_REPLY_CHARS, type ChannelSessionError } from "./channel-session.ts";
 import type { Logger } from "./logger.ts";
-import type { AgentSessionGrant } from "./plane-api.ts";
+import type { AgentSessionGrant, MemberRef } from "./plane-api.ts";
 import type { SessionPolicy } from "./policy.ts";
 import { PolicyProxy } from "./proxy.ts";
 import type { AgentChannel } from "./transport.ts";
@@ -634,6 +634,22 @@ export class DmSessions {
   /** Held sessions. */
   get heldCount(): number {
     return this.#held.size;
+  }
+
+  /** The people whose sessions are held, for the bridge's sweep of ended workspace memberships. */
+  heldMembers(): MemberRef[] {
+    return [...this.#held.values()].map((session) => ({
+      workspaceId: session.grant.workspace.id,
+      userId: session.userId,
+    }));
+  }
+
+  /** Close the held sessions (and so any turn running in them) of someone whose workspace membership ended. */
+  async closeMember(member: MemberRef): Promise<void> {
+    const sessions = [...this.#held.values()].filter(
+      (session) => session.grant.workspace.id === member.workspaceId && session.userId === member.userId
+    );
+    await Promise.all(sessions.map((session) => session.close("workspace membership ended")));
   }
 
   /** Cap slots the DMs take (sessions being opened, and held ones). */
