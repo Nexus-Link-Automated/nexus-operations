@@ -16,6 +16,7 @@ from django.db.models import (
     Count,
     Exists,
     F,
+    FilteredRelation,
     Func,
     OuterRef,
     Prefetch,
@@ -357,7 +358,7 @@ class CycleViewSet(BaseViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        serializer = CycleWriteSerializer(cycle, data=request.data, partial=True, context={"project_id": project_id})
+        serializer = CycleWriteSerializer(cycle, data=request_data, partial=True, context={"project_id": project_id})
         if serializer.is_valid():
             serializer.save()
             cycle = queryset.values(
@@ -398,7 +399,7 @@ class CycleViewSet(BaseViewSet):
             model_activity.delay(
                 model_name="cycle",
                 model_id=str(cycle["id"]),
-                requested_data=request.data,
+                requested_data=request_data,
                 current_instance=current_instance,
                 actor_id=request.user.id,
                 slug=slug,
@@ -851,23 +852,28 @@ class CycleAnalyticsEndpoint(BaseAPIView):
                     workspace__slug=slug,
                     project_id=project_id,
                 )
-                .annotate(display_name=F("assignees__display_name"))
-                .annotate(assignee_id=F("assignees__id"))
+                .annotate(
+                    live_issue_assignee=FilteredRelation(
+                        "issue_assignee", condition=Q(issue_assignee__deleted_at__isnull=True)
+                    )
+                )
+                .annotate(display_name=F("live_issue_assignee__assignee__display_name"))
+                .annotate(assignee_id=F("live_issue_assignee__assignee__id"))
                 .annotate(
                     avatar_url=Case(
                         # If `avatar_asset` exists, use it to generate the asset URL
                         When(
-                            assignees__avatar_asset__isnull=False,
+                            live_issue_assignee__assignee__avatar_asset__isnull=False,
                             then=Concat(
                                 Value("/api/assets/v2/static/"),
-                                Cast("assignees__avatar_asset", models.CharField()),
+                                Cast("live_issue_assignee__assignee__avatar_asset", models.CharField()),
                                 Value("/"),
                             ),
                         ),
                         # If `avatar_asset` is None, fall back to using `avatar` field directly
                         When(
-                            assignees__avatar_asset__isnull=True,
-                            then="assignees__avatar",
+                            live_issue_assignee__assignee__avatar_asset__isnull=True,
+                            then="live_issue_assignee__assignee__avatar",
                         ),
                         default=Value(None),
                         output_field=models.CharField(),
@@ -905,9 +911,12 @@ class CycleAnalyticsEndpoint(BaseAPIView):
                     workspace__slug=slug,
                     project_id=project_id,
                 )
-                .annotate(label_name=F("labels__name"))
-                .annotate(color=F("labels__color"))
-                .annotate(label_id=F("labels__id"))
+                .annotate(
+                    live_label_issue=FilteredRelation("label_issue", condition=Q(label_issue__deleted_at__isnull=True))
+                )
+                .annotate(label_name=F("live_label_issue__label__name"))
+                .annotate(color=F("live_label_issue__label__color"))
+                .annotate(label_id=F("live_label_issue__label__id"))
                 .values("label_name", "color", "label_id")
                 .annotate(total_estimates=Sum(Cast("estimate_point__value", FloatField())))
                 .annotate(
@@ -948,23 +957,28 @@ class CycleAnalyticsEndpoint(BaseAPIView):
                     project_id=project_id,
                     workspace__slug=slug,
                 )
-                .annotate(display_name=F("assignees__display_name"))
-                .annotate(assignee_id=F("assignees__id"))
+                .annotate(
+                    live_issue_assignee=FilteredRelation(
+                        "issue_assignee", condition=Q(issue_assignee__deleted_at__isnull=True)
+                    )
+                )
+                .annotate(display_name=F("live_issue_assignee__assignee__display_name"))
+                .annotate(assignee_id=F("live_issue_assignee__assignee__id"))
                 .annotate(
                     avatar_url=Case(
                         # If `avatar_asset` exists, use it to generate the asset URL
                         When(
-                            assignees__avatar_asset__isnull=False,
+                            live_issue_assignee__assignee__avatar_asset__isnull=False,
                             then=Concat(
                                 Value("/api/assets/v2/static/"),
-                                Cast("assignees__avatar_asset", models.CharField()),
+                                Cast("live_issue_assignee__assignee__avatar_asset", models.CharField()),
                                 Value("/"),
                             ),
                         ),
                         # If `avatar_asset` is None, fall back to using `avatar` field directly
                         When(
-                            assignees__avatar_asset__isnull=True,
-                            then="assignees__avatar",
+                            live_issue_assignee__assignee__avatar_asset__isnull=True,
+                            then="live_issue_assignee__assignee__avatar",
                         ),
                         default=Value(None),
                         output_field=models.CharField(),
@@ -1007,9 +1021,12 @@ class CycleAnalyticsEndpoint(BaseAPIView):
                     project_id=project_id,
                     workspace__slug=slug,
                 )
-                .annotate(label_name=F("labels__name"))
-                .annotate(color=F("labels__color"))
-                .annotate(label_id=F("labels__id"))
+                .annotate(
+                    live_label_issue=FilteredRelation("label_issue", condition=Q(label_issue__deleted_at__isnull=True))
+                )
+                .annotate(label_name=F("live_label_issue__label__name"))
+                .annotate(color=F("live_label_issue__label__color"))
+                .annotate(label_id=F("live_label_issue__label__id"))
                 .values("label_name", "color", "label_id")
                 .annotate(total_issues=Count("label_id", filter=Q(archived_at__isnull=True, is_draft=False)))
                 .annotate(

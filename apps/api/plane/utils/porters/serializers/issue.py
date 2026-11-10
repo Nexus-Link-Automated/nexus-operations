@@ -69,7 +69,8 @@ class IssueExportSerializer(IssueSerializer):
         return f"{obj.project.identifier}-{obj.sequence_id}"
 
     def get_assignees(self, obj):
-        return [u.full_name for u in obj.assignees.all() if u.is_active]
+        # Read the link rows: obj.assignees also follows links removed from the work item.
+        return [ia.assignee.full_name for ia in obj.issue_assignee.all() if ia.assignee.is_active]
 
     def get_subscribers(self, obj):
         """Return list of subscriber names."""

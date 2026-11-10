@@ -117,6 +117,7 @@ class CycleUpdateSerializer(CycleCreateSerializer):
         model = Cycle
         fields = CycleCreateSerializer.Meta.fields + [
             "owned_by",
+            "sort_order",
         ]
 
 
