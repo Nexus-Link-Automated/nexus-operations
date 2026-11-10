@@ -70,7 +70,9 @@ export const ProjectViewLayoutRoot = observer(function ProjectViewLayoutRoot() {
       if (workspaceSlug && projectId && viewId) {
         await issuesFilter?.fetchFilters(workspaceSlug, projectId, viewId);
       }
-    }
+    },
+    // refetching overwrites the filters with the saved view, discarding unsaved changes
+    { revalidateIfStale: false, revalidateOnFocus: false }
   );
 
   useEffect(
