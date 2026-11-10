@@ -27,30 +27,12 @@ import type { TChatPendingMessage } from "@/store/chat.store";
 // local imports
 import { ChatCreateWorkItemAction } from "./create-work-item-action";
 import { MemberAvatar } from "./member-avatar";
+import { ChatMessageBody } from "./message-body";
 import { ChatWorkItemCards } from "./work-item-card";
 
 const noUploads = async (): Promise<string> => {
   throw new Error("Attachments are not supported in messages yet");
 };
-
-type BodyProps = { id: string; html: string; workspaceSlug: string };
-
-/** A message body, read-only. Keyed by the caller on the content, so an edit re-renders it. */
-const MessageBody = observer(function MessageBody({ id, html, workspaceSlug }: BodyProps) {
-  const { getWorkspaceBySlug } = useWorkspace();
-  return (
-    <LiteTextEditor
-      editable={false}
-      id={id}
-      initialValue={html}
-      workspaceId={getWorkspaceBySlug(workspaceSlug)?.id ?? ""}
-      workspaceSlug={workspaceSlug}
-      containerClassName="p-0!"
-      parentClassName="border-none"
-      displayConfig={{ fontSize: "small-font" }}
-    />
-  );
-});
 
 type Props = {
   message: TChatMessage;
@@ -239,12 +221,7 @@ export const ChatMessageItem = observer(function ChatMessageItem({
             </div>
           </div>
         ) : (
-          <MessageBody
-            key={`${message.id}-${message.updated_at}`}
-            id={`chat-message-${message.id}`}
-            html={message.body_html}
-            workspaceSlug={workspaceSlug}
-          />
+          <ChatMessageBody id={`chat-message-${message.id}`} html={message.body_html} />
         )}
         {!removed && <ChatWorkItemCards references={message.references} workspaceSlug={workspaceSlug} />}
         {!removed && !editing && message.edited_at && (
@@ -280,14 +257,10 @@ export const ChatMessageItem = observer(function ChatMessageItem({
 
 type PendingProps = {
   pending: TChatPendingMessage;
-  workspaceSlug: string;
 };
 
 /** A message the API doesn't have yet: faded while sending, with retry and discard if it failed. */
-export const ChatPendingMessageItem = observer(function ChatPendingMessageItem({
-  pending,
-  workspaceSlug,
-}: PendingProps) {
+export const ChatPendingMessageItem = observer(function ChatPendingMessageItem({ pending }: PendingProps) {
   const { t } = useTranslation();
   const { userId, retryMessage, discardMessage } = useChat();
   const failed = pending.status === "failed";
@@ -301,7 +274,7 @@ export const ChatPendingMessageItem = observer(function ChatPendingMessageItem({
         <MemberAvatar userId={userId} size="md" />
       </div>
       <div className={cn("min-w-0 flex-1", { "opacity-60": !failed })}>
-        <MessageBody id={`chat-pending-${pending.localId}`} html={pending.body_html} workspaceSlug={workspaceSlug} />
+        <ChatMessageBody id={`chat-pending-${pending.localId}`} html={pending.body_html} />
         {failed ? (
           <div className="flex items-center gap-2 text-caption-md-regular text-danger-primary">
             <span>{t("messages.message.failed")}</span>
