@@ -12,6 +12,8 @@ import { Icon } from "@makeplane/propel/components/icon";
 
 type Props = {
   syncStatus: "syncing" | "synced" | "error";
+  // the live server reported a failed save and has not reported a successful one since
+  hasSaveError?: boolean;
 };
 
 const BADGE_CONTENT = {
@@ -24,15 +26,21 @@ const BADGE_CONTENT = {
     tooltipLabel:
       "Connection lost. We're having trouble connecting to the websocket server. Your changes will be synced and saved every 10 seconds.",
   },
+  not_saved: {
+    label: "Not saved",
+    tooltipLabel:
+      "The server could not save your latest changes. Keep this page open: saving is tried again when you make another change.",
+  },
 };
 
-export function PageSyncingBadge({ syncStatus }: Props) {
-  const [isVisible, setIsVisible] = useState(syncStatus !== "synced");
+export function PageSyncingBadge({ syncStatus, hasSaveError = false }: Props) {
+  const status = hasSaveError ? "not_saved" : syncStatus;
+  const [isVisible, setIsVisible] = useState(status !== "synced");
 
   // Runs once per status change. The pending hide is cancelled if the status moves on (or the badge
   // unmounts) before it fires, so a stale timer can't hide the badge during a later sync.
   useEffect(() => {
-    if (syncStatus !== "synced") {
+    if (status !== "synced") {
       setIsVisible(true);
       return;
     }
@@ -41,20 +49,20 @@ export function PageSyncingBadge({ syncStatus }: Props) {
       setIsVisible(false);
     }, 300); // match animation duration
     return () => clearTimeout(timeoutId);
-  }, [syncStatus]);
+  }, [status]);
 
-  if (!isVisible || syncStatus === "synced") return null;
+  if (!isVisible || status === "synced") return null;
 
   // The synced early-return above guarantees this key exists
-  const content = BADGE_CONTENT[syncStatus];
+  const content = BADGE_CONTENT[status];
 
   return (
     <Tooltip label={content.tooltipLabel} layout="stacked">
       <span className="animate-quickFadeIn">
         <Badge
-          variant={syncStatus === "syncing" ? "brand" : "danger"}
+          variant={status === "syncing" ? "brand" : "danger"}
           size="sm"
-          startIcon={<Icon icon={syncStatus === "syncing" ? DotFilled : CloudOffOutline} size="md" />}
+          startIcon={<Icon icon={status === "syncing" ? DotFilled : CloudOffOutline} size="md" />}
           label={content.label}
         />
       </span>

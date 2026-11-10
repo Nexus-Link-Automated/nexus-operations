@@ -7,6 +7,7 @@
 import { Database as HocuspocusDatabase } from "@hocuspocus/extension-database";
 // plane imports
 import {
+  createRealtimeEvent,
   getAllDocumentFormatsFromDocumentEditorBinaryData,
   getBinaryDataFromDocumentEditorHTMLString,
 } from "@plane/editor/server";
@@ -20,8 +21,29 @@ import { getPageService } from "@/services/page/handler";
 import type { FetchPayloadWithContext, StorePayloadWithContext } from "@/types";
 import { ForceCloseReason, CloseCode } from "@/types/admin-commands";
 import { broadcastError } from "@/utils/broadcast-error";
+import { broadcastMessageToPage } from "@/utils/broadcast-message";
 // force close utility
 import { forceCloseDocumentAcrossServers } from "./force-close-handler";
+
+// Pages whose last save on this server failed. Editors show them as not saved until told otherwise.
+const pagesWithFailedSave = new Set<string>();
+
+const announceSaved = async (
+  instance: StorePayloadWithContext["instance"],
+  pageId: string,
+  context: StorePayloadWithContext["context"]
+) => {
+  const event = createRealtimeEvent({
+    action: "saved",
+    page_id: pageId,
+    descendants_ids: [],
+    data: { user_id: context.userId || "" },
+    workspace_slug: context.workspaceSlug || "",
+    user_id: context.userId || "",
+  });
+  // keep the page marked so the next successful save tries again
+  if (!(await broadcastMessageToPage(instance, pageId, event))) pagesWithFailedSave.add(pageId);
+};
 
 const fetchDocument = async ({ context, documentName: pageId, instance }: FetchPayloadWithContext) => {
   try {
@@ -89,9 +111,11 @@ const storeDocument = async ({
       description_json: contentJSON,
     };
     await service.updateDescriptionBinary(pageId, payload);
+    if (pagesWithFailedSave.delete(pageId)) await announceSaved(instance, pageId, context);
   } catch (error) {
     const appError = new AppError(error, { context: { pageId } });
     logger.error("Error in updating document:", appError);
+    pagesWithFailedSave.add(pageId);
 
     // Check error types
     const isContentTooLarge = appError.statusCode === 413;
