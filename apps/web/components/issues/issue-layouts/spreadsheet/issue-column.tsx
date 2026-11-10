@@ -12,6 +12,7 @@ import type { IIssueDisplayProperties, TIssue } from "@plane/types";
 import { SPREADSHEET_COLUMNS } from "../utils";
 // components
 import { shouldRenderColumn } from "@/helpers/issue-filter.helper";
+import { useIssueUpdateErrorToast } from "@/hooks/use-issue-update-error-toast";
 import { WithDisplayPropertiesHOC } from "../properties/with-display-properties-HOC";
 
 type Props = {
@@ -27,6 +28,7 @@ export const IssueColumn = observer(function IssueColumn(props: Props) {
   const { displayProperties, issueDetail, disableUserActions, property, updateIssue } = props;
   // router
   const tableCellRef = useRef<HTMLTableCellElement | null>(null);
+  const withErrorToast = useIssueUpdateErrorToast(issueDetail.is_epic);
 
   const shouldRenderProperty = shouldRenderColumn(property);
 
@@ -35,7 +37,7 @@ export const IssueColumn = observer(function IssueColumn(props: Props) {
   if (!Column) return null;
 
   const handleUpdateIssue = async (issue: TIssue, data: Partial<TIssue>) => {
-    if (updateIssue) await updateIssue(issue.project_id, issue.id, data);
+    if (updateIssue) await withErrorToast(() => updateIssue(issue.project_id, issue.id, data));
   };
 
   return (
