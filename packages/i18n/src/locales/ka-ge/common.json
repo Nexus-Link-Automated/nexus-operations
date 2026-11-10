@@ -267,6 +267,7 @@
   "confirming": "დადასტურება",
   "draft_created": "მონახაზი შეიქმნა",
   "issue_created_successfully": "სამუშაო ელემენტი წარმატებით შეიქმნა",
+  "issue_created_with_incomplete_details": "სამუშაო ელემენტი შეიქმნა, მაგრამ მისი ზოგიერთი დეტალის შენახვა ვერ მოხერხდა",
   "draft_creation_failed": "მონახაზის შექმნა ვერ მოხერხდა",
   "issue_creation_failed": "სამუშაო ელემენტის შექმნა ვერ მოხერხდა",
   "draft_issue": "სამუშაო ელემენტის მონახაზი",

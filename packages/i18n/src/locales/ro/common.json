@@ -267,6 +267,7 @@
   "confirming": "Se confirmă",
   "draft_created": "Schiță creată",
   "issue_created_successfully": "Activitate creată cu succes",
+  "issue_created_with_incomplete_details": "Activitate creată, dar unele detalii nu au putut fi salvate",
   "draft_creation_failed": "Crearea schiței a eșuat",
   "issue_creation_failed": "Crearea activității a eșuat",
   "draft_issue": "Schiță activitate",

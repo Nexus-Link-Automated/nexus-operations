@@ -95,4 +95,41 @@ describe("CreateUpdateIssueModalBase", () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(mocks.setToast).toHaveBeenCalledWith(expect.objectContaining({ type: "error" }));
   });
+
+  it("treats a created work item as created when a follow-up step fails", async () => {
+    const created = { id: "new", project_id: "project", name: "New" } as TIssue;
+    mocks.createIssue.mockResolvedValue(created);
+    mocks.addIssueToCycle.mockRejectedValue(new Error("cycle is completed"));
+    mocks.changeModulesInIssue.mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const form = renderModal({ onClose, onSubmit });
+
+    await expect(
+      form.onSubmit({ project_id: "project", name: "New", cycle_id: "cycle", module_ids: ["module"] })
+    ).resolves.toBeUndefined();
+
+    expect(mocks.createIssue).toHaveBeenCalledTimes(1);
+    // the steps after the failed one still run
+    expect(mocks.changeModulesInIssue).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith(created);
+    expect(onClose).toHaveBeenCalled();
+    expect(mocks.setToast).toHaveBeenCalledTimes(1);
+    expect(mocks.setToast).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "warning", message: "issue_created_with_incomplete_details" })
+    );
+  });
+
+  it("reports a failed creation and keeps the form open", async () => {
+    mocks.createIssue.mockRejectedValue({ error: "server error" });
+    const onClose = vi.fn();
+    const onSubmit = vi.fn();
+    const form = renderModal({ onClose, onSubmit });
+
+    await expect(form.onSubmit({ project_id: "project", name: "New" })).rejects.toEqual({ error: "server error" });
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(mocks.setToast).toHaveBeenCalledWith(expect.objectContaining({ type: "error", message: "server error" }));
+  });
 });

@@ -267,6 +267,7 @@
   "confirming": "Confirming",
   "draft_created": "Draft created",
   "issue_created_successfully": "Work item created successfully",
+  "issue_created_with_incomplete_details": "Work item created, but some of its details could not be saved",
   "draft_creation_failed": "Draft creation failed",
   "issue_creation_failed": "Work item creation failed",
   "draft_issue": "Draft work item",

@@ -267,6 +267,7 @@
   "confirming": "Onaylanıyor",
   "draft_created": "Taslak oluşturuldu",
   "issue_created_successfully": "İş öğesi başarıyla oluşturuldu",
+  "issue_created_with_incomplete_details": "İş öğesi oluşturuldu, ancak bazı ayrıntıları kaydedilemedi",
   "draft_creation_failed": "Taslak oluşturulamadı",
   "issue_creation_failed": "İş öğesi oluşturulamadı",
   "draft_issue": "Taslak İş Öğesi",

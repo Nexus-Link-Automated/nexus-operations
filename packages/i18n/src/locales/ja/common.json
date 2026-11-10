@@ -267,6 +267,7 @@
   "confirming": "確認中",
   "draft_created": "下書きが作成されました",
   "issue_created_successfully": "作業項目が正常に作成されました",
+  "issue_created_with_incomplete_details": "作業項目は作成されましたが、一部の詳細を保存できませんでした",
   "draft_creation_failed": "下書きの作成に失敗しました",
   "issue_creation_failed": "作業項目の作成に失敗しました",
   "draft_issue": "作業項目の下書き",

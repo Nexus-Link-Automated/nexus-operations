@@ -267,6 +267,7 @@
   "confirming": "Confirmando",
   "draft_created": "Borrador creado",
   "issue_created_successfully": "Elemento de trabajo creado exitosamente",
+  "issue_created_with_incomplete_details": "Elemento de trabajo creado, pero algunos de sus detalles no se pudieron guardar",
   "draft_creation_failed": "Error al crear borrador",
   "issue_creation_failed": "Error al crear elemento de trabajo",
   "draft_issue": "Borrador de elemento de trabajo",

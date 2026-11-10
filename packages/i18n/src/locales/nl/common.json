@@ -267,6 +267,7 @@
   "confirming": "Bevestigen",
   "draft_created": "Concept aangemaakt",
   "issue_created_successfully": "Werkitem is aangemaakt",
+  "issue_created_with_incomplete_details": "Werkitem is aangemaakt, maar sommige details konden niet worden opgeslagen",
   "draft_creation_failed": "Aanmaken van concept is mislukt",
   "issue_creation_failed": "Aanmaken van werkitem is mislukt",
   "draft_issue": "Conceptwerkitem",

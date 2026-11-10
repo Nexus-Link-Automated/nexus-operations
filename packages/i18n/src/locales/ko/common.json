@@ -267,6 +267,7 @@
   "confirming": "확인 중",
   "draft_created": "초안 생성됨",
   "issue_created_successfully": "작업 항목이 성공적으로 생성되었습니다",
+  "issue_created_with_incomplete_details": "작업 항목이 생성되었지만 일부 세부 정보를 저장하지 못했습니다",
   "draft_creation_failed": "초안 생성 실패",
   "issue_creation_failed": "작업 항목 생성 실패",
   "draft_issue": "초안 작업 항목",

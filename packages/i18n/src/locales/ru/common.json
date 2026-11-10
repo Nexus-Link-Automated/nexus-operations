@@ -267,6 +267,7 @@
   "confirming": "Подтверждение...",
   "draft_created": "Черновик создан",
   "issue_created_successfully": "Рабочий элемент успешно создан",
+  "issue_created_with_incomplete_details": "Рабочий элемент создан, но некоторые его данные не удалось сохранить",
   "draft_creation_failed": "Ошибка создания черновика",
   "issue_creation_failed": "Ошибка создания рабочего элемента",
   "draft_issue": "Черновик рабочего элемента",

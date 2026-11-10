@@ -267,6 +267,7 @@
   "confirming": "Wird bestätigt",
   "draft_created": "Entwurf erstellt",
   "issue_created_successfully": "Arbeitselement erfolgreich erstellt",
+  "issue_created_with_incomplete_details": "Arbeitselement erstellt, aber einige Details konnten nicht gespeichert werden",
   "draft_creation_failed": "Erstellung des Entwurfs fehlgeschlagen",
   "issue_creation_failed": "Erstellung des Arbeitselements fehlgeschlagen",
   "draft_issue": "Entwurf eines Arbeitselements",
