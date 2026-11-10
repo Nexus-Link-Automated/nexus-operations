@@ -12,7 +12,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatServiceError } from "@plane/services";
 
 const mocks = vi.hoisted(() => ({
-  chat: {} as { uploadAttachment: ReturnType<typeof vi.fn>; deleteAttachment: ReturnType<typeof vi.fn> },
+  chat: {} as {
+    uploadAttachment: ReturnType<typeof vi.fn>;
+    deleteAttachment: ReturnType<typeof vi.fn>;
+    getDraft: (channelId: string) => string | undefined;
+    setDraft: (channelId: string, html: string) => void;
+  },
   html: "<p></p>",
   clearEditor: vi.fn(),
 }));
@@ -64,7 +69,12 @@ const sendButton = () => screen.getByRole("button", { name: "Send message" });
 describe("ChatComposer attachments", () => {
   beforeEach(() => {
     mocks.html = "<p></p>";
-    mocks.chat = { uploadAttachment: vi.fn(), deleteAttachment: vi.fn() };
+    mocks.chat = {
+      uploadAttachment: vi.fn(),
+      deleteAttachment: vi.fn(),
+      getDraft: () => undefined,
+      setDraft: () => undefined,
+    };
     URL.createObjectURL = vi.fn(() => "blob:local");
     URL.revokeObjectURL = vi.fn();
   });
