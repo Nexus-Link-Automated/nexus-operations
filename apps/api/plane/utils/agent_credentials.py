@@ -10,9 +10,10 @@ workspace's shared API key, then the God-mode admin's agent ``env``.
 
 # Django imports
 from django.db.models import Q
+from django.utils import timezone
 
 # Module imports
-from plane.db.models import AgentCredentialMethod, AgentProviderCredential
+from plane.db.models import AgentCredentialMethod, AgentProviderCredential, APIToken
 from plane.db.models.agent_provider import (
     AGENT_ADAPTER_PROVIDER,
     AGENT_AUTH_ENV,
@@ -22,6 +23,7 @@ from plane.db.models.agent_provider import (
     AGENT_PROVIDER_ORDER,
     AGENT_PROVIDER_REPLACED_ENV,
 )
+from plane.db.models.api import AGENT_SESSION_TOKEN_LABEL
 from plane.license.models import AgentDefinition
 from plane.license.utils.encryption import EncryptionError
 from plane.utils.exception_logger import log_exception
@@ -58,6 +60,26 @@ def resolve_agent_credential(workspace, user, adapter):
 
 # Admin env vars that sign in an adapter with no member or workspace credentials.
 ADAPTER_INSTANCE_ENV = {"deepseek": ("DEEPSEEK_API_KEY",)}
+
+
+def end_agent_access(memberships):
+    """Remove what agents may act with for ended workspace memberships.
+
+    ``memberships`` is an iterable of ``(workspace_id, user_id)``. Each member's personal
+    provider credentials there (API keys and account sign-in records, soft-deleted rows
+    included) are deleted for good, and their agent-session tokens there stop working.
+    The workspace's shared credentials are left alone. Files and sign-ins on the agent
+    runner are removed by the agent bridge (see ``AgentOffboardingEndpoint``).
+    """
+    condition = Q()
+    for workspace_id, user_id in memberships:
+        condition |= Q(workspace_id=workspace_id, user_id=user_id)
+    if not condition:
+        return
+    AgentProviderCredential.all_objects.filter(condition, user__isnull=False).delete()
+    APIToken.objects.filter(condition, label=AGENT_SESSION_TOKEN_LABEL, is_active=True).update(
+        is_active=False, updated_at=timezone.now()
+    )
 
 
 def agent_credential_sources(workspace, user, agents):

@@ -7,6 +7,7 @@ from django.urls import path
 from plane.app.views import (
     AgentConnectionAuthorizeEndpoint,
     AgentConnectionEndpoint,
+    AgentOffboardingEndpoint,
     AgentSessionEndpoint,
 )
 
@@ -31,5 +32,10 @@ urlpatterns = [
         "internal/agent-connections/",
         AgentConnectionEndpoint.as_view(),
         name="internal-agent-connections",
+    ),
+    path(
+        "internal/agent-offboarding/",
+        AgentOffboardingEndpoint.as_view(),
+        name="internal-agent-offboarding",
     ),
 ]

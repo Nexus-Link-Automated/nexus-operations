@@ -44,6 +44,7 @@ from plane.db.models import (
     Session,
 )
 from plane.license.models import Instance, InstanceAdmin
+from plane.utils.agent_credentials import end_agent_access
 from plane.utils.paginator import BasePaginator
 from plane.utils.order_queryset import ACTIVITY_ORDER_BY_ALLOWLIST, sanitize_order_by
 from plane.authentication.utils.host import user_ip
@@ -334,6 +335,7 @@ class UserEndpoint(BaseViewSet):
         ProjectMember.objects.bulk_update(projects_to_deactivate, ["is_active"], batch_size=100)
 
         WorkspaceMember.objects.bulk_update(workspaces_to_deactivate, ["is_active"], batch_size=100)
+        end_agent_access((member.workspace_id, member.member_id) for member in workspaces_to_deactivate)
 
         # Delete all workspace invites
         WorkspaceMemberInvite.objects.filter(email=user.email).delete()
