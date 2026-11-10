@@ -356,6 +356,8 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
         title: t("error"),
         message: error?.error ?? t("issue_could_not_be_updated"),
       });
+      // let the form keep the user's edits instead of resetting as if the save worked
+      throw error;
     }
   };
 
