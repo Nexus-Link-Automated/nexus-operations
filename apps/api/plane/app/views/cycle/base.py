@@ -357,7 +357,7 @@ class CycleViewSet(BaseViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        serializer = CycleWriteSerializer(cycle, data=request.data, partial=True, context={"project_id": project_id})
+        serializer = CycleWriteSerializer(cycle, data=request_data, partial=True, context={"project_id": project_id})
         if serializer.is_valid():
             serializer.save()
             cycle = queryset.values(
@@ -398,7 +398,7 @@ class CycleViewSet(BaseViewSet):
             model_activity.delay(
                 model_name="cycle",
                 model_id=str(cycle["id"]),
-                requested_data=request.data,
+                requested_data=request_data,
                 current_instance=current_instance,
                 actor_id=request.user.id,
                 slug=slug,

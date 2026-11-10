@@ -570,17 +570,17 @@ class CycleDetailAPIEndpoint(BaseAPIView):
                 )
 
         serializer = CycleUpdateSerializer(
-            cycle, data=request.data, partial=True, context={"request": request, "project_id": project_id}
+            cycle, data=request_data, partial=True, context={"request": request, "project_id": project_id}
         )
         if serializer.is_valid():
             if (
-                request.data.get("external_id")
-                and (cycle.external_id != request.data.get("external_id"))
+                request_data.get("external_id")
+                and (cycle.external_id != request_data.get("external_id"))
                 and Cycle.objects.filter(
                     project_id=project_id,
                     workspace__slug=slug,
-                    external_source=request.data.get("external_source", cycle.external_source),
-                    external_id=request.data.get("external_id"),
+                    external_source=request_data.get("external_source", cycle.external_source),
+                    external_id=request_data.get("external_id"),
                 ).exists()
             ):
                 return Response(
@@ -596,7 +596,7 @@ class CycleDetailAPIEndpoint(BaseAPIView):
             model_activity.delay(
                 model_name="cycle",
                 model_id=str(serializer.instance.id),
-                requested_data=request.data,
+                requested_data=request_data,
                 current_instance=current_instance,
                 actor_id=request.user.id,
                 slug=slug,
