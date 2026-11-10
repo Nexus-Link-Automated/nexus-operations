@@ -749,10 +749,15 @@ export class ChatStore implements IChatStore {
     belongs: (message: TChatMessage) => boolean
   ): void {
     const known = new Set(state.ids);
+    // Before the oldest message loaded, with older pages still to load, a message isn't part of what is shown (a
+    // thread's first message, fetched on its own): listing it would make the next older page start before it and
+    // skip everything in between. It is held, and its page brings it in.
+    const first =
+      position === "newer" && state.hasMoreOlder && state.ids.length ? this.messageMap[state.ids[0]!] : undefined;
     const fresh: TChatMessage[] = [];
     for (const message of messages) {
       this.holdMessage(message);
-      if (!known.has(message.id) && belongs(message)) fresh.push(message);
+      if (!known.has(message.id) && belongs(message) && !(first && isBefore(message, first))) fresh.push(message);
     }
     if (fresh.length === 0) return;
     if (position === "older") {
@@ -927,7 +932,10 @@ export class ChatStore implements IChatStore {
         if (this.isThreadOpen(parentId)) this.holdMessage(parent);
       });
     } catch {
-      // The replies' page fails the same way, and the panel offers a retry for that.
+      // The panel offers a retry. The replies' page may well have loaded, so say so on the thread's state.
+      commit(() => {
+        if (this.isThreadOpen(parentId)) this.threadState(channelId, parentId).error = true;
+      });
     }
   }
 

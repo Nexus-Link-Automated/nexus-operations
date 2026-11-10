@@ -50,6 +50,8 @@ export const ChatThreadPanel = observer(function ChatThreadPanel({ workspaceSlug
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     // Something inside (a mention list, a dialog) that used Escape already marked it handled.
     if (event.key !== "Escape" || event.defaultPrevented) return;
+    // From a dialog opened here: React passes its keys up through the portal, but Escape is the dialog's to close.
+    if (!event.currentTarget.contains(event.target as Node)) return;
     event.preventDefault();
     chat.closeThread();
   };

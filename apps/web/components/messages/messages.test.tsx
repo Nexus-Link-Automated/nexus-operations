@@ -1366,6 +1366,17 @@ describe("threads", () => {
     expect(screen.queryByRole("complementary", { name: "Thread" })).toBeNull();
   });
 
+  it("leaves the thread open when Escape closes a dialog opened from it", async () => {
+    const { store } = await view({ replies: [message("r1", ME, "my reply", 2, { parent: "p1" })] });
+    await userEvent.click(screen.getByRole("button", { name: byTemplate("reply") }));
+    await within(panel()).findByText("my reply");
+    const mine = within(panel()).getAllByRole("article")[1]!;
+    await userEvent.click(within(mine).getByRole("button", { name: "Delete message", hidden: true }));
+    fireEvent.keyDown(await screen.findByRole("alertdialog"), { key: "Escape" });
+    expect(store.activeThread).not.toBeNull();
+    expect(screen.getByRole("complementary", { name: "Thread" })).toBeTruthy();
+  });
+
   it("takes the conversation's place on a narrow screen instead of squeezing in beside it", async () => {
     await view();
     const conversation = screen.getByRole("log", { name: "Messages" }).parentElement!;

@@ -1165,6 +1165,42 @@ describe("ChatStore threads", () => {
     expect(store.messageMap[parent.id]).toBeUndefined();
   });
 
+  it("keeps a first message older than the loaded pages out of the channel's list, so scrolling back skips nothing", async () => {
+    const { store, server } = await setup((s) => {
+      const old = s.post("c-general", ADA, "old parent");
+      s.post("c-general", ADA, "reply", old.id);
+      for (let i = 0; i < 60; i++) s.post("c-general", ADA, `m${i}`);
+    });
+    await store.openChannel("c-general");
+    const parent = server.messages[0]!;
+    await store.openThread("c-general", parent.id);
+    // Removing it from the thread panel re-reads it, as does linking a work item to it.
+    await store.removeMessage("c-general", parent.id);
+    expect(store.messageMap[parent.id]!.removed_at).not.toBeNull();
+    expect(bodies(store, "c-general")).toEqual(Array.from({ length: 50 }, (_, i) => `m${i + 10}`));
+    await store.loadOlderMessages("c-general");
+    expect(bodies(store, "c-general").filter((body) => body.startsWith("m"))).toEqual(
+      Array.from({ length: 60 }, (_, i) => `m${i}`)
+    );
+  });
+
+  it("offers a retry when the first message can't be read though its replies can", async () => {
+    const { store, server } = await setup((s) => {
+      const old = s.post("c-general", ADA, "old parent");
+      s.post("c-general", ADA, "reply", old.id);
+      for (let i = 0; i < 60; i++) s.post("c-general", ADA, `m${i}`);
+    });
+    await store.openChannel("c-general");
+    const parent = server.messages[0]!;
+    server.holds.set("getMessage", Promise.reject(new ChatServiceError(0, undefined)));
+    await store.openThread("c-general", parent.id);
+    expect(replies(store, parent.id)).toEqual(["reply"]);
+    expect(store.messageMap[parent.id]).toBeUndefined();
+    expect(store.getThreadState(parent.id)!.error).toBe(true);
+    await store.openThread("c-general", parent.id);
+    expect(store.messageMap[parent.id]?.body_stripped).toBe("old parent");
+  });
+
   it("shows a new reply live and updates the parent's summary, without counting it unread", async () => {
     const { store, server, socket, parent } = await withThread(1);
     await store.openThread("c-general", parent.id);
