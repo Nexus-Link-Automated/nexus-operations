@@ -53,7 +53,7 @@ const defaultValues: Partial<TProfileSetupFormValues> = {
   avatar_url: "",
   password: undefined,
   confirm_password: undefined,
-  has_marketing_email_consent: true,
+  has_marketing_email_consent: false,
 };
 
 export const ProfileSetupStep = observer(function ProfileSetupStep({ handleStepChange }: Props) {
@@ -82,6 +82,7 @@ export const ProfileSetupStep = observer(function ProfileSetupStep({ handleStepC
   });
   // derived values
   const userAvatar = watch("avatar_url");
+  const showMarketingConsent = !instanceConfig?.is_self_managed;
 
   const handleSetPassword = async (password: string) => {
     const token = await authService.requestCSRFToken().then((data) => data?.csrf_token);
@@ -110,9 +111,11 @@ export const ProfileSetupStep = observer(function ProfileSetupStep({ handleStepC
 
   const onSubmit = async (formData: TProfileSetupFormValues) => {
     if (!user) return;
-    updateUserProfile({
-      has_marketing_email_consent: formData.has_marketing_email_consent,
-    });
+    if (showMarketingConsent) {
+      updateUserProfile({
+        has_marketing_email_consent: formData.has_marketing_email_consent,
+      });
+    }
     await handleSubmitUserDetail(formData);
     handleStepChange(EOnboardingSteps.PROFILE_SETUP);
   };
@@ -242,7 +245,7 @@ export const ProfileSetupStep = observer(function ProfileSetupStep({ handleStepC
       </div>
 
       {/* Marketing Consent */}
-      {!instanceConfig?.is_self_managed && (
+      {showMarketingConsent && (
         <MarketingConsent
           isChecked={!!watch("has_marketing_email_consent")}
           handleChange={(has_marketing_email_consent) =>

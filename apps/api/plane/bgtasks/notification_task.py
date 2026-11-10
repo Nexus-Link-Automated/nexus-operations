@@ -329,25 +329,20 @@ def notifications(
                         continue
 
                     # Check if the value should be sent or not
-                    send_email = False
-                    if issue_activity.get("field") == "state" and preference.state_change:
-                        send_email = True
-                    elif (
-                        issue_activity.get("field") == "state"
-                        and preference.issue_completed
-                        and State.objects.filter(
-                            project_id=project_id,
-                            pk=issue_activity.get("new_identifier"),
-                            group="completed",
-                        ).exists()
-                    ):
-                        send_email = True
-                    elif issue_activity.get("field") == "comment" and preference.comment:
-                        send_email = True
-                    elif preference.property_change:
-                        send_email = True
+                    field = issue_activity.get("field")
+                    if field == "state":
+                        send_email = preference.state_change or (
+                            preference.issue_completed
+                            and State.objects.filter(
+                                project_id=project_id,
+                                pk=issue_activity.get("new_identifier"),
+                                group="completed",
+                            ).exists()
+                        )
+                    elif field == "comment":
+                        send_email = preference.comment
                     else:
-                        send_email = False
+                        send_email = preference.property_change
 
                     # If activity is of issue comment fetch the comment
                     issue_comment = (

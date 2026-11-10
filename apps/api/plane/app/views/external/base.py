@@ -33,6 +33,8 @@ class LLMProvider:
     name: str = ""
     models: List[str] = []
     default_model: str = ""
+    # OpenAI-compatible endpoint the provider's key is sent to. None keeps the client's OpenAI default.
+    base_url: str | None = None
 
     @classmethod
     def get_config(cls) -> Dict[str, str | List[str]]:
@@ -62,12 +64,14 @@ class AnthropicProvider(LLMProvider):
         "claude-instant-1",
     ]
     default_model = "claude-3-sonnet-20240229"
+    base_url = "https://api.anthropic.com/v1/"
 
 
 class GeminiProvider(LLMProvider):
     name = "Gemini"
     models = ["gemini-pro", "gemini-1.5-pro-latest", "gemini-pro-vision"]
     default_model = "gemini-pro"
+    base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 
 SUPPORTED_PROVIDERS = {
@@ -128,11 +132,7 @@ def get_llm_response(task, prompt, api_key: str, model: str, provider: str) -> T
     """Helper to get LLM completion response"""
     final_text = task + "\n" + prompt
     try:
-        # For Gemini, prepend provider name to model
-        if provider.lower() == "gemini":
-            model = f"gemini/{model}"
-
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=api_key, base_url=SUPPORTED_PROVIDERS[provider.lower()].base_url)
         chat_completion = client.chat.completions.create(
             model=model, messages=[{"role": "user", "content": final_text}]
         )

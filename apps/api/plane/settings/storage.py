@@ -211,10 +211,15 @@ class S3Storage(S3Boto3Storage):
     def delete_files(self, object_names):
         """Delete an S3 object"""
         try:
-            self.s3_client.delete_objects(
+            response = self.s3_client.delete_objects(
                 Bucket=self.aws_storage_bucket_name,
                 Delete={"Objects": [{"Key": object_name} for object_name in object_names]},
             )
+            # A key that could not be deleted is reported in a successful response
+            errors = response.get("Errors")
+            if errors:
+                log_exception(Exception(f"Could not delete {len(errors)} of {len(object_names)} objects: {errors[0]}"))
+                return False
             return True
         except ClientError as e:
             log_exception(e)

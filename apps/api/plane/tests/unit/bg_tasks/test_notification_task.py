@@ -17,6 +17,7 @@ from plane.bgtasks.notification_task import notifications
 from plane.db.models import (
     EmailNotificationLog,
     Issue,
+    IssueComment,
     IssueMention,
     IssueSubscriber,
     Notification,
@@ -24,6 +25,7 @@ from plane.db.models import (
     ProjectMember,
     State,
     User,
+    UserNotificationPreference,
 )
 
 pytestmark = pytest.mark.unit
@@ -147,3 +149,68 @@ def test_mention_at_creation_is_notified_once(scope):
     # The email task has to be able to read what was stored and quote the description
     actor_id = str(scope.actor.id)
     assert create_payload({actor_id: [email.data]})[actor_id]["mention"]["new_value"] == [description]
+
+
+ALL_EMAILS_OFF = {"property_change": False, "state_change": False, "comment": False, "issue_completed": False}
+
+
+def _state(scope, group):
+    return State.objects.create(
+        name=group.title(), color="#000000", group=group, project=scope.project, workspace=scope.workspace
+    )
+
+
+def _set_email_preferences(user, **enabled):
+    UserNotificationPreference.objects.filter(user=user).update(**{**ALL_EMAILS_OFF, **enabled})
+
+
+def _emails(user, field):
+    return EmailNotificationLog.objects.filter(receiver=user, data__issue_activity__field=field)
+
+
+def _in_app(user, field):
+    return Notification.objects.filter(receiver=user, data__issue_activity__field=field)
+
+
+def _comment(scope):
+    comment = IssueComment.objects.create(
+        issue=scope.issue,
+        project=scope.project,
+        workspace=scope.workspace,
+        actor=scope.actor,
+        comment_html="<p>note</p>",
+    )
+    _save(scope, "comment.activity.created", {"id": str(comment.id), "comment_html": comment.comment_html})
+
+
+def _change_state(scope, group):
+    state = _state(scope, group)
+    _save(scope, UPDATED, {"state_id": str(state.id)}, {"state_id": str(scope.issue.state_id)})
+
+
+def _change_priority(scope):
+    _save(scope, UPDATED, {"priority": "high"}, {"priority": "none"})
+
+
+@pytest.mark.parametrize(
+    "act, field, enabled, emailed",
+    [
+        (_comment, "comment", {"property_change": True}, False),
+        (_comment, "comment", {"comment": True}, True),
+        (lambda scope: _change_state(scope, "started"), "state", {"property_change": True}, False),
+        (lambda scope: _change_state(scope, "started"), "state", {"issue_completed": True}, False),
+        (lambda scope: _change_state(scope, "started"), "state", {"state_change": True}, True),
+        (lambda scope: _change_state(scope, "completed"), "state", {"property_change": True}, False),
+        (lambda scope: _change_state(scope, "completed"), "state", {"issue_completed": True}, True),
+        (_change_priority, "priority", {"property_change": True}, True),
+        (_change_priority, "priority", {"state_change": True, "comment": True, "issue_completed": True}, False),
+    ],
+)
+def test_email_follows_the_preference_for_that_kind_of_change(scope, act, field, enabled, emailed):
+    _subscribe(scope, scope.subscriber)
+    _set_email_preferences(scope.subscriber, **enabled)
+
+    act(scope)
+
+    assert _emails(scope.subscriber, field).exists() is emailed
+    assert _in_app(scope.subscriber, field).exists()
