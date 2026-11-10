@@ -1,6 +1,5 @@
 .git
 *.pyc
-.env
 venv
 .venv
 node_modules/
@@ -45,11 +44,11 @@ storybook-static/
 *storybook.log
 *.tsbuildinfo
 
-# Local env and secrets
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Local env and secrets, in every directory (setup.sh writes one per app). Patterns
+# here are anchored to the context root, hence **/.
+**/.env
+**/.env.*
+!**/.env.example
 .secrets
 tmp/
 temp/
