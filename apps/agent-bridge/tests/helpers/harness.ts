@@ -46,6 +46,7 @@ export function testConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig 
     maxConnectionsPerUser: 4,
     maxConnections: 100,
     idleTimeoutMs: 60_000,
+    dmIdleTimeoutMs: 60_000,
     pingIntervalMs: 30_000,
     loginStartLimit: 10,
     loginStartWindowMs: 60_000,
@@ -88,6 +89,8 @@ export async function startHarness(
     http?: boolean;
     config?: Partial<BridgeConfig>;
     initializeTimeoutMs?: number;
+    /** Agent DM draft throttling (the bridge's defaults otherwise). */
+    dm?: { draftIntervalMs?: number; draftChars?: number };
   } = {}
 ): Promise<Harness> {
   const api = await new StubPlaneApi(options.agent).start();
@@ -101,6 +104,8 @@ export async function startHarness(
     transport,
     log,
     ...(options.initializeTimeoutMs ? { initializeTimeoutMs: options.initializeTimeoutMs } : {}),
+    ...(options.dm?.draftIntervalMs !== undefined ? { dmDraftIntervalMs: options.dm.draftIntervalMs } : {}),
+    ...(options.dm?.draftChars !== undefined ? { dmDraftChars: options.dm.draftChars } : {}),
   });
   const address = await bridge.listen(0, "127.0.0.1");
   const baseUrl = `ws://127.0.0.1:${address.port}`;

@@ -183,7 +183,9 @@ export class Connection implements Recipient {
         if (own) void this.#revoked();
         return;
       case "read.updated":
-        // Where someone has read up to is theirs alone.
+      case "agent.permission_requested":
+      case "agent.permission_resolved":
+        // Where someone has read up to is theirs alone, and so is an agent DM's permission prompt: only they answer it.
         if (!own) return;
         break;
       case "member.added":

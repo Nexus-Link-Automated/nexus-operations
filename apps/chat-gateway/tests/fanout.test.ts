@@ -213,6 +213,28 @@ for (const kind of ["memory", "redis"] as const) {
       expect(eventsOf(ben)).toEqual([]);
     });
 
+    it("sends an agent DM's permission prompts only to its person's own sockets", async () => {
+      const dm = h.api.addChannel({ kind: "agent_dm", members: [ADA.id] });
+      // Ben follows a public channel; a prompt never reaches him, even if it names a channel he follows.
+      const general = h.api.addChannel({ members: [ADA.id, BEN.id] });
+      const adaTab1 = await h.open(ADA.cookie);
+      const adaTab2 = await h.open(ADA.cookie);
+      const ben = await h.open(BEN.cookie);
+      const ids = { channel_id: dm, user_id: ADA.id, agent_id: randomUUID(), message_id: randomUUID() };
+      const requested = chatEvent("agent.permission_requested", ids);
+      const resolved = chatEvent("agent.permission_resolved", ids);
+      const misaddressed = chatEvent("agent.permission_requested", { ...ids, channel_id: general });
+      const forBen = chatEvent("agent.permission_requested", { ...ids, user_id: BEN.id });
+      for (const event of [requested, resolved, misaddressed, forBen]) {
+        // oxlint-disable-next-line no-await-in-loop -- in order
+        await h.publish(event);
+      }
+      await h.barrier(general, adaTab1, adaTab2, ben);
+      expect(eventsOf(adaTab1)).toEqual([requested, resolved, misaddressed]);
+      expect(eventsOf(adaTab2)).toEqual([requested, resolved, misaddressed]);
+      expect(eventsOf(ben)).toEqual([]);
+    });
+
     it("keeps an archived channel in the feed, so unarchiving it reaches its members", async () => {
       const dormant = h.api.addChannel({ members: [ADA.id], archived: true });
       const ada = await h.open(ADA.cookie);
