@@ -267,6 +267,7 @@
   "confirming": "Потвърждаване",
   "draft_created": "Черновата е създадена",
   "issue_created_successfully": "Работният елемент е създаден успешно",
+  "issue_created_with_incomplete_details": "Работният елемент е създаден, но някои от данните му не можаха да бъдат запазени",
   "draft_creation_failed": "Неуспешно създаване на чернова",
   "issue_creation_failed": "Неуспешно създаване на работен елемент",
   "draft_issue": "Чернова на работен елемент",

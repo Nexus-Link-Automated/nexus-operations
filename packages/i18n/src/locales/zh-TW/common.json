@@ -267,6 +267,7 @@
   "confirming": "確認中",
   "draft_created": "草稿已建立",
   "issue_created_successfully": "工作事項建立成功",
+  "issue_created_with_incomplete_details": "工作事項已建立，但部分詳細資訊未能儲存",
   "draft_creation_failed": "草稿建立失敗",
   "issue_creation_failed": "工作事項建立失敗",
   "draft_issue": "草稿工作事項",

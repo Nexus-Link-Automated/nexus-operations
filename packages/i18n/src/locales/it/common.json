@@ -267,6 +267,7 @@
   "confirming": "Conferma in corso",
   "draft_created": "Bozza creata",
   "issue_created_successfully": "Elemento di lavoro creato con successo",
+  "issue_created_with_incomplete_details": "Elemento di lavoro creato, ma non è stato possibile salvare alcuni dettagli",
   "draft_creation_failed": "Creazione della bozza fallita",
   "issue_creation_failed": "Creazione dell'elemento di lavoro fallita",
   "draft_issue": "Bozza di elemento di lavoro",

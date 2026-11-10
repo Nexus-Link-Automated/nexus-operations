@@ -267,6 +267,7 @@
   "confirming": "Підтвердження",
   "draft_created": "Чернетку створено",
   "issue_created_successfully": "Робочу одиницю успішно створено",
+  "issue_created_with_incomplete_details": "Робочу одиницю створено, але деякі її дані не вдалося зберегти",
   "draft_creation_failed": "Не вдалося створити чернетку",
   "issue_creation_failed": "Не вдалося створити робочу одиницю",
   "draft_issue": "Чернетка робочої одиниці",

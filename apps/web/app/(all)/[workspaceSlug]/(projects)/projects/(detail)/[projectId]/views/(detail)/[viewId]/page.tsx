@@ -29,9 +29,12 @@ function ProjectViewIssuesPage({ params }: Route.ComponentProps) {
   const project = getProjectById(projectId);
   const pageTitle = project?.name && projectView?.name ? `${project?.name} - ${projectView?.name}` : undefined;
 
-  const { error } = useSWR(`VIEW_DETAILS_${viewId}`, () => fetchViewDetails(workspaceSlug, projectId, viewId));
+  const { data: viewDetails, error } = useSWR(`VIEW_DETAILS_${viewId}`, () =>
+    fetchViewDetails(workspaceSlug, projectId, viewId)
+  );
 
-  if (error) {
+  // A failed background refresh keeps the view that is already open; only a failed first load is "not found".
+  if (error && !viewDetails) {
     return (
       <EmptyStateDetailed
         align="center"

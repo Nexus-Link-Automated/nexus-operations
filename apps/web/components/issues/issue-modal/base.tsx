@@ -165,8 +165,8 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
   ): Promise<TIssue | undefined> => {
     if (!workspaceSlug || !payload.project_id) return;
 
+    let response: TIssue | undefined;
     try {
-      let response: TIssue | undefined;
       // if draft issue, use draft issue store to create issue
       if (is_draft_issue) {
         response = (await draftIssues.createIssue(workspaceSlug.toString(), payload)) as TIssue;
@@ -184,71 +184,7 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
         response = await createIssue(payload.project_id, payload);
       }
 
-      // update uploaded assets' status
-      if (uploadedAssetIds.length > 0) {
-        await fileService.updateBulkProjectAssetsUploadStatus(
-          workspaceSlug?.toString() ?? "",
-          response?.project_id ?? "",
-          response?.id ?? "",
-          {
-            asset_ids: uploadedAssetIds,
-          }
-        );
-        setUploadedAssetIds([]);
-      }
-
       if (!response) throw new Error();
-
-      // check if we should add issue to cycle/module
-      if (!is_draft_issue) {
-        if (
-          payload.cycle_id &&
-          payload.cycle_id !== "" &&
-          (payload.cycle_id !== cycleId || storeType !== EIssuesStoreType.CYCLE)
-        ) {
-          await addIssueToCycle(response, payload.cycle_id);
-        }
-        if (
-          payload.module_ids &&
-          payload.module_ids.length > 0 &&
-          (!payload.module_ids.includes(moduleId?.toString()) || storeType !== EIssuesStoreType.MODULE)
-        ) {
-          await addIssueToModule(response, payload.module_ids);
-        }
-      }
-
-      // add other property values
-      if (response.id && response.project_id) {
-        await handleCreateUpdatePropertyValues({
-          issueId: response.id,
-          issueTypeId: response.type_id,
-          projectId: response.project_id,
-          workspaceSlug: workspaceSlug?.toString(),
-          isDraft: is_draft_issue,
-        });
-
-        // create sub work item
-        await handleCreateSubWorkItem({
-          workspaceSlug: workspaceSlug?.toString(),
-          projectId: response.project_id,
-          parentId: response.id,
-        });
-      }
-
-      setToast({
-        type: "success",
-        title: t("success"),
-        message: `${is_draft_issue ? t("draft_created") : t("issue_created_successfully")} `,
-        actionItems:
-          !is_draft_issue && response?.project_id
-            ? buildCreateIssueToastActions({ workspaceSlug: workspaceSlug.toString(), issueId: response.id })
-            : undefined,
-      });
-      if (!createMore) handleClose();
-      if (createMore && issueTitleRef) issueTitleRef?.current?.focus();
-      setDescription("<p></p>");
-      setChangesMade(null);
-      return response;
     } catch (error: any) {
       setToast({
         type: "error",
@@ -257,6 +193,90 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
       });
       throw error;
     }
+
+    // The work item exists from here on. A failed follow-up step must not report the creation as
+    // failed, or saving again would create a duplicate, so each step runs on its own.
+    const createdIssue = response;
+    let hasFailedFollowUp = false;
+    const runFollowUp = async (step: () => Promise<unknown>) => {
+      try {
+        await step();
+      } catch (error) {
+        console.error(error);
+        hasFailedFollowUp = true;
+      }
+    };
+
+    // update uploaded assets' status
+    if (uploadedAssetIds.length > 0) {
+      const assetIds = uploadedAssetIds;
+      setUploadedAssetIds([]);
+      await runFollowUp(() =>
+        fileService.updateBulkProjectAssetsUploadStatus(
+          workspaceSlug.toString(),
+          createdIssue.project_id ?? "",
+          createdIssue.id,
+          {
+            asset_ids: assetIds,
+          }
+        )
+      );
+    }
+
+    // check if we should add issue to cycle/module
+    if (!is_draft_issue) {
+      const payloadCycleId = payload.cycle_id;
+      if (payloadCycleId && (payloadCycleId !== cycleId || storeType !== EIssuesStoreType.CYCLE)) {
+        await runFollowUp(() => addIssueToCycle(createdIssue, payloadCycleId));
+      }
+      const payloadModuleIds = payload.module_ids;
+      if (
+        payloadModuleIds &&
+        payloadModuleIds.length > 0 &&
+        (!payloadModuleIds.includes(moduleId?.toString()) || storeType !== EIssuesStoreType.MODULE)
+      ) {
+        await runFollowUp(() => addIssueToModule(createdIssue, payloadModuleIds));
+      }
+    }
+
+    // add other property values
+    if (createdIssue.id && createdIssue.project_id) {
+      const createdProjectId = createdIssue.project_id;
+      await runFollowUp(() =>
+        handleCreateUpdatePropertyValues({
+          issueId: createdIssue.id,
+          issueTypeId: createdIssue.type_id,
+          projectId: createdProjectId,
+          workspaceSlug: workspaceSlug.toString(),
+          isDraft: is_draft_issue,
+        })
+      );
+
+      // create sub work item
+      await runFollowUp(() =>
+        handleCreateSubWorkItem({
+          workspaceSlug: workspaceSlug.toString(),
+          projectId: createdProjectId,
+          parentId: createdIssue.id,
+        })
+      );
+    }
+
+    const successMessage = is_draft_issue ? t("draft_created") : t("issue_created_successfully");
+    setToast({
+      type: hasFailedFollowUp ? "warning" : "success",
+      title: hasFailedFollowUp ? t("warning") : t("success"),
+      message: hasFailedFollowUp ? t("issue_created_with_incomplete_details") : `${successMessage} `,
+      actionItems:
+        !is_draft_issue && createdIssue.project_id
+          ? buildCreateIssueToastActions({ workspaceSlug: workspaceSlug.toString(), issueId: createdIssue.id })
+          : undefined,
+    });
+    if (!createMore) handleClose();
+    if (createMore && issueTitleRef) issueTitleRef?.current?.focus();
+    setDescription("<p></p>");
+    setChangesMade(null);
+    return createdIssue;
   };
 
   const handleCycleChange = async (data: Partial<TIssue> | undefined, payload: Partial<TIssue>) => {
@@ -356,6 +376,8 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
         title: t("error"),
         message: error?.error ?? t("issue_could_not_be_updated"),
       });
+      // let the form keep the user's edits instead of resetting as if the save worked
+      throw error;
     }
   };
 

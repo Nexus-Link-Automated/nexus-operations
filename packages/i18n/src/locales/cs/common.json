@@ -267,6 +267,7 @@
   "confirming": "Potvrzování",
   "draft_created": "Koncept vytvořen",
   "issue_created_successfully": "Pracovní položka úspěšně vytvořena",
+  "issue_created_with_incomplete_details": "Pracovní položka byla vytvořena, ale některé její údaje se nepodařilo uložit",
   "draft_creation_failed": "Vytvoření konceptu se nezdařilo",
   "issue_creation_failed": "Vytvoření pracovní položky se nezdařilo",
   "draft_issue": "Koncept pracovní položky",

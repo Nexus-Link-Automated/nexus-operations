@@ -267,6 +267,7 @@
   "confirming": "Confirmation",
   "draft_created": "Brouillon créé",
   "issue_created_successfully": "Élément de travail créé avec succès",
+  "issue_created_with_incomplete_details": "Élément de travail créé, mais certains de ses détails n'ont pas pu être enregistrés",
   "draft_creation_failed": "Échec de la création du brouillon",
   "issue_creation_failed": "Échec de la création de l’élément de travail",
   "draft_issue": "Élément de travail en brouillon",

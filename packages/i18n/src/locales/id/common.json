@@ -267,6 +267,7 @@
   "confirming": "Mengonfirmasi",
   "draft_created": "Draf dibuat",
   "issue_created_successfully": "Item kerja berhasil dibuat",
+  "issue_created_with_incomplete_details": "Item kerja dibuat, tetapi beberapa detailnya tidak dapat disimpan",
   "draft_creation_failed": "Pembuatan draf gagal",
   "issue_creation_failed": "Pembuatan item kerja gagal",
   "draft_issue": "Draf item kerja",

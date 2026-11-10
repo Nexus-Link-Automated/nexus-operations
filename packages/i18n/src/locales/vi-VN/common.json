@@ -267,6 +267,7 @@
   "confirming": "Đang xác nhận",
   "draft_created": "Đã tạo bản nháp",
   "issue_created_successfully": "Đã tạo mục công việc thành công",
+  "issue_created_with_incomplete_details": "Đã tạo mục công việc, nhưng không thể lưu một số chi tiết của nó",
   "draft_creation_failed": "Tạo bản nháp thất bại",
   "issue_creation_failed": "Tạo mục công việc thất bại",
   "draft_issue": "Mục công việc nháp",

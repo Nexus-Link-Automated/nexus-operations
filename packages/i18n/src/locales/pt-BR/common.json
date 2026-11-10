@@ -267,6 +267,7 @@
   "confirming": "Confirmando",
   "draft_created": "Rascunho criado",
   "issue_created_successfully": "Item de trabalho criado com sucesso",
+  "issue_created_with_incomplete_details": "Item de trabalho criado, mas alguns detalhes não puderam ser salvos",
   "draft_creation_failed": "Falha na criação do rascunho",
   "issue_creation_failed": "Falha na criação do item de trabalho",
   "draft_issue": "Rascunhar item de trabalho",
