@@ -1,4 +1,5 @@
 import hashlib
+import re
 import time
 from collections import OrderedDict
 
@@ -6,6 +7,13 @@ import httpx
 from fastmcp.server.auth import TokenVerifier
 from fastmcp.server.auth.auth import AccessToken
 from fastmcp.utilities.logging import get_logger
+from mcp.server.auth.middleware.auth_context import AuthContextMiddleware
+from mcp.server.auth.middleware.bearer_auth import BearerAuthBackend
+from starlette.authentication import AuthenticationError
+from starlette.middleware import Middleware
+from starlette.middleware.authentication import AuthenticationMiddleware
+from starlette.requests import HTTPConnection
+from starlette.responses import JSONResponse, Response
 
 from plane_mcp.client import plane_base_url
 
@@ -16,6 +24,31 @@ logger = get_logger(__name__)
 # authentication alone; a revoked token keeps working for at most this long.
 VALIDATION_TTL_SECONDS = 60
 _CACHE_SIZE = 1024
+_SAFE_SLUG = re.compile(r"[\w-]+")
+
+
+class HeaderAuthError(AuthenticationError):
+    """A request that could not be authenticated for a reason other than its token.
+
+    Subclasses Starlette's error so its authentication middleware stops the request
+    here. Not a RuntimeError: verify_token treats those as "no HTTP request".
+    """
+
+    def __init__(self, status_code: int, code: str, description: str):
+        super().__init__(description)
+        self.status_code = status_code
+        self.code = code
+        self.description = description
+
+
+def _upstream_unavailable() -> HeaderAuthError:
+    return HeaderAuthError(503, "temporarily_unavailable", "Plane could not be reached to check this token. Try again.")
+
+
+def _auth_error_response(conn: HTTPConnection, exc: AuthenticationError) -> Response:
+    if isinstance(exc, HeaderAuthError):
+        return JSONResponse({"error": exc.code, "error_description": exc.description}, status_code=exc.status_code)
+    return AuthenticationMiddleware.default_on_error(conn, exc)
 
 
 class PlaneHeaderAuthProvider(TokenVerifier):
@@ -25,6 +58,13 @@ class PlaneHeaderAuthProvider(TokenVerifier):
         # sha256(base_url, token) -> monotonic expiry. Hashed so the cache never
         # holds a usable token.
         self._valid_until: OrderedDict[str, float] = OrderedDict()
+
+    def get_middleware(self) -> list:
+        """FastMCP's stack, with this provider's errors answered by their own status."""
+        return [
+            Middleware(AuthenticationMiddleware, backend=BearerAuthBackend(self), on_error=_auth_error_response),
+            Middleware(AuthContextMiddleware),
+        ]
 
     def _cache_key(self, base_url: str, token: str) -> str:
         return hashlib.sha256(f"{base_url}\0{token}".encode()).hexdigest()
@@ -63,7 +103,7 @@ class PlaneHeaderAuthProvider(TokenVerifier):
                 )
         except httpx.RequestError as e:
             logger.warning("API key validation request failed: %s", e)
-            return False
+            raise _upstream_unavailable() from e
 
         if response.status_code == 200:
             self._remember(key)
@@ -76,6 +116,8 @@ class PlaneHeaderAuthProvider(TokenVerifier):
             logger.warning("API key validation hit the rate limit; the key is valid")
             return True
         logger.warning("API key validation failed: %s", response.status_code)
+        if response.status_code >= 500:
+            raise _upstream_unavailable()
         return False
 
     async def verify_token(self, token: str) -> AccessToken | None:
@@ -88,7 +130,10 @@ class PlaneHeaderAuthProvider(TokenVerifier):
                 workspace_slug = headers.get("x-workspace-slug")
                 if not workspace_slug:
                     logger.warning("x-api-key header found but x-workspace-slug is missing")
-                    return None
+                    raise HeaderAuthError(400, "invalid_request", "The X-Workspace-Slug header is required.")
+                if not _SAFE_SLUG.fullmatch(workspace_slug):
+                    logger.warning("x-workspace-slug header is malformed")
+                    raise HeaderAuthError(400, "invalid_request", "The X-Workspace-Slug header is not a valid slug.")
 
                 if not await self._validate_api_key(token):
                     logger.warning("API key validation against Plane API failed")
