@@ -27,7 +27,7 @@ from rest_framework.test import APIClient
 from plane.celery import app
 from plane.chat.export import build_message_export, delete_expired_exports
 from plane.chat.models import Channel, ChannelKind, ChannelMember, Message, MessageExport, MessageExportStatus
-from plane.chat.retention import RETENTION_KEY
+from plane.chat.retention import RETENTION_DAYS_HELP, RETENTION_KEY
 from plane.db.models import FileAsset, User, WorkspaceMember
 from plane.license.models import Instance, InstanceAdmin, InstanceConfiguration
 
@@ -137,6 +137,7 @@ class TestRetentionSetting:
         response = god.patch(SETTINGS_URL, {"retention_days": value}, format="json")
         assert response.status_code == 400
         assert InstanceConfiguration.objects.get(key=RETENTION_KEY).value == "90"
+        assert response.data == {"error": RETENTION_DAYS_HELP}
 
     def test_required(self, god):
         assert god.patch(SETTINGS_URL, {}, format="json").status_code == 400
@@ -145,6 +146,7 @@ class TestRetentionSetting:
         InstanceConfiguration.objects.create(key=RETENTION_KEY, value="0", category="CHAT")
         refused = god.patch(CONFIGURATIONS_URL, {RETENTION_KEY: "5"}, format="json")
         assert refused.status_code == 400
+        assert refused.data == {"error": RETENTION_DAYS_HELP}
         assert InstanceConfiguration.objects.get(key=RETENTION_KEY).value == "0"
         assert god.patch(CONFIGURATIONS_URL, {RETENTION_KEY: " 60 "}, format="json").status_code == 200
         assert InstanceConfiguration.objects.get(key=RETENTION_KEY).value == "60"
@@ -239,6 +241,17 @@ class TestExports:
         again, queued = _start(god, workspace, django_capture_on_commit_callbacks)
         assert again.status_code == 409
         assert not queued.called
+
+    @pytest.mark.parametrize("stuck", [MessageExportStatus.QUEUED, MessageExportStatus.RUNNING])
+    def test_one_stuck_since_long_ago_doesnt_block_the_next(
+        self, god, workspace, django_capture_on_commit_callbacks, stuck
+    ):
+        # Its worker was lost (a restart mid-build), or the task never reached one.
+        _start(god, workspace, django_capture_on_commit_callbacks)
+        MessageExport.objects.update(status=stuck, created_at=timezone.now() - timedelta(hours=7))
+        again, queued = _start(god, workspace, django_capture_on_commit_callbacks)
+        assert again.status_code == 201
+        assert queued.called
 
     def test_unknown_workspace(self, god, django_capture_on_commit_callbacks):
         response = god.post(EXPORTS_URL, {"workspace_id": str(uuid.uuid4())}, format="json")
@@ -381,6 +394,25 @@ class TestExpiry:
             delete_expired_exports()
         due.refresh_from_db()
         assert due.status == MessageExportStatus.READY
+
+    def test_one_stuck_is_marked_failed(self, workspace):
+        def export(status, hours_ago):
+            return MessageExport.objects.create(
+                workspace=workspace,
+                workspace_slug=workspace.slug,
+                workspace_name=workspace.name,
+                status=status,
+                created_at=timezone.now() - timedelta(hours=hours_ago),
+            )
+
+        stuck, running = export(MessageExportStatus.RUNNING, 7), export(MessageExportStatus.RUNNING, 1)
+        lost = export(MessageExportStatus.QUEUED, 7)
+        delete_expired_exports()
+        for row in (stuck, running, lost):
+            row.refresh_from_db()
+        assert (stuck.status, lost.status) == (MessageExportStatus.FAILED, MessageExportStatus.FAILED)
+        assert stuck.completed_at is not None
+        assert running.status == MessageExportStatus.RUNNING
 
     def test_scheduled(self):
         tasks = {entry["task"] for entry in app.conf.beat_schedule.values()}

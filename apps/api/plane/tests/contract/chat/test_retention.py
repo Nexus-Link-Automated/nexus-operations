@@ -4,6 +4,7 @@
 
 """The daily retention run (`plane.chat.retention`): what goes, what stays, and what goes with it."""
 
+import threading
 from datetime import timedelta
 from unittest import mock
 from uuid import uuid4
@@ -12,6 +13,7 @@ import pytest
 from botocore.exceptions import ClientError
 from crum import impersonate
 from django.conf import settings
+from django.db import connection, transaction
 from django.utils import timezone
 from freezegun import freeze_time
 
@@ -397,6 +399,31 @@ class TestFilesLeftBehind:
         assert _deleted_keys(storage) == {stale.asset.name}
         assert FileAsset.objects.filter(pk=fresh.pk).exists()
 
+    def test_files_in_an_archived_channel_stay(self, send, channel, member, storage):
+        # Archived channels can still be read, so their files can still be opened.
+        message = send(channel, member.user)
+        file = _attach(message, member.user)
+        type(channel).all_objects.filter(pk=channel.pk).update(archived_at=NOW)
+        _run()
+        assert not storage.delete_objects.called
+        assert FileAsset.objects.filter(pk=file.pk).exists()
+
+    @pytest.mark.parametrize("raw", ["0", "-1", "soon"])
+    def test_a_never_sent_age_that_isnt_valid_keeps_the_default(self, channel, member, storage, monkeypatch, raw):
+        monkeypatch.setenv("UNUPLOADED_ASSET_DELETE_DAYS", raw)
+        with impersonate(member.user):
+            upload = FileAsset.objects.create(
+                attributes={"name": "x.png", "type": "image/png", "size": 1, "channel_id": str(channel.id)},
+                asset=f"{channel.workspace_id}/{uuid4().hex}",
+                workspace_id=channel.workspace_id,
+                entity_type=CHAT_ATTACHMENT,
+                is_uploaded=True,
+            )
+        _at(upload, _days_ago(1))
+        counts = _run()
+        assert counts["attachments"] == 0
+        assert FileAsset.objects.filter(pk=upload.pk).exists()
+
     def test_files_people_can_still_reach_stay(self, send, channel, member, storage):
         message = send(channel, member.user)
         file = _attach(message, member.user)
@@ -430,3 +457,73 @@ class TestSchedule:
         ]
         assert len(entries) == 1
         assert "plane.chat.retention" in settings.CELERY_IMPORTS
+
+
+@pytest.mark.contract
+@pytest.mark.django_db(transaction=True)
+class TestWhileMessagesAreSent:
+    """The run against a send that is under way: each holds a lock the other has to wait for or skip."""
+
+    @staticmethod
+    def _meanwhile(work):
+        """Run `work(locked)` in another connection; it calls `locked()` once it holds its locks."""
+        locked, done = threading.Event(), threading.Event()
+
+        def run():
+            try:
+                work(locked.set)
+            finally:
+                done.set()
+                connection.close()
+
+        thread = threading.Thread(target=run)
+        thread.start()
+        assert locked.wait(timeout=10)
+        return thread
+
+    def test_an_upload_being_sent_is_not_deleted(self, send, channel, member, storage, monkeypatch):
+        monkeypatch.setenv("UNUPLOADED_ASSET_DELETE_DAYS", "7")
+        with impersonate(member.user):
+            upload = FileAsset.objects.create(
+                attributes={"name": "x.png", "type": "image/png", "size": 1, "channel_id": str(channel.id)},
+                asset=f"{channel.workspace_id}/{uuid4().hex}",
+                workspace_id=channel.workspace_id,
+                entity_type=CHAT_ATTACHMENT,
+                is_uploaded=True,
+            )
+        _at(upload, _days_ago(8))
+        message = send(channel, member.user)
+
+        def claim(locked):
+            # As `claim_attachments` does inside a send: lock the upload, then put it on the message.
+            with transaction.atomic():
+                FileAsset.objects.select_for_update().get(pk=upload.pk)
+                locked()
+                threading.Event().wait(1)
+                FileAsset.objects.filter(pk=upload.pk).update(entity_identifier=str(message.id))
+
+        sending = self._meanwhile(claim)
+        _run()
+        sending.join(timeout=10)
+        assert FileAsset.objects.get(pk=upload.pk).entity_identifier == str(message.id)
+        assert upload.asset.name not in _deleted_keys(storage)
+
+    def test_a_reply_that_lands_while_the_run_waits_keeps_its_first_message(
+        self, old, keep_for, storage, channel, member
+    ):
+        keep_for(30)
+        first = old(40)
+
+        def reply(locked):
+            # Something holding the first message (an edit, say) while a reply to it is written and committed.
+            with transaction.atomic():
+                Message.objects.select_for_update().get(pk=first.pk)
+                locked()
+                threading.Event().wait(1)
+                Message.objects.create(channel=channel, sender=member.user, parent=first, body_html="<p>late</p>")
+
+        replying = self._meanwhile(reply)
+        _run()
+        replying.join(timeout=10)
+        assert _exists(first)
+        assert Message.objects.filter(parent=first, body_html="<p>late</p>").exists()

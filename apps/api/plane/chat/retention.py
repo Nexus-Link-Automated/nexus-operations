@@ -65,6 +65,15 @@ BATCH_SIZE = 500
 STORAGE_DELETE_LIMIT = 1000
 
 
+# The one message shown for a setting that isn't valid, whatever was wrong with it.
+RETENTION_DAYS_HELP = (
+    f"Enter a whole number of days: {MIN_RETENTION_DAYS} to {MAX_RETENTION_DAYS}, or 0 to keep messages forever."
+)
+# Plane's own setting for uploads that were never used, read the same way as in `file_asset_task`.
+NEVER_SENT_DAYS_KEY = "UNUPLOADED_ASSET_DELETE_DAYS"
+DEFAULT_NEVER_SENT_DAYS = 7
+
+
 class StorageDeleteError(Exception):
     pass
 
@@ -115,11 +124,26 @@ def delete_storage_objects(keys):
 
 
 def _purge_assets(assets):
-    """Delete up to `BATCH_SIZE` of these attachments, storage objects then rows. Returns how many went."""
-    batch = list(assets.values_list("id", "asset")[:BATCH_SIZE])
-    delete_storage_objects([key for _, key in batch])
-    deleted, _ = FileAsset.all_objects.filter(pk__in=[pk for pk, _ in batch]).delete()
+    """Delete up to `BATCH_SIZE` of these attachments, storage objects then rows. Returns how many went.
+
+    Locked, and matched against `assets` under the lock, so an upload that a message claims meanwhile is not deleted:
+    a claim already holding the row makes this skip it, and one that waits for this finds it gone and refuses.
+    """
+    with transaction.atomic():
+        batch = list(assets.select_for_update(skip_locked=True, of=("self",)).values_list("id", "asset")[:BATCH_SIZE])
+        delete_storage_objects([key for _, key in batch])
+        deleted, _ = FileAsset.all_objects.filter(pk__in=[pk for pk, _ in batch]).delete()
     return len(batch) if deleted else 0
+
+
+def never_sent_days():
+    """How old an upload that was never sent must be to be deleted: at least a day, so none in a composer goes."""
+    raw = os.environ.get(NEVER_SENT_DAYS_KEY, "").strip()
+    if raw.isdecimal() and int(raw) >= 1:
+        return int(raw)
+    if raw:
+        logger.warning("%s: ignoring invalid value %r", NEVER_SENT_DAYS_KEY, raw)
+    return DEFAULT_NEVER_SENT_DAYS
 
 
 def orphaned_attachments(now):
@@ -128,7 +152,7 @@ def orphaned_attachments(now):
     One queryset each, so that each stays a simple scan or anti-join.
     """
     live_channel = Channel.objects.annotate(id_text=Cast("id", TextField())).filter(id_text=OuterRef("channel_text"))
-    never_sent_before = now - timedelta(days=int(os.environ.get("UNUPLOADED_ASSET_DELETE_DAYS", "7")))
+    never_sent_before = now - timedelta(days=never_sent_days())
     return [
         _chat_assets().filter(Q(is_deleted=True) | Q(deleted_at__isnull=False)),
         _chat_assets()
@@ -160,9 +184,10 @@ def _delete_batch(candidates):
         # Locked, and checked again, so a reply that arrives meanwhile isn't deleted with a message it joined. One
         # that did no longer matches `candidates`, so the next batch doesn't pick it up again.
         locked = list(candidates.filter(pk__in=ids).select_for_update().values_list("id", flat=True))
-        # Read again now the rows are locked. A reply whose insert was under way when the lock was taken made it
-        # wait, and is committed now, but the locking read's snapshot predates it. No reply can be added while the
-        # locks are held, so this read sees every one.
+        # Read again now the rows are locked: a reply that committed while the locking read waited is in this read's
+        # snapshot but not in that one's. A reply still being written takes its lock on the parent only as it commits
+        # (foreign keys are deferred), so it can't be seen here; its commit then fails rather than leave a reply to a
+        # deleted message.
         locked = list(candidates.filter(pk__in=locked).values_list("id", flat=True))
         _forget(locked)
         Message.all_objects.filter(pk__in=locked).delete()

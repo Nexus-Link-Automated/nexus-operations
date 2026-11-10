@@ -17,11 +17,12 @@ from rest_framework import serializers, status
 from rest_framework.response import Response
 
 # Module imports
-from plane.chat.export import DOWNLOAD_URL_SECONDS, build_message_export, download_filename
+from plane.chat.export import DOWNLOAD_URL_SECONDS, build_message_export, download_filename, stale_before
 from plane.chat.models import MessageExport, MessageExportStatus
 from plane.chat.retention import (
     MAX_RETENTION_DAYS,
     MIN_RETENTION_DAYS,
+    RETENTION_DAYS_HELP,
     RETENTION_KEY,
     parse_retention_days,
     retention_days,
@@ -63,8 +64,8 @@ class InstanceChatSettingsEndpoint(BaseAPIView):
             if value is None or isinstance(value, bool):
                 raise ValueError("Enter a whole number of days.")
             days = parse_retention_days(value)
-        except ValueError as error:
-            return Response({"error": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            return Response({"error": RETENTION_DAYS_HELP}, status=status.HTTP_400_BAD_REQUEST)
         InstanceConfiguration.objects.update_or_create(
             key=RETENTION_KEY, defaults={"value": str(days), "category": "CHAT", "is_encrypted": False}
         )
@@ -134,7 +135,9 @@ class InstanceMessageExportEndpoint(BaseAPIView):
             # Locked, so two requests at once can't both start one.
             Workspace.objects.select_for_update().filter(pk=workspace.pk).first()
             in_progress = MessageExport.objects.filter(
-                workspace=workspace, status__in=[MessageExportStatus.QUEUED, MessageExportStatus.RUNNING]
+                workspace=workspace,
+                status__in=[MessageExportStatus.QUEUED, MessageExportStatus.RUNNING],
+                created_at__gte=stale_before(timezone.now()),
             )
             if in_progress.exists():
                 return Response(

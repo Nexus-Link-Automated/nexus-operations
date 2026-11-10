@@ -47,6 +47,10 @@ DOWNLOAD_URL_SECONDS = 60
 PAGE_SIZE = 1000
 
 
+# Longer than any export takes; one queued or running for longer than this was lost.
+STALE_EXPORT_HOURS = 6
+
+
 def _iso(value):
     return value.isoformat() if value else None
 
@@ -217,9 +221,21 @@ def build_message_export(export_id):
     )
 
 
+def stale_before(now):
+    """Exports queued or running since before this never finished: their worker was lost, or never got the task."""
+    return now - timedelta(hours=STALE_EXPORT_HOURS)
+
+
 @shared_task
 def delete_expired_exports():
-    """Delete the archives past their expiry from storage; their records stay, marked expired."""
+    """Delete the archives past their expiry from storage; their records stay, marked expired.
+
+    An export stuck queued or running is marked failed, so it no longer blocks starting another.
+    """
+    now = timezone.now()
+    MessageExport.objects.filter(
+        status__in=[MessageExportStatus.QUEUED, MessageExportStatus.RUNNING], created_at__lt=stale_before(now)
+    ).update(status=MessageExportStatus.FAILED, completed_at=now)
     for export in MessageExport.objects.filter(status=MessageExportStatus.READY, expires_at__lte=timezone.now()):
         try:
             delete_storage_objects([export.storage_key])
