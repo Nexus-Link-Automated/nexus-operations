@@ -9,7 +9,7 @@ from mcp.types import Icon
 
 from plane_mcp.auth import PlaneHeaderAuthProvider, PlaneOAuthProvider
 from plane_mcp.instructions import SERVER_INSTRUCTIONS
-from plane_mcp.middleware import CoerceArguments, PlaneLoggingMiddleware, ValidateActionArguments
+from plane_mcp.middleware import CoerceArguments, PlaneLoggingMiddleware, ValidateActionArguments, ValidateIdArguments
 from plane_mcp.storage import build_token_store
 from plane_mcp.tools import register_tools
 
@@ -59,6 +59,7 @@ def _configured(mcp: FastMCP) -> FastMCP:
     mcp.add_middleware(PlaneLoggingMiddleware(include_payloads=LOG_PAYLOADS))
     mcp.add_middleware(CoerceArguments())
     mcp.add_middleware(ValidateActionArguments())
+    mcp.add_middleware(ValidateIdArguments())
     register_tools(mcp)
     return mcp
 

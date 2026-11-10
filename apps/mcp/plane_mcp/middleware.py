@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Collection
 from typing import Any
 
@@ -11,6 +12,7 @@ from fastmcp.tools.tool import ToolResult
 from fastmcp.utilities.logging import get_logger
 
 from plane_mcp.coercion import coerce_arguments
+from plane_mcp.toolkit.runtime import coerce_list
 from plane_mcp.tools.registry import action_arguments, alias_table
 
 logger = get_logger(__name__)
@@ -28,6 +30,44 @@ def stray_argument_error(action: str, arguments: dict, accepted: Collection[str]
         return None
     takes = ", ".join(sorted(accepted)) or "nothing else"
     return f"Error: action '{action}' does not take: {', '.join(stray)}. It takes: {takes}."
+
+
+_SAFE_ID = re.compile(r"[\w-]+")
+# Set by the integrating system and sent as a query parameter or in the body, so any text is valid.
+_FREE_TEXT_IDS = frozenset({"external_id"})
+
+
+def _id_values(name: str, value: Any) -> list[Any]:
+    """The ids an argument carries, or nothing when it is not an id."""
+    if name in _FREE_TEXT_IDS or not value:
+        return []
+    if name.endswith("_ids"):
+        return coerce_list(value) or []
+    return [value] if name.endswith(("_id", "_identifier")) else []
+
+
+def malformed_id_error(arguments: dict) -> str | None:
+    """Error naming the first id that cannot be a single URL path segment, or None.
+
+    The SDK puts ids into URL paths unescaped, so a slash, dot segment or query
+    character in one would address a different route from the one requested.
+    """
+    for name, value in arguments.items():
+        for item in _id_values(name, value):
+            if not _SAFE_ID.fullmatch(str(item)):
+                return f"Error: {name} is not a valid id. Pass the id exactly as Plane returned it."
+    return None
+
+
+class ValidateIdArguments(Middleware):
+    """Refuse a call carrying a malformed id, before any tool can build a URL from it."""
+
+    async def on_call_tool(self, context: MiddlewareContext, call_next):
+        arguments = getattr(context.message, "arguments", None)
+        if isinstance(arguments, dict) and (message := malformed_id_error(arguments)):
+            logger.warning("Plane MCP: %s", message)
+            return ToolResult(content=message)
+        return await call_next(context)
 
 
 class ValidateActionArguments(Middleware):
