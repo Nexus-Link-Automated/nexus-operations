@@ -16,6 +16,7 @@ from uuid import uuid4
 
 import pytest
 import requests
+from crum import impersonate
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -42,7 +43,7 @@ from plane.chat.models import (
     MessageExport,
 )
 from plane.chat.notifications import CHAT_MESSAGE_ENTITY
-from plane.db.models import Notification, WorkspaceMember
+from plane.db.models import FileAsset, Notification, WorkspaceMember
 from plane.license.models import AgentDefinition
 
 from .conftest import GUEST
@@ -340,6 +341,23 @@ class TestTurns:
         assert follow_up["session_ref"] == "s1"
         assert "alpha" in follow_up["primer"] and "done" in follow_up["primer"]
 
+    def test_a_message_that_is_only_files_says_what_was_sent(self, dm, member, bridge):
+        # The bridge takes no empty prompt: without this, the turn failed as "unavailable".
+        message = Message.objects.create(channel=dm, sender=member.user, body_html="<p></p>")
+        with impersonate(member.user):
+            FileAsset.objects.create(
+                attributes={"name": "plan.pdf", "type": "application/pdf", "size": 10, "channel_id": str(dm.id)},
+                asset=f"{dm.workspace_id}/{uuid4().hex}",
+                workspace_id=dm.workspace_id,
+                entity_type=FileAsset.EntityTypeContext.CHAT_MESSAGE_ATTACHMENT,
+                entity_identifier=str(message.id),
+                is_uploaded=True,
+            )
+        respond_in_agent_dm(str(message.id))
+        [started] = bridge.turns
+        assert "plan.pdf" in started["prompt"]
+        assert agent_messages(dm) == []
+
     def test_nothing_new_starts_nothing(self, dm, turn, api_client, bridge):
         _, run_id = turn()
         internal(api_client, REPLIES_URL, {"run_id": run_id, "status": "ok", "text": "done"})
@@ -575,6 +593,22 @@ class TestStreaming:
         WorkspaceMember.objects.filter(workspace=workspace, member=member.user).update(is_active=False)
         assert internal(api_client, DRAFT_URL, {"run_id": run_id, "text": "x"}).status_code == 409
 
+    def test_nul_characters_from_the_agent_are_dropped(self, api_client, dm, turn):
+        # Postgres stores none: they used to fail the write and leave the draft "writing" for good.
+        _, run_id = turn()
+        tools = [{"id": "t\u00001", "title": "Read\u0000 WEB-1", "status": "completed"}]
+        draft = internal(api_client, DRAFT_URL, {"run_id": run_id, "text": "a\u0000b", "tool_calls": tools})
+        assert draft.status_code == 200
+        final = internal(
+            api_client,
+            REPLIES_URL,
+            {"run_id": run_id, "status": "ok", "text": "done\u0000", "tool_calls": tools, "session_ref": "s\u00001"},
+        )
+        assert final.status_code == 201
+        [reply] = agent_messages(dm)
+        assert reply.agent_streaming is False
+        assert reply.agent_tool_calls == [{"id": "t1", "title": "Read WEB-1", "status": "completed"}]
+
     def test_reports_need_the_secret_and_a_valid_body(self, api_client, turn):
         _, run_id = turn()
         assert internal(api_client, DRAFT_URL, {"run_id": run_id, "text": "x"}, secret="wrong").status_code == 403
@@ -687,6 +721,16 @@ class TestApprovals:
         assert call["headers"]["X-Agent-Bridge-Secret"] == SECRET
         assert member.client.post(answer_url, {"option_id": "allow"}, format="json").status_code == 409
         assert member.client.get(url(f"channels/{dm.id}/agent-dm/permissions/")).data == []
+
+    def test_not_once_the_agent_is_disabled(self, dm, agent, member, url, prompt, bridge):
+        # An approval now would run the tool with rights the person no longer has through this agent.
+        _, request_id = prompt()
+        AgentDefinition.objects.filter(pk=agent.pk).update(is_enabled=False)
+        answer = member.client.post(
+            url(f"channels/{dm.id}/agent-dm/permissions/{request_id}/"), {"option_id": "allow"}, format="json"
+        )
+        assert answer.status_code == 409
+        assert [call for call in bridge.calls if "/permissions/" in call["url"]] == []
 
     def test_only_its_own_options(self, dm, member, url, prompt):
         _, request_id = prompt()
@@ -844,6 +888,35 @@ class TestLikeADm:
         with mock.patch("plane.chat.retention.S3Storage"):
             purge_chat_data()
         assert not Message.all_objects.filter(pk=message.pk).exists()
+
+    def test_retention_leaves_no_tool_titles_behind(self, api_client, dm, turn, say, keep_for_days):
+        message, run_id = turn()
+        tools = [{"id": "t1", "title": "Read the salary sheet", "status": "completed"}]
+        reply_id = internal(
+            api_client, REPLIES_URL, {"run_id": run_id, "status": "ok", "text": "x", "tool_calls": tools}
+        )
+        reply = Message.objects.get(pk=reply_id.data["message_id"])
+        # Kept as the start of a thread (a newer reply in it), so emptied rather than deleted.
+        say("newer", parent=reply)
+        AgentPermissionRequest.objects.create(
+            channel=dm,
+            run_id=run_id,
+            request_id=uuid4().hex,
+            title="Read the salary sheet",
+            options=OPTIONS,
+            expires_at=timezone.now(),
+        )
+        old = timezone.now() - timedelta(days=400)
+        Message.all_objects.filter(pk__in=[message.pk, reply.pk]).update(created_at=old)
+        AgentPermissionRequest.objects.update(created_at=old)
+        keep_for_days(30)
+        from plane.chat.retention import purge_chat_data
+
+        with mock.patch("plane.chat.retention.S3Storage"):
+            purge_chat_data()
+        reply.refresh_from_db()
+        assert reply.removed_at is not None and reply.agent_tool_calls is None
+        assert not AgentPermissionRequest.all_objects.exists()
 
     def test_unread_counts_the_agents_finished_replies(self, api_client, dm, member, url, turn):
         _, run_id = turn()

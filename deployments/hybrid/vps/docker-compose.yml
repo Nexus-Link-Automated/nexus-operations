@@ -73,6 +73,9 @@ x-app-env: &app-env
   CHAT_RATE_LIMIT_AGENT_SESSION: ${CHAT_RATE_LIMIT_AGENT_SESSION:-}
   CHAT_RATE_LIMIT_AGENT_CHANNEL: ${CHAT_RATE_LIMIT_AGENT_CHANNEL:-}
   CHAT_RATE_LIMIT_AGENT_POST: ${CHAT_RATE_LIMIT_AGENT_POST:-}
+  CHAT_RATE_LIMIT_AGENT_DM_TURN: ${CHAT_RATE_LIMIT_AGENT_DM_TURN:-}
+  # Days Messages keeps messages, until set in God mode (0 keeps them forever).
+  CHAT_MESSAGE_RETENTION_DAYS: ${CHAT_MESSAGE_RETENTION_DAYS:-0}
   # Hours a Messages export from God mode can be downloaded before it is deleted.
   CHAT_EXPORT_EXPIRY_HOURS: ${CHAT_EXPORT_EXPIRY_HOURS:-24}
 
@@ -254,6 +257,8 @@ services:
       AGENT_BRIDGE_SECRET: ${AGENT_BRIDGE_SECRET:?run generate-env.sh}
       AGENT_RUNNER_URL: ws://agent-runner:3410/acp
       AGENT_RUNNER_SECRET: ${AGENT_RUNNER_SECRET:?run generate-env.sh}
+      # How long an agent DM's session stays open between turns (it holds a slot of the per-user cap meanwhile).
+      AGENT_BRIDGE_DM_IDLE_TIMEOUT_MS: ${AGENT_BRIDGE_DM_IDLE_TIMEOUT_MS:-600000}
       # Must equal the runner's: both compute the per-user cwd from it.
       AGENT_WORKSPACES_ROOT: /workspaces
       PLANE_MCP_URL: http://mcp:8211/mcp

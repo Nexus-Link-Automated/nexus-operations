@@ -695,11 +695,15 @@ export class DmSessions {
     return turn.session.answerPermission(runId, requestId, optionId);
   }
 
+  /**
+   * Stop the DM's turn `runId`. False only if the DM has no such turn: one that has ended but is still reporting its
+   * reply counts, so that the API waits for that report instead of ending the run without it.
+   */
   cancel(channelId: string, runId: string): boolean {
     const turn = this.#turns.get(channelId);
     if (!turn || turn.runId !== runId) return false;
-    if (turn.session) return turn.session.cancel(runId);
-    turn.cancelRequested = true;
+    if (turn.session) turn.session.cancel(runId);
+    else turn.cancelRequested = true;
     return true;
   }
 

@@ -64,6 +64,7 @@ from plane.chat.agent_replies import (
     may_run_agents,
 )
 from plane.chat.agents import effective_permission_level
+from plane.chat.attachments import assets
 from plane.chat.events import EventType, agent_dm_event, agent_permission_event, message_event, publish_on_commit
 from plane.chat.markdown import markdown_to_html
 from plane.chat.models import (
@@ -201,6 +202,17 @@ def _history(channel, new_messages):
     return list(earlier)[::-1]
 
 
+def _files_note(message):
+    """What a message's files say in a prompt: the agent can't open them, but it should know they were sent."""
+    files = [
+        str(asset.attributes.get("name") or "a file") if isinstance(asset.attributes, dict) else "a file"
+        for asset in assets().filter(entity_identifier=str(message.pk), is_uploaded=True).order_by("created_at")
+    ]
+    if not files:
+        return ""
+    return f"[Sent {len(files)} file{'s' if len(files) > 1 else ''}, which you can't open here: {', '.join(files)}]"
+
+
 def build_dm_prompts(channel, channel_agent, new_messages):
     """`(prompt, primer)` for a turn: the new messages alone, for a session that has the rest; or with the history."""
     history = _history(channel, new_messages)
@@ -208,9 +220,13 @@ def build_dm_prompts(channel, channel_agent, new_messages):
     agent_name = channel_agent.agent.name
     person = names.sender(new_messages[0])
 
+    def text_of(item):
+        # A message can be only files, and the bridge takes no empty prompt.
+        return "\n\n".join(part for part in (names.text(item), _files_note(item)) if part.strip())
+
     new_parts, used = [], 0
     for item in new_messages:
-        text = _clip(names.text(item), MAX_MENTION_CHARS)
+        text = _clip(text_of(item), MAX_MENTION_CHARS)
         if used + len(text) > MAX_NEW_CHARS:
             break
         new_parts.append(text)
@@ -220,7 +236,7 @@ def build_dm_prompts(channel, channel_agent, new_messages):
 
     lines, used = [], 0
     for item in reversed(history):
-        block = f"--- {names.sender(item)}, {_stamp(item)}\n{_clip(names.text(item), MAX_CONTEXT_MESSAGE_CHARS)}"
+        block = f"--- {names.sender(item)}, {_stamp(item)}\n{_clip(text_of(item), MAX_CONTEXT_MESSAGE_CHARS)}"
         if used + len(block) > MAX_CONTEXT_CHARS:
             break
         lines.append(block)
@@ -552,6 +568,10 @@ def answer_permission(channel, request_id, option_id):
             raise AgentPermissionRequest.DoesNotExist
         current = request.status == AgentPermissionStatus.PENDING and request.expires_at > timezone.now()
         if not current or running_run_id(channel.id) != request.run_id:
+            raise PermissionGone
+        # The agent disabled or removed, or the person no longer allowed to run agents, since it asked: a tool call
+        # approved now would run with rights they no longer have.
+        if refusal(channel, request.run_id) is not None:
             raise PermissionGone
         if option_id not in [option["option_id"] for option in request.options]:
             raise UnknownOption

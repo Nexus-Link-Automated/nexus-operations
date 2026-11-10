@@ -349,10 +349,26 @@ describe("POST /internal/dm-turns", () => {
     expect(answers).toEqual([{ outcome: { outcome: "cancelled" } }]);
     const agent = harness.transport.agents[0]!;
     expect(agent.received.find((m) => m.method === "session/cancel")!.params).toEqual({ sessionId: "fake-session-1" });
+    // Once the report is in, the turn is gone.
+    for (let tries = 0; tries < 100 && (await cancel(harness, RUN_A)).status !== 404; tries++) await sleep(10);
     expect((await cancel(harness, RUN_A)).status).toBe(404);
     // A stopped turn keeps the session for the next message.
     expect(harness.bridge.dmSessionCount).toBe(1);
     expect(agent.closed).toBe(false);
+  });
+
+  it("takes a Stop for a turn that has finished but is still reporting, so its reply isn't lost", async () => {
+    harness = await startHarness();
+    harness.api.replyStatuses.push(503);
+    harness.transport.script = answering;
+    await start(harness);
+    // The first report failed, and the turn waits to send it again.
+    await waitUntil(() => harness!.api.replyStatuses.length === 0);
+    expect((await cancel(harness, RUN_A)).status).toBe(202);
+    expect(await reportFor(harness, RUN_A)).toMatchObject({
+      status: "ok",
+      text: "You said: And what about WEB-3?",
+    });
   });
 
   it("stops a turn the API won't take drafts for any more", async () => {

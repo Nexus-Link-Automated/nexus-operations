@@ -35,6 +35,22 @@ _REFUSED = {
 }
 
 
+def _without_nul(value):
+    """`value` with NUL characters taken out of every string in it: Postgres stores none in text or jsonb."""
+    if isinstance(value, str):
+        return value.replace("\x00", "")
+    if isinstance(value, list):
+        return [_without_nul(item) for item in value]
+    if isinstance(value, dict):
+        return {_without_nul(key): _without_nul(item) for key, item in value.items()}
+    return value
+
+
+def _bridge_data(request):
+    """The bridge's JSON body, or {} if it isn't an object. An agent's text can hold anything, NULs included."""
+    return _without_nul(request.data) if isinstance(request.data, dict) else {}
+
+
 def _short_string(value, limit=_LABEL):
     return isinstance(value, str) and len(value) <= limit
 
@@ -118,7 +134,7 @@ class ChatAgentReplyEndpoint(BaseAPIView):
     throttle_classes = []
 
     def post(self, request):
-        data = request.data if isinstance(request.data, dict) else {}
+        data = _bridge_data(request)
         run_id = data.get("run_id")
         outcome = _outcome(data)
         if not isinstance(run_id, str) or not _RUN_ID.fullmatch(run_id) or outcome is None:
@@ -156,7 +172,7 @@ class ChatAgentDraftEndpoint(_BridgeOnlyEndpoint):
     """
 
     def post(self, request):
-        data = request.data if isinstance(request.data, dict) else {}
+        data = _bridge_data(request)
         run_id, text, tool_calls = data.get("run_id"), data.get("text", ""), _tool_calls(data.get("tool_calls"))
         valid_run = isinstance(run_id, str) and _RUN_ID.fullmatch(run_id)
         if not valid_run or not isinstance(text, str) or len(text) > MAX_TEXT_CHARS or tool_calls is None:
@@ -176,7 +192,7 @@ class ChatAgentPermissionEndpoint(_BridgeOnlyEndpoint):
     """
 
     def post(self, request):
-        data = request.data if isinstance(request.data, dict) else {}
+        data = _bridge_data(request)
         run_id, request_id = data.get("run_id"), data.get("request_id")
         title, options = data.get("title", ""), data.get("options")
         ids_valid = all(isinstance(value, str) and _RUN_ID.fullmatch(value) for value in (run_id, request_id))
