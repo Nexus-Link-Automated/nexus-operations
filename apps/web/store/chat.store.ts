@@ -165,6 +165,8 @@ const CHAT_SEARCH_PAGE_SIZE = 20;
 const CHAT_PAGE_SIZE = 50;
 /** The catch-up after a reconnect stops after this many pages and reloads the channel instead. */
 const MAX_CATCH_UP_PAGES = 20;
+/** Channels caught up at once after a reconnect, so a tab that has opened many doesn't ask for all of them together. */
+const MAX_CATCH_UPS_AT_ONCE = 3;
 /** Following a link to an old message loads back at most this many pages looking for it. */
 const REVEAL_MAX_PAGES = 20;
 
@@ -317,7 +319,7 @@ export interface IChatStore {
  *
  * - Every `ready` (the first, and after every reconnect) and every `resync` refetch the channel list and catch up
  *   each loaded channel with `messages/?after=<newest id held when events stopped>`, then re-read its newest page
- *   for edits and removals.
+ *   for edits and removals. A few channels are caught up at a time, the open one first.
  * - The first the user hears of a new channel or DM is their own `member.added`: the channel is fetched then.
  * - A public channel the user is viewing but hasn't joined is `subscribe`d explicitly, and again after their own
  *   `member.removed`.
@@ -1753,10 +1755,14 @@ export class ChatStore implements IChatStore {
         if (aboutMe || known) void this.refreshChannel(channelId);
         if (this.channelMembers[channelId]) void this.fetchChannelMembers(channelId).catch(() => undefined);
         return;
-      case "read.updated":
-        // Read in another tab.
-        if (known) void this.refreshChannel(channelId);
+      case "read.updated": {
+        // Read in another tab. This tab's own read already shows the cursor where the event says it is.
+        const channel = this.channelMap[channelId];
+        const alreadyShown =
+          !!event.message_id && channel?.last_read_message_id === event.message_id && channel.unread_count === 0;
+        if (channel && !alreadyShown) void this.refreshChannel(channelId);
         return;
+      }
       case "agent.permission_requested":
       case "agent.permission_resolved":
         if (this.agentPermissions[channelId] || this.activeChannelId === channelId) {
@@ -1855,11 +1861,14 @@ export class ChatStore implements IChatStore {
           // oxlint-disable-next-line no-await-in-loop -- a resync asked for during one runs once more after it
           await this.fetchChannels();
           if (generation !== this.generation) return;
-          const loaded = Object.keys(this.channelMessages).filter((id) => this.channelMessages[id]?.loaded);
+          const loaded = sortBy(
+            Object.keys(this.channelMessages).filter((id) => this.channelMessages[id]?.loaded),
+            (id) => (id === this.activeChannelId ? 0 : 1)
+          );
           const threads = Object.keys(this.threadMessages).filter((id) => this.threadMessages[id]?.loaded);
           // oxlint-disable-next-line no-await-in-loop -- see above
           await Promise.all([
-            ...loaded.map((id) => this.catchUp(id)),
+            this.catchUpInTurn(loaded, generation),
             ...threads.map((id) => this.catchUpThread(id)),
             this.refreshShownMembers(),
           ]);
@@ -1870,6 +1879,18 @@ export class ChatStore implements IChatStore {
     })();
     this.resyncing = entry;
     return entry.promise;
+  }
+
+  /** Catch up `channelIds` in order, `MAX_CATCH_UPS_AT_ONCE` at a time, until the store moves on. */
+  private async catchUpInTurn(channelIds: string[], generation: number): Promise<void> {
+    const queue = [...channelIds];
+    const next = async (): Promise<void> => {
+      while (queue.length > 0 && generation === this.generation) {
+        // oxlint-disable-next-line no-await-in-loop -- each worker takes the next channel once its last is done
+        await this.catchUp(queue.shift()!);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(MAX_CATCH_UPS_AT_ONCE, queue.length) }, next));
   }
 
   /** Records where each loaded channel's and thread's unbroken history ends, unless an earlier gap already has. */
