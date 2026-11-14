@@ -7,6 +7,7 @@ updates:
     directories:
       - /apps/agent-bridge
       - /apps/agent-runner
+      - /apps/chat-gateway
       - /apps/mcp
     schedule:
       interval: weekly
