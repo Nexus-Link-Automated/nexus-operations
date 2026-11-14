@@ -5,18 +5,19 @@
  */
 
 /* oxlint-disable no-await-in-loop -- each tool call is one prompt, in order */
-import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, realpathSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import type { McpServer } from "@agentclientprotocol/sdk";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { PATH_REFUSED_MESSAGE } from "../src/core/paths.ts";
-import { createDeepSeekAdapter, finishToStopReason } from "../src/deepseek/index.ts";
+import { HistoryStore, MAX_HISTORY_BYTES, MAX_STORED_SESSIONS, storableMessages } from "../src/deepseek/history.ts";
+import { createDeepSeekAdapter, finishToStopReason, type ChatMessage } from "../src/deepseek/index.ts";
 import { inProcessClient, tempDir, textOf, updatesOfKind, type InProcessClient } from "./helpers/client.ts";
 import { deepSeekFetch } from "./helpers/deepseek.ts";
 
-const env = { DEEPSEEK_API_KEY: "sk-deepseek" };
+const env = { DEEPSEEK_API_KEY: "sk-deepseek", HOME: tempDir("deepseek-home-") };
 
 describe("DeepSeek tool loop (fetch-stubbed SSE)", () => {
   let client: InProcessClient | undefined;
@@ -313,5 +314,55 @@ describe("DeepSeek file tools and web fetch", () => {
     await call("web_fetch", { url: "https://example.com/page" });
     expect(client!.permissionRequests).toHaveLength(0);
     expect(api.requests.some((request) => new URL(request.url).hostname === "example.com")).toBe(true);
+  });
+});
+
+const user = (content: string): ChatMessage => ({ role: "user", content });
+const answer = (content: string): ChatMessage => ({ role: "assistant", content });
+const bashCall = (id: string) => ({ id, type: "function" as const, function: { name: "bash", arguments: "{}" } });
+
+describe("DeepSeek stored conversations", () => {
+  it("keeps whole turns, newest first, within the size limit", () => {
+    const half = "x".repeat(MAX_HISTORY_BYTES / 2);
+    const messages = [{ role: "system", content: "s" } as const, user("one"), answer(half), user("two"), answer(half)];
+    expect(storableMessages([...messages, user("three"), answer("ok")])).toEqual([
+      user("two"),
+      answer(half),
+      user("three"),
+      answer("ok"),
+    ]);
+    // The last turn is kept even when it alone is over the limit.
+    expect(storableMessages([user("one"), answer(half.repeat(3))])).toEqual([user("one"), answer(half.repeat(3))]);
+  });
+
+  it("answers tool calls the turn never got to, so DeepSeek accepts the conversation", () => {
+    const calling: ChatMessage = { role: "assistant", content: null, tool_calls: [bashCall("c1"), bashCall("c2")] };
+    expect(storableMessages([user("go"), calling, { role: "tool", tool_call_id: "c1", content: "ok" }])).toEqual([
+      user("go"),
+      calling,
+      { role: "tool", tool_call_id: "c1", content: "ok" },
+      { role: "tool", tool_call_id: "c2", content: "The tool call was interrupted." },
+    ]);
+  });
+
+  it("stores each session in a private file and keeps only the most recent ones", () => {
+    const home = tempDir("deepseek-home-");
+    const dir = path.join(home, ".plane-acp", "deepseek");
+    const store = new HistoryStore({ HOME: home });
+    for (let n = 0; n <= MAX_STORED_SESSIONS; n += 1) {
+      store.write(`session-${n}`, [user(`${n}`)], new Set());
+      // Oldest first, whatever the file system's timestamp resolution.
+      utimesSync(path.join(dir, `session-${n}.json`), 1_000 + n, 1_000 + n);
+    }
+    const files = readdirSync(dir);
+    expect(files).toHaveLength(MAX_STORED_SESSIONS);
+    expect(files).not.toContain("session-0.json");
+    expect(store.read("session-1")).toEqual({ messages: [user("1")], failed: [] });
+    expect(statSync(dir).mode & 0o777).toBe(0o700);
+    expect(statSync(path.join(dir, "session-1.json")).mode & 0o777).toBe(0o600);
+
+    store.write("../escape", [user("x")], new Set());
+    expect(readdirSync(path.dirname(dir))).toEqual(["deepseek"]);
+    expect(store.read("../session-1")).toBeUndefined();
   });
 });

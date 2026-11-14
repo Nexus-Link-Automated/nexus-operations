@@ -4,26 +4,23 @@
  * See the LICENSE file for details.
  */
 
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ensurePrivateDir } from "../core/auth.ts";
-import { objectValue, stringValue, type JsonObject } from "../core/json.ts";
+import { objectValue, stringValue } from "../core/json.ts";
+import { readJson, writePrivateJson } from "../core/store.ts";
 
 /** Gemini CLI keeps everything under `<GEMINI_CLI_HOME or HOME>/.gemini`. */
 export const GEMINI_DIR = ".gemini";
 export const OAUTH_CREDS_FILE = "oauth_creds.json";
 export const GOOGLE_ACCOUNTS_FILE = "google_accounts.json";
 export const SETTINGS_FILE = "settings.json";
-/** Our ACP session id → Gemini's own session id, so `session/load` finds the conversation. */
-export const SESSION_MAP_FILE = "plane-acp-sessions.json";
 /** `security.auth.selectedType` for a Google sign-in. */
 export const GOOGLE_AUTH_TYPE = "oauth-personal";
 export const API_KEY_AUTH_TYPE = "gemini-api-key";
 
 const PACKAGE_NAME = "@plane/acp-adapters";
-const MAX_MAPPED_SESSIONS = 500;
 
 let cachedRoot: string | undefined;
 
@@ -58,22 +55,6 @@ export function geminiSystemSettingsPath(kind: "api_key" | "google_account"): st
   return geminiAsset(kind === "api_key" ? "system-settings.api-key.json" : "system-settings.google-account.json");
 }
 
-export function readJson(file: string): unknown {
-  try {
-    return JSON.parse(readFileSync(file, "utf8"));
-  } catch {
-    return undefined;
-  }
-}
-
-/** Write a JSON file atomically, readable by its owner only. */
-export function writePrivateJson(file: string, value: unknown): void {
-  ensurePrivateDir(path.dirname(file));
-  const temp = `${file}.${process.pid}.tmp`;
-  writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
-  renameSync(temp, file);
-}
-
 /** True when `<dir>/oauth_creds.json` holds a Google sign-in Gemini CLI can refresh. */
 export function hasGoogleCredentials(geminiDir: string): boolean {
   const creds = objectValue(readJson(path.join(geminiDir, OAUTH_CREDS_FILE)));
@@ -105,27 +86,4 @@ export function setSelectedAuthType(geminiDir: string, authType: string | undefi
   security.auth = auth;
   settings.security = security;
   writePrivateJson(file, settings);
-}
-
-/** Our session id → Gemini's, persisted next to Gemini's own session storage. */
-export class SessionMap {
-  readonly #file: string;
-
-  constructor(geminiDir: string) {
-    this.#file = path.join(geminiDir, SESSION_MAP_FILE);
-  }
-
-  get(sessionId: string): string | undefined {
-    return stringValue(this.#read()[sessionId]) || undefined;
-  }
-
-  set(sessionId: string, geminiSessionId: string): void {
-    const entries = Object.entries(this.#read()).filter(([key]) => key !== sessionId);
-    entries.push([sessionId, geminiSessionId]);
-    writePrivateJson(this.#file, Object.fromEntries(entries.slice(-MAX_MAPPED_SESSIONS)));
-  }
-
-  #read(): JsonObject {
-    return objectValue(readJson(this.#file));
-  }
 }

@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { statSync } from "node:fs";
+import { rmSync, statSync } from "node:fs";
 import path from "node:path";
 
 import type { McpServer } from "@agentclientprotocol/sdk";
@@ -24,6 +24,13 @@ const planeMcp: McpServer = {
     { name: "X-Workspace-slug", value: "acme" },
   ],
 };
+
+function resumed(fake: ReturnType<typeof fakeCodexEnv>) {
+  return fake
+    .log()
+    .filter((message) => message.method === "thread/resume")
+    .map((message) => message.params as any);
+}
 
 function interrupts(fake: ReturnType<typeof fakeCodexEnv>) {
   return fake.log().filter((message) => message.method === "turn/interrupt");
@@ -663,6 +670,118 @@ describe("plane-acp-codex over stdio (fake app-server)", () => {
       spawned.answers.push("ignore");
       await expect(prompt("run")).rejects.toMatchObject({ message: expect.stringContaining("timed out") });
       expect(spawned.permissionRequests).toHaveLength(1);
+    });
+  });
+
+  describe("session/load", () => {
+    const open = async (fake: ReturnType<typeof fakeCodexEnv>) => {
+      const spawned = spawnClient("codex", fake.env);
+      client = spawned;
+      const init = await spawned.agent.request("initialize", { protocolVersion: 1 });
+      expect(init.agentCapabilities?.loadSession).toBe(true);
+      return spawned;
+    };
+
+    it("resumes the session's Codex thread in a new process and replays it", async () => {
+      const fake = fakeCodexEnv({ OPENAI_API_KEY: "sk-test" });
+      const cwd = tempDir();
+      let spawned = await open(fake);
+      const { sessionId } = await spawned.agent.request("session/new", { cwd, mcpServers: [] });
+      const prompt = (text: string) =>
+        client!.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] });
+      await prompt("hello");
+      await prompt("run");
+      await spawned.close();
+
+      spawned = await open(fake);
+      const loaded = await spawned.agent.request("session/load", { sessionId, cwd, mcpServers: [planeMcp] });
+      expect(loaded.modes?.currentModeId).toBe("ask_writes");
+      expect(loaded.configOptions?.[0]).toMatchObject({ id: "model", currentValue: "gpt-test" });
+      expect(spawned.updates.map((notification) => notification.update)).toEqual([
+        { sessionUpdate: "user_message_chunk", content: { type: "text", text: "hello" }, messageId: "h-1" },
+        { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "Thinking." }, messageId: "h-2" },
+        { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Hi there" }, messageId: "h-3" },
+        { sessionUpdate: "user_message_chunk", content: { type: "text", text: "run" }, messageId: "h-4" },
+        expect.objectContaining({
+          sessionUpdate: "tool_call",
+          title: "Run: touch a.txt",
+          kind: "execute",
+          status: "completed",
+        }),
+        { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "ran it" }, messageId: "h-5" },
+      ]);
+      expect(resumed(fake)).toEqual([
+        expect.objectContaining({
+          threadId: "thread-1",
+          excludeTurns: true,
+          cwd,
+          approvalPolicy: "untrusted",
+          sandbox: "danger-full-access",
+          config: expect.objectContaining({
+            mcp_servers: { plane: expect.objectContaining({ url: "http://mcp.internal/mcp" }) },
+            web_search: "disabled",
+          }),
+        }),
+      ]);
+
+      await expect(prompt("hello")).resolves.toMatchObject({ stopReason: "end_turn" });
+      const turns = fake.log().filter((message) => message.method === "turn/start");
+      expect(turns.at(-1)?.params).toMatchObject({ threadId: "thread-1" });
+    });
+
+    it("follows the chat onto a fork made for a new permission level", async () => {
+      const fake = fakeCodexEnv({ OPENAI_API_KEY: "sk-test" });
+      const cwd = tempDir();
+      let spawned = await open(fake);
+      const { sessionId } = await spawned.agent.request("session/new", { cwd, mcpServers: [] });
+      const prompt = (text: string) =>
+        client!.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] });
+      await prompt("hello");
+      await spawned.agent.request("session/set_mode", { sessionId, modeId: "yolo" });
+      await prompt("again");
+      await spawned.close();
+
+      spawned = await open(fake);
+      await spawned.agent.request("session/load", {
+        sessionId,
+        cwd,
+        mcpServers: [],
+        _meta: { "plane/initialModeId": "yolo" },
+      });
+      expect(resumed(fake)).toEqual([expect.objectContaining({ threadId: "fork-1", approvalPolicy: "on-request" })]);
+      expect(resumed(fake)[0].config).not.toHaveProperty("web_search");
+      expect(textOf(spawned.updates, "agent_message_chunk")).toBe("Hi thereok");
+    });
+
+    it("answers resource-not-found for a session with no saved thread", async () => {
+      const fake = fakeCodexEnv({ OPENAI_API_KEY: "sk-test" });
+      const cwd = tempDir();
+      let spawned = await open(fake);
+      // Codex saves a thread only once a turn has started on it.
+      const { sessionId } = await spawned.agent.request("session/new", { cwd, mcpServers: [] });
+      await spawned.close();
+
+      spawned = await open(fake);
+      const load = (id: string) => spawned.agent.request("session/load", { sessionId: id, cwd, mcpServers: [] });
+      await expect(load(sessionId)).rejects.toMatchObject({ code: -32002 });
+      await expect(load("00000000-0000-4000-8000-000000000000")).rejects.toMatchObject({ code: -32002 });
+      expect(resumed(fake)).toEqual([]);
+    });
+
+    it("answers resource-not-found when Codex no longer has the thread", async () => {
+      const fake = fakeCodexEnv({ OPENAI_API_KEY: "sk-test" });
+      const cwd = tempDir();
+      let spawned = await open(fake);
+      const { sessionId } = await spawned.agent.request("session/new", { cwd, mcpServers: [] });
+      await spawned.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text: "hello" }] });
+      await spawned.close();
+      rmSync(path.join(fake.env.HOME!, ".codex-api-key", "fake-threads.json"));
+
+      spawned = await open(fake);
+      await expect(spawned.agent.request("session/load", { sessionId, cwd, mcpServers: [] })).rejects.toMatchObject({
+        code: -32002,
+      });
+      expect(resumed(fake)).toHaveLength(1);
     });
   });
 });

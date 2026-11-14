@@ -28,6 +28,7 @@ import { MODEL_ENV, effortChoices } from "../core/models.ts";
 import { classifyMcpCall, toolKindForCategory, type PermissionModeId, type ToolCategory } from "../core/modes.ts";
 import type { FileTarget } from "../core/paths.ts";
 import { fileMemory, shellCommandMemory, type PermissionCheck, type PermissionDecision } from "../core/permission.ts";
+import { SessionMap } from "../core/store.ts";
 import { promptToText } from "../core/turn.ts";
 import {
   CODEX_BASE_URL_ENV,
@@ -50,6 +51,8 @@ export const CODEX_ENV = {
 const DEFAULT_STALL_TIMEOUT_MS = 300_000;
 const DEFAULT_TURN_TIMEOUT_MS = 30 * 60_000;
 const INTERRUPT_GRACE_MS = 5_000;
+/** `thread/turns/list` pages read for a `session/load` replay, so a broken cursor cannot loop forever. */
+const MAX_HISTORY_PAGES = 100;
 
 /**
  * Codex approval policy per permission level. The runner is the sandbox, so threads always run
@@ -71,6 +74,9 @@ const INTERRUPT_GRACE_MS = 5_000;
 export function approvalPolicyFor(mode: PermissionModeId): "untrusted" | "on-request" {
   return mode === "yolo" ? "on-request" : "untrusted";
 }
+
+/** How `thread/resume` fails for a thread Codex never saved (no turn yet) or no longer has. */
+const CODEX_THREAD_GONE = /no rollout found/i;
 
 const TIGHTENED_NOTICE = "Codex stopped this turn to apply the stricter permission level. Send a message to continue.";
 
@@ -116,27 +122,34 @@ export function resolveCodexAuth(env: NodeJS.ProcessEnv): CodexAuth {
   return { kind: "ambient", env };
 }
 
+/** The Codex home the app-server will use, where it keeps its threads. */
+export function codexHomeOf(auth: CodexAuth): string {
+  return auth.env[CODEX_ENV.home]?.trim() || path.join(agentHome(auth.env), ".codex");
+}
+
 export interface CodexAdapterOptions {
   readonly spawnAppServer?: SpawnCodexAppServer;
 }
 
 export function createCodexAdapter(options: CodexAdapterOptions = {}): AgentAdapter {
+  const open = async (init: SessionInit, load: boolean): Promise<CodexSession> => {
+    const session = new CodexSession(init, options);
+    try {
+      await session.start(load);
+    } catch (error) {
+      await session.close();
+      if (error instanceof RequestError) throw error;
+      const failure = session.describeFailure(error);
+      throw failure === CODEX_SIGNED_OUT
+        ? RequestError.authRequired(undefined, failure)
+        : RequestError.internalError(undefined, failure);
+    }
+    return session;
+  };
   return {
     info: agentInfo("plane-acp-codex", "Codex"),
-    async startSession(init) {
-      const session = new CodexSession(init, options);
-      try {
-        await session.start();
-      } catch (error) {
-        await session.close();
-        if (error instanceof RequestError) throw error;
-        const failure = session.describeFailure(error);
-        throw failure === CODEX_SIGNED_OUT
-          ? RequestError.authRequired(undefined, failure)
-          : RequestError.internalError(undefined, failure);
-      }
-      return session;
-    },
+    startSession: (init) => open(init, false),
+    loadSession: (init) => open(init, true),
   };
 }
 
@@ -197,6 +210,10 @@ class CodexSession implements AdapterSession {
   readonly #options: CodexAdapterOptions;
   #client: CodexAppServerClient | undefined;
   #threadId = "";
+  /** Our session id → the Codex thread it continues, for `session/load`. */
+  #sessions: SessionMap | undefined;
+  /** The thread `#sessions` names for this session. */
+  #savedThreadId = "";
   /** Whether the current thread was made with Codex's web search on. */
   #webSearch = false;
   /** A turn has started on the current thread, so Codex has saved it and it can be forked. */
@@ -222,9 +239,14 @@ class CodexSession implements AdapterSession {
     return this.#catalog;
   }
 
-  async start(): Promise<void> {
+  async start(load: boolean): Promise<void> {
     const host = this.#host;
     const auth = resolveCodexAuth(host.env);
+    this.#sessions = new SessionMap(codexHomeOf(auth));
+    if (load) {
+      this.#savedThreadId = this.#sessions.get(host.sessionId) ?? "";
+      if (!this.#savedThreadId) throw RequestError.resourceNotFound(host.sessionId);
+    }
     const client = new CodexAppServerClient({
       cwd: host.cwd,
       env: auth.env,
@@ -240,10 +262,13 @@ class CodexSession implements AdapterSession {
     const listed = await client.request("model/list", { includeHidden: false }).catch(() => ({}) as JsonObject);
     const override = host.env[MODEL_ENV]?.trim();
     const mode = host.mode();
-    const thread = await client.request("thread/start", this.#threadParams(mode), 60_000);
+    const thread = load
+      ? await this.#resume(client, mode)
+      : await client.request("thread/start", this.#threadParams(mode), 60_000);
     this.#threadId = stringValue(objectValue(thread.thread).id);
-    if (!this.#threadId) throw new Error("codex thread/start returned no thread id");
+    if (!this.#threadId) throw new Error(`codex ${load ? "thread/resume" : "thread/start"} returned no thread id`);
     this.#webSearch = mode === "yolo";
+    if (load) await this.#replay(await this.#turns(client));
     const current = override || stringValue(thread.model);
     const options = arrayValue(listed.data)
       .map(objectValue)
@@ -260,7 +285,107 @@ class CodexSession implements AdapterSession {
     this.#catalog = { options, current: current || options[0]?.value || "" };
   }
 
-  /** `thread/start` and `thread/fork` settings for a thread run at `mode`. */
+  /**
+   * Resume the session's saved thread with this session's settings (MCP servers and their headers,
+   * approval policy, web search for `mode`), as `thread/start` would set them. Its history comes
+   * from `thread/turns/list`: Codex deprecates returning it with `thread/resume` for its paginated threads.
+   */
+  async #resume(client: CodexAppServerClient, mode: PermissionModeId): Promise<JsonObject> {
+    try {
+      const thread = await client.request(
+        "thread/resume",
+        { threadId: this.#savedThreadId, excludeTurns: true, ...this.#threadParams(mode) },
+        60_000
+      );
+      // Only a thread Codex has saved, so one with turns, can be resumed.
+      this.#threadHasTurns = true;
+      return thread;
+    } catch (error) {
+      if (CODEX_THREAD_GONE.test(errorMessage(error))) throw RequestError.resourceNotFound(this.#host.sessionId);
+      throw error;
+    }
+  }
+
+  /** The current thread's turns, oldest first, with all their items. */
+  async #turns(client: CodexAppServerClient): Promise<JsonObject[]> {
+    const turns: JsonObject[] = [];
+    let cursor = "";
+    for (let page = 0; page < MAX_HISTORY_PAGES; page += 1) {
+      const listed = await client.request("thread/turns/list", {
+        threadId: this.#threadId,
+        itemsView: "full",
+        sortDirection: "asc",
+        ...(cursor ? { cursor } : {}),
+      });
+      turns.push(...arrayValue(listed.data).map(objectValue));
+      cursor = stringValue(listed.nextCursor);
+      if (!cursor) break;
+    }
+    return turns;
+  }
+
+  /** Replay a resumed thread for `session/load`: messages, reasoning and tool calls, without tool output. */
+  async #replay(turns: readonly JsonObject[]): Promise<void> {
+    const host = this.#host;
+    let seq = 0;
+    const say = async (
+      sessionUpdate: "user_message_chunk" | "agent_message_chunk" | "agent_thought_chunk",
+      chunk: string
+    ) => {
+      if (chunk) await host.emit({ sessionUpdate, content: { type: "text", text: chunk }, messageId: `h-${++seq}` });
+    };
+    for (const turn of turns) {
+      for (const item of arrayValue(turn.items).map(objectValue)) {
+        switch (stringValue(item.type)) {
+          case "userMessage":
+            await say(
+              "user_message_chunk",
+              arrayValue(item.content)
+                .map(objectValue)
+                .filter((input) => input.type === "text")
+                .map((input) => stringValue(input.text))
+                .join("\n\n")
+            );
+            break;
+          case "agentMessage":
+            await say("agent_message_chunk", stringValue(item.text));
+            break;
+          case "reasoning": {
+            const summary = arrayValue(item.summary).map(stringValue).filter(Boolean);
+            await say(
+              "agent_thought_chunk",
+              (summary.length ? summary : arrayValue(item.content).map(stringValue)).join("\n\n")
+            );
+            break;
+          }
+          default: {
+            const tool = describeItem(item);
+            if (!tool) break;
+            const status = stringValue(item.status);
+            const failed =
+              status === "failed" || status === "declined" || status === "inProgress" || Boolean(item.error);
+            await host.toolCalls.start(stringValue(item.id) || undefined, {
+              ...tool,
+              status: failed ? "failed" : "completed",
+            });
+          }
+        }
+      }
+    }
+  }
+
+  /** Point the session at the current thread once Codex has saved it (its first turn has started). */
+  #saveThread(): void {
+    if (this.#threadId === this.#savedThreadId) return;
+    try {
+      this.#sessions?.set(this.#host.sessionId, this.#threadId);
+      this.#savedThreadId = this.#threadId;
+    } catch (error) {
+      console.error(`could not record the Codex thread for this session: ${errorMessage(error)}`);
+    }
+  }
+
+  /** `thread/start`, `thread/resume` and `thread/fork` settings for a thread run at `mode`. */
   #threadParams(mode: PermissionModeId): JsonObject {
     const override = this.#host.env[MODEL_ENV]?.trim();
     return {
@@ -369,6 +494,7 @@ class CodexSession implements AdapterSession {
         ...(this.#host.effort() ? { effort: this.#host.effort() } : {}),
       });
       this.#threadHasTurns = true;
+      this.#saveThread();
       state.turnId = stringValue(objectValue(started.turn).id);
       if (context.signal.aborted) onAbort();
       else await this.#stopIfTightened(state);

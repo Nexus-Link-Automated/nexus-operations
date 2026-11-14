@@ -84,7 +84,11 @@ describe("golden transcripts", () => {
     if (entry.adapter === "codex") Object.assign(env, fakeCodexEnv().env);
     if (entry.adapter === "gemini") Object.assign(env, fakeGeminiEnv({ GEMINI_API_KEY: "AIza-golden" }).env);
     if (entry.adapter === "deepseek")
-      Object.assign(env, { DEEPSEEK_API_KEY: "sk-deepseek", DEEPSEEK_BASE_URL: api.url });
+      Object.assign(env, {
+        DEEPSEEK_API_KEY: "sk-deepseek",
+        DEEPSEEK_BASE_URL: api.url,
+        HOME: tempDir("golden-home-"),
+      });
     if (entry.kind === "script") return runScript({ bin: entry.adapter, env }, input.toString(), vars);
     return runPipe(entry.adapter, input, { env, ...(entry.splitAt ? { splitAt: entry.splitAt } : {}) });
   }

@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "corpus_id": "plane-acp-adapters-golden",
-  "corpus_version": 4,
+  "corpus_version": 5,
   "protocol_version": 1,
   "notes": "Ported from employai_v2 tests/fixtures/acp/v1 (corpus employai-acp-golden-v1). Regenerate expected output with UPDATE_GOLDEN=1, review the diff, then bump corpus_version and the corpus hash in acp-version.lock.json.",
   "cases": [
@@ -36,7 +36,7 @@
       "expected": "codex/valid/initialize.out.jsonl",
       "exitCode": 0,
       "inputSha256": "858fb828ca5d8ec7a2e4178ae6066bb6569cea6a6e24012d640a0ccad07627f2",
-      "expectedSha256": "0b50e54f162615cd976287eda9e3c2c218393c207812b1b1083f10266d19aa16"
+      "expectedSha256": "1dae743669aa21572b86bd3fb513ba01703ef23b919fd1ef06ddcfe785fd845f"
     },
     {
       "id": "codex/valid/turn",
@@ -47,7 +47,7 @@
       "expected": "codex/valid/turn.out.jsonl",
       "exitCode": 0,
       "inputSha256": "47a825f0b3405bbfc28ae4e6611f3de263e6391edfee2d3297332f13541d5e11",
-      "expectedSha256": "9c1161fbb802087ecda32e2eae6e67baa376c2db017ab113b87dd6fb543bb93c"
+      "expectedSha256": "b25c5006ef02afb58cf51b37e9f0bbb4ebe70b0029b7f092f324f84720ad857d"
     },
     {
       "id": "gemini/valid/initialize",
@@ -80,7 +80,7 @@
       "expected": "deepseek/valid/initialize.out.jsonl",
       "exitCode": 0,
       "inputSha256": "858fb828ca5d8ec7a2e4178ae6066bb6569cea6a6e24012d640a0ccad07627f2",
-      "expectedSha256": "56845e53abf369dafe29346fd594be0697431c925b12650b5269e830c215b1eb"
+      "expectedSha256": "a3f28bac91e3912b78456aaea8b9f53bd0b3b1e97d8108a69696879d4c33e985"
     },
     {
       "id": "deepseek/valid/tool-loop",
@@ -91,7 +91,7 @@
       "expected": "deepseek/valid/tool-loop.out.jsonl",
       "exitCode": 0,
       "inputSha256": "278cc83b1be823a3521323a996a68cf063e32caf8dd953480e597656e1884efa",
-      "expectedSha256": "3d33b12069885b45e79b6ad3d209c241cc1bf4fc7fd6bf5e3fb1cb9bb6b25a23"
+      "expectedSha256": "dd06799c40bb8cb9919aa7f56b41a212e37a311009272d4499ab1c79c205156e"
     },
     {
       "id": "echo/malformed/batch",

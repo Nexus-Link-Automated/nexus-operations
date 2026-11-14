@@ -33,6 +33,7 @@ import { effortChoices, modelCatalog } from "../core/models.ts";
 import { PATH_REFUSED_MESSAGE, gateFileRead, urlHost } from "../core/paths.ts";
 import { fileMemory, shellCommandMemory, type MemoryScope } from "../core/permission.ts";
 import { promptToText } from "../core/turn.ts";
+import { HistoryStore, type StoredHistory } from "./history.ts";
 import { McpHub, type McpToolBinding } from "./mcp-hub.ts";
 import { chatSseEvents } from "./sse.ts";
 import { BUILTIN_TOOLS, type BuiltinTool, type ToolResult } from "./tools.ts";
@@ -74,13 +75,13 @@ const DEFAULT_MAX_ITERATIONS = 50;
 /** Both current DeepSeek models have a 1M-token context window. */
 const CONTEXT_WINDOW = 1_000_000;
 
-interface ChatToolCall {
+export interface ChatToolCall {
   id: string;
   type: "function";
   function: { name: string; arguments: string };
 }
 
-type ChatMessage =
+export type ChatMessage =
   | { role: "system" | "user"; content: string }
   | { role: "assistant"; content: string | null; reasoning_content?: string; tool_calls?: ChatToolCall[] }
   | { role: "tool"; tool_call_id: string; content: string };
@@ -111,12 +112,45 @@ export function createDeepSeekAdapter(options: DeepSeekAdapterOptions = {}): Age
       });
     },
     async startSession(init) {
-      const apiKey = init.host.env[DEEPSEEK_ENV.apiKey]?.trim();
-      if (!apiKey) throw RequestError.authRequired(undefined, `${DEEPSEEK_ENV.apiKey} is not set for this agent`);
+      const apiKey = requireApiKey(init.host.env);
       const hub = await McpHub.connect(init.mcpServers, init.host.cwd);
       return new DeepSeekSession(init, hub, apiKey, fetchImpl);
     },
+    async loadSession(init) {
+      const apiKey = requireApiKey(init.host.env);
+      const stored = new HistoryStore(init.host.env).read(init.host.sessionId);
+      if (!stored) throw RequestError.resourceNotFound(init.host.sessionId);
+      const hub = await McpHub.connect(init.mcpServers, init.host.cwd);
+      const session = new DeepSeekSession(init, hub, apiKey, fetchImpl, stored);
+      try {
+        await session.replay();
+      } catch (error) {
+        await session.close();
+        throw error;
+      }
+      return session;
+    },
   };
+}
+
+function requireApiKey(env: NodeJS.ProcessEnv): string {
+  const apiKey = env[DEEPSEEK_ENV.apiKey]?.trim();
+  if (!apiKey) throw RequestError.authRequired(undefined, `${DEEPSEEK_ENV.apiKey} is not set for this agent`);
+  return apiKey;
+}
+
+interface ToolOutcome {
+  readonly text: string;
+  readonly cancelled: boolean;
+  readonly failed: boolean;
+}
+
+interface ToolDescription {
+  readonly builtin: BuiltinTool | undefined;
+  readonly mcp: McpToolBinding | undefined;
+  readonly category: ToolCategory;
+  readonly title: string;
+  readonly memory: { memoryKey: string | null; memoryScope?: MemoryScope };
 }
 
 class DeepSeekSession implements AdapterSession {
@@ -126,14 +160,24 @@ class DeepSeekSession implements AdapterSession {
   readonly #fetch: typeof fetch;
   readonly #messages: ChatMessage[];
   readonly #maxIterations: number;
+  readonly #history: HistoryStore;
+  /** Tool calls that failed or were refused, stored with the conversation for its replay. */
+  readonly #failedCalls: Set<string>;
+  /** A turn has changed the conversation since it was last stored. */
+  #unsaved = false;
   #pendingNotices: string[];
 
-  constructor(init: SessionInit, hub: McpHub, apiKey: string, fetchImpl: typeof fetch) {
+  constructor(init: SessionInit, hub: McpHub, apiKey: string, fetchImpl: typeof fetch, stored?: StoredHistory) {
     this.#host = init.host;
     this.#hub = hub;
     this.#apiKey = apiKey;
     this.#fetch = fetchImpl;
-    this.#messages = [{ role: "system", content: systemPrompt(init.host.cwd, hub.tools.length > 0) }];
+    this.#messages = [
+      { role: "system", content: systemPrompt(init.host.cwd, hub.tools.length > 0) },
+      ...(stored?.messages ?? []),
+    ];
+    this.#history = new HistoryStore(init.host.env);
+    this.#failedCalls = new Set(stored?.failed);
     const configured = Number(init.host.env[DEEPSEEK_ENV.maxIterations]);
     this.#maxIterations = Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_MAX_ITERATIONS;
     // Notices wait for the first prompt: nothing may precede the `session/new` response.
@@ -145,7 +189,15 @@ class DeepSeekSession implements AdapterSession {
       await this.#host.emit({ sessionUpdate: "notice", severity: "warning", title });
     this.#pendingNotices = [];
     this.#messages.push({ role: "user", content: promptToText(turn.prompt) });
+    this.#unsaved = true;
+    try {
+      return await this.#run(turn);
+    } finally {
+      this.#save();
+    }
+  }
 
+  async #run(turn: TurnContext): Promise<StopReason> {
     for (let iteration = 0; iteration < this.#maxIterations; iteration += 1) {
       const step = await this.#complete(turn);
       if (step.cancelled) return "cancelled";
@@ -157,6 +209,7 @@ class DeepSeekSession implements AdapterSession {
         }
         const outcome = await this.#runToolCall(call, turn);
         this.#messages.push({ role: "tool", tool_call_id: call.id, content: outcome.text });
+        if (outcome.failed) this.#failedCalls.add(call.id);
         if (outcome.cancelled) {
           this.#answerRemaining(step.toolCalls.slice(index + 1), "cancelled by the user");
           return "cancelled";
@@ -168,11 +221,66 @@ class DeepSeekSession implements AdapterSession {
   }
 
   async close(): Promise<void> {
+    // The process may be about to exit with a turn still unwinding.
+    if (this.#unsaved) this.#save();
     await this.#hub.close();
   }
 
+  /** Replay the stored conversation for `session/load`: messages, thoughts and tool calls, without tool output. */
+  async replay(): Promise<void> {
+    const host = this.#host;
+    let seq = 0;
+    for (const message of this.#messages) {
+      if (message.role === "user") {
+        await host.emit({
+          sessionUpdate: "user_message_chunk",
+          content: { type: "text", text: message.content },
+          messageId: `h-${++seq}`,
+        });
+      }
+      if (message.role !== "assistant") continue;
+      if (message.reasoning_content) {
+        await host.emit({
+          sessionUpdate: "agent_thought_chunk",
+          content: { type: "text", text: message.reasoning_content },
+          messageId: `h-${++seq}`,
+        });
+      }
+      if (message.content) {
+        await host.emit({
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text: message.content },
+          messageId: `h-${++seq}`,
+        });
+      }
+      for (const call of message.tool_calls ?? []) {
+        const input = parseJsonObject(call.function.arguments);
+        const { builtin, category, title } = this.#describe(call.function.name, input);
+        await host.toolCalls.start(call.id, {
+          title,
+          kind: toolKindForCategory(category),
+          status: this.#failedCalls.has(call.id) ? "failed" : "completed",
+          rawInput: input,
+          ...(builtin?.locations ? { locations: builtin.locations(input, host.cwd) } : {}),
+        });
+      }
+    }
+  }
+
+  #save(): void {
+    this.#unsaved = false;
+    try {
+      this.#history.write(this.#host.sessionId, this.#messages, this.#failedCalls);
+    } catch (error) {
+      console.error(`could not store the DeepSeek conversation: ${errorMessage(error)}`);
+    }
+  }
+
   #answerRemaining(calls: readonly ChatToolCall[], text: string): void {
-    for (const call of calls) this.#messages.push({ role: "tool", tool_call_id: call.id, content: text });
+    for (const call of calls) {
+      this.#messages.push({ role: "tool", tool_call_id: call.id, content: text });
+      this.#failedCalls.add(call.id);
+    }
   }
 
   #tools(): JsonObject[] {
@@ -293,14 +401,11 @@ class DeepSeekSession implements AdapterSession {
     return { toolCalls, finish, cancelled };
   }
 
-  async #runToolCall(call: ChatToolCall, turn: TurnContext): Promise<{ text: string; cancelled: boolean }> {
-    const host = this.#host;
-    const name = call.function.name;
+  /** A call's tool, gate category, card title and "always allow" scope. */
+  #describe(name: string, input: JsonObject): ToolDescription {
     const builtin = BUILTIN_TOOLS.find((tool) => tool.name === name);
     const mcp = builtin ? undefined : this.#hub.binding(name);
-    const input = parseJsonObject(call.function.arguments);
-    const validJson = !call.function.arguments.trim() || call.function.arguments.trim().startsWith("{");
-
+    const host = this.#host;
     let category: ToolCategory;
     let title: string;
     let memory: { memoryKey: string | null; memoryScope?: MemoryScope };
@@ -322,6 +427,15 @@ class DeepSeekSession implements AdapterSession {
       title = name || "unknown tool";
       memory = { memoryKey: title };
     }
+    return { builtin, mcp, category, title, memory };
+  }
+
+  async #runToolCall(call: ChatToolCall, turn: TurnContext): Promise<ToolOutcome> {
+    const host = this.#host;
+    const name = call.function.name;
+    const input = parseJsonObject(call.function.arguments);
+    const validJson = !call.function.arguments.trim() || call.function.arguments.trim().startsWith("{");
+    const { builtin, mcp, category, title, memory } = this.#describe(name, input);
     const kind = toolKindForCategory(category);
     turn.messages.breakMessage();
     const toolCallId = await host.toolCalls.start(call.id, {
@@ -343,7 +457,7 @@ class DeepSeekSession implements AdapterSession {
     );
     if (decision === "cancelled") {
       await host.toolCalls.update(toolCallId, { status: "failed", rawOutput: { error: "cancelled" } });
-      return { text: "cancelled by the user", cancelled: true };
+      return { text: "cancelled by the user", cancelled: true, failed: true };
     }
     if (decision === "rejected")
       return this.#finish(toolCallId, { text: "The user denied this tool call.", isError: true });
@@ -364,24 +478,20 @@ class DeepSeekSession implements AdapterSession {
     } catch (error) {
       if (turn.signal.aborted) {
         await host.toolCalls.update(toolCallId, { status: "failed", rawOutput: { error: "cancelled" } });
-        return { text: "cancelled by the user", cancelled: true };
+        return { text: "cancelled by the user", cancelled: true, failed: true };
       }
       result = { text: errorMessage(error), isError: true };
     }
     return this.#finish(toolCallId, result, builtin);
   }
 
-  async #finish(
-    toolCallId: string,
-    result: ToolResult,
-    tool?: BuiltinTool
-  ): Promise<{ text: string; cancelled: boolean }> {
+  async #finish(toolCallId: string, result: ToolResult, tool?: BuiltinTool): Promise<ToolOutcome> {
     await this.#host.toolCalls.update(toolCallId, {
       status: result.isError ? "failed" : "completed",
       content: result.content ?? [{ type: "content", content: { type: "text", text: result.text } }],
       ...(tool?.name === "todo" ? {} : { rawOutput: { output: result.text } }),
     });
-    return { text: result.text, cancelled: false };
+    return { text: result.text, cancelled: false, failed: Boolean(result.isError) };
   }
 }
 
