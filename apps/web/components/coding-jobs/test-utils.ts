@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import type { Mock } from "vitest";
 import { vi } from "vitest";
 import { EUserPermissions } from "@plane/constants";
 import type { TCodingJob, TProjectCodingSettings } from "@plane/types";
@@ -53,7 +54,10 @@ export const makeSettings = (overrides: Partial<TProjectCodingSettings> = {}): T
   ...overrides,
 });
 
-export const fakeCodingService = (overrides: Partial<TCodingJobStoreService> = {}) =>
+/** The fake service: every method a `vi.fn()` the test can inspect or re-program. */
+export type TFakeCodingService = { [K in keyof TCodingJobStoreService]: Mock<TCodingJobStoreService[K]> };
+
+export const fakeCodingService = (overrides: Partial<TCodingJobStoreService> = {}): TFakeCodingService =>
   ({
     list: vi.fn().mockResolvedValue([]),
     start: vi.fn(),
@@ -62,7 +66,7 @@ export const fakeCodingService = (overrides: Partial<TCodingJobStoreService> = {
     getSettings: vi.fn().mockResolvedValue(makeSettings()),
     updateSettings: vi.fn(),
     ...overrides,
-  }) satisfies TCodingJobStoreService;
+  }) as TFakeCodingService;
 
 export type TRole = "admin" | "member" | "guest" | "none";
 
