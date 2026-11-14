@@ -162,6 +162,8 @@
   "something_went_wrong": "რაღაც შეცდომა მოხდა",
   "failed_to_reorder_favorite": "ფავორიტის ხელახალი დალაგება ვერ მოხერხდა",
   "favorite_removed_successfully": "ფავორიტი წარმატებით ამოიღეს",
+  "remove_favorite_folder_title": "ამოვიღოთ საქაღალდე ფავორიტებიდან?",
+  "remove_favorite_folder_description": "„{name}“-ის ამოღებისას ფავორიტებიდან ასევე ამოიღება მასში არსებული {count, plural, other {# ელემენტი}}. თავად ელემენტები არ წაიშლება.",
   "failed_to_create_favorite": "ფავორიტის შექმნა ვერ მოხერხდა",
   "failed_to_rename_favorite": "ფავორიტის გადარქმევა ვერ მოხერხდა",
   "project_link_copied_to_clipboard": "პროექტის ბმული კოპირებულია ბუფერში",

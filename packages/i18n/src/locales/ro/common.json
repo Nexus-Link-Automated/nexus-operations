@@ -162,6 +162,8 @@
   "something_went_wrong": "Ceva nu a funcționat",
   "failed_to_reorder_favorite": "Nu s-a putut reordona favorita",
   "favorite_removed_successfully": "Favorita a fost eliminată cu succes",
+  "remove_favorite_folder_title": "Elimini dosarul din favorite?",
+  "remove_favorite_folder_description": "Eliminarea „{name}” elimină și {count, plural, one {# element favorit} few {# elemente favorite} other {# de elemente favorite}} din el. Elementele în sine nu sunt șterse.",
   "failed_to_create_favorite": "Nu s-a putut crea favorita",
   "failed_to_rename_favorite": "Nu s-a putut redenumi favorita",
   "project_link_copied_to_clipboard": "Link-ul proiectului a fost copiat în memoria temporară",

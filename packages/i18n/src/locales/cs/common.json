@@ -162,6 +162,8 @@
   "something_went_wrong": "Něco se pokazilo",
   "failed_to_reorder_favorite": "Změna pořadí oblíbeného se nezdařila",
   "favorite_removed_successfully": "Oblíbené úspěšně odstraněno",
+  "remove_favorite_folder_title": "Odebrat složku z oblíbených?",
+  "remove_favorite_folder_description": "Odebráním složky „{name}“ odeberete z oblíbených i {count, plural, one {# položku} few {# položky} many {# položky} other {# položek}} v ní. Samotné položky se nesmažou.",
   "failed_to_create_favorite": "Vytvoření oblíbeného se nezdařilo",
   "failed_to_rename_favorite": "Přejmenování oblíbeného se nezdařilo",
   "project_link_copied_to_clipboard": "Odkaz na projekt zkopírován do schránky",

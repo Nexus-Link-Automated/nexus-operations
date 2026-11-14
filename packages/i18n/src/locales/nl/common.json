@@ -162,6 +162,8 @@
   "something_went_wrong": "Er is iets misgegaan",
   "failed_to_reorder_favorite": "Opnieuw ordenen van favoriet is mislukt",
   "favorite_removed_successfully": "Favoriet is verwijderd",
+  "remove_favorite_folder_title": "Map verwijderen uit favorieten?",
+  "remove_favorite_folder_description": "Als je \"{name}\" verwijdert, {count, plural, one {wordt ook de # favoriet erin verwijderd} other {worden ook de # favorieten erin verwijderd}}. De items zelf worden niet verwijderd.",
   "failed_to_create_favorite": "Aanmaken van favoriet is mislukt",
   "failed_to_rename_favorite": "Hernoemen van favoriet is mislukt",
   "project_link_copied_to_clipboard": "Projectkoppeling gekopieerd naar klembord",

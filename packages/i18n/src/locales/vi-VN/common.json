@@ -162,6 +162,8 @@
   "something_went_wrong": "Đã xảy ra lỗi",
   "failed_to_reorder_favorite": "Không thể sắp xếp lại mục yêu thích",
   "favorite_removed_successfully": "Đã xóa mục yêu thích thành công",
+  "remove_favorite_folder_title": "Xóa thư mục khỏi mục yêu thích?",
+  "remove_favorite_folder_description": "Xóa \"{name}\" cũng sẽ xóa {count, plural, other {# mục yêu thích}} bên trong. Bản thân các mục không bị xóa.",
   "failed_to_create_favorite": "Không thể tạo mục yêu thích",
   "failed_to_rename_favorite": "Không thể đổi tên mục yêu thích",
   "project_link_copied_to_clipboard": "Đã sao chép liên kết dự án vào bảng tạm",

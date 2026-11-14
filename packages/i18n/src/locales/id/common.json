@@ -162,6 +162,8 @@
   "something_went_wrong": "Terjadi kesalahan",
   "failed_to_reorder_favorite": "Gagal mengatur ulang favorit",
   "favorite_removed_successfully": "Favorit berhasil dihapus",
+  "remove_favorite_folder_title": "Hapus folder dari favorit?",
+  "remove_favorite_folder_description": "Menghapus \"{name}\" juga menghapus {count, plural, other {# favorit}} di dalamnya. Item itu sendiri tidak dihapus.",
   "failed_to_create_favorite": "Gagal membuat favorit",
   "failed_to_rename_favorite": "Gagal mengganti nama favorit",
   "project_link_copied_to_clipboard": "Tautan proyek disalin ke clipboard",
