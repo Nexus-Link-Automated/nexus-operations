@@ -7,7 +7,7 @@
 #
 # The runner runs as root so it can start each agent as its workspace dir's own unprivileged uid
 # (AGENT_RUNNER_ISOLATION=uid). Give the container cpu/memory/pids limits.
-FROM node:24-bookworm-slim AS base
+FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS base
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PNPM_HOME/bin:$PATH"
