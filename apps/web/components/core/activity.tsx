@@ -4,9 +4,9 @@
  * See the LICENSE file for details.
  */
 
-import { useEffect } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
+import useSWR from "swr";
 // store hooks
 // icons
 import {
@@ -29,6 +29,7 @@ import {
   WorkItemsOutline,
 } from "@makeplane/propel/icons";
 import { BlockedIcon, BlockerIcon } from "@plane/blocks/icons";
+import { WORKSPACE_LABELS } from "@plane/constants";
 import { Tooltip } from "@makeplane/propel/components/tooltip";
 import type { IIssueActivity } from "@plane/types";
 import { renderFormattedDate, generateWorkItemLink, capitalizeFirstLetter } from "@plane/utils";
@@ -98,9 +99,12 @@ const LabelPill = observer(function LabelPill({ labelId, workspaceSlug }: { labe
   // store hooks
   const { workspaceLabels, fetchWorkspaceLabels } = useLabel();
 
-  useEffect(() => {
-    if (!workspaceLabels) fetchWorkspaceLabels(workspaceSlug);
-  }, [fetchWorkspaceLabels, workspaceLabels, workspaceSlug]);
+  // One shared key, so a feed with many label rows sends a single request.
+  useSWR(
+    !workspaceLabels && workspaceSlug ? WORKSPACE_LABELS(workspaceSlug) : null,
+    () => fetchWorkspaceLabels(workspaceSlug),
+    { revalidateIfStale: false, revalidateOnFocus: false }
+  );
 
   return (
     <span
