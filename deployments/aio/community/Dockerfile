@@ -74,7 +74,7 @@ COPY --from=backend-img /code /app/backend
 COPY --from=backend-img /usr/local/lib/python3.12/site-packages/ /usr/local/lib/python3.12/site-packages/
 COPY --from=backend-img /usr/local/bin/ /usr/local/bin/
 
-RUN pip install supervisor
+RUN pip install supervisor==4.3.0
 
 # pip is only needed for the install above. The runner base's own pip (25.0.1)
 # vendors a certifi that still trusts the compromised emSign G3 root
