@@ -11,11 +11,14 @@ from fastmcp import FastMCP
 os.environ.setdefault("PLANE_API_KEY", "test")
 os.environ.setdefault("PLANE_WORKSPACE_SLUG", "test")
 
+from plane import PlaneClient  # noqa: E402
+
+from plane_mcp.tools import coding_job  # noqa: E402
 from plane_mcp.tools import register_tools as register_v2  # noqa: E402
 from plane_mcp.tools.registry import RESOURCES, alias_table, unmapped_table  # noqa: E402
 
 from ._retired_names import RETIRED_TOOL_NAMES  # noqa: E402
-from ._spyclient import SpyClient  # noqa: E402
+from ._spyclient import SpyClient, _Namespace  # noqa: E402
 
 
 def _run(coro):
@@ -78,6 +81,10 @@ def spy(monkeypatch):
     for mod in RESOURCES:
         if hasattr(mod, "get_plane_client_context"):
             monkeypatch.setattr(mod, "get_plane_client_context", lambda: (client, "acme"))
+    # coding_job reaches endpoints plane-sdk has no resource for through its own BaseResource; record those calls
+    # the same way, bound against that class's signatures.
+    coding_jobs = coding_job.CodingJobs(PlaneClient(api_key="spy", base_url="http://spy.invalid").config)
+    monkeypatch.setattr(coding_job, "coding_jobs", lambda _client: _Namespace(client, coding_jobs, "coding_jobs"))
     return client
 
 

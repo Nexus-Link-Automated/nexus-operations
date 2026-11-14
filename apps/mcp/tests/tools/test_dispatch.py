@@ -34,6 +34,8 @@ SAMPLES: dict[str, object] = {
     "workitem_identifier": "ENG-42",
     "kind": "workitem",
     "template_data": '{"name": "Spec"}',
+    "job_action": "fix_bug",
+    "agent": "codex",
 }
 
 # Actions that require *one of* several optional parameters -- a condition the
@@ -66,6 +68,8 @@ CONDITIONAL: dict[tuple[str, str], dict[str, object]] = {
     ("release", "update_changelog"): {"description_html": "<p>notes</p>"},
     ("release", "manage_workitems"): {"add_ids": "id-1"},
     ("release_label", "list"): {},
+    # An update has to carry a setting to change.
+    ("coding_job", "settings_update"): {"enabled": True},
 }
 
 # Actions whose guard clause legitimately answers without calling the SDK.
