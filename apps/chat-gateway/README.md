@@ -22,7 +22,8 @@ browser ──WS /chat/ws?workspace=<slug> (cookie)──▶ chat-gateway ──
      they an active member; it also gives the workspace ID).
   4. Events must be flowing (Redis is up), then the per-user and overall connection caps.
   5. The socket opens. The gateway starts listening to the workspace's events, reads the user's channels
-     (`GET chat/channels/`, live and archived), and sends `ready`.
+     (`GET chat/channels/access/`: every channel they can see, live and archived, and whether they are in it), and
+     sends `ready`.
 - `GET /chat/health`: liveness, the open connection count, and whether Redis is up.
 
 Only the `Cookie` header is read. Plane's `session-id` cookie is `HttpOnly`, so page JavaScript can't read it to
@@ -149,11 +150,14 @@ and sent after `ready`, in order.
 
 ## Scaling notes
 
-Each socket re-reads its user's channel list (two API calls) every `CHAT_GATEWAY_ACCESS_TTL_MS`, as that user, at a
-point in the interval picked at random so that sockets opened together don't re-read together, and no more than
-`CHAT_GATEWAY_MAX_API_CONCURRENCY` calls run at once. That is cheap for a team and costs more as sockets grow, since
-the list endpoint computes unread counts. Raise the TTL (the events keep the feed current in between), or share the
-read between one user's sockets, before it matters.
+Each socket re-reads its user's channels (`chat/channels/access/`, one query) every `CHAT_GATEWAY_ACCESS_TTL_MS`, as
+that user, at a point in the interval picked at random so that sockets opened together don't re-read together, and no
+more than `CHAT_GATEWAY_MAX_API_CONCURRENCY` calls run at once. Raise the TTL (the events keep the feed current in
+between), or share the read between one user's sockets, if that ever matters.
+
+Deploy the API before the gateway. Against an API without `chat/channels/access/` (a 404), the gateway reads the full
+live and archived channel lists instead, as it used to, which compute unread counts and cost more; it tries the route
+again every five minutes.
 The gateway keeps no state between connections beyond what is in memory, so several instances can run behind one
 router; each listens to Redis itself.
 

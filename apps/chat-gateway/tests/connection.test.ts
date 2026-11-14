@@ -48,7 +48,7 @@ async function liveConnection(channel: string) {
     api: {
       currentUser: async () => ({ id: ADA.id }),
       workspace: async () => ({ id: WORKSPACE_ID }),
-      channels: async (_cookie, _slug, archived) => (archived ? [] : [{ id: channel, is_member: true }]),
+      channelAccess: async () => [{ id: channel, is_member: true }],
       channel: async () => ({ id: channel, is_member: true }),
     },
     hub: new Hub({ bus, log: silentLogger }),
@@ -73,8 +73,7 @@ async function heldReads(channel: string, overrides: { accessTtlMs?: number } = 
     api: {
       currentUser: async () => ({ id: ADA.id }),
       workspace: async () => ({ id: WORKSPACE_ID }),
-      channels: async (_cookie, _slug, archived) => {
-        if (archived) return [];
+      channelAccess: async () => {
         if (!holding) return [{ id: channel, is_member: true }];
         return new Promise<ChannelAccess[]>((resolve) => pending.push(resolve));
       },
@@ -188,7 +187,7 @@ describe("a socket that closes while it is starting", () => {
       api: {
         currentUser: async () => ({ id: ADA.id }),
         workspace: async () => ({ id: WORKSPACE_ID }),
-        channels: async () => [{ id: channel, is_member: true }],
+        channelAccess: async () => [{ id: channel, is_member: true }],
         channel: async () => ({ id: channel, is_member: true }),
       },
       hub: new Hub({ bus: new MemoryEventBus(), log: silentLogger }),
