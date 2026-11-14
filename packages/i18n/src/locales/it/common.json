@@ -162,6 +162,8 @@
   "something_went_wrong": "Qualcosa è andato storto",
   "failed_to_reorder_favorite": "Impossibile riordinare il preferito",
   "favorite_removed_successfully": "Preferito rimosso con successo",
+  "remove_favorite_folder_title": "Rimuovere la cartella dai preferiti?",
+  "remove_favorite_folder_description": "Rimuovendo \"{name}\" {count, plural, one {verrà rimosso anche il # preferito al suo interno} other {verranno rimossi anche i # preferiti al suo interno}}. Gli elementi stessi non vengono eliminati.",
   "failed_to_create_favorite": "Impossibile creare il preferito",
   "failed_to_rename_favorite": "Impossibile rinominare il preferito",
   "project_link_copied_to_clipboard": "Link del progetto copiato negli appunti",

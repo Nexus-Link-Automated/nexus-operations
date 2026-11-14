@@ -162,6 +162,8 @@
   "something_went_wrong": "出现错误",
   "failed_to_reorder_favorite": "重新排序收藏失败",
   "favorite_removed_successfully": "收藏移除成功",
+  "remove_favorite_folder_title": "从收藏中移除文件夹？",
+  "remove_favorite_folder_description": "移除“{name}”也会移除其中的{count, plural, other {# 个收藏}}。这些项目本身不会被删除。",
   "failed_to_create_favorite": "创建收藏失败",
   "failed_to_rename_favorite": "重命名收藏失败",
   "project_link_copied_to_clipboard": "项目链接已复制到剪贴板",

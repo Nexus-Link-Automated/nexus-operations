@@ -162,6 +162,8 @@
   "something_went_wrong": "Щось пішло не так",
   "failed_to_reorder_favorite": "Не вдалося змінити порядок елементів у вибраному",
   "favorite_removed_successfully": "Вибране успішно видалено",
+  "remove_favorite_folder_title": "Вилучити папку з вибраного?",
+  "remove_favorite_folder_description": "Разом із «{name}» з вибраного буде вилучено вкладених елементів: {count}. Самі елементи не видаляються.",
   "failed_to_create_favorite": "Не вдалося створити вибране",
   "failed_to_rename_favorite": "Не вдалося перейменувати вибране",
   "project_link_copied_to_clipboard": "Посилання на проєкт скопійовано до буфера обміну",

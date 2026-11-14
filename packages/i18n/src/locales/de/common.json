@@ -162,6 +162,8 @@
   "something_went_wrong": "Etwas ist schiefgelaufen",
   "failed_to_reorder_favorite": "Umsortieren des Favoriten fehlgeschlagen",
   "favorite_removed_successfully": "Favorit erfolgreich entfernt",
+  "remove_favorite_folder_title": "Ordner aus Favoriten entfernen?",
+  "remove_favorite_folder_description": "Wenn Sie „{name}“ entfernen, {count, plural, one {wird auch der # Favorit darin entfernt} other {werden auch die # Favoriten darin entfernt}}. Die Elemente selbst werden nicht gelöscht.",
   "failed_to_create_favorite": "Erstellen des Favoriten fehlgeschlagen",
   "failed_to_rename_favorite": "Umbenennen des Favoriten fehlgeschlagen",
   "project_link_copied_to_clipboard": "Projektlink in die Zwischenablage kopiert",

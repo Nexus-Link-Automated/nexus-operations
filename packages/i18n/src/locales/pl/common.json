@@ -162,6 +162,8 @@
   "something_went_wrong": "Coś poszło nie tak",
   "failed_to_reorder_favorite": "Nie udało się zmienić kolejności ulubionego",
   "favorite_removed_successfully": "Ulubione usunięto pomyślnie",
+  "remove_favorite_folder_title": "Usunąć folder z ulubionych?",
+  "remove_favorite_folder_description": "Usunięcie folderu „{name}” usunie z ulubionych również {count, plural, one {# element} few {# elementy} many {# elementów} other {# elementu}} w środku. Same elementy nie zostaną usunięte.",
   "failed_to_create_favorite": "Nie udało się utworzyć ulubionego",
   "failed_to_rename_favorite": "Nie udało się zmienić nazwy ulubionego",
   "project_link_copied_to_clipboard": "Link do projektu skopiowano do schowka",
