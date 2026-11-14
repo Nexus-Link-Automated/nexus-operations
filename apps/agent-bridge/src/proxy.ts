@@ -39,6 +39,7 @@ export const CloseCode = {
   sessionExpired: 4410,
   tooManyConnections: 4429,
   agentUnavailable: 4502,
+  agentBusy: 4503,
 } as const;
 
 const DEFAULT_INITIALIZE_TIMEOUT_MS = 30_000;

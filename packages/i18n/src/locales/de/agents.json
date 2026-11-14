@@ -139,6 +139,7 @@
         "session_expired": "Die Chatsitzung ist abgelaufen.",
         "too_many_chats": "Sie haben zu viele Chats geöffnet. Schließen Sie einen davon in einem anderen Tab und versuchen Sie es erneut.",
         "agent_unavailable": "Der Agent ist derzeit nicht verfügbar. Versuchen Sie es in Kürze erneut.",
+        "agent_busy": "Der Agentendienst ist derzeit ausgelastet. Versuchen Sie es in ein paar Minuten erneut.",
         "unknown": "Die Chatverbindung wurde unerwartet getrennt."
       }
     },

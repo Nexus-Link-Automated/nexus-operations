@@ -139,6 +139,7 @@
         "session_expired": "Platnost relace chatu vypršela.",
         "too_many_chats": "Máte otevřeno příliš mnoho chatů. Jeden z nich zavřete v jiné kartě a zkuste to znovu.",
         "agent_unavailable": "Agent je momentálně nedostupný. Zkuste to za chvíli znovu.",
+        "agent_busy": "Služba agentů je momentálně vytížená. Zkuste to znovu za několik minut.",
         "unknown": "Připojení k chatu bylo neočekávaně ukončeno."
       }
     },

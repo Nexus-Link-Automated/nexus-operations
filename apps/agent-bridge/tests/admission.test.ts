@@ -4,17 +4,21 @@
  * See the LICENSE file for details.
  */
 
-import { connect } from "node:net";
+import { createServer } from "node:http";
+import { connect, type AddressInfo } from "node:net";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createPlaneApi } from "../src/plane-api.ts";
 import { CloseCode } from "../src/proxy.ts";
 import { AgentBridge } from "../src/server.ts";
+import { RunnerTransport } from "../src/transport.ts";
 import { FakeTransport } from "./helpers/fake-agent.ts";
+import { RUNNER_SECRET } from "./helpers/fake-runner.ts";
 import { ORIGIN, RecordingLogger, initialize, startHarness, testConfig, type Harness } from "./helpers/harness.ts";
 import {
   AGENT_ID,
+  BRIDGE_SECRET,
   DISABLED_AGENT_ID,
   OUTSIDER_COOKIE,
   StubPlaneApi,
@@ -134,6 +138,44 @@ describe("admission", () => {
     expect(await client.closed()).toBe(CloseCode.agentUnavailable);
     await waitUntil(() => harness!.api.revoked.length === 1);
     expect(harness.api.revoked).toEqual([harness.api.minted[0]!.tokenId]);
+  });
+
+  it.each([
+    { status: 503, code: CloseCode.agentBusy },
+    { status: 500, code: CloseCode.agentUnavailable },
+  ])("closes with $code when the runner refuses the agent with $status", async ({ status, code }) => {
+    // A runner that refuses every upgrade, as the real one does at its agent limit (503).
+    const runner = createServer();
+    runner.on("upgrade", (_req, socket) => {
+      socket.end(`HTTP/1.1 ${status} Refused\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+    });
+    await new Promise<void>((resolve) => runner.listen(0, "127.0.0.1", resolve));
+    const runnerPort = (runner.address() as AddressInfo).port;
+    const api = await new StubPlaneApi().start();
+    const bridge = new AgentBridge({
+      config: testConfig({ apiBaseUrl: api.url }),
+      api: createPlaneApi({ baseUrl: api.url, bridgeSecret: BRIDGE_SECRET }),
+      transport: new RunnerTransport({
+        url: `ws://127.0.0.1:${runnerPort}/acp`,
+        secret: RUNNER_SECRET,
+        maxMessageBytes: 1024 * 1024,
+      }),
+      log: new RecordingLogger(),
+    });
+    const { port } = await bridge.listen(0, "127.0.0.1");
+    try {
+      const client = new RawClient(`ws://127.0.0.1:${port}/agents/acp?agent=${AGENT_ID}&workspace=${WORKSPACE_SLUG}`, {
+        Cookie: USER_COOKIE,
+        Origin: ORIGIN,
+      });
+      expect(await client.closed()).toBe(code);
+      await waitUntil(() => api.revoked.length === 1);
+      expect(api.revoked).toEqual([api.minted[0]!.tokenId]);
+    } finally {
+      await bridge.close();
+      await api.stop();
+      await new Promise<void>((resolve) => runner.close(() => resolve()));
+    }
   });
 
   it("gives back the slot and the token when the WebSocket handshake fails after admission", async () => {

@@ -139,6 +139,7 @@
         "session_expired": "Sesi obrolan telah kedaluwarsa.",
         "too_many_chats": "Anda membuka terlalu banyak obrolan. Tutup salah satunya di tab lain, lalu coba lagi.",
         "agent_unavailable": "Agen sedang tidak tersedia. Coba lagi sebentar lagi.",
+        "agent_busy": "Layanan agen sedang sibuk. Coba lagi dalam beberapa menit.",
         "unknown": "Koneksi obrolan terputus secara tidak terduga."
       }
     },

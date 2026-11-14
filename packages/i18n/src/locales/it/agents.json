@@ -139,6 +139,7 @@
         "session_expired": "La sessione della chat è scaduta.",
         "too_many_chats": "Ci sono troppe chat aperte. Chiuderne una in un'altra scheda e riprovare.",
         "agent_unavailable": "L'agente non è al momento disponibile. Riprovare tra poco.",
+        "agent_busy": "Il servizio agenti è al momento occupato. Riprovare tra qualche minuto.",
         "unknown": "La connessione della chat si è chiusa in modo imprevisto."
       }
     },
