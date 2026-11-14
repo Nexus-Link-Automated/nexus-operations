@@ -10,7 +10,7 @@ from unittest import mock
 import httpx
 import pytest
 
-from plane.app.views.external.base import get_llm_response
+from plane.app.views.external.base import get_llm_config, get_llm_response
 
 API_KEY = "provider-key"
 COMPLETION = {
@@ -40,11 +40,11 @@ class TestLLMProviderRouting:
         "provider, model, host, path",
         [
             ("openai", "gpt-4o-mini", "api.openai.com", "/v1/chat/completions"),
-            ("anthropic", "claude-3-haiku-20240307", "api.anthropic.com", "/v1/chat/completions"),
-            ("Anthropic", "claude-3-haiku-20240307", "api.anthropic.com", "/v1/chat/completions"),
+            ("anthropic", "claude-haiku-5-5", "api.anthropic.com", "/v1/chat/completions"),
+            ("Anthropic", "claude-haiku-5-5", "api.anthropic.com", "/v1/chat/completions"),
             (
                 "gemini",
-                "gemini-1.5-pro-latest",
+                "gemini-2.5-flash",
                 "generativelanguage.googleapis.com",
                 "/v1beta/openai/chat/completions",
             ),
@@ -75,3 +75,41 @@ class TestLLMProviderRouting:
         assert text is None
         assert error
         assert sent_requests == []
+
+
+def configured(provider, model):
+    values = ["provider-key", provider, model]
+    return mock.patch("plane.app.views.external.base.get_configuration_value", return_value=values)
+
+
+@pytest.mark.unit
+class TestLLMConfig:
+    @pytest.mark.parametrize(
+        "provider, expected",
+        [("openai", "gpt-4o-mini"), ("anthropic", "claude-opus-5-5"), ("gemini", "gemini-2.5-flash")],
+    )
+    def test_no_model_uses_the_provider_default(self, provider, expected):
+        with configured(provider, None):
+            assert get_llm_config() == ("provider-key", expected, provider)
+
+    @pytest.mark.parametrize(
+        "provider, model",
+        [("openai", "gpt-5"), ("anthropic", "claude-sonnet-5-5"), ("gemini", "gemini-2.5-pro")],
+    )
+    def test_listed_model_is_used(self, provider, model):
+        with configured(provider, model):
+            assert get_llm_config() == ("provider-key", model, provider)
+
+    def test_unlisted_model_is_passed_through(self):
+        with configured("anthropic", "claude-newer-model"):
+            assert get_llm_config() == ("provider-key", "claude-newer-model", "anthropic")
+
+    def test_another_providers_model_falls_back_to_this_providers_default(self):
+        with configured("anthropic", "gpt-4o-mini"):
+            assert get_llm_config() == ("provider-key", "claude-opus-5-5", "anthropic")
+
+    def test_missing_key_or_unknown_provider_gives_nothing(self):
+        with mock.patch("plane.app.views.external.base.get_configuration_value", return_value=[None, "openai", None]):
+            assert get_llm_config() == (None, None, None)
+        with configured("unknown", None):
+            assert get_llm_config() == (None, None, None)
