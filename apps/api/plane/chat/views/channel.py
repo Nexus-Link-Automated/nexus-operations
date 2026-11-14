@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-"""Channels: list, create, view, rename, archive, and open a DM or group DM."""
+"""Channels: list, create, view, rename, archive, and open a DM or group DM; and which ones the caller can see."""
 
 from django.db import IntegrityError, transaction
 from django.utils import timezone
@@ -75,6 +75,17 @@ class ChannelEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):
             # Someone took the name between the check and the insert.
             raise Conflict(DUPLICATE_NAME)
         return Response(self.channel_payload(channel.id), status=status.HTTP_201_CREATED)
+
+
+class ChannelAccessEndpoint(ChatBaseEndpoint):
+    def get(self, request, slug):
+        """Every channel and DM the caller can see, live or archived, and whether they are in it: nothing else.
+
+        For the chat gateway, which re-reads this for each open socket. It is the same set the channel list gives
+        with and without `?archived=true`, without the per-channel unread and member counts that make that costly.
+        """
+        rows = visible_channels(request.user, slug, self.role).values_list("id", "is_member")
+        return Response([{"id": str(channel_id), "is_member": is_member} for channel_id, is_member in rows])
 
 
 class ChannelDetailEndpoint(ChannelPayloadMixin, ChatBaseEndpoint):

@@ -42,8 +42,9 @@ export interface StubChannel {
  *
  * - `/api/users/me/` by session cookie;
  * - `/api/workspaces/<slug>/chat/me/` for active members only (a 403 for anyone else, like every chat route);
- * - `/api/workspaces/<slug>/chat/channels/` and `.../<id>/`: a channel is visible to its members and, if it is
- *   public, to every workspace member who is not a guest. A channel the caller can't see is a 404, never a 403.
+ * - `/api/workspaces/<slug>/chat/channels/`, `.../access/` and `.../<id>/`: a channel is visible to its members and,
+ *   if it is public, to every workspace member who is not a guest. A channel the caller can't see is a 404, never a
+ *   403. `.../access/` lists live and archived channels together, with only `id` and `is_member`.
  */
 export class StubPlaneApi {
   /** Session cookie → user ID. */
@@ -173,6 +174,13 @@ export class StubPlaneApi {
         (channel) => channel.archived === archived && this.canSee(userId, channel)
       );
       return { status: 200, body: visible.map((channel) => this.#payload(userId, channel)) };
+    }
+    if (rest === "chat/channels/access/") {
+      const visible = [...this.channels.values()].filter((channel) => this.canSee(userId, channel));
+      return {
+        status: 200,
+        body: visible.map((channel) => ({ id: channel.id, is_member: channel.members.has(userId) })),
+      };
     }
     const one = /^chat\/channels\/([^/]+)\/$/.exec(rest);
     if (one) {

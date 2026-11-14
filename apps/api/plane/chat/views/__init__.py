@@ -12,6 +12,7 @@ from .agent_dm import (  # noqa: F401
 from .agent import ChannelAgentDetailEndpoint, ChannelAgentEndpoint  # noqa: F401
 from .attachment import AttachmentDetailEndpoint, AttachmentEndpoint  # noqa: F401
 from .channel import (  # noqa: F401
+    ChannelAccessEndpoint,
     ChannelArchiveEndpoint,
     ChannelDetailEndpoint,
     ChannelEndpoint,
