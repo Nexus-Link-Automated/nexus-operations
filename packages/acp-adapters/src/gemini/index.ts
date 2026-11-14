@@ -37,12 +37,12 @@ import { MODEL_ENV } from "../core/models.ts";
 import { classifyMcpCall, type ToolCategory } from "../core/modes.ts";
 import { gateFileRead, type PathPolicy, type PathVerdict } from "../core/paths.ts";
 import { fileMemory, shellCommandMemory, type MemoryScope, type PermissionDecision } from "../core/permission.ts";
+import { SessionMap } from "../core/store.ts";
 import type { ToolCallPatch, ToolCallStart } from "../core/turn.ts";
 import { GeminiAcpClient, GeminiRpcError, type JsonRpcId } from "./client.ts";
 import {
   GEMINI_DIR,
   GOOGLE_AUTH_TYPE,
-  SessionMap,
   geminiPolicyPath,
   geminiSystemSettingsPath,
   hasGoogleCredentials,

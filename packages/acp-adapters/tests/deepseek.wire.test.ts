@@ -14,6 +14,8 @@ import { deepSeekServer } from "./helpers/deepseek.ts";
 import { planeMcpServer } from "./helpers/mcp-server.ts";
 import { runWireScenario } from "./helpers/scenario.ts";
 
+const env = () => ({ DEEPSEEK_API_KEY: "sk-deepseek", HOME: tempDir("deepseek-home-") });
+
 describe("plane-acp-deepseek over stdio (local SSE + MCP servers)", () => {
   let api: Awaited<ReturnType<typeof deepSeekServer>>;
   let mcp: Awaited<ReturnType<typeof planeMcpServer>>;
@@ -33,7 +35,7 @@ describe("plane-acp-deepseek over stdio (local SSE + MCP servers)", () => {
 
   it("meets the wire contract with built-in and Plane MCP tools", async () => {
     const cwd = tempDir();
-    client = spawnClient("deepseek", { DEEPSEEK_API_KEY: "sk-deepseek", DEEPSEEK_BASE_URL: api.url });
+    client = spawnClient("deepseek", { ...env(), DEEPSEEK_BASE_URL: api.url });
     await runWireScenario(client, {
       agentName: "plane-acp-deepseek",
       cwd,
@@ -81,7 +83,7 @@ describe("plane-acp-deepseek over stdio (local SSE + MCP servers)", () => {
 
   it("remembers 'always' per exact command and per file", async () => {
     const cwd = tempDir();
-    client = spawnClient("deepseek", { DEEPSEEK_API_KEY: "sk-deepseek", DEEPSEEK_BASE_URL: api.url });
+    client = spawnClient("deepseek", { ...env(), DEEPSEEK_BASE_URL: api.url });
     await client.agent.request("initialize", { protocolVersion: 1 });
     const { sessionId } = await client.agent.request("session/new", { cwd, mcpServers: [] });
     const prompt = (text: string) =>
@@ -109,5 +111,59 @@ describe("plane-acp-deepseek over stdio (local SSE + MCP servers)", () => {
     expect(asked()).toBe(4);
     await prompt("write b.txt");
     expect(asked()).toBe(5);
+  });
+
+  it("picks the conversation back up in a new process with session/load", async () => {
+    const cwd = tempDir();
+    const agentEnv = { ...env(), DEEPSEEK_BASE_URL: api.url };
+    client = spawnClient("deepseek", agentEnv);
+    await client.agent.request("initialize", { protocolVersion: 1 });
+    const { sessionId } = await client.agent.request("session/new", { cwd, mcpServers: [] });
+    const prompt = (text: string) =>
+      client!.agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] });
+    await prompt("hello");
+    client.answers.push("reject_once");
+    await prompt("write");
+    await client.close();
+
+    client = spawnClient("deepseek", agentEnv);
+    const init = await client.agent.request("initialize", { protocolVersion: 1 });
+    expect(init.agentCapabilities?.loadSession).toBe(true);
+    const loaded = await client.agent.request("session/load", { sessionId, cwd, mcpServers: [] });
+    expect(loaded.modes?.currentModeId).toBe("ask_writes");
+    expect(client.updates.map((notification) => notification.update)).toEqual([
+      { sessionUpdate: "user_message_chunk", content: { type: "text", text: "hello" }, messageId: "h-1" },
+      {
+        sessionUpdate: "agent_thought_chunk",
+        content: { type: "text", text: "The user greets me." },
+        messageId: "h-2",
+      },
+      { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Hi there" }, messageId: "h-3" },
+      { sessionUpdate: "user_message_chunk", content: { type: "text", text: "write" }, messageId: "h-4" },
+      { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "I will call write." }, messageId: "h-5" },
+      expect.objectContaining({ sessionUpdate: "tool_call", toolCallId: "call_w", kind: "edit", status: "failed" }),
+      { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "done: The" }, messageId: "h-6" },
+    ]);
+
+    const before = api.requests.length;
+    expect((await prompt("again")).stopReason).toBe("end_turn");
+    const messages = api.requests[before].body.messages;
+    expect(messages.map((message: any) => message.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+    ]);
+    expect(messages[2]).toEqual({ role: "assistant", content: "Hi there", reasoning_content: "The user greets me." });
+    expect(messages[5]).toEqual({ role: "tool", tool_call_id: "call_w", content: "The user denied this tool call." });
+    expect(messages.at(-1)).toEqual({ role: "user", content: "again" });
+
+    const load = (id: string) => client!.agent.request("session/load", { sessionId: id, cwd, mcpServers: [] });
+    await expect(load("00000000-0000-4000-8000-000000000000")).rejects.toMatchObject({ code: -32002 });
+    await expect(load("../outside")).rejects.toMatchObject({ code: -32002 });
   });
 });

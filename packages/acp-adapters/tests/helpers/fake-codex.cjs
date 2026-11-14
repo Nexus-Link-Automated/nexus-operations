@@ -16,8 +16,11 @@
 // a moment (FAKE_CODEX_LOGIN=fail fails it, =hang never completes) and writes $CODEX_HOME/auth.json.
 // FAKE_CODEX_APPROVAL_PAUSE_MS: stay silent this long after an approval answer before going on.
 // FAKE_CODEX_TURN_START_DELAY_MS: hold the `turn/start` response this long.
-// Threads: each `thread/start` makes thread-1, thread-2, ...; `thread/fork` makes fork-1, ... and
-// fails with FAKE_CODEX_FORK=fail. Events name the thread the last start or fork made.
+// Threads: each `thread/start` makes thread-1, thread-2, ... (skipping ids already saved);
+// `thread/fork` makes fork-1, ... and fails with FAKE_CODEX_FORK=fail. Events name the thread the
+// last start, fork or resume made. Like Codex, a thread is saved (in $CODEX_HOME/fake-threads.json,
+// else ~/.codex) once a turn starts on it, with its user messages, reasoning summaries and completed
+// items; `thread/resume` finds it and `thread/turns/list` returns those turns, one per page.
 "use strict";
 
 const fs = require("node:fs");
@@ -35,7 +38,52 @@ let turnCount = 0;
 let threadCwd = "/work";
 let threadCount = 0;
 let forkCount = 0;
+let forkedTurns;
 let currentThread = "thread-1";
+const threadsFile = path.join(
+  process.env.CODEX_HOME || path.join(process.env.HOME || "/tmp", ".codex"),
+  "fake-threads.json"
+);
+
+function savedThreads() {
+  try {
+    return JSON.parse(fs.readFileSync(threadsFile, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function saveThreads(threads) {
+  fs.mkdirSync(path.dirname(threadsFile), { recursive: true });
+  fs.writeFileSync(threadsFile, JSON.stringify(threads));
+}
+
+/** Add to the current turn of the current thread, as Codex records it. */
+function record(change) {
+  const threads = savedThreads();
+  const thread = threads[currentThread] || { turns: [] };
+  change(thread);
+  threads[currentThread] = thread;
+  saveThreads(threads);
+}
+
+function recordEvent(method, params) {
+  if (method !== "item/completed" && method !== "item/reasoning/summaryTextDelta" && method !== "turn/completed")
+    return;
+  record((thread) => {
+    const turn = thread.turns.at(-1);
+    if (!turn) return;
+    if (method === "item/completed") {
+      turn.items.push(params.item);
+    } else if (method === "turn/completed") {
+      turn.status = params.turn.status;
+    } else {
+      const existing = turn.items.find((item) => item.id === params.itemId);
+      if (existing) existing.summary[0] += params.delta;
+      else turn.items.push({ type: "reasoning", id: params.itemId, summary: [params.delta], content: [] });
+    }
+  });
+}
 
 function send(payload) {
   process.stdout.write(`${JSON.stringify(payload)}
@@ -43,6 +91,7 @@ function send(payload) {
 }
 
 function notify(method, params) {
+  if (activeTurn) recordEvent(method, params);
   send({ method, params: { threadId: currentThread, ...params } });
 }
 
@@ -331,9 +380,11 @@ function handle(msg) {
         },
       });
       return;
-    case "thread/start":
+    case "thread/start": {
       threadCwd = msg.params.cwd;
-      threadCount += 1;
+      const saved = savedThreads();
+      do threadCount += 1;
+      while (saved[`thread-${threadCount}`]);
       currentThread = `thread-${threadCount}`;
       send({
         id: msg.id,
@@ -349,6 +400,27 @@ function handle(msg) {
         error: null,
       });
       return;
+    }
+    case "thread/resume": {
+      const thread = savedThreads()[msg.params.threadId];
+      if (!thread) {
+        send({ id: msg.id, error: { code: -32600, message: `no rollout found for thread id ${msg.params.threadId}` } });
+        return;
+      }
+      threadCwd = msg.params.cwd;
+      currentThread = msg.params.threadId;
+      const turns = msg.params.excludeTurns ? [] : thread.turns;
+      send({ id: msg.id, result: { thread: { id: currentThread, turns }, model: "gpt-test", reasoningEffort: null } });
+      return;
+    }
+    case "thread/turns/list": {
+      // One turn per page, oldest first, so callers have to follow the cursor.
+      const turns = (savedThreads()[msg.params.threadId] || { turns: [] }).turns;
+      const index = Number(msg.params.cursor || 0);
+      const nextCursor = index + 1 < turns.length ? String(index + 1) : null;
+      send({ id: msg.id, result: { data: turns.slice(index, index + 1), nextCursor, backwardsCursor: null } });
+      return;
+    }
     case "thread/fork":
       if (process.env.FAKE_CODEX_FORK === "fail") {
         send({ id: msg.id, error: { code: -32600, message: "fork failed" } });
@@ -356,6 +428,8 @@ function handle(msg) {
       }
       forkCount += 1;
       currentThread = `fork-${forkCount}`;
+      // A fork starts with its source's history.
+      forkedTurns = (savedThreads()[msg.params.threadId] || { turns: [] }).turns;
       send({ id: msg.id, result: { thread: { id: currentThread }, model: "gpt-test", reasoningEffort: null } });
       return;
     case "thread/unsubscribe":
@@ -365,6 +439,12 @@ function handle(msg) {
       turnCount += 1;
       activeTurn = `turn-${turnCount}`;
       const text = (msg.params.input[0] && msg.params.input[0].text) || "";
+      const userMessage = { type: "userMessage", id: `u-${turnCount}`, content: msg.params.input };
+      record((thread) => {
+        if (!thread.turns.length && forkedTurns) thread.turns.push(...forkedTurns);
+        forkedTurns = undefined;
+        thread.turns.push({ id: activeTurn, status: "inProgress", items: [userMessage], itemsView: "full" });
+      });
       const started = () => {
         send({ id: msg.id, result: { turn: { id: activeTurn, status: "inProgress", items: [] } } });
         setImmediate(() => void runTurn(text));

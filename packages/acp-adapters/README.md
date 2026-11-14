@@ -38,6 +38,24 @@ ChatGPT and Google sign-ins (see [Sign-in helper](#sign-in-helper-plane-agent-lo
   labels for `command`, `file` and `tool` and shows its generic "always" label for the others.
 - **Cancellation**: `session/cancel` is the business stop, and the prompt answers `stopReason: "cancelled"`.
   `$/cancel_request` on the prompt request is transport-level, and the prompt answers JSON-RPC `-32800`.
+- **Resuming**: every adapter but echo advertises `loadSession`, so a new process (after a reconnect or an idle
+  close) picks the conversation back up. `session/load` replays it before answering: user and agent messages
+  and thoughts (`messageId` `h-<n>`) and tool calls with their final status, without their output. A session
+  the adapter has nothing stored for answers `-32002` (resource not found). Everything lives under the agent's
+  `HOME`, which the runner keeps per member and deletes when they leave the workspace:
+  - Claude: Claude Code's own transcripts.
+  - Gemini: Gemini CLI's own sessions, found through `.gemini/plane-acp-sessions.json` (see below).
+  - Codex: the session's Codex thread, resumed with `thread/resume {excludeTurns: true}` and this session's
+    settings (MCP servers with their current headers, approval policy, web search for the level), and replayed
+    from `thread/turns/list {itemsView: "full"}` (Codex 0.166.0 deprecates the history in the resume answer).
+    `<CODEX_HOME>/plane-acp-sessions.json` maps our session ids to thread ids, from the first turn on (Codex
+    saves a thread only then; resuming an unsaved one fails with "no rollout found") and onto a fork when the
+    level changes web search, so a session with no turn yet cannot be loaded. Threads stay in the Codex home of
+    the sign-in method, so a session started with an API key is not found after switching to a ChatGPT sign-in.
+  - DeepSeek: the conversation, without the system prompt (rebuilt on load), in
+    `~/.plane-acp/deepseek/<session id>.json` (0600), written after every turn: the newest whole turns that fit in
+    4 MiB (always the last one), with unanswered tool calls answered as interrupted. The 100 most recently
+    written sessions are kept.
 
 The mode gate:
 

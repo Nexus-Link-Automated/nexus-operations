@@ -9,6 +9,7 @@ import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { objectValue, stringValue } from "../core/json.ts";
+import { writePrivateJson } from "../core/store.ts";
 import {
   GEMINI_DIR,
   GOOGLE_ACCOUNTS_FILE,
@@ -17,7 +18,6 @@ import {
   googleAccountEmail,
   hasGoogleCredentials,
   setSelectedAuthType,
-  writePrivateJson,
 } from "../gemini/files.ts";
 import { failed, removeFiles, within, type LoginEvent, type LoginIo } from "./shared.ts";
 
