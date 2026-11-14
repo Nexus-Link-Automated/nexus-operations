@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Remediază bug",
+      "write_test": "Scrie test",
+      "write_and_run_test": "Scrie și rulează test"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Sarcină de programare"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Un agent de programare încearcă să remedieze acest bug și deschide un pull request. După remediere, activitatea trece în starea In review.",
+        "write_test": "Un agent de programare scrie un test pentru această activitate și deschide un pull request. Testul nu este rulat. Apoi activitatea trece în starea Ready.",
+        "write_and_run_test": "Un agent de programare scrie un test și îl rulează. Dacă trece, activitatea trece în starea Ready; dacă eșuează pentru că există un bug în cod, trece în starea Failed."
+      },
+      "agent": "Agent",
+      "machine": "Mașină",
+      "machine_auto": "Automat",
+      "machine_hint": "Sarcina rulează pe una dintre propriile dvs. mașini. Alegerea mașinii va veni mai târziu.",
+      "start": "Pornește sarcina",
+      "starting": "Se pornește..."
+    },
+    "toasts": {
+      "started": "Sarcina de programare a pornit",
+      "start_failed": "Sarcina de programare nu a putut fi pornită",
+      "cancelled": "Sarcina de programare a fost anulată",
+      "cancel_failed": "Sarcina de programare nu a putut fi anulată",
+      "retried": "Sarcina de programare a pornit din nou",
+      "retry_failed": "Sarcina de programare nu a putut fi reîncercată"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Sarcinile de programare nu sunt configurate pentru acest proiect. Un administrator al proiectului trebuie să le activeze și să seteze repozitoriul.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Sarcinile de programare nu pot rula pe schițe, activități arhivate sau activități care așteaptă în Recepție.",
+      "JOB_ACTIVE": "Această activitate are deja în desfășurare o sarcină de acest tip.",
+      "JOB_NOT_ACTIVE": "Această sarcină s-a încheiat deja, deci nu poate fi anulată.",
+      "JOB_NOT_RETRYABLE": "Doar o sarcină anulată sau una care nu s-a finalizat poate fi reîncercată.",
+      "forbidden": "Nu aveți permisiunea de a face acest lucru.",
+      "generic": "A apărut o problemă. Încercați din nou."
+    },
+    "panel": {
+      "title": "Sarcini de programare",
+      "refresh": "Reîmprospătează sarcinile de programare",
+      "empty": "Încă nu există sarcini de programare.",
+      "load_failed": "Sarcinile de programare nu au putut fi încărcate.",
+      "requested_by": "Pornită de {name}",
+      "unknown_user": "Membru necunoscut",
+      "finished": "Finalizată {time}",
+      "error_reason": "Motiv",
+      "pr": "Pull request",
+      "cancel": "Anulează",
+      "retry": "Reîncercați"
+    },
+    "status": {
+      "queued": "În coadă",
+      "running": "În execuție",
+      "needs_input": "Necesită input",
+      "finished": "Finalizată",
+      "cancelled": "Anulată"
+    },
+    "outcome": {
+      "fixed": "Remediat",
+      "could_not_fix": "Nu a putut fi remediat",
+      "test_written": "Test scris",
+      "test_passed": "Test trecut",
+      "bug_found": "Bug găsit",
+      "job_error": "Nu s-a finalizat"
+    },
+    "settings": {
+      "label": "Sarcini de programare",
+      "title": "Sarcini de programare",
+      "description": "Permiteți agenților de programare să remedieze bug-uri și să scrie teste pornind de la activitățile acestui proiect.",
+      "enabled": "Sarcini de programare",
+      "enabled_description": "Membrii pot porni Remediază bug, Scrie test și Scrie și rulează test pe activități.",
+      "repo_url": "URL repozitoriu",
+      "repo_url_hint": "Adresa https a repozitoriului în care lucrează agenții. Fără date de autentificare.",
+      "default_branch": "Ramură implicită",
+      "columns_title": "Coloane pentru rezultate",
+      "columns_description": "Starea în care fiecare rezultat mută activitatea.",
+      "column": {
+        "ready": "Pregătit",
+        "failed": "Eșuat",
+        "in_review": "În revizuire"
+      },
+      "column_hint": {
+        "ready": "După ce un test este scris sau scris și trece.",
+        "failed": "Când un test eșuează pentru că există un bug în codul produsului.",
+        "in_review": "După ce un bug este remediat și pull request-ul său este deschis."
+      },
+      "match_by_name": "Potrivire după nume („{name}”)",
+      "resolves_to": "Acum: {state}",
+      "resolves_to_by_name": "Acum: {state} (potrivire după nume)",
+      "resolves_none": "Acum: nicio stare potrivită, așa că activitatea rămâne unde este.",
+      "create_failed": "Creează coloana Failed",
+      "creating_failed": "Se creează...",
+      "failed_created": "Coloana Failed a fost creată",
+      "create_failed_error": "Coloana Failed nu a putut fi creată",
+      "save": "Salvați modificările",
+      "saving": "Se salvează...",
+      "saved": "Setările de programare au fost salvate",
+      "save_failed": "Setările de programare nu au putut fi salvate",
+      "read_only": "Doar administratorii proiectului pot modifica aceste setări.",
+      "not_configured": "Sarcinile de programare sunt dezactivate pentru acest proiect. Activați-le și setați repozitoriul pentru ca membrii să poată porni sarcini."
+    }
+  }
+}

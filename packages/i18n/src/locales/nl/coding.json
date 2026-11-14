@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Bug oplossen",
+      "write_test": "Test schrijven",
+      "write_and_run_test": "Test schrijven & uitvoeren"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Codeertaak"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Een codeeragent probeert deze bug op te lossen en opent een pull request. Zodra de bug is opgelost, gaat het werkitem naar \"In review\".",
+        "write_test": "Een codeeragent schrijft een test voor dit werkitem en opent een pull request. De test wordt niet uitgevoerd. Daarna gaat het werkitem naar \"Ready\".",
+        "write_and_run_test": "Een codeeragent schrijft een test en voert deze uit. Als de test slaagt, gaat het werkitem naar \"Ready\"; als hij mislukt omdat de code bugs bevat, gaat het naar \"Failed\"."
+      },
+      "agent": "Agent",
+      "machine": "Machine",
+      "machine_auto": "Automatisch",
+      "machine_hint": "De taak draait op een van je eigen machines. Een machine kiezen komt later.",
+      "start": "Taak starten",
+      "starting": "Starten..."
+    },
+    "toasts": {
+      "started": "Codeertaak gestart",
+      "start_failed": "Kan de codeertaak niet starten",
+      "cancelled": "Codeertaak geannuleerd",
+      "cancel_failed": "Kan de codeertaak niet annuleren",
+      "retried": "Codeertaak opnieuw gestart",
+      "retry_failed": "Kan de codeertaak niet opnieuw proberen"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Codeertaken zijn niet ingesteld voor dit project. Een projectbeheerder moet ze inschakelen en de repository instellen.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Codeertaken kunnen niet worden uitgevoerd op concepten, gearchiveerde werkitems of werkitems die in Intake wachten.",
+      "JOB_ACTIVE": "Dit werkitem heeft al een taak van dit type in uitvoering.",
+      "JOB_NOT_ACTIVE": "Deze taak is al beëindigd en kan dus niet worden geannuleerd.",
+      "JOB_NOT_RETRYABLE": "Alleen een geannuleerde taak of een taak die niet is voltooid, kan opnieuw worden geprobeerd.",
+      "forbidden": "Je hebt geen toestemming om dit te doen.",
+      "generic": "Er is iets misgegaan. Probeer het opnieuw."
+    },
+    "panel": {
+      "title": "Codeertaken",
+      "refresh": "Codeertaken vernieuwen",
+      "empty": "Nog geen codeertaken.",
+      "load_failed": "Kan de codeertaken niet laden.",
+      "requested_by": "Gestart door {name}",
+      "unknown_user": "Onbekend lid",
+      "finished": "Voltooid {time}",
+      "error_reason": "Reden",
+      "pr": "Pull request",
+      "cancel": "Annuleren",
+      "retry": "Opnieuw proberen"
+    },
+    "status": {
+      "queued": "In wachtrij",
+      "running": "Bezig",
+      "needs_input": "Invoer nodig",
+      "finished": "Voltooid",
+      "cancelled": "Geannuleerd"
+    },
+    "outcome": {
+      "fixed": "Opgelost",
+      "could_not_fix": "Niet opgelost",
+      "test_written": "Test geschreven",
+      "test_passed": "Test geslaagd",
+      "bug_found": "Bug gevonden",
+      "job_error": "Niet voltooid"
+    },
+    "settings": {
+      "label": "Codeertaken",
+      "title": "Codeertaken",
+      "description": "Laat codeeragents bugs oplossen en tests schrijven op basis van de werkitems van dit project.",
+      "enabled": "Codeertaken",
+      "enabled_description": "Leden kunnen \"Bug oplossen\", \"Test schrijven\" en \"Test schrijven & uitvoeren\" starten op werkitems.",
+      "repo_url": "Repository-URL",
+      "repo_url_hint": "Het https-adres van de repository waarin de agents werken. Geen inloggegevens.",
+      "default_branch": "Standaardbranch",
+      "columns_title": "Uitkomstkolommen",
+      "columns_description": "De status waarnaar elke uitkomst het werkitem verplaatst.",
+      "column": {
+        "ready": "Gereed",
+        "failed": "Mislukt",
+        "in_review": "In beoordeling"
+      },
+      "column_hint": {
+        "ready": "Nadat een test is geschreven, of geschreven en geslaagd.",
+        "failed": "Wanneer een test mislukt omdat de productcode bugs bevat.",
+        "in_review": "Nadat een bug is opgelost en de bijbehorende pull request openstaat."
+      },
+      "match_by_name": "Koppelen op naam (\"{name}\")",
+      "resolves_to": "Nu: {state}",
+      "resolves_to_by_name": "Nu: {state} (gekoppeld op naam)",
+      "resolves_none": "Nu: geen overeenkomende status, dus het werkitem blijft waar het is.",
+      "create_failed": "Failed-kolom maken",
+      "creating_failed": "Maken...",
+      "failed_created": "Failed-kolom gemaakt",
+      "create_failed_error": "Kan de Failed-kolom niet maken",
+      "save": "Wijzigingen opslaan",
+      "saving": "Opslaan...",
+      "saved": "Codeerinstellingen opgeslagen",
+      "save_failed": "Kan de codeerinstellingen niet opslaan",
+      "read_only": "Alleen projectbeheerders kunnen deze instellingen wijzigen.",
+      "not_configured": "Codeertaken zijn uitgeschakeld voor dit project. Schakel ze in en stel de repository in zodat leden taken kunnen starten."
+    }
+  }
+}

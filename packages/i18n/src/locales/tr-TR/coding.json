@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Hatayı düzelt",
+      "write_test": "Test yaz",
+      "write_and_run_test": "Test yaz ve çalıştır"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Kodlama görevi"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Bir kodlama ajanı bu hatayı düzeltmeye çalışır ve bir pull request açar. Hata düzeltildiğinde iş öğesi In review durumuna geçer.",
+        "write_test": "Bir kodlama ajanı bu iş öğesi için bir test yazar ve bir pull request açar. Test çalıştırılmaz. Ardından iş öğesi Ready durumuna geçer.",
+        "write_and_run_test": "Bir kodlama ajanı bir test yazar ve çalıştırır. Test geçerse iş öğesi Ready durumuna geçer; kod hatalı olduğu için başarısız olursa Failed durumuna geçer."
+      },
+      "agent": "Ajan",
+      "machine": "Makine",
+      "machine_auto": "Otomatik",
+      "machine_hint": "Görev kendi makinelerinizden birinde çalışır. Makine seçimi daha sonra gelecek.",
+      "start": "Görevi başlat",
+      "starting": "Başlatılıyor..."
+    },
+    "toasts": {
+      "started": "Kodlama görevi başlatıldı",
+      "start_failed": "Kodlama görevi başlatılamadı",
+      "cancelled": "Kodlama görevi iptal edildi",
+      "cancel_failed": "Kodlama görevi iptal edilemedi",
+      "retried": "Kodlama görevi yeniden başlatıldı",
+      "retry_failed": "Kodlama görevi yeniden denenemedi"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Bu proje için kodlama görevleri ayarlanmamış. Bir proje yöneticisinin bunları açması ve repository'yi ayarlaması gerekir.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Kodlama görevleri taslaklarda, arşivlenmiş iş öğelerinde veya alımda bekleyen iş öğelerinde çalışamaz.",
+      "JOB_ACTIVE": "Bu iş öğesinde bu türde devam eden bir görev zaten var.",
+      "JOB_NOT_ACTIVE": "Bu görev zaten sona erdi, bu yüzden iptal edilemez.",
+      "JOB_NOT_RETRYABLE": "Yalnızca iptal edilmiş veya tamamlanmamış bir görev yeniden denenebilir.",
+      "forbidden": "Bunu yapma izniniz yok.",
+      "generic": "Bir şeyler ters gitti. Lütfen tekrar deneyin."
+    },
+    "panel": {
+      "title": "Kodlama görevleri",
+      "refresh": "Kodlama görevlerini yenile",
+      "empty": "Henüz kodlama görevi yok.",
+      "load_failed": "Kodlama görevleri yüklenemedi.",
+      "requested_by": "{name} tarafından başlatıldı",
+      "unknown_user": "Bilinmeyen üye",
+      "finished": "{time} tamamlandı",
+      "error_reason": "Neden",
+      "pr": "Pull request",
+      "cancel": "İptal et",
+      "retry": "Yeniden dene"
+    },
+    "status": {
+      "queued": "Sırada",
+      "running": "Çalışıyor",
+      "needs_input": "Girdi gerekiyor",
+      "finished": "Tamamlandı",
+      "cancelled": "İptal edildi"
+    },
+    "outcome": {
+      "fixed": "Düzeltildi",
+      "could_not_fix": "Düzeltilemedi",
+      "test_written": "Test yazıldı",
+      "test_passed": "Test geçti",
+      "bug_found": "Hata bulundu",
+      "job_error": "Tamamlanmadı"
+    },
+    "settings": {
+      "label": "Kodlama görevleri",
+      "title": "Kodlama görevleri",
+      "description": "Kodlama ajanlarının bu projenin iş öğelerinden hataları düzeltmesine ve testler yazmasına izin verin.",
+      "enabled": "Kodlama görevleri",
+      "enabled_description": "Üyeler iş öğelerinde Hatayı düzelt, Test yaz ve Test yaz ve çalıştır işlemlerini başlatabilir.",
+      "repo_url": "Repository URL'si",
+      "repo_url_hint": "Ajanların çalıştığı repository'nin https adresi. Kimlik bilgisi içermemelidir.",
+      "default_branch": "Varsayılan dal",
+      "columns_title": "Sonuç sütunları",
+      "columns_description": "Her sonucun iş öğesini taşıdığı durum.",
+      "column": {
+        "ready": "Hazır",
+        "failed": "Başarısız",
+        "in_review": "İncelemede"
+      },
+      "column_hint": {
+        "ready": "Bir test yazıldıktan veya yazılıp geçtikten sonra.",
+        "failed": "Ürün kodu hatalı olduğu için bir test başarısız olduğunda.",
+        "in_review": "Bir hata düzeltildikten ve pull request'i açıldıktan sonra."
+      },
+      "match_by_name": "Ada göre eşleştir (\"{name}\")",
+      "resolves_to": "Şu an: {state}",
+      "resolves_to_by_name": "Şu an: {state} (ada göre eşleşti)",
+      "resolves_none": "Şu an: eşleşen durum yok, bu yüzden iş öğesi olduğu yerde kalır.",
+      "create_failed": "Failed sütunu oluştur",
+      "creating_failed": "Oluşturuluyor...",
+      "failed_created": "Failed sütunu oluşturuldu",
+      "create_failed_error": "Failed sütunu oluşturulamadı",
+      "save": "Değişiklikleri kaydet",
+      "saving": "Kaydediliyor...",
+      "saved": "Kodlama ayarları kaydedildi",
+      "save_failed": "Kodlama ayarları kaydedilemedi",
+      "read_only": "Bu ayarları yalnızca proje yöneticileri değiştirebilir.",
+      "not_configured": "Bu proje için kodlama görevleri kapalı. Üyelerin görev başlatabilmesi için bunları açın ve repository'yi ayarlayın."
+    }
+  }
+}

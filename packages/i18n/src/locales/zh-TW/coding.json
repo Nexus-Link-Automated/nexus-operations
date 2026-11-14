@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "修正錯誤",
+      "write_test": "撰寫測試",
+      "write_and_run_test": "撰寫並執行測試"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "編碼工作"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "編碼代理會嘗試修正此錯誤並建立拉取請求。修正後，工作項目將移至 In review。",
+        "write_test": "編碼代理會為此工作項目撰寫測試並建立拉取請求。測試不會執行。之後工作項目將移至 Ready。",
+        "write_and_run_test": "編碼代理會撰寫測試並執行。若測試通過，工作項目將移至 Ready；若因程式碼有錯誤而失敗，則移至 Failed。"
+      },
+      "agent": "代理",
+      "machine": "機器",
+      "machine_auto": "自動",
+      "machine_hint": "工作會在您自己的某台機器上執行。選擇機器的功能稍後提供。",
+      "start": "開始工作",
+      "starting": "正在開始..."
+    },
+    "toasts": {
+      "started": "編碼工作已開始",
+      "start_failed": "無法開始編碼工作",
+      "cancelled": "編碼工作已取消",
+      "cancel_failed": "無法取消編碼工作",
+      "retried": "編碼工作已重新開始",
+      "retry_failed": "無法重試編碼工作"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "此專案尚未設定編碼工作。專案管理員必須啟用此功能並設定儲存庫。",
+      "WORK_ITEM_NOT_ELIGIBLE": "編碼工作無法在草稿、已封存的工作項目或在接收中等待的工作項目上執行。",
+      "JOB_ACTIVE": "此工作項目已有同類工作正在進行中。",
+      "JOB_NOT_ACTIVE": "此工作已結束，無法取消。",
+      "JOB_NOT_RETRYABLE": "只有已取消或未完成的工作才能重試。",
+      "forbidden": "您沒有執行此操作的權限。",
+      "generic": "發生錯誤，請再試一次。"
+    },
+    "panel": {
+      "title": "編碼工作",
+      "refresh": "重新整理編碼工作",
+      "empty": "尚無編碼工作。",
+      "load_failed": "無法載入編碼工作。",
+      "requested_by": "由 {name} 開始",
+      "unknown_user": "不明成員",
+      "finished": "完成於 {time}",
+      "error_reason": "原因",
+      "pr": "拉取請求",
+      "cancel": "取消",
+      "retry": "重試"
+    },
+    "status": {
+      "queued": "排隊中",
+      "running": "執行中",
+      "needs_input": "需要輸入",
+      "finished": "已完成",
+      "cancelled": "已取消"
+    },
+    "outcome": {
+      "fixed": "已修正",
+      "could_not_fix": "無法修正",
+      "test_written": "已撰寫測試",
+      "test_passed": "測試通過",
+      "bug_found": "發現錯誤",
+      "job_error": "未完成"
+    },
+    "settings": {
+      "label": "編碼工作",
+      "title": "編碼工作",
+      "description": "讓編碼代理根據此專案的工作項目修正錯誤並撰寫測試。",
+      "enabled": "編碼工作",
+      "enabled_description": "成員可以在工作項目上啟動修正錯誤、撰寫測試以及撰寫並執行測試。",
+      "repo_url": "儲存庫 URL",
+      "repo_url_hint": "代理工作所用儲存庫的 https 位址。請勿包含憑證。",
+      "default_branch": "預設分支",
+      "columns_title": "結果欄",
+      "columns_description": "每種結果會將工作項目移至的狀態。",
+      "column": {
+        "ready": "已就緒",
+        "failed": "失敗",
+        "in_review": "審查中"
+      },
+      "column_hint": {
+        "ready": "測試撰寫完成後，或撰寫完成且通過後。",
+        "failed": "因產品程式碼有錯誤導致測試失敗時。",
+        "in_review": "錯誤修正且其拉取請求已建立後。"
+      },
+      "match_by_name": "依名稱比對（\"{name}\"）",
+      "resolves_to": "目前：{state}",
+      "resolves_to_by_name": "目前：{state}（依名稱比對）",
+      "resolves_none": "目前：沒有相符的狀態，工作項目將維持不變。",
+      "create_failed": "建立 Failed 欄",
+      "creating_failed": "正在建立...",
+      "failed_created": "已建立 Failed 欄",
+      "create_failed_error": "無法建立 Failed 欄",
+      "save": "儲存變更",
+      "saving": "儲存中...",
+      "saved": "編碼設定已儲存",
+      "save_failed": "無法儲存編碼設定",
+      "read_only": "只有專案管理員可以變更這些設定。",
+      "not_configured": "此專案的編碼工作已關閉。請啟用此功能並設定儲存庫，讓成員可以開始工作。"
+    }
+  }
+}

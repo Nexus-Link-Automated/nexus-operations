@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Correggi bug",
+      "write_test": "Scrivi test",
+      "write_and_run_test": "Scrivi ed esegui test"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Attività di coding"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Un agente di coding prova a correggere questo bug e apre una pull request. Una volta corretto, l'elemento di lavoro passa a \"In review\".",
+        "write_test": "Un agente di coding scrive un test per questo elemento di lavoro e apre una pull request. Il test non viene eseguito. L'elemento di lavoro passa poi a \"Ready\".",
+        "write_and_run_test": "Un agente di coding scrive un test e lo esegue. Se il test ha esito positivo, l'elemento di lavoro passa a \"Ready\"; se fallisce perché il codice contiene bug, passa a \"Failed\"."
+      },
+      "agent": "Agente",
+      "machine": "Macchina",
+      "machine_auto": "Automatica",
+      "machine_hint": "L'attività viene eseguita su una delle tue macchine. La scelta della macchina arriverà in seguito.",
+      "start": "Avvia attività",
+      "starting": "Avvio..."
+    },
+    "toasts": {
+      "started": "Attività di coding avviata",
+      "start_failed": "Impossibile avviare l'attività di coding",
+      "cancelled": "Attività di coding annullata",
+      "cancel_failed": "Impossibile annullare l'attività di coding",
+      "retried": "Attività di coding riavviata",
+      "retry_failed": "Impossibile riprovare l'attività di coding"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Le attività di coding non sono configurate per questo progetto. Un amministratore del progetto deve attivarle e impostare il repository.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Le attività di coding non possono essere eseguite su bozze, elementi di lavoro archiviati o elementi di lavoro in attesa in Intake.",
+      "JOB_ACTIVE": "Questo elemento di lavoro ha già un'attività di questo tipo in corso.",
+      "JOB_NOT_ACTIVE": "Questa attività è già terminata, quindi non può essere annullata.",
+      "JOB_NOT_RETRYABLE": "Solo un'attività annullata o non completata può essere riprovata.",
+      "forbidden": "Non hai l'autorizzazione per farlo.",
+      "generic": "Qualcosa è andato storto. Riprova."
+    },
+    "panel": {
+      "title": "Attività di coding",
+      "refresh": "Aggiorna attività di coding",
+      "empty": "Ancora nessuna attività di coding.",
+      "load_failed": "Impossibile caricare le attività di coding.",
+      "requested_by": "Avviata da {name}",
+      "unknown_user": "Membro sconosciuto",
+      "finished": "Terminata {time}",
+      "error_reason": "Motivo",
+      "pr": "Pull request",
+      "cancel": "Annulla",
+      "retry": "Riprova"
+    },
+    "status": {
+      "queued": "In coda",
+      "running": "In esecuzione",
+      "needs_input": "Richiede input",
+      "finished": "Terminata",
+      "cancelled": "Annullata"
+    },
+    "outcome": {
+      "fixed": "Corretto",
+      "could_not_fix": "Impossibile correggere",
+      "test_written": "Test scritto",
+      "test_passed": "Test superato",
+      "bug_found": "Bug trovato",
+      "job_error": "Non completata"
+    },
+    "settings": {
+      "label": "Attività di coding",
+      "title": "Attività di coding",
+      "description": "Consenti agli agenti di coding di correggere bug e scrivere test a partire dagli elementi di lavoro di questo progetto.",
+      "enabled": "Attività di coding",
+      "enabled_description": "I membri possono avviare \"Correggi bug\", \"Scrivi test\" e \"Scrivi ed esegui test\" sugli elementi di lavoro.",
+      "repo_url": "URL del repository",
+      "repo_url_hint": "L'indirizzo https del repository in cui lavorano gli agenti. Senza credenziali.",
+      "default_branch": "Branch predefinito",
+      "columns_title": "Colonne di esito",
+      "columns_description": "Lo stato in cui ogni esito sposta l'elemento di lavoro.",
+      "column": {
+        "ready": "Pronto",
+        "failed": "Fallito",
+        "in_review": "In revisione"
+      },
+      "column_hint": {
+        "ready": "Dopo che un test è stato scritto, o scritto e superato.",
+        "failed": "Quando un test fallisce perché il codice del prodotto contiene bug.",
+        "in_review": "Dopo che un bug è stato corretto e la relativa pull request è aperta."
+      },
+      "match_by_name": "Corrispondenza per nome (\"{name}\")",
+      "resolves_to": "Ora: {state}",
+      "resolves_to_by_name": "Ora: {state} (corrispondenza per nome)",
+      "resolves_none": "Ora: nessuno stato corrispondente, quindi l'elemento di lavoro resta dov'è.",
+      "create_failed": "Crea colonna Failed",
+      "creating_failed": "Creazione...",
+      "failed_created": "Colonna Failed creata",
+      "create_failed_error": "Impossibile creare la colonna Failed",
+      "save": "Salva modifiche",
+      "saving": "Salvataggio...",
+      "saved": "Impostazioni di coding salvate",
+      "save_failed": "Impossibile salvare le impostazioni di coding",
+      "read_only": "Solo gli amministratori del progetto possono modificare queste impostazioni.",
+      "not_configured": "Le attività di coding sono disattivate per questo progetto. Attivale e imposta il repository affinché i membri possano avviare attività."
+    }
+  }
+}

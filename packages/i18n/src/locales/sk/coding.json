@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Opraviť chybu",
+      "write_test": "Napísať test",
+      "write_and_run_test": "Napísať a spustiť test"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Programovacia úloha"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Programovací agent sa pokúsi túto chybu opraviť a otvorí pull request. Po oprave sa pracovná položka presunie do stavu In review.",
+        "write_test": "Programovací agent napíše test pre túto pracovnú položku a otvorí pull request. Test sa nespúšťa. Pracovná položka sa potom presunie do stavu Ready.",
+        "write_and_run_test": "Programovací agent napíše test a spustí ho. Ak test prejde, pracovná položka sa presunie do stavu Ready; ak zlyhá kvôli chybe v kóde, presunie sa do stavu Failed."
+      },
+      "agent": "Agent",
+      "machine": "Stroj",
+      "machine_auto": "Automaticky",
+      "machine_hint": "Úloha pobeží na jednom z vašich vlastných strojov. Výber stroja príde neskôr.",
+      "start": "Spustiť úlohu",
+      "starting": "Spúšťanie..."
+    },
+    "toasts": {
+      "started": "Programovacia úloha bola spustená",
+      "start_failed": "Programovaciu úlohu sa nepodarilo spustiť",
+      "cancelled": "Programovacia úloha bola zrušená",
+      "cancel_failed": "Programovaciu úlohu sa nepodarilo zrušiť",
+      "retried": "Programovacia úloha bola znova spustená",
+      "retry_failed": "Programovaciu úlohu sa nepodarilo zopakovať"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Programovacie úlohy nie sú pre tento projekt nastavené. Správca projektu ich musí zapnúť a nastaviť repozitár.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Programovacie úlohy nemožno spúšťať na konceptoch, archivovaných pracovných položkách ani na pracovných položkách čakajúcich v príjme.",
+      "JOB_ACTIVE": "Táto pracovná položka už má rozpracovanú úlohu tohto typu.",
+      "JOB_NOT_ACTIVE": "Táto úloha už skončila, preto ju nemožno zrušiť.",
+      "JOB_NOT_RETRYABLE": "Zopakovať možno iba zrušenú úlohu alebo úlohu, ktorá nebola dokončená.",
+      "forbidden": "Nemáte povolenie na túto akciu.",
+      "generic": "Niečo sa pokazilo. Skúste to prosím znova."
+    },
+    "panel": {
+      "title": "Programovacie úlohy",
+      "refresh": "Obnoviť programovacie úlohy",
+      "empty": "Zatiaľ žiadne programovacie úlohy.",
+      "load_failed": "Programovacie úlohy sa nepodarilo načítať.",
+      "requested_by": "Spustil(a) {name}",
+      "unknown_user": "Neznámy člen",
+      "finished": "Dokončené {time}",
+      "error_reason": "Dôvod",
+      "pr": "Pull request",
+      "cancel": "Zrušiť",
+      "retry": "Skúsiť znova"
+    },
+    "status": {
+      "queued": "V poradí",
+      "running": "Prebieha",
+      "needs_input": "Vyžaduje vstup",
+      "finished": "Dokončené",
+      "cancelled": "Zrušené"
+    },
+    "outcome": {
+      "fixed": "Opravené",
+      "could_not_fix": "Nepodarilo sa opraviť",
+      "test_written": "Test napísaný",
+      "test_passed": "Test prešiel",
+      "bug_found": "Nájdená chyba",
+      "job_error": "Nedokončené"
+    },
+    "settings": {
+      "label": "Programovacie úlohy",
+      "title": "Programovacie úlohy",
+      "description": "Umožnite programovacím agentom opravovať chyby a písať testy z pracovných položiek tohto projektu.",
+      "enabled": "Programovacie úlohy",
+      "enabled_description": "Členovia môžu pri pracovných položkách spúšťať akcie Opraviť chybu, Napísať test a Napísať a spustiť test.",
+      "repo_url": "URL repozitára",
+      "repo_url_hint": "Adresa https repozitára, v ktorom agenti pracujú. Bez prihlasovacích údajov.",
+      "default_branch": "Predvolená vetva",
+      "columns_title": "Stĺpce výsledkov",
+      "columns_description": "Stav, do ktorého jednotlivé výsledky presunú pracovnú položku.",
+      "column": {
+        "ready": "Pripravené",
+        "failed": "Zlyhalo",
+        "in_review": "V revízii"
+      },
+      "column_hint": {
+        "ready": "Po napísaní testu, alebo po jeho napísaní a úspešnom prechode.",
+        "failed": "Keď test zlyhá kvôli chybe v kóde produktu.",
+        "in_review": "Po oprave chyby a otvorení jej pull requestu."
+      },
+      "match_by_name": "Zhoda podľa názvu („{name}“)",
+      "resolves_to": "Teraz: {state}",
+      "resolves_to_by_name": "Teraz: {state} (zhoda podľa názvu)",
+      "resolves_none": "Teraz: žiadny zodpovedajúci stav, pracovná položka teda zostane, kde je.",
+      "create_failed": "Vytvoriť stĺpec Failed",
+      "creating_failed": "Vytváranie...",
+      "failed_created": "Stĺpec Failed bol vytvorený",
+      "create_failed_error": "Stĺpec Failed sa nepodarilo vytvoriť",
+      "save": "Uložiť zmeny",
+      "saving": "Ukladanie...",
+      "saved": "Nastavenia programovania boli uložené",
+      "save_failed": "Nastavenia programovania sa nepodarilo uložiť",
+      "read_only": "Tieto nastavenia môžu meniť iba správcovia projektu.",
+      "not_configured": "Programovacie úlohy sú pre tento projekt vypnuté. Zapnite ich a nastavte repozitár, aby členovia mohli spúšťať úlohy."
+    }
+  }
+}

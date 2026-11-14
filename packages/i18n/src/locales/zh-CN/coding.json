@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "修复缺陷",
+      "write_test": "编写测试",
+      "write_and_run_test": "编写并运行测试"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "编码任务"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "编码代理会尝试修复此缺陷并创建拉取请求。修复后，工作项将移至 In review。",
+        "write_test": "编码代理会为此工作项编写测试并创建拉取请求。测试不会运行。之后工作项将移至 Ready。",
+        "write_and_run_test": "编码代理会编写测试并运行。如果测试通过，工作项将移至 Ready；如果因代码存在缺陷而失败，则移至 Failed。"
+      },
+      "agent": "代理",
+      "machine": "机器",
+      "machine_auto": "自动",
+      "machine_hint": "任务会在您自己的某台机器上运行。选择机器的功能稍后提供。",
+      "start": "开始任务",
+      "starting": "正在开始..."
+    },
+    "toasts": {
+      "started": "编码任务已开始",
+      "start_failed": "无法开始编码任务",
+      "cancelled": "编码任务已取消",
+      "cancel_failed": "无法取消编码任务",
+      "retried": "编码任务已重新开始",
+      "retry_failed": "无法重试编码任务"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "此项目尚未设置编码任务。项目管理员必须启用该功能并设置仓库。",
+      "WORK_ITEM_NOT_ELIGIBLE": "编码任务无法在草稿、已归档的工作项或在收集中等待的工作项上运行。",
+      "JOB_ACTIVE": "此工作项已有同类任务正在进行中。",
+      "JOB_NOT_ACTIVE": "此任务已结束，无法取消。",
+      "JOB_NOT_RETRYABLE": "只有已取消或未完成的任务才能重试。",
+      "forbidden": "您没有执行此操作的权限。",
+      "generic": "出现错误，请重试。"
+    },
+    "panel": {
+      "title": "编码任务",
+      "refresh": "刷新编码任务",
+      "empty": "暂无编码任务。",
+      "load_failed": "无法加载编码任务。",
+      "requested_by": "由 {name} 发起",
+      "unknown_user": "未知成员",
+      "finished": "完成于 {time}",
+      "error_reason": "原因",
+      "pr": "拉取请求",
+      "cancel": "取消",
+      "retry": "重试"
+    },
+    "status": {
+      "queued": "排队中",
+      "running": "运行中",
+      "needs_input": "需要输入",
+      "finished": "已完成",
+      "cancelled": "已取消"
+    },
+    "outcome": {
+      "fixed": "已修复",
+      "could_not_fix": "无法修复",
+      "test_written": "已编写测试",
+      "test_passed": "测试通过",
+      "bug_found": "发现缺陷",
+      "job_error": "未完成"
+    },
+    "settings": {
+      "label": "编码任务",
+      "title": "编码任务",
+      "description": "让编码代理根据此项目的工作项修复缺陷并编写测试。",
+      "enabled": "编码任务",
+      "enabled_description": "成员可以在工作项上启动修复缺陷、编写测试以及编写并运行测试。",
+      "repo_url": "仓库 URL",
+      "repo_url_hint": "代理工作所用仓库的 https 地址。请勿包含凭据。",
+      "default_branch": "默认分支",
+      "columns_title": "结果列",
+      "columns_description": "每种结果会将工作项移至的状态。",
+      "column": {
+        "ready": "已就绪",
+        "failed": "失败",
+        "in_review": "审核中"
+      },
+      "column_hint": {
+        "ready": "测试编写完成后，或编写完成且通过后。",
+        "failed": "因产品代码存在缺陷导致测试失败时。",
+        "in_review": "缺陷修复且其拉取请求已创建后。"
+      },
+      "match_by_name": "按名称匹配（\"{name}\"）",
+      "resolves_to": "当前：{state}",
+      "resolves_to_by_name": "当前：{state}（按名称匹配）",
+      "resolves_none": "当前：没有匹配的状态，工作项将保持不变。",
+      "create_failed": "创建 Failed 列",
+      "creating_failed": "正在创建...",
+      "failed_created": "已创建 Failed 列",
+      "create_failed_error": "无法创建 Failed 列",
+      "save": "保存更改",
+      "saving": "保存中...",
+      "saved": "编码设置已保存",
+      "save_failed": "无法保存编码设置",
+      "read_only": "只有项目管理员可以更改这些设置。",
+      "not_configured": "此项目的编码任务已关闭。请启用该功能并设置仓库，以便成员可以启动任务。"
+    }
+  }
+}

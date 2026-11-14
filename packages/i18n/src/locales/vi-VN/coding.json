@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Sửa lỗi",
+      "write_test": "Viết kiểm thử",
+      "write_and_run_test": "Viết & chạy kiểm thử"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Tác vụ lập trình"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Một tác nhân lập trình sẽ cố gắng sửa lỗi này và mở một pull request. Khi đã sửa xong, hạng mục công việc sẽ chuyển sang In review.",
+        "write_test": "Một tác nhân lập trình sẽ viết kiểm thử cho hạng mục công việc này và mở một pull request. Kiểm thử không được chạy. Sau đó hạng mục công việc chuyển sang Ready.",
+        "write_and_run_test": "Một tác nhân lập trình sẽ viết kiểm thử và chạy nó. Nếu đạt, hạng mục công việc chuyển sang Ready; nếu thất bại do mã có lỗi, nó chuyển sang Failed."
+      },
+      "agent": "Tác nhân",
+      "machine": "Máy",
+      "machine_auto": "Tự động",
+      "machine_hint": "Tác vụ chạy trên một trong các máy của riêng bạn. Tính năng chọn máy sẽ có sau.",
+      "start": "Bắt đầu tác vụ",
+      "starting": "Đang bắt đầu..."
+    },
+    "toasts": {
+      "started": "Đã bắt đầu tác vụ lập trình",
+      "start_failed": "Không thể bắt đầu tác vụ lập trình",
+      "cancelled": "Đã hủy tác vụ lập trình",
+      "cancel_failed": "Không thể hủy tác vụ lập trình",
+      "retried": "Đã bắt đầu lại tác vụ lập trình",
+      "retry_failed": "Không thể thử lại tác vụ lập trình"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Tác vụ lập trình chưa được thiết lập cho dự án này. Quản trị viên dự án cần bật tính năng và thiết lập kho lưu trữ.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Không thể chạy tác vụ lập trình trên bản nháp, hạng mục công việc đã lưu trữ hoặc hạng mục công việc đang chờ trong Thu thập.",
+      "JOB_ACTIVE": "Hạng mục công việc này đã có một tác vụ cùng loại đang được thực hiện.",
+      "JOB_NOT_ACTIVE": "Tác vụ này đã kết thúc nên không thể hủy.",
+      "JOB_NOT_RETRYABLE": "Chỉ có thể thử lại tác vụ đã bị hủy hoặc chưa hoàn tất.",
+      "forbidden": "Bạn không có quyền thực hiện thao tác này.",
+      "generic": "Đã xảy ra lỗi. Vui lòng thử lại."
+    },
+    "panel": {
+      "title": "Tác vụ lập trình",
+      "refresh": "Làm mới tác vụ lập trình",
+      "empty": "Chưa có tác vụ lập trình nào.",
+      "load_failed": "Không thể tải các tác vụ lập trình.",
+      "requested_by": "Bắt đầu bởi {name}",
+      "unknown_user": "Thành viên không xác định",
+      "finished": "Hoàn tất {time}",
+      "error_reason": "Lý do",
+      "pr": "Pull request",
+      "cancel": "Hủy",
+      "retry": "Thử lại"
+    },
+    "status": {
+      "queued": "Đang chờ",
+      "running": "Đang chạy",
+      "needs_input": "Cần nhập thông tin",
+      "finished": "Đã hoàn tất",
+      "cancelled": "Đã hủy"
+    },
+    "outcome": {
+      "fixed": "Đã sửa",
+      "could_not_fix": "Không thể sửa",
+      "test_written": "Đã viết kiểm thử",
+      "test_passed": "Kiểm thử đạt",
+      "bug_found": "Phát hiện lỗi",
+      "job_error": "Chưa hoàn tất"
+    },
+    "settings": {
+      "label": "Tác vụ lập trình",
+      "title": "Tác vụ lập trình",
+      "description": "Cho phép tác nhân lập trình sửa lỗi và viết kiểm thử từ các hạng mục công việc của dự án này.",
+      "enabled": "Tác vụ lập trình",
+      "enabled_description": "Thành viên có thể bắt đầu Sửa lỗi, Viết kiểm thử và Viết & chạy kiểm thử trên các hạng mục công việc.",
+      "repo_url": "URL kho lưu trữ",
+      "repo_url_hint": "Địa chỉ https của kho lưu trữ mà các tác nhân làm việc. Không kèm thông tin đăng nhập.",
+      "default_branch": "Nhánh mặc định",
+      "columns_title": "Cột kết quả",
+      "columns_description": "Trạng thái mà mỗi kết quả sẽ chuyển hạng mục công việc đến.",
+      "column": {
+        "ready": "Sẵn sàng",
+        "failed": "Thất bại",
+        "in_review": "Đang xem xét"
+      },
+      "column_hint": {
+        "ready": "Sau khi kiểm thử được viết, hoặc được viết và đạt.",
+        "failed": "Khi kiểm thử thất bại do mã sản phẩm có lỗi.",
+        "in_review": "Sau khi lỗi được sửa và pull request của nó được mở."
+      },
+      "match_by_name": "Khớp theo tên (\"{name}\")",
+      "resolves_to": "Hiện tại: {state}",
+      "resolves_to_by_name": "Hiện tại: {state} (khớp theo tên)",
+      "resolves_none": "Hiện tại: không có trạng thái phù hợp, nên hạng mục công việc giữ nguyên vị trí.",
+      "create_failed": "Tạo cột Failed",
+      "creating_failed": "Đang tạo...",
+      "failed_created": "Đã tạo cột Failed",
+      "create_failed_error": "Không thể tạo cột Failed",
+      "save": "Lưu thay đổi",
+      "saving": "Đang lưu...",
+      "saved": "Đã lưu cài đặt lập trình",
+      "save_failed": "Không thể lưu cài đặt lập trình",
+      "read_only": "Chỉ quản trị viên dự án mới có thể thay đổi các cài đặt này.",
+      "not_configured": "Tác vụ lập trình đang tắt cho dự án này. Hãy bật tính năng và thiết lập kho lưu trữ để thành viên có thể bắt đầu tác vụ."
+    }
+  }
+}

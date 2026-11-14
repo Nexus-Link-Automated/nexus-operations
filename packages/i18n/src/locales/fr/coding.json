@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Corriger le bug",
+      "write_test": "Écrire un test",
+      "write_and_run_test": "Écrire et exécuter un test"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Tâche de codage"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Un agent de codage tente de corriger ce bug et ouvre une pull request. Une fois le bug corrigé, l'élément de travail passe à « In review ».",
+        "write_test": "Un agent de codage écrit un test pour cet élément de travail et ouvre une pull request. Le test n'est pas exécuté. L'élément de travail passe ensuite à « Ready ».",
+        "write_and_run_test": "Un agent de codage écrit un test et l'exécute. S'il réussit, l'élément de travail passe à « Ready » ; s'il échoue parce que le code est défectueux, il passe à « Failed »."
+      },
+      "agent": "Agent",
+      "machine": "Machine",
+      "machine_auto": "Automatique",
+      "machine_hint": "La tâche s'exécute sur l'une de vos propres machines. Le choix de la machine viendra plus tard.",
+      "start": "Lancer la tâche",
+      "starting": "Lancement..."
+    },
+    "toasts": {
+      "started": "Tâche de codage lancée",
+      "start_failed": "Impossible de lancer la tâche de codage",
+      "cancelled": "Tâche de codage annulée",
+      "cancel_failed": "Impossible d'annuler la tâche de codage",
+      "retried": "Tâche de codage relancée",
+      "retry_failed": "Impossible de relancer la tâche de codage"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Les tâches de codage ne sont pas configurées pour ce projet. Un administrateur du projet doit les activer et définir le dépôt.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Les tâches de codage ne peuvent pas s'exécuter sur les brouillons, les éléments de travail archivés ou les éléments de travail en attente dans l'Intake.",
+      "JOB_ACTIVE": "Cet élément de travail a déjà une tâche de ce type en cours.",
+      "JOB_NOT_ACTIVE": "Cette tâche est déjà terminée et ne peut donc pas être annulée.",
+      "JOB_NOT_RETRYABLE": "Seule une tâche annulée ou non terminée peut être relancée.",
+      "forbidden": "Vous n'avez pas l'autorisation d'effectuer cette action.",
+      "generic": "Une erreur s'est produite. Veuillez réessayer."
+    },
+    "panel": {
+      "title": "Tâches de codage",
+      "refresh": "Actualiser les tâches de codage",
+      "empty": "Aucune tâche de codage pour le moment.",
+      "load_failed": "Impossible de charger les tâches de codage.",
+      "requested_by": "Lancée par {name}",
+      "unknown_user": "Membre inconnu",
+      "finished": "Terminée {time}",
+      "error_reason": "Raison",
+      "pr": "Pull request",
+      "cancel": "Annuler",
+      "retry": "Réessayer"
+    },
+    "status": {
+      "queued": "En file d'attente",
+      "running": "En cours",
+      "needs_input": "Saisie requise",
+      "finished": "Terminée",
+      "cancelled": "Annulée"
+    },
+    "outcome": {
+      "fixed": "Corrigé",
+      "could_not_fix": "Correction impossible",
+      "test_written": "Test écrit",
+      "test_passed": "Test réussi",
+      "bug_found": "Bug trouvé",
+      "job_error": "Non terminée"
+    },
+    "settings": {
+      "label": "Tâches de codage",
+      "title": "Tâches de codage",
+      "description": "Laissez des agents de codage corriger des bugs et écrire des tests à partir des éléments de travail de ce projet.",
+      "enabled": "Tâches de codage",
+      "enabled_description": "Les membres peuvent lancer « Corriger le bug », « Écrire un test » et « Écrire et exécuter un test » sur les éléments de travail.",
+      "repo_url": "URL du dépôt",
+      "repo_url_hint": "L'adresse https du dépôt dans lequel travaillent les agents. Sans identifiants.",
+      "default_branch": "Branche par défaut",
+      "columns_title": "Colonnes de résultat",
+      "columns_description": "L'état vers lequel chaque résultat déplace l'élément de travail.",
+      "column": {
+        "ready": "Prêt",
+        "failed": "Échoué",
+        "in_review": "En revue"
+      },
+      "column_hint": {
+        "ready": "Après l'écriture d'un test, ou lorsqu'il est écrit et réussi.",
+        "failed": "Lorsqu'un test échoue parce que le code du produit est défectueux.",
+        "in_review": "Après la correction d'un bug et l'ouverture de sa pull request."
+      },
+      "match_by_name": "Correspondance par nom (« {name} »)",
+      "resolves_to": "Actuellement : {state}",
+      "resolves_to_by_name": "Actuellement : {state} (correspondance par nom)",
+      "resolves_none": "Actuellement : aucun état correspondant, l'élément de travail reste donc où il est.",
+      "create_failed": "Créer la colonne Failed",
+      "creating_failed": "Création...",
+      "failed_created": "Colonne Failed créée",
+      "create_failed_error": "Impossible de créer la colonne Failed",
+      "save": "Enregistrer les modifications",
+      "saving": "Enregistrement...",
+      "saved": "Paramètres de codage enregistrés",
+      "save_failed": "Impossible d'enregistrer les paramètres de codage",
+      "read_only": "Seuls les administrateurs du projet peuvent modifier ces paramètres.",
+      "not_configured": "Les tâches de codage sont désactivées pour ce projet. Activez-les et définissez le dépôt pour que les membres puissent lancer des tâches."
+    }
+  }
+}

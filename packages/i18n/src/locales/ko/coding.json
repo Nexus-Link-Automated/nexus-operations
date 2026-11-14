@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "버그 수정",
+      "write_test": "테스트 작성",
+      "write_and_run_test": "테스트 작성 및 실행"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "코딩 작업"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "코딩 에이전트가 이 버그를 수정하고 풀 리퀘스트를 엽니다. 수정되면 작업 항목이 In review로 이동합니다.",
+        "write_test": "코딩 에이전트가 이 작업 항목에 대한 테스트를 작성하고 풀 리퀘스트를 엽니다. 테스트는 실행되지 않습니다. 이후 작업 항목이 Ready로 이동합니다.",
+        "write_and_run_test": "코딩 에이전트가 테스트를 작성하고 실행합니다. 테스트가 통과하면 작업 항목이 Ready로 이동하고, 코드 버그로 인해 실패하면 Failed로 이동합니다."
+      },
+      "agent": "에이전트",
+      "machine": "머신",
+      "machine_auto": "자동",
+      "machine_hint": "작업은 사용자의 머신 중 하나에서 실행됩니다. 머신 선택 기능은 추후 제공됩니다.",
+      "start": "작업 시작",
+      "starting": "시작 중..."
+    },
+    "toasts": {
+      "started": "코딩 작업이 시작되었습니다",
+      "start_failed": "코딩 작업을 시작할 수 없습니다",
+      "cancelled": "코딩 작업이 취소되었습니다",
+      "cancel_failed": "코딩 작업을 취소할 수 없습니다",
+      "retried": "코딩 작업이 다시 시작되었습니다",
+      "retry_failed": "코딩 작업을 다시 시도할 수 없습니다"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "이 프로젝트에는 코딩 작업이 설정되어 있지 않습니다. 프로젝트 관리자가 기능을 켜고 레포지토리를 설정해야 합니다.",
+      "WORK_ITEM_NOT_ELIGIBLE": "초안, 보관된 작업 항목 또는 접수 대기 중인 작업 항목에서는 코딩 작업을 실행할 수 없습니다.",
+      "JOB_ACTIVE": "이 작업 항목에는 이미 같은 종류의 작업이 진행 중입니다.",
+      "JOB_NOT_ACTIVE": "이 작업은 이미 종료되어 취소할 수 없습니다.",
+      "JOB_NOT_RETRYABLE": "취소되었거나 완료되지 않은 작업만 다시 시도할 수 있습니다.",
+      "forbidden": "이 작업을 수행할 권한이 없습니다.",
+      "generic": "문제가 발생했습니다. 다시 시도해 주세요."
+    },
+    "panel": {
+      "title": "코딩 작업",
+      "refresh": "코딩 작업 새로 고침",
+      "empty": "아직 코딩 작업이 없습니다.",
+      "load_failed": "코딩 작업을 불러올 수 없습니다.",
+      "requested_by": "{name} 님이 시작함",
+      "unknown_user": "알 수 없는 멤버",
+      "finished": "{time} 완료",
+      "error_reason": "사유",
+      "pr": "풀 리퀘스트",
+      "cancel": "취소",
+      "retry": "다시 시도"
+    },
+    "status": {
+      "queued": "대기 중",
+      "running": "실행 중",
+      "needs_input": "입력 필요",
+      "finished": "완료됨",
+      "cancelled": "취소됨"
+    },
+    "outcome": {
+      "fixed": "수정됨",
+      "could_not_fix": "수정하지 못함",
+      "test_written": "테스트 작성됨",
+      "test_passed": "테스트 통과",
+      "bug_found": "버그 발견",
+      "job_error": "완료되지 않음"
+    },
+    "settings": {
+      "label": "코딩 작업",
+      "title": "코딩 작업",
+      "description": "코딩 에이전트가 이 프로젝트의 작업 항목에서 버그를 수정하고 테스트를 작성하도록 합니다.",
+      "enabled": "코딩 작업",
+      "enabled_description": "멤버가 작업 항목에서 버그 수정, 테스트 작성, 테스트 작성 및 실행을 시작할 수 있습니다.",
+      "repo_url": "레포지토리 URL",
+      "repo_url_hint": "에이전트가 작업할 레포지토리의 https 주소입니다. 자격 증명은 포함하지 마세요.",
+      "default_branch": "기본 브랜치",
+      "columns_title": "결과 열",
+      "columns_description": "각 결과에 따라 작업 항목이 이동할 상태입니다.",
+      "column": {
+        "ready": "준비됨",
+        "failed": "실패",
+        "in_review": "검토 중"
+      },
+      "column_hint": {
+        "ready": "테스트가 작성된 후 또는 작성되어 통과한 후.",
+        "failed": "제품 코드의 버그로 인해 테스트가 실패한 경우.",
+        "in_review": "버그가 수정되고 풀 리퀘스트가 열린 후."
+      },
+      "match_by_name": "이름으로 일치 (\"{name}\")",
+      "resolves_to": "현재: {state}",
+      "resolves_to_by_name": "현재: {state} (이름으로 일치)",
+      "resolves_none": "현재: 일치하는 상태가 없으므로 작업 항목이 그대로 유지됩니다.",
+      "create_failed": "Failed 열 만들기",
+      "creating_failed": "생성 중...",
+      "failed_created": "Failed 열이 생성되었습니다",
+      "create_failed_error": "Failed 열을 생성할 수 없습니다",
+      "save": "변경 사항 저장",
+      "saving": "저장 중...",
+      "saved": "코딩 설정이 저장되었습니다",
+      "save_failed": "코딩 설정을 저장할 수 없습니다",
+      "read_only": "프로젝트 관리자만 이 설정을 변경할 수 있습니다.",
+      "not_configured": "이 프로젝트에서는 코딩 작업이 꺼져 있습니다. 멤버가 작업을 시작할 수 있도록 기능을 켜고 레포지토리를 설정하세요."
+    }
+  }
+}

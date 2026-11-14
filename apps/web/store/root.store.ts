@@ -26,6 +26,8 @@ import type { IAgentChatStore } from "./agent-chat.store";
 import { AgentChatStore } from "./agent-chat.store";
 import type { IChatStore } from "./chat.store";
 import { ChatStore } from "./chat.store";
+import type { ICodingJobStore } from "./coding-job.store";
+import { CodingJobStore } from "./coding-job.store";
 import type { ICycleStore } from "./cycle.store";
 import { CycleStore } from "./cycle.store";
 import type { ICycleFilterStore } from "./cycle_filter.store";
@@ -109,6 +111,7 @@ export class CoreRootStore {
   timelineStore: ITimelineStore;
   agentChat: IAgentChatStore;
   chat: IChatStore;
+  codingJob: ICodingJobStore;
 
   constructor() {
     this.router = new RouterStore();
@@ -143,6 +146,7 @@ export class CoreRootStore {
     this.timelineStore = new TimeLineStore(this);
     this.agentChat = new AgentChatStore();
     this.chat = new ChatStore();
+    this.codingJob = new CodingJobStore();
   }
 
   resetOnSignOut() {
@@ -183,6 +187,7 @@ export class CoreRootStore {
     // Close the chat socket before dropping the store.
     this.chat.stop();
     this.chat = new ChatStore();
+    this.codingJob = new CodingJobStore();
   }
 }
 
