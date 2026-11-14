@@ -24,6 +24,7 @@ from plane_mcp.pql_reference import PQL_FIELD_HINT
 from plane_mcp.toolkit import (
     DEFAULT_PAGE_SIZE,
     Action,
+    IdList,
     build_annotations,
     build_description,
     coerce_list,
@@ -164,8 +165,8 @@ def register(mcp: FastMCP) -> None:
         timezone: str = "",
         status: str = "",
         archived: bool = False,
-        add_ids: str = "",
-        remove_ids: str = "",
+        add_ids: IdList = "",
+        remove_ids: IdList = "",
         pql: Annotated[str, Field(description=PQL_FIELD_HINT)] = "",
         expand: str = "",
         fields: str = "",

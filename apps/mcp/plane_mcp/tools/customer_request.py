@@ -13,7 +13,16 @@ from plane.models.customers import (
 )
 
 from plane_mcp.client import get_plane_client_context
-from plane_mcp.toolkit import Action, build_annotations, build_description, coerce_list, missing, opt, page_params
+from plane_mcp.toolkit import (
+    Action,
+    IdList,
+    build_annotations,
+    build_description,
+    coerce_list,
+    missing,
+    opt,
+    page_params,
+)
 
 NAME = "customer_request"
 TITLE = "Customer requests"
@@ -63,7 +72,7 @@ def register(mcp: FastMCP) -> None:
         name: str = "",
         description_html: str = "",
         link: str = "",
-        workitem_ids: str = "",
+        workitem_ids: IdList = "",
         query: str = "",
         cursor: str = "",
         per_page: int = 0,
