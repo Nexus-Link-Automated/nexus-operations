@@ -3,11 +3,13 @@
 # See the LICENSE file for details.
 
 import base64
+from unittest import mock
 
 import pytest
 
 from plane.app.serializers.page import PageBinaryUpdateSerializer
-from plane.utils.content_validator import validate_binary_data
+from plane.utils import content_validator
+from plane.utils.content_validator import validate_binary_data, validate_html_content
 
 # Base64 of Y.encodeStateAsUpdate() for a page with one paragraph holding the keyed text.
 YJS_PAGE_UPDATES = {
@@ -44,3 +46,28 @@ class TestValidateBinaryData:
 
         assert serializer.is_valid(), serializer.errors
         assert serializer.validated_data["description_binary"] == base64.b64decode(update)
+
+
+@pytest.mark.unit
+class TestValidateHtmlContent:
+    def test_skips_the_removal_diff_when_sanitising_changed_nothing(self):
+        html = "<p>hello <strong>world</strong></p>"
+        with mock.patch.object(
+            content_validator,
+            "_compute_html_sanitization_diff",
+            wraps=content_validator._compute_html_sanitization_diff,
+        ) as compute_diff:
+            assert validate_html_content(html) == (True, None, html)
+
+        compute_diff.assert_not_called()
+
+    def test_logs_removals_when_sanitising_stripped_content(self):
+        html = '<p onclick="x()">hello</p><script>alert(1)</script>'
+        with mock.patch.object(content_validator.logger, "warning") as warning:
+            is_valid, error, clean_html = validate_html_content(html)
+
+        assert (is_valid, error) == (True, None)
+        assert "script" not in clean_html
+        warning.assert_called_once()
+        assert "script" in warning.call_args.args[0]
+        assert "onclick" in warning.call_args.args[0]
