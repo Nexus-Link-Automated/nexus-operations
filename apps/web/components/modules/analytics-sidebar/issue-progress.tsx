@@ -17,7 +17,7 @@ import { Spinner } from "@plane/blocks/spinner";
 // components
 // constants
 // helpers
-import { getDate, toFilterArray } from "@plane/utils";
+import { getDate, getModuleProgress, toFilterArray } from "@plane/utils";
 import { createFilterUpdateHandler } from "@/components/core/sidebar/progress-stats/shared";
 import { ModuleProgressStats } from "@/components/modules";
 // hooks
@@ -92,9 +92,13 @@ export const ModuleAnalyticsProgress = observer(function ModuleAnalyticsProgress
   const isArchived = !!moduleDetails?.archived_at;
   // Progress follows the plot type; cancelled items are left out of the scope.
   const progressTotal = plotType === "points" ? totalEstimatePoints : totalIssues;
-  const progressScope = Math.max(progressTotal - groupedIssues.cancelled, 0);
-  const progressCompleted = Math.min(groupedIssues.completed, progressScope);
-  const progressPercentage = progressScope > 0 ? Math.round((progressCompleted * 100) / progressScope) : 0;
+  const {
+    completed: progressCompleted,
+    scope: progressScope,
+    percentage: progressPercentage,
+  } = moduleDetails
+    ? getModuleProgress(moduleDetails, plotType === "points" ? "points" : "issues")
+    : { completed: 0, scope: 0, percentage: 0 };
   // The sidebar filters only apply on the module's own page, not in the peek overview.
   const isFilterable = !peekModule && moduleFilter !== undefined;
   const handleFiltersUpdate = updateFilterValueFromSidebar.bind(

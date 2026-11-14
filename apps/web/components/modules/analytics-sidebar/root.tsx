@@ -30,7 +30,7 @@ import { DateRangeSelect } from "@plane/blocks/property-select";
 import { Loader } from "@plane/blocks/skeleton";
 // components
 // helpers
-import { getDate, renderFormattedPayloadDate } from "@plane/utils";
+import { getDate, getModuleProgress, renderFormattedPayloadDate } from "@plane/utils";
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
 import { MemberSelect } from "@/components/dropdowns/member/member-select";
 import { CreateUpdateModuleLinkModal, ModuleAnalyticsProgress, ModuleLinksList } from "@/components/modules";
@@ -236,15 +236,15 @@ export const ModuleAnalyticsSidebar = observer(function ModuleAnalyticsSidebar(p
 
   const moduleStatus = MODULE_STATUS.find((status) => status.value === moduleDetails.status);
 
+  const issueProgress = getModuleProgress(moduleDetails);
   const issueCount =
-    moduleDetails.total_issues === 0
-      ? "0 work items"
-      : `${moduleDetails.completed_issues}/${moduleDetails.total_issues}`;
+    moduleDetails.total_issues === 0 ? "0 work items" : `${issueProgress.completed}/${issueProgress.scope}`;
 
+  const estimatePointProgress = getModuleProgress(moduleDetails, "points");
   const issueEstimatePointCount =
     moduleDetails.total_estimate_points === 0
       ? "0 work items"
-      : `${moduleDetails.completed_estimate_points}/${moduleDetails.total_estimate_points}`;
+      : `${estimatePointProgress.completed}/${estimatePointProgress.scope}`;
 
   const isEditingAllowed = allowPermissions(
     [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
