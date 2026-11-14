@@ -109,12 +109,56 @@ def test_a_valid_token_is_checked_once_per_ttl(plane, monkeypatch):
     assert len(fake.calls) == 2
 
 
-def test_an_invalid_token_is_never_cached(plane):
-    fake = plane(401)
+@pytest.mark.parametrize("status", [401, 403])
+def test_a_rejected_token_is_refused_briefly_without_asking_again(plane, monkeypatch, status):
+    fake = plane(status)
+    provider = PlaneHeaderAuthProvider()
+    assert not any(_validate(provider) for _ in range(5))
+    assert len(fake.calls) == 1
+
+    fake.status = 200
+    now = header_auth.time.monotonic()
+    monkeypatch.setattr(header_auth.time, "monotonic", lambda: now + header_auth.REJECTION_TTL_SECONDS + 1)
+    assert _validate(provider)
+    assert len(fake.calls) == 2
+
+
+@pytest.mark.parametrize("status", [400, 404])
+def test_other_client_errors_are_not_cached(plane, status):
+    fake = plane(status)
     provider = PlaneHeaderAuthProvider()
     assert not _validate(provider)
     assert not _validate(provider)
     assert len(fake.calls) == 2
+
+
+def test_rejections_are_cached_per_token_and_bounded(plane, monkeypatch):
+    monkeypatch.setattr(header_auth, "_CACHE_SIZE", 2)
+    fake = plane(401)
+    provider = PlaneHeaderAuthProvider()
+    for token in ("tok-a", "tok-b", "tok-c"):
+        assert not _validate(provider, token)
+    assert len(provider._rejected_until) == 2
+    assert all("tok" not in key for key in provider._rejected_until)
+    fake.status = 200
+    assert _validate(provider, "tok-a")
+    assert not _validate(provider, "tok-c")
+
+
+def test_checks_share_one_http_client(plane, monkeypatch):
+    fake = plane(401)
+    built = []
+
+    def build(*args, **kwargs):
+        built.append(kwargs)
+        return fake
+
+    monkeypatch.setattr(header_auth.httpx, "AsyncClient", build)
+    provider = PlaneHeaderAuthProvider(timeout_seconds=7)
+    for token in ("tok-a", "tok-b", "tok-c"):
+        _validate(provider, token)
+    assert len(fake.calls) == 3
+    assert built == [{"timeout": 7}]
 
 
 def test_rate_limited_means_valid_not_invalid(plane):
@@ -159,6 +203,24 @@ def test_outage_is_not_cached_as_valid(plane):
         _validate(provider)
     fake.status = 200
     assert _validate(provider)
+
+
+def test_outage_is_not_cached_as_rejected(plane):
+    fake = plane(500)
+    provider = PlaneHeaderAuthProvider()
+    with pytest.raises(HeaderAuthError):
+        _validate(provider)
+
+    async def refuse(url, headers):
+        raise httpx.ConnectError("connection refused")
+
+    fake.get = refuse
+    with pytest.raises(HeaderAuthError):
+        _validate(provider)
+    del fake.get
+    fake.status = 200
+    assert _validate(provider)
+    assert not provider._rejected_until
 
 
 @pytest.fixture
