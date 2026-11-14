@@ -63,9 +63,10 @@ __all__ = [
     "register_custom_property_filter",
 ]
 
-# The documented limit is 5. The MCP's own `count` adds a `project = "..."`
-# condition to the caller's query, so a hard 5 would refuse a valid 5-condition
-# query the agent wrote. Twice the documented limit still bounds the SQL.
+# apps/mcp/plane_mcp/pql_reference.py mirrors this as PQL_MAX_CONDITIONS (a test
+# there keeps the two equal) and documents one less, because the MCP's workitem
+# `count` and workspace-wide `list` add a `project = "..."` condition to the
+# caller's query.
 MAX_CONDITIONS = 10
 MAX_LENGTH = 4000
 # Parentheses and NOTs nest at most this deep; the parser and compiler recurse per level.

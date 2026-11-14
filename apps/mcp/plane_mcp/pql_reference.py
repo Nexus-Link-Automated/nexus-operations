@@ -1,4 +1,14 @@
 # ---------------------------------------------------------------------------
+# Limits
+# ---------------------------------------------------------------------------
+# MAX_CONDITIONS in apps/api/plane/nexus/pql.py, the parser that enforces it.
+# The two images share no code, so tests/test_pql_reference.py checks they agree.
+PQL_MAX_CONDITIONS = 10
+# The reference promises one less: workitem `count` and a workspace-wide `list`
+# add a `project = "..."` condition to the caller's query.
+DOCUMENTED_MAX_CONDITIONS = PQL_MAX_CONDITIONS - 1
+
+# ---------------------------------------------------------------------------
 # PQL_FIELD_HINT
 # ---------------------------------------------------------------------------
 # One-line schema hint embedded in Field(description=...) of the `pql`
@@ -22,7 +32,7 @@ _FIELD_HINT_TEMPLATE = (
 # ---------------------------------------------------------------------------
 # Compact reference returned by `get_pql_reference(detail="brief")`.
 # ---------------------------------------------------------------------------
-PQL_FIELD_DESCRIPTION = """\
+_FIELD_DESCRIPTION_TEMPLATE = """\
 Plane Query Language (PQL) filter string for work items in a project. Output ONLY valid PQL.
 
 FIELDS
@@ -49,7 +59,6 @@ FIELDS
   milestone         UUID  — a milestone UUID
   mention           UUID  — a member UUID
   subscriber        UUID  — a member UUID
-  teamspaceProject  UUID  — a team project UUID
 
 CUSTOM PROPERTIES  (cf["<property-uuid>"] syntax)
   cf["<property-uuid>"] = "<value>"
@@ -98,7 +107,7 @@ RELATION FUNCTIONS   (standalone — argument is work item id or UUID)
   blockedBy("WEB-5")   blocks("WEB-5")      duplicateOf("WEB-5")
 
 LIMITS
-  Max 5 conditions. Each field comparison, predicate, or relation call = 1 condition.
+  Max {max_conditions} conditions. Each field comparison, predicate, or relation call = 1 condition.
   IN(...) and BETWEEN...AND... each count as 1.
 
 EXAMPLES
@@ -157,7 +166,6 @@ _FULL_REFERENCE_TEMPLATE = """\
 | milestone        | UUID     | milestone UUID                                                     |
 | mention          | UUID     | user UUID                                                          |
 | subscriber       | UUID     | user UUID                                                          |
-| teamspaceProject | UUID     | team project UUID                                                  |
 
 ### Operators
 
@@ -197,7 +205,6 @@ monthsAgo(n)      monthsFromNow(n)
 ```
 currentUser()                          — current authenticated user
 membersOf("project:<uuid>")            — user UUIDs in project
-membersOf("teamspace:<uuid>")          — user UUIDs in teamspace
 workspaceMembers()                     — all workspace members
 ```
 
@@ -279,7 +286,7 @@ cf["<property-uuid>"] IS NOT NULL
 
 ### Limits
 
-- **Max 5 conditions** per query
+- **Max {max_conditions} conditions** per query
 - Each field comparison = 1 condition
 - Each IN(...) = 1 condition (not one per value)
 - Each BETWEEN...AND... = 1 condition
@@ -288,8 +295,8 @@ cf["<property-uuid>"] IS NOT NULL
 ### UUID Fields — How to get UUIDs
 
 UUID fields (assignee, state, label, cycle, module, project, createdBy, type, milestone,
-mention, subscriber, teamspaceProject) require actual UUIDs. If you don't have a UUID,
-call the matching list tool first:
+mention, subscriber) require actual UUIDs. If you don't have a UUID, call the matching
+list tool first:
   project    → {projects}  then: project = "<uuid>"
   assignee   → {members}  then: assignee = "<uuid>"
   createdBy  → {members}  then: createdBy = "<uuid>"
@@ -373,5 +380,8 @@ def render(template: str, resolvers: dict[str, str]) -> str:
     return template
 
 
+LIMITS = {"max_conditions": str(DOCUMENTED_MAX_CONDITIONS)}
+
 PQL_FIELD_HINT = render(_FIELD_HINT_TEMPLATE, RESOLVERS)
-PQL_FULL_REFERENCE = render(_FULL_REFERENCE_TEMPLATE, RESOLVERS)
+PQL_FIELD_DESCRIPTION = render(_FIELD_DESCRIPTION_TEMPLATE, LIMITS)
+PQL_FULL_REFERENCE = render(_FULL_REFERENCE_TEMPLATE, RESOLVERS | LIMITS)
