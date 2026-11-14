@@ -61,10 +61,11 @@ Errors are `{"error": ..., "code": ...}`:
 | Status | Code | When |
 |---|---|---|
 | 400 | `CODING_NOT_CONFIGURED` | the project has coding jobs off or no repository |
+| 400 | `WORK_ITEM_NOT_ELIGIBLE` | the work item is a draft, archived, or still waiting in intake |
 | 409 | `JOB_ACTIVE` | the work item already has a queued, running or waiting job for that action (`job_id` names it) |
 | 409 | `JOB_NOT_ACTIVE` | cancelling a job that has ended |
 | 409 | `JOB_NOT_RETRYABLE` | retrying a job that was not cancelled and did not end in `job_error` |
 
-An id from another workspace, project or work item is a 404. A guest who cannot see a work item gets 404 for its jobs.
+Starting a job subscribes the requester to the work item, so the outcome comment reaches them. An id from another workspace, project or work item is a 404. A guest who cannot see a work item gets 404 for its jobs.
 
 The MCP tool is `coding_job` (`apps/mcp/plane_mcp/tools/coding_job.py`).

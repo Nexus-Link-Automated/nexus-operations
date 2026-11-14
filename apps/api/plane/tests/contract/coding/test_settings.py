@@ -98,12 +98,23 @@ class TestWrite:
             {"default_branch": "bad branch"},
             {"default_branch": "../main"},
             {"default_branch": "-x"},
+            {"default_branch": "main;curl x|sh"},
+            {"default_branch": "$(id)"},
+            {"default_branch": ".hidden"},
+            {"repo_url": "https://user:token@github.com/example/app"},
             {"enabled": "maybe"},
             {"machine": "laptop"},
         ],
     )
     def test_invalid_values(self, admin, project, settings_url, body):
         assert admin[1].patch(settings_url(project.id), body, format="json").status_code == 400
+
+    def test_a_form_encoded_patch_changes_only_what_it_sends(self, admin, project, settings_url, coding_settings):
+        res = admin[1].patch(
+            settings_url(project.id), "default_branch=develop", content_type="application/x-www-form-urlencoded"
+        )
+        assert res.status_code == 200, res.data
+        assert (res.data["enabled"], res.data["default_branch"]) == (True, "develop")
 
     def test_clearing_the_repo_turns_jobs_off(self, admin, project, settings_url, coding_settings):
         res = admin[1].patch(settings_url(project.id), {"repo_url": ""}, format="json")

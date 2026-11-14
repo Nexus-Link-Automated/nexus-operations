@@ -43,7 +43,7 @@ FOOTER = (
     f"job_action: {', '.join(JOB_ACTIONS)}. agent: {', '.join(AGENTS)}. Jobs run on the requester's own machines; "
     "the CRM moves the work item and comments when one ends: fixed -> In review, test_written or test_passed -> "
     "Ready, bug_found -> Failed; could_not_fix and job_error leave it. One active job per work item and job_action. "
-    'A state id set to "none" goes back to matching the column by name.'
+    'A state id set to "none" goes back to matching the column by name; repo_url "none" clears it.'
 )
 
 LEGACY: dict[str, str] = {}
@@ -150,7 +150,7 @@ def register(mcp: FastMCP) -> None:
                 if enabled is not None:
                     data["enabled"] = enabled
                 if repo_url:
-                    data["repo_url"] = repo_url
+                    data["repo_url"] = "" if repo_url.lower() == "none" else repo_url
                 if default_branch:
                     data["default_branch"] = default_branch
                 for key, value in (

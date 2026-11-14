@@ -3,6 +3,7 @@
 # See the LICENSE file for details.
 
 import re
+from urllib.parse import urlsplit
 
 from django.core.validators import URLValidator
 from rest_framework import serializers
@@ -13,10 +14,9 @@ from plane.db.models import State
 
 DEFAULT_BRANCH = "main"
 
-# A branch name git accepts (`git check-ref-format --branch`), less the rarely used corners.
-_BRANCH = re.compile(
-    r"^(?!-)(?!/)(?!.*//)(?!.*\.\.)(?!.*@\{)(?!.*\.lock$)(?!.*/$)(?!.*\.$)[^\s~^:?*\[\\\x00-\x1f\x7f]+$"
-)
+# A plain branch name: letters, digits, ".", "_", "-" and "/" only, within git's own rules. Narrower than git allows,
+# because the name travels to the machines that run jobs; nothing there should have to quote it.
+_BRANCH = re.compile(r"^(?![.\-/])(?!.*//)(?!.*\.\.)(?!.*/\.)(?!.*\.lock$)(?!.*/$)(?!.*\.$)[A-Za-z0-9._/-]+$")
 
 _STATE_FIELDS = {Column.READY: "ready_state", Column.FAILED: "failed_state", Column.IN_REVIEW: "in_review_state"}
 
@@ -66,6 +66,9 @@ class ProjectCodingSettingsUpdateSerializer(StrictSerializer):
     def validate_repo_url(self, value):
         if value:
             URLValidator(schemes=["https"], message="Enter the repository's https URL.")(value)
+            # Members can read the settings, so no credentials in the URL; access comes from elsewhere.
+            if "@" in urlsplit(value).netloc:
+                raise serializers.ValidationError("Leave credentials out of the repository URL.")
         return value
 
     def validate_default_branch(self, value):

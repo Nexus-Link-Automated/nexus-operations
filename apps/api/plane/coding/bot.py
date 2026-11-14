@@ -6,13 +6,13 @@
 
 It is created on first use and is not a workspace member: it cannot sign in (bots are refused at sign-in), has no
 password anyone knows, gets no notification preferences (`create_user_notification` skips bots), and appears in no
-member list. The web app shows a bot comment author by the bot's own name.
+member list. The web app names a bot comment author from the comment itself.
+
+Its email address is random and on a reserved domain (`.invalid` never resolves), so no one can register it first.
 """
 
 import uuid
-from urllib.parse import urlparse
 
-from django.conf import settings
 from django.contrib.auth.hashers import make_password
 from django.db import IntegrityError, transaction
 
@@ -20,19 +20,30 @@ from plane.db.models import User
 
 BOT_TYPE = "coding_agent"
 BOT_NAME = "Coding agent"
+BOT_EMAIL_DOMAIN = "coding-agent.invalid"
+
+
+class BotUnavailable(RuntimeError):
+    """The bot's username is held by an account that is not the bot."""
+
+
+def _find(username: str) -> User | None:
+    user = User.objects.filter(username=username).first()
+    if user is not None and not (user.is_bot and user.bot_type == BOT_TYPE):
+        raise BotUnavailable(f"The username {username} belongs to an account that is not the coding agent bot.")
+    return user
 
 
 def coding_bot(workspace) -> User:
     username = f"coding_agent_{workspace.id.hex}"
-    bot = User.objects.filter(username=username).first()
+    bot = _find(username)
     if bot is not None:
         return bot
-    host = urlparse(settings.WEB_URL or "").hostname or "plane.so"
     try:
         with transaction.atomic():
             return User.objects.create(
                 username=username,
-                email=f"{username}@{host}",
+                email=f"{uuid.uuid4().hex}@{BOT_EMAIL_DOMAIN}",
                 display_name=BOT_NAME,
                 first_name=BOT_NAME,
                 last_name="",
@@ -43,4 +54,7 @@ def coding_bot(workspace) -> User:
             )
     except IntegrityError:
         # Another request created it first.
-        return User.objects.get(username=username)
+        bot = _find(username)
+        if bot is None:
+            raise
+        return bot

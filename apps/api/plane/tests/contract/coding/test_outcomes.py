@@ -10,6 +10,7 @@ from html.parser import HTMLParser
 import pytest
 
 from plane.bgtasks.issue_activities_task import issue_activity
+from plane.coding.bot import BotUnavailable
 from plane.coding.exceptions import Conflict, InvalidResult
 from plane.coding.models import CodingJob, JobOutcome, JobStatus, ProjectCodingSettings
 from plane.coding.outcomes import apply_result
@@ -203,12 +204,23 @@ class TestRecording:
         activity = IssueActivity.objects.get(issue=issue, field="state")
         assert (activity.old_value, activity.new_value, activity.actor) == ("Todo", "In Review", bot)
         assert [c.kwargs["model_name"] for c in tasks.model_activity.delay.call_args_list] == ["issue", "issue_comment"]
+        # Notifications go out (emails need the origin) and the bot subscribes to nothing.
+        for call in tasks.issue_activity.delay.call_args_list:
+            assert call.kwargs["notification"] is True and call.kwargs["subscriber"] is False
+            assert call.kwargs["origin"]
+        assert all(c.kwargs["origin"] for c in tasks.model_activity.delay.call_args_list)
+        assert bot.email.endswith("@coding-agent.invalid")
 
     def test_one_bot_per_workspace(self, tasks, make_job, issue, project, other_workspace):
         apply(tasks, make_job("fix_bug"), JOB_ERROR)
         apply(tasks, make_job("write_test"), JOB_ERROR)
         apply(tasks, other_workspace["job"], JOB_ERROR)
         assert User.objects.filter(bot_type="coding_agent").count() == 2
+
+    def test_a_taken_username_is_never_used_as_the_bot(self, tasks, make_job, workspace):
+        User.objects.create(username=f"coding_agent_{workspace.id.hex}", email="someone@example.com")
+        with pytest.raises(BotUnavailable):
+            apply(tasks, make_job("fix_bug"), JOB_ERROR)
 
     def test_nothing_is_queued_when_the_transaction_rolls_back(self, tasks, make_job):
         job = make_job("fix_bug")

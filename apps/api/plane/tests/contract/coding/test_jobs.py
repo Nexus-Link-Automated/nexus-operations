@@ -4,12 +4,18 @@
 
 """/coding-jobs/ on a work item: start, list, get, cancel and retry, on the public API and the web app's routes."""
 
+from unittest import mock
+
 import pytest
+from django.db import IntegrityError, transaction
 from rest_framework.test import APIClient
+
+from plane.coding import services
+from plane.coding.exceptions import Conflict
 
 from plane.coding.models import CodingJob, JobOutcome, JobStatus, ProjectCodingSettings
 from plane.coding.outcomes import apply_result
-from plane.db.models import Issue, IssueComment, Project
+from plane.db.models import Issue, IssueComment, IssueSubscriber, Project
 
 from .conftest import ADMIN, GUEST, MEMBER, make_issue
 
@@ -257,18 +263,97 @@ class TestRetry:
 
 @pytest.mark.contract
 class TestWebAppRoutes:
-    def test_session_routes_mirror_the_public_api(self, coding_settings, create_user, issue, jobs_url, tasks):
-        client = APIClient()
-        client.force_authenticate(user=create_user)
-        res = start(client, jobs_url, issue, base="/api")
+    @pytest.fixture
+    def browser(self, create_user):
+        """A real session, as the web app has: login cookie, and the app's own origin on writes."""
+        client = APIClient(HTTP_ORIGIN="http://testserver")
+        client.force_login(create_user)
+        return client
+
+    def test_session_routes_mirror_the_public_api(self, coding_settings, browser, issue, jobs_url, tasks):
+        res = start(browser, jobs_url, issue, base="/api")
         assert res.status_code == 201, res.data
         job_id = res.data["id"]
-        assert client.get(jobs_url(issue.project_id, issue.id, base="/api")).data["results"][0]["id"] == job_id
-        assert client.get(jobs_url(issue.project_id, issue.id, f"{job_id}/", base="/api")).status_code == 200
-        assert client.post(jobs_url(issue.project_id, issue.id, f"{job_id}/cancel/", base="/api")).status_code == 200
-        res = client.post(jobs_url(issue.project_id, issue.id, f"{job_id}/retry/", base="/api"), {}, format="json")
+        assert browser.get(jobs_url(issue.project_id, issue.id, base="/api")).data["results"][0]["id"] == job_id
+        assert browser.get(jobs_url(issue.project_id, issue.id, f"{job_id}/", base="/api")).status_code == 200
+        assert browser.post(jobs_url(issue.project_id, issue.id, f"{job_id}/cancel/", base="/api")).status_code == 200
+        res = browser.post(jobs_url(issue.project_id, issue.id, f"{job_id}/retry/", base="/api"), {}, format="json")
         assert res.status_code == 201
+
+    def test_session_writes_from_another_origin_are_refused(self, coding_settings, create_user, issue, jobs_url):
+        client = APIClient(HTTP_ORIGIN="https://elsewhere.example")
+        client.force_login(create_user)
+        assert start(client, jobs_url, issue, base="/api").status_code == 403
+        assert not CodingJob.objects.exists()
 
     def test_session_routes_need_a_session(self, coding_settings, issue, jobs_url, admin):
         # A personal access token is for /api/v1/ only.
         assert admin[1].get(jobs_url(issue.project_id, issue.id, base="/api")).status_code in (401, 403)
+
+    def test_the_public_api_takes_no_session(self, coding_settings, browser, issue, jobs_url):
+        assert browser.get(jobs_url(issue.project_id, issue.id)).status_code in (401, 403)
+
+
+@pytest.mark.contract
+class TestEligibilityAndSubscription:
+    def test_not_on_archived_or_draft_work_items(self, coding_settings, admin, project, jobs_url):
+        from django.utils import timezone
+
+        archived = make_issue(project, "Old")
+        Issue.objects.filter(pk=archived.pk).update(archived_at=timezone.now())
+        draft = make_issue(project, "Draft", is_draft=True)
+        for item in (archived, draft):
+            res = start(admin[1], jobs_url, item)
+            assert res.status_code == 400 and res.data["code"] == "WORK_ITEM_NOT_ELIGIBLE"
+        assert not CodingJob.objects.exists()
+
+    def test_the_requester_is_subscribed(self, coding_settings, member, issue, jobs_url):
+        assert start(member[1], jobs_url, issue).status_code == 201
+        assert IssueSubscriber.objects.filter(issue=issue, subscriber=member[0]).count() == 1
+        assert start(member[1], jobs_url, issue, {"action": "write_test", "agent": "codex"}).status_code == 201
+        assert IssueSubscriber.objects.filter(issue=issue, subscriber=member[0]).count() == 1
+
+
+@pytest.mark.contract
+class TestOneActiveJobInTheDatabase:
+    def test_the_constraint_holds_without_the_check(self, issue, create_user):
+        CodingJob.objects.create(issue=issue, action="fix_bug", agent="codex", requested_by=create_user)
+        with pytest.raises(IntegrityError), transaction.atomic():
+            CodingJob.objects.create(issue=issue, action="fix_bug", agent="claude", requested_by=create_user)
+        # Ended jobs do not count.
+        CodingJob.objects.update(status=JobStatus.CANCELLED)
+        CodingJob.objects.create(issue=issue, action="fix_bug", agent="claude", requested_by=create_user)
+
+    def test_a_start_that_loses_the_race_gets_job_active(self, coding_settings, issue, create_user):
+        first = CodingJob.objects.create(issue=issue, action="fix_bug", agent="codex", requested_by=create_user)
+        real = services._active_conflict
+        calls = []
+
+        def stale_check(*args):
+            # The first check runs before the other request's insert commits, so it sees nothing.
+            calls.append(args)
+            return None if len(calls) == 1 else real(*args)
+
+        with mock.patch.object(services, "_active_conflict", stale_check):
+            with pytest.raises(Conflict) as exc:
+                services.start_job(issue, "fix_bug", "codex", create_user)
+        assert exc.value.code == "JOB_ACTIVE" and exc.value.extra["job_id"] == str(first.id)
+
+
+@pytest.mark.contract
+class TestCancelRaces:
+    def test_a_job_that_ended_meanwhile_is_not_active(self, coding_settings, admin, issue, tasks):
+        job = CodingJob.objects.create(issue=issue, action="fix_bug", agent="codex", requested_by=admin[0])
+        stale = CodingJob.objects.get(pk=job.pk)
+        services.cancel_job(job, admin[0])
+        with pytest.raises(Conflict) as exc:
+            services.cancel_job(stale, admin[0])
+        assert exc.value.code == "JOB_NOT_ACTIVE"
+        assert IssueComment.objects.filter(issue=issue).count() == 1
+
+    def test_workspace_admin_who_is_a_project_member_may_cancel(
+        self, coding_settings, member, make_user, workspace, project, issue, jobs_url, tasks
+    ):
+        job = start(member[1], jobs_url, issue).data
+        _, ws_admin = make_user(ADMIN, workspace=workspace, project=project, project_role=MEMBER)
+        assert ws_admin.post(jobs_url(issue.project_id, issue.id, f"{job['id']}/cancel/")).status_code == 200

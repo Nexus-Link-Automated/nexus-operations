@@ -23,7 +23,9 @@ class ProjectCodingSettingsMixin(CodingEndpointMixin):
         """Change only the fields sent. A state field takes a state id of this project, or null to match by name."""
         self.access.require_admin()
         project = self.access.project
-        serializer = ProjectCodingSettingsUpdateSerializer(data=request.data, context={"project": project})
+        serializer = ProjectCodingSettingsUpdateSerializer(
+            data=request.data, partial=True, context={"project": project}
+        )
         if not serializer.is_valid():
             return self.invalid(serializer.errors)
         with transaction.atomic():

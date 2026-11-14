@@ -47,6 +47,7 @@ from plane.coding.serializers.base import StrictSerializer
 from plane.coding.models import CodingAction, CodingJob, JobOutcome, JobStatus, ProjectCodingSettings
 from plane.db.models import Issue, IssueComment
 from plane.utils.content_validator import validate_html_content
+from plane.utils.host import base_host
 
 __all__ = ["ALLOWED_OUTCOMES", "OUTCOME_COLUMN", "Applied", "apply_result", "validate_result"]
 
@@ -256,6 +257,12 @@ def build_comment(job: CodingJob, data: dict, column: Column | None, state, move
 # --------------------------------------------------------------------------- applying
 
 
+def _origin() -> str:
+    """The web app's address, which the activity and webhook tasks use for links. A result may arrive with no request
+    (from a worker), so it is never taken from one."""
+    return base_host(request=None, is_app=True)
+
+
 @dataclass
 class Applied:
     job: CodingJob
@@ -286,6 +293,9 @@ def _move(issue: Issue, state, bot, slug: str) -> Callable[[], None]:
             current_instance=current_instance,
             epoch=int(timezone.now().timestamp()),
             notification=True,
+            # The bot follows nothing it moves; and without an origin the email notifications are skipped.
+            subscriber=False,
+            origin=_origin(),
         )
         model_activity.delay(
             model_name="issue",
@@ -294,6 +304,7 @@ def _move(issue: Issue, state, bot, slug: str) -> Callable[[], None]:
             current_instance=current_instance,
             actor_id=bot.id,
             slug=slug,
+            origin=_origin(),
         )
 
     return queue
@@ -320,6 +331,10 @@ def _comment(issue: Issue, comment_html: str, bot, slug: str):
             project_id=str(issue.project_id),
             current_instance=None,
             epoch=int(timezone.now().timestamp()),
+            # Unlike a public-API comment, this one tells the work item's subscribers (the requester among them).
+            notification=True,
+            subscriber=False,
+            origin=_origin(),
         )
         model_activity.delay(
             model_name="issue_comment",
@@ -328,6 +343,7 @@ def _comment(issue: Issue, comment_html: str, bot, slug: str):
             current_instance=None,
             actor_id=bot.id,
             slug=slug,
+            origin=_origin(),
         )
 
     return comment, queue

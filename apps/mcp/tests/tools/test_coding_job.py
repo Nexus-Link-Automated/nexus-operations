@@ -40,6 +40,11 @@ def test_settings_update_sends_only_what_is_given(registered, spy):
     assert spy.recorder.only().kwargs["data"] == {"enabled": False, "ready_state": "s-1", "failed_state": None}
 
 
+def test_settings_update_can_clear_the_repo(registered, spy):
+    registered["coding_job"].fn(action="settings_update", project_id="p", repo_url="none")
+    assert spy.recorder.only().kwargs["data"] == {"repo_url": ""}
+
+
 def test_settings_update_with_nothing_to_change(registered, spy):
     result = registered["coding_job"].fn(action="settings_update", project_id="p")
     assert result.startswith("Error:") and not spy.recorder.calls

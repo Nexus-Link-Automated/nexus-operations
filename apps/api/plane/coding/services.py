@@ -6,9 +6,10 @@
 
 from django.db import IntegrityError, transaction
 
-from plane.coding.exceptions import Conflict, NotConfigured
+from plane.coding.exceptions import CodingError, Conflict, NotConfigured
 from plane.coding.models import ACTIVE_STATUSES, CodingJob, JobOutcome, JobStatus, ProjectCodingSettings
 from plane.coding.outcomes import apply_result, user_name
+from plane.db.models import Issue, IssueSubscriber
 
 
 def require_configured(project) -> ProjectCodingSettings:
@@ -33,26 +34,52 @@ def _active_conflict(issue, action) -> Conflict | None:
 
 def start_job(issue, action: str, agent: str, user, retry_of: CodingJob | None = None) -> CodingJob:
     require_configured(issue.project)
+    # Not on drafts, archived work items or ones still waiting in intake: an outcome would move them.
+    if not Issue.issue_objects.filter(pk=issue.pk).exists():
+        raise CodingError(
+            "Coding jobs can only run on active work items, not drafts, archived ones or ones waiting in intake.",
+            code="WORK_ITEM_NOT_ELIGIBLE",
+        )
     conflict = _active_conflict(issue, action)
     if conflict:
         raise conflict
     try:
         with transaction.atomic():
-            return CodingJob.objects.create(
+            job = CodingJob.objects.create(
                 issue=issue, action=action, agent=agent, requested_by=user, retry_of=retry_of
             )
+            # So the outcome comment reaches the person who asked for the job.
+            IssueSubscriber.objects.get_or_create(
+                issue=issue,
+                subscriber=user,
+                defaults={"project_id": issue.project_id, "workspace_id": issue.workspace_id},
+            )
+            return job
     except IntegrityError:
         # Another request started one between the check and the insert (coding_job_one_active_per_action).
         raise _active_conflict(issue, action) or Conflict("Could not start the job.", code="JOB_ACTIVE")
+
+
+def _not_active() -> Conflict:
+    return Conflict("Only a queued, running or waiting job can be cancelled.", code="JOB_NOT_ACTIVE")
 
 
 def cancel_job(job: CodingJob, user) -> CodingJob:
     """End an active job as cancelled. Per the outcomes table this is a job error: the work item stays where it is
     and gets the "Job did not finish" comment with a retry hint."""
     if not job.is_active:
-        raise Conflict("Only a queued, running or waiting job can be cancelled.", code="JOB_NOT_ACTIVE")
+        raise _not_active()
     reason = f"Cancelled by {user_name(user)}."
-    return apply_result(job, {"outcome": JobOutcome.JOB_ERROR.value, "reason": reason}, status=JobStatus.CANCELLED).job
+    try:
+        applied = apply_result(
+            job, {"outcome": JobOutcome.JOB_ERROR.value, "reason": reason}, status=JobStatus.CANCELLED
+        )
+    except Conflict:
+        applied = None
+    # Unchanged or refused: it ended between the check above and the lock (another cancel, or a result).
+    if applied is None or not applied.changed:
+        raise _not_active()
+    return applied.job
 
 
 def retry_job(job: CodingJob, user, agent: str | None = None) -> CodingJob:
