@@ -29,7 +29,7 @@ import { Card } from "@plane/blocks/card";
 import { FavoriteStar } from "@plane/blocks/common";
 import { SegmentedProgress } from "@plane/blocks/progress";
 import { DateRangeSelect } from "@plane/blocks/property-select";
-import { getDate, renderFormattedPayloadDate, generateQueryParams } from "@plane/utils";
+import { getDate, renderFormattedPayloadDate, generateQueryParams, getModuleProgress } from "@plane/utils";
 // components
 import { handleTriggerKeyDown } from "@/components/common/trigger-guard";
 import { ButtonAvatars } from "@/components/dropdowns/member/avatar";
@@ -160,26 +160,18 @@ export const ModuleCardItem = observer(function ModuleCardItem(props: Props) {
 
   if (!moduleDetails) return null;
 
-  const moduleTotalIssues =
-    moduleDetails.backlog_issues +
-    moduleDetails.unstarted_issues +
-    moduleDetails.started_issues +
-    moduleDetails.completed_issues +
-    moduleDetails.cancelled_issues;
-
-  const moduleCompletedIssues = moduleDetails.completed_issues;
+  const moduleTotalIssues = moduleDetails.total_issues;
+  const moduleProgress = getModuleProgress(moduleDetails);
 
   // const areYearsEqual = startDate.getFullYear() === endDate.getFullYear();
 
   const moduleStatus = MODULE_STATUS.find((status) => status.value === moduleDetails.status);
 
-  const issueCount = moduleDetails
-    ? !moduleTotalIssues || moduleTotalIssues === 0
-      ? `0 work items`
-      : moduleTotalIssues === moduleCompletedIssues
-        ? `${moduleTotalIssues} Work item${moduleTotalIssues > 1 ? `s` : ``}`
-        : `${moduleCompletedIssues}/${moduleTotalIssues} Work items`
-    : `0 work items`;
+  const issueCount = !moduleTotalIssues
+    ? `0 work items`
+    : moduleProgress.completed >= moduleProgress.scope
+      ? `${moduleTotalIssues} Work item${moduleTotalIssues > 1 ? `s` : ``}`
+      : `${moduleProgress.completed}/${moduleProgress.scope} Work items`;
 
   const moduleLeadDetails = moduleDetails.lead_id ? getUserDetails(moduleDetails.lead_id) : undefined;
   // One segment per state group; the bar normalises the counts, so an empty module shows only the track.
