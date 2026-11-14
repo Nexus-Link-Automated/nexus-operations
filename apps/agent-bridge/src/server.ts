@@ -31,7 +31,7 @@ import { createPlaneApi, PlaneApiError, type AgentSessionGrant, type MemberRef, 
 import { SessionPolicy } from "./policy.ts";
 import { CloseCode, PolicyProxy } from "./proxy.ts";
 import { RunnerLoginClient, type LoginRunner, type MemberRunner } from "./runner-login.ts";
-import { RunnerTransport, type AgentChannel, type AgentTransport } from "./transport.ts";
+import { RunnerBusyError, RunnerTransport, type AgentChannel, type AgentTransport } from "./transport.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLUG = /^[A-Za-z0-9_-]{1,64}$/;
@@ -79,6 +79,7 @@ interface ChannelRun {
 const CHANNEL_ERRORS: Partial<Record<number, ChannelSessionError>> = {
   [CloseCode.tooManyConnections]: "busy",
   [CloseCode.agentUnavailable]: "unavailable",
+  [CloseCode.agentBusy]: "busy",
   [CloseCode.internalError]: "unavailable",
 };
 
@@ -454,6 +455,10 @@ export class AgentBridge {
       channel = await this.#transport.open(grant, signal);
     } catch (error) {
       void this.#revoke(grant, log);
+      if (error instanceof RunnerBusyError) {
+        log.warn("agent-bridge: agent runner at capacity");
+        return refuse(CloseCode.agentBusy, "The agent service is busy");
+      }
       log.error("agent-bridge: agent runner unavailable", { error: (error as Error).message });
       return refuse(CloseCode.agentUnavailable, "The agent is unavailable");
     }

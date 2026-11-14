@@ -139,6 +139,7 @@
         "session_expired": "A sessão da conversa expirou.",
         "too_many_chats": "Você tem muitas conversas abertas. Feche uma em outra aba e tente novamente.",
         "agent_unavailable": "O agente está indisponível no momento. Tente novamente em breve.",
+        "agent_busy": "O serviço de agentes está ocupado no momento. Tente novamente em alguns minutos.",
         "unknown": "A conexão da conversa foi encerrada inesperadamente."
       }
     },

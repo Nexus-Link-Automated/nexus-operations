@@ -139,6 +139,7 @@
         "session_expired": "聊天会话已过期。",
         "too_many_chats": "您打开的聊天过多。请在其他标签页中关闭一个聊天，然后重试。",
         "agent_unavailable": "代理暂时不可用，请稍后重试。",
+        "agent_busy": "代理服务当前繁忙，请几分钟后重试。",
         "unknown": "聊天连接意外关闭。"
       }
     },

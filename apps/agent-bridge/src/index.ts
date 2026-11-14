@@ -53,5 +53,5 @@ export { RunnerLoginClient, RunnerUnavailableError } from "./runner-login.ts";
 export type { LoginRunner, LoginTarget, MemberRunner, RunnerLoginClientOptions, RunnerReply } from "./runner-login.ts";
 export { AgentBridge } from "./server.ts";
 export type { AgentBridgeOptions } from "./server.ts";
-export { RunnerTransport } from "./transport.ts";
+export { RunnerBusyError, RunnerTransport } from "./transport.ts";
 export type { AgentChannel, AgentTransport, RunnerTransportOptions } from "./transport.ts";

@@ -11,6 +11,14 @@ import { WebSocket, type ClientOptions } from "ws";
 
 import type { AgentSessionGrant } from "./plane-api.ts";
 
+/** The runner answered the upgrade with 503: it is at its agent limit (or shutting down). */
+export class RunnerBusyError extends Error {
+  constructor() {
+    super("agent runner is at capacity");
+    this.name = "RunnerBusyError";
+  }
+}
+
 /** One open ACP connection to an agent, owned by one browser connection. */
 export interface AgentChannel {
   readonly stream: Stream;
@@ -101,19 +109,32 @@ export class RunnerTransport implements AgentTransport {
         resolve();
         return;
       }
+      let refusedStatus: number | undefined;
       const cleanup = () => {
         opened.off("open", onOpen);
         opened.off("error", onError);
         opened.off("close", onClose);
+        opened.off("unexpected-response", onRefused);
         signal.removeEventListener("abort", onAbort);
       };
       const onOpen = () => {
         cleanup();
         resolve();
       };
+      // Listening here means `ws` leaves the refused handshake to us; terminating it reports
+      // through `onError` as before, with the status kept.
+      const onRefused = (_request: unknown, response: { statusCode?: number }) => {
+        refusedStatus = response.statusCode;
+        opened.terminate();
+      };
       const onError = (error: Error) => {
         cleanup();
-        reject(new Error(`agent runner refused the connection: ${error.message}`));
+        if (refusedStatus === 503) {
+          reject(new RunnerBusyError());
+          return;
+        }
+        const detail = refusedStatus === undefined ? error.message : `answered ${refusedStatus}`;
+        reject(new Error(`agent runner refused the connection: ${detail}`));
       };
       const onClose = (code: number) => {
         cleanup();
@@ -127,6 +148,7 @@ export class RunnerTransport implements AgentTransport {
       opened.on("open", onOpen);
       opened.on("error", onError);
       opened.on("close", onClose);
+      opened.on("unexpected-response", onRefused);
       signal.addEventListener("abort", onAbort, { once: true });
     });
 

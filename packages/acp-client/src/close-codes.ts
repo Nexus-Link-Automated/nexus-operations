@@ -20,6 +20,8 @@ export const AgentCloseCode = {
   sessionExpired: 4410,
   tooManyConnections: 4429,
   agentUnavailable: 4502,
+  /** The agent runner is at its limit of running agents. */
+  agentBusy: 4503,
 } as const;
 
 export type AgentCloseReason =
@@ -36,6 +38,7 @@ export type AgentCloseReason =
   | "session_expired"
   | "too_many_chats"
   | "agent_unavailable"
+  | "agent_busy"
   | "unknown";
 
 export interface CloseInfo {
@@ -67,6 +70,7 @@ const DESCRIPTIONS: Record<number, CloseDescription> = {
   [AgentCloseCode.sessionExpired]: { reason: "session_expired", canReconnect: true, autoReconnect: true },
   [AgentCloseCode.tooManyConnections]: { reason: "too_many_chats", canReconnect: true, autoReconnect: false },
   [AgentCloseCode.agentUnavailable]: { reason: "agent_unavailable", canReconnect: true, autoReconnect: false },
+  [AgentCloseCode.agentBusy]: { reason: "agent_busy", canReconnect: true, autoReconnect: false },
 };
 
 /** What a close code means for the chat UI. Unknown codes are treated as reconnectable. */

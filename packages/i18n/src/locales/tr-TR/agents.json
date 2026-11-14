@@ -139,6 +139,7 @@
         "session_expired": "Sohbet oturumunun süresi doldu.",
         "too_many_chats": "Çok fazla açık sohbetiniz var. Başka bir sekmedeki sohbetlerden birini kapatıp tekrar deneyin.",
         "agent_unavailable": "Ajan şu anda kullanılamıyor. Kısa süre sonra tekrar deneyin.",
+        "agent_busy": "Ajan hizmeti şu anda yoğun. Birkaç dakika sonra tekrar deneyin.",
         "unknown": "Sohbet bağlantısı beklenmedik şekilde kapandı."
       }
     },
