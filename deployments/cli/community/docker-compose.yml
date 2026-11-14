@@ -66,6 +66,7 @@ x-app-env: &app-env
   LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY}
   WEBHOOK_ALLOWED_IPS: ${WEBHOOK_ALLOWED_IPS:-}
   WEBHOOK_ALLOWED_HOSTS: ${WEBHOOK_ALLOWED_HOSTS:-}
+  FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-5242880}
 
 # Caps each container's log at 50 MB (5 files of 10 MB). The driver is named because max-size and max-file
 # are rejected by some other drivers, such as journald, when a daemon uses one of those by default.
@@ -141,7 +142,7 @@ services:
     volumes:
       - logs_api:/code/plane/logs
     environment:
-      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env]
     depends_on:
       - plane-db
       - plane-redis
@@ -166,7 +167,7 @@ services:
     volumes:
       - logs_worker:/code/plane/logs
     environment:
-      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env]
     depends_on:
       - api
       - plane-db
@@ -184,7 +185,7 @@ services:
     volumes:
       - logs_beat-worker:/code/plane/logs
     environment:
-      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env]
     depends_on:
       - api
       - plane-db
@@ -202,7 +203,7 @@ services:
     volumes:
       - logs_migrator:/code/plane/logs
     environment:
-      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env, *proxy-env]
+      <<: [*app-env, *db-env, *redis-env, *minio-env, *aws-s3-env]
     depends_on:
       - plane-db
       - plane-redis
