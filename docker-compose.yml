@@ -137,7 +137,7 @@ services:
 
   plane-db:
     container_name: plane-db
-    image: postgres:15.7-alpine
+    image: postgres:15.20-alpine
     restart: always
     logging: *logging
     command: postgres -c 'max_connections=1000'
@@ -175,7 +175,7 @@ services:
 
   plane-mq:
     container_name: plane-mq
-    image: rabbitmq:3.13.6-management-alpine
+    image: rabbitmq:3.13.7-management-alpine
     restart: always
     logging: *logging
     env_file:

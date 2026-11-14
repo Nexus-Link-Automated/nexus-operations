@@ -24,7 +24,7 @@
 
 services:
   test-db:
-    image: postgres:15.7-alpine
+    image: postgres:15.20-alpine
     networks:
       - test_env
     env_file:
@@ -54,7 +54,7 @@ services:
       retries: 10
 
   test-mq:
-    image: rabbitmq:3.13.6-management-alpine
+    image: rabbitmq:3.13.7-management-alpine
     networks:
       - test_env
     env_file:
