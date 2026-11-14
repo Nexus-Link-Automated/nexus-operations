@@ -11,7 +11,6 @@ import { Button } from "@makeplane/propel/components/button";
 import { InputField } from "@makeplane/propel/components/input-field";
 import { SelectField } from "@makeplane/propel/components/select-field";
 import { Switch } from "@makeplane/propel/components/switch";
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { setToast } from "@plane/blocks/toast";
 import { Loader } from "@plane/blocks/skeleton";
 import { useTranslation } from "@plane/i18n";
@@ -21,9 +20,9 @@ import { SettingsControlItem } from "@/components/settings/control-item";
 // hooks
 import { useCodingJob } from "@/hooks/store/use-coding-job";
 import { useProjectState } from "@/hooks/store/use-project-state";
-import { useUserPermissions } from "@/hooks/store/user";
 // local imports
 import { codingErrorMessage, codingFieldErrors } from "./helpers";
+import { useCodingAccess } from "./use-coding-access";
 
 type Props = {
   workspaceSlug: string;
@@ -70,21 +69,29 @@ export const CodingJobsSettings = observer(function CodingJobsSettings({ workspa
   // store hooks
   const { getSettings, fetchSettings, updateSettings } = useCodingJob();
   const { getProjectStates, fetchProjectStates, createState } = useProjectState();
-  const { allowPermissions } = useUserPermissions();
+  const { canEditSettings: canEdit } = useCodingAccess(workspaceSlug, projectId);
   // derived values
   const settings = getSettings(projectId);
   const states = getProjectStates(projectId);
-  const canEdit =
-    allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, workspaceSlug, projectId) ||
-    allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE, workspaceSlug);
-  const disabled = !canEdit || isSaving;
+  const disabled = !canEdit || isSaving || isCreatingFailed;
 
   useEffect(() => {
     if (!workspaceSlug || !projectId) return;
+    // The page passes `key={projectId}`, so this runs once per project; `active` drops a late answer after unmount.
+    let active = true;
     setLoadError(null);
-    fetchSettings(workspaceSlug, projectId)
-      .then((loaded) => setForm(toForm(loaded)))
-      .catch((error) => setLoadError(error ?? new Error("load failed")));
+    const load = async () => {
+      try {
+        const loaded = await fetchSettings(workspaceSlug, projectId);
+        if (active) setForm(toForm(loaded));
+      } catch (error) {
+        if (active) setLoadError(error ?? new Error("load failed"));
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+    };
   }, [workspaceSlug, projectId, fetchSettings]);
 
   useEffect(() => {
@@ -131,13 +138,17 @@ export const CodingJobsSettings = observer(function CodingJobsSettings({ workspa
 
   const handleCreateFailed = async () => {
     setIsCreatingFailed(true);
+    let created = false;
     try {
       const state = await createState(workspaceSlug, projectId, { ...FAILED_STATE });
+      created = true;
       const saved = await updateSettings(workspaceSlug, projectId, { failed_state: state.id });
       // Keep any other unsaved edits; only the Failed column is now saved.
       setForm((current) => current && { ...current, failed_state: saved.failed_state });
       setToast({ type: "success", title: t("coding_jobs.settings.failed_created") });
     } catch (error) {
+      // The state exists even if choosing it failed: reload, so it shows as matched by name and the button goes.
+      if (created) fetchSettings(workspaceSlug, projectId).catch(() => undefined);
       setToast({
         type: "error",
         title: t("coding_jobs.settings.create_failed_error"),
@@ -281,7 +292,7 @@ export const CodingJobsSettings = observer(function CodingJobsSettings({ workspa
             stretch="auto"
             label={t(isSaving ? "coding_jobs.settings.saving" : "coding_jobs.settings.save")}
             loading={isSaving}
-            disabled={!isDirty || isSaving}
+            disabled={!isDirty || isSaving || isCreatingFailed}
           />
         </div>
       )}

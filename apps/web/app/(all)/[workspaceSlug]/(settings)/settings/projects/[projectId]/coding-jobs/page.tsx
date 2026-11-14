@@ -5,11 +5,11 @@
  */
 
 import { observer } from "mobx-react";
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 // components
 import { NotAuthorizedView } from "@/components/auth-screens/not-authorized-view";
 import { CodingJobsSettings } from "@/components/coding-jobs/settings";
+import { useCodingAccess } from "@/components/coding-jobs/use-coding-access";
 import { PageHead } from "@/components/core/page-title";
 import { SettingsContentWrapper } from "@/components/settings/content-wrapper";
 import { SettingsHeading } from "@/components/settings/heading";
@@ -25,18 +25,13 @@ function CodingJobsSettingsPage({ params }: Route.ComponentProps) {
   const { t } = useTranslation();
   // store
   const { currentProjectDetails } = useProject();
-  const { workspaceUserInfo, allowPermissions } = useUserPermissions();
+  const { workspaceUserInfo } = useUserPermissions();
   // derived values
   const pageTitle = currentProjectDetails?.name
     ? `${currentProjectDetails.name} - ${t("coding_jobs.settings.title")}`
     : undefined;
   // Members read the settings, project admins change them; guests cannot see them (the API answers 403).
-  const canRead = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT,
-    workspaceSlug,
-    projectId
-  );
+  const { canWrite: canRead } = useCodingAccess(workspaceSlug, projectId);
 
   if (workspaceUserInfo && !canRead) {
     return <NotAuthorizedView section="settings" isProjectView className="h-auto" />;
@@ -47,7 +42,7 @@ function CodingJobsSettingsPage({ params }: Route.ComponentProps) {
       <PageHead title={pageTitle} />
       <div className="flex w-full flex-col gap-6">
         <SettingsHeading title={t("coding_jobs.settings.title")} description={t("coding_jobs.settings.description")} />
-        <CodingJobsSettings workspaceSlug={workspaceSlug} projectId={projectId} />
+        <CodingJobsSettings key={projectId} workspaceSlug={workspaceSlug} projectId={projectId} />
       </div>
     </SettingsContentWrapper>
   );

@@ -72,6 +72,11 @@ export class CodingJobStore implements ICodingJobStore {
   // Bumped on every change this store makes to a work item's jobs, so a list request that was already in flight
   // merges into the newer list instead of replacing it.
   private jobsVersion: Record<string, number> = {};
+  // The newest list request per work item: an older one that answers later is dropped.
+  private jobsRequest: Record<string, number> = {};
+  // One settings request per project at a time; bumped by every save so a read that started before it is dropped.
+  private settingsInFlight: Record<string, Promise<TProjectCodingSettings>> = {};
+  private settingsVersion: Record<string, number> = {};
 
   constructor(options: { service?: TCodingJobStoreService } = {}) {
     makeObservable<CodingJobStore, "upsertJob" | "setJobs">(this, {
@@ -93,16 +98,29 @@ export class CodingJobStore implements ICodingJobStore {
 
   getJobs = (workItemId: string | null | undefined) => (workItemId ? this.jobsMap[workItemId] : undefined);
 
-  fetchSettings = async (workspaceSlug: string, projectId: string) => {
-    const settings = await this.service.getSettings(workspaceSlug, projectId);
-    runInAction(() => {
-      this.settingsMap[projectId] = settings;
-    });
-    return settings;
+  fetchSettings = (workspaceSlug: string, projectId: string) => {
+    const inFlight = this.settingsInFlight[projectId];
+    if (inFlight) return inFlight;
+    const version = this.settingsVersion[projectId] ?? 0;
+    const request = this.service
+      .getSettings(workspaceSlug, projectId)
+      .then((settings) => {
+        if ((this.settingsVersion[projectId] ?? 0) !== version) return this.settingsMap[projectId] ?? settings;
+        runInAction(() => {
+          this.settingsMap[projectId] = settings;
+        });
+        return settings;
+      })
+      .finally(() => {
+        if (this.settingsInFlight[projectId] === request) delete this.settingsInFlight[projectId];
+      });
+    this.settingsInFlight[projectId] = request;
+    return request;
   };
 
   updateSettings = async (workspaceSlug: string, projectId: string, data: TProjectCodingSettingsUpdate) => {
     const settings = await this.service.updateSettings(workspaceSlug, projectId, data);
+    this.settingsVersion[projectId] = (this.settingsVersion[projectId] ?? 0) + 1;
     runInAction(() => {
       this.settingsMap[projectId] = settings;
     });
@@ -111,8 +129,12 @@ export class CodingJobStore implements ICodingJobStore {
 
   fetchJobs = async (workspaceSlug: string, projectId: string, workItemId: string) => {
     const version = this.jobsVersion[workItemId] ?? 0;
+    const requestId = (this.jobsRequest[workItemId] ?? 0) + 1;
+    this.jobsRequest[workItemId] = requestId;
     const jobs = await this.service.list(workspaceSlug, projectId, workItemId);
-    this.setJobs(workItemId, jobs, (this.jobsVersion[workItemId] ?? 0) !== version);
+    if (this.jobsRequest[workItemId] === requestId) {
+      this.setJobs(workItemId, jobs, (this.jobsVersion[workItemId] ?? 0) !== version);
+    }
     return this.jobsMap[workItemId] ?? [];
   };
 

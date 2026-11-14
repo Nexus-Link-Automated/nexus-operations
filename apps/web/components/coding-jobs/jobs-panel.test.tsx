@@ -10,12 +10,14 @@ import { CodingJobServiceError } from "@plane/services";
 import type { TCodingJob } from "@plane/types";
 import { CodingJobStore } from "@/store/coding-job.store";
 import type { TRole } from "./test-utils";
-import { allowPermissionsFor, fakeCodingService, makeJob } from "./test-utils";
+import { fakeCodingService, makeJob, makeSettings, permissionsFor } from "./test-utils";
 
 const mocks = vi.hoisted(() => ({
   store: undefined as unknown,
   role: "member" as string,
   workspaceRole: "member" as string,
+  state: { group: "started" } as { group: string } | undefined,
+  archivedAt: null as string | null,
   setToast: vi.fn(),
 }));
 
@@ -29,12 +31,17 @@ vi.mock("@/hooks/store/use-coding-job", () => ({ useCodingJob: () => mocks.store
 vi.mock("@/hooks/store/use-member", () => ({
   useMember: () => ({ getUserDetails: (id: string) => ({ id, display_name: id === "me" ? "Me" : "Other" }) }),
 }));
+vi.mock("@/hooks/store/use-issue-detail", () => ({
+  useIssueDetail: () => ({
+    issue: {
+      getIssueById: () => ({ id: "w1", state_id: "s1", archived_at: mocks.archivedAt, is_draft: false }),
+    },
+  }),
+}));
+vi.mock("@/hooks/store/use-project-state", () => ({ useProjectState: () => ({ getStateById: () => mocks.state }) }));
 vi.mock("@/hooks/store/user", () => ({
   useUser: () => ({ data: { id: "me" } }),
-  useUserPermissions: () => ({
-    allowPermissions: (...args: Parameters<ReturnType<typeof allowPermissionsFor>>) =>
-      allowPermissionsFor(mocks.role as TRole, mocks.workspaceRole as TRole)(...args),
-  }),
+  useUserPermissions: () => permissionsFor(mocks.role as TRole, mocks.workspaceRole as TRole),
 }));
 
 // oxlint-disable-next-line import/first -- the module under test must load after the mocks
@@ -45,6 +52,9 @@ async function setup(jobs: TCodingJob[], overrides: Parameters<typeof fakeCoding
   mocks.store = new CodingJobStore({ service });
   render(<CodingJobsPanel workspaceSlug="acme" projectId="p1" issueId="w1" />);
   if (jobs.length > 0) await screen.findAllByTestId("coding-job");
+  if (mocks.role === "admin" || mocks.role === "member")
+    await waitFor(() => expect(service.getSettings).toHaveBeenCalled());
+  await new Promise((resolve) => setTimeout(resolve, 0));
   return service;
 }
 
@@ -65,6 +75,8 @@ describe("CodingJobsPanel", () => {
     vi.clearAllMocks();
     mocks.role = "member";
     mocks.workspaceRole = "member";
+    mocks.state = { group: "started" };
+    mocks.archivedAt = null;
   });
 
   it("shows status, requester, PR link and error reason", async () => {
@@ -108,6 +120,26 @@ describe("CodingJobsPanel", () => {
     mocks.workspaceRole = workspaceRole;
     await setup([makeJob("j1", { requested_by: "other" })]);
     expect(button("coding_jobs.panel.cancel")).not.toBeNull();
+  });
+
+  it("gives a workspace admin who is a guest in the project no buttons, as the API refuses them", async () => {
+    mocks.role = "guest";
+    mocks.workspaceRole = "admin";
+    await setup([makeJob("j2", { requested_by: "other", created_at: "2026-11-14T11:00:00Z" }), failed]);
+    expect(screen.queryAllByRole("button", { name: /coding_jobs.panel.(cancel|retry)/ })).toHaveLength(0);
+  });
+
+  it.each([
+    ["the work item is archived", () => (mocks.archivedAt = "2026-11-01T00:00:00Z"), {}],
+    [
+      "coding jobs are switched off",
+      () => undefined,
+      { getSettings: vi.fn().mockResolvedValue(makeSettings({ configured: false })) },
+    ],
+  ])("hides Retry when %s, where the API would refuse it", async (_label, arrange, overrides) => {
+    arrange();
+    await setup([failed], overrides);
+    expect(button("coding_jobs.panel.retry")).toBeNull();
   });
 
   it("shows Retry only on a retryable job, and no Cancel once it ended", async () => {
@@ -188,8 +220,16 @@ describe("CodingJobsPanel", () => {
     );
   });
 
-  it("renders nothing for a work item with no jobs in a project without coding jobs", async () => {
+  it("shows the empty panel to members where jobs can be started", async () => {
     const service = await setup([]);
+    await waitFor(() => expect(service.list).toHaveBeenCalled());
+    expect(await screen.findByText("coding_jobs.panel.empty")).toBeTruthy();
+  });
+
+  it("renders nothing for a work item with no jobs in a project without coding jobs", async () => {
+    const service = await setup([], {
+      getSettings: vi.fn().mockResolvedValue(makeSettings({ enabled: false, configured: false })),
+    });
     await waitFor(() => expect(service.list).toHaveBeenCalled());
     expect(screen.queryByText("coding_jobs.panel.title")).toBeNull();
   });

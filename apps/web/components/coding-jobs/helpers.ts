@@ -20,24 +20,30 @@ const REFUSAL_CODES = new Set<string>([
 ] satisfies TCodingErrorCode[]);
 
 /**
- * Whether a job may start on this work item, as the API decides it (400 `WORK_ITEM_NOT_ELIGIBLE`): not a draft, not
- * archived, and not waiting in intake (an intake item still in its triage state, or flagged `is_intake`).
+ * Whether a job may start on this work item, as the API decides it (`Issue.issue_objects`, else 400
+ * `WORK_ITEM_NOT_ELIGIBLE`): not a draft, not archived, and not in intake. `state` is the work item's state from the
+ * project's state store, which (like the API's `State.objects`) never holds intake triage states, so an item still in
+ * intake (pending, snoozed, rejected or marked duplicate) has none. Until the states load, the answer is no.
  */
 export const isWorkItemEligibleForCoding = (
   issue: Pick<TIssue, "archived_at" | "is_draft" | "is_intake"> | undefined,
-  stateGroup: string | undefined
-) => !!issue && !issue.archived_at && !issue.is_draft && !issue.is_intake && stateGroup !== "triage";
+  state: { group: string } | undefined
+) => !!issue && !!state && state.group !== "triage" && !issue.archived_at && !issue.is_draft && !issue.is_intake;
 
 /**
- * The text to show for a failed coding request: a translated message for each refusal the API names, else the
- * API's own message, else a general one.
+ * The text to show for a failed request: a translated message for each refusal the coding API names, else the API's
+ * own message (a coding error, or another Plane endpoint's `{"error": ...}`), else a general one.
  */
 export const codingErrorMessage = (t: (key: string) => string, error: unknown): string => {
   if (error instanceof CodingJobServiceError) {
     if (error.code && REFUSAL_CODES.has(error.code)) return t(`coding_jobs.errors.${error.code}`);
     if (error.status === 403) return t("coding_jobs.errors.forbidden");
     if (error.message && error.status) return error.message;
+    return t("coding_jobs.errors.generic");
   }
+  const body = error as { error?: unknown; detail?: unknown } | null | undefined;
+  if (typeof body?.error === "string" && body.error) return body.error;
+  if (typeof body?.detail === "string" && body.detail) return body.detail;
   return t("coding_jobs.errors.generic");
 };
 

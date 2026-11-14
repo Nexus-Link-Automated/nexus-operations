@@ -5,7 +5,7 @@
  */
 
 import { vi } from "vitest";
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
+import { EUserPermissions } from "@plane/constants";
 import type { TCodingJob, TProjectCodingSettings } from "@plane/types";
 import type { TCodingJobStoreService } from "@/store/coding-job.store";
 
@@ -64,16 +64,20 @@ export const fakeCodingService = (overrides: Partial<TCodingJobStoreService> = {
     ...overrides,
   }) satisfies TCodingJobStoreService;
 
-export type TRole = "admin" | "member" | "guest";
+export type TRole = "admin" | "member" | "guest" | "none";
 
-const ROLE_VALUE: Record<TRole, EUserPermissions> = {
+const ROLE_VALUE: Record<TRole, number | undefined> = {
   admin: EUserPermissions.ADMIN,
   member: EUserPermissions.MEMBER,
   guest: EUserPermissions.GUEST,
+  none: undefined,
 };
 
-/** `allowPermissions` for a user with `projectRole` in the project and `workspaceRole` in the workspace. */
-export const allowPermissionsFor =
-  (projectRole: TRole, workspaceRole: TRole = "member") =>
-  (allowed: EUserPermissions[], level: string) =>
-    allowed.includes(ROLE_VALUE[level === EUserPermissionsLevel.WORKSPACE ? workspaceRole : projectRole]);
+/**
+ * The permission store fields `useCodingAccess` reads, for a user with `projectRole` in project p1 of workspace
+ * "acme" and `workspaceRole` in the workspace. The raw project role, as the API sees it.
+ */
+export const permissionsFor = (projectRole: TRole, workspaceRole: TRole = "member") => ({
+  workspaceProjectsPermissions: { acme: ROLE_VALUE[projectRole] ? { p1: ROLE_VALUE[projectRole] } : {} },
+  getWorkspaceRoleByWorkspaceSlug: () => ROLE_VALUE[workspaceRole],
+});

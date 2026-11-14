@@ -11,17 +11,16 @@ import { Button } from "@makeplane/propel/components/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@makeplane/propel/components/menu";
 import { CodeOutline } from "@makeplane/propel/icons";
 import { Icon } from "@makeplane/propel/components/icon";
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import type { TCodingAction } from "@plane/types";
 // hooks
 import { useCodingJob } from "@/hooks/store/use-coding-job";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useProjectState } from "@/hooks/store/use-project-state";
-import { useUserPermissions } from "@/hooks/store/user";
 // local imports
 import { CODING_ACTIONS, isWorkItemEligibleForCoding } from "./helpers";
 import { CodingJobStartDialog } from "./start-dialog";
+import { useCodingAccess } from "./use-coding-access";
 
 type Props = {
   workspaceSlug: string;
@@ -42,20 +41,15 @@ export const CodingJobActions = observer(function CodingJobActions({ workspaceSl
     issue: { getIssueById },
   } = useIssueDetail();
   const { getStateById } = useProjectState();
-  const { allowPermissions } = useUserPermissions();
+  const { canWrite } = useCodingAccess(workspaceSlug, projectId);
   // derived values
   const issue = getIssueById(issueId);
-  const canWrite = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT,
-    workspaceSlug,
-    projectId
-  );
   const settings = getSettings(projectId);
-  const eligible = isWorkItemEligibleForCoding(
-    issue,
-    issue?.state_id ? getStateById(issue.state_id)?.group : undefined
-  );
+  const eligible = isWorkItemEligibleForCoding(issue, issue?.state_id ? getStateById(issue.state_id) : undefined);
+  const showButton = canWrite && eligible && !!settings?.configured;
+
+  // A dialog belongs to one work item: close it when the peek moves to another.
+  useEffect(() => setAction(null), [issueId]);
 
   useEffect(() => {
     // Guests cannot read coding settings (403), so only members and admins ask.
@@ -63,34 +57,38 @@ export const CodingJobActions = observer(function CodingJobActions({ workspaceSl
     fetchSettings(workspaceSlug, projectId).catch(() => undefined);
   }, [canWrite, workspaceSlug, projectId, fetchSettings]);
 
-  if (!canWrite || !eligible || !settings?.configured) return null;
+  // An open dialog stays open even if the button goes away (say a refusal showed coding was switched off), so its
+  // message stays on screen.
+  if (!showButton && !action) return null;
 
   return (
     <>
-      <Menu>
-        <MenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              stretch="auto"
-              label={t("coding_jobs.menu.trigger")}
-              aria-label={t("coding_jobs.menu.trigger")}
-            />
-          }
-        />
-        <MenuContent side="bottom" align="end">
-          {CODING_ACTIONS.map((value) => (
-            <MenuItem
-              key={value}
-              icon={<Icon icon={CodeOutline} />}
-              label={t(`coding_jobs.actions.${value}`)}
-              onClick={() => setAction(value)}
-            />
-          ))}
-        </MenuContent>
-      </Menu>
+      {showButton && (
+        <Menu>
+          <MenuTrigger
+            render={
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                stretch="auto"
+                label={t("coding_jobs.menu.trigger")}
+                aria-label={t("coding_jobs.menu.trigger")}
+              />
+            }
+          />
+          <MenuContent side="bottom" align="end">
+            {CODING_ACTIONS.map((value) => (
+              <MenuItem
+                key={value}
+                icon={<Icon icon={CodeOutline} />}
+                label={t(`coding_jobs.actions.${value}`)}
+                onClick={() => setAction(value)}
+              />
+            ))}
+          </MenuContent>
+        </Menu>
+      )}
       {action && (
         <CodingJobStartDialog
           action={action}

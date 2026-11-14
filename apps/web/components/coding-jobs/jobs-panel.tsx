@@ -12,7 +12,6 @@ import { Button } from "@makeplane/propel/components/button";
 import { Icon } from "@makeplane/propel/components/icon";
 import { IconButton } from "@makeplane/propel/components/icon-button";
 import { GitPullRequestOutline, RefreshOutline } from "@makeplane/propel/icons";
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { setToast } from "@plane/blocks/toast";
 import { useTranslation } from "@plane/i18n";
 import type { TCodingJob } from "@plane/types";
@@ -20,9 +19,12 @@ import { calculateTimeAgo, renderFormattedDate } from "@plane/utils";
 // hooks
 import { useCodingJob } from "@/hooks/store/use-coding-job";
 import { useMember } from "@/hooks/store/use-member";
-import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { useIssueDetail } from "@/hooks/store/use-issue-detail";
+import { useProjectState } from "@/hooks/store/use-project-state";
+import { useUser } from "@/hooks/store/user";
 // local imports
-import { codingErrorMessage } from "./helpers";
+import { codingErrorMessage, isWorkItemEligibleForCoding } from "./helpers";
+import { useCodingAccess } from "./use-coding-access";
 
 type Props = {
   workspaceSlug: string;
@@ -70,22 +72,28 @@ export const CodingJobsPanel = observer(function CodingJobsPanel({ workspaceSlug
   const [loadFailed, setLoadFailed] = useState(false);
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
   // store hooks
-  const { getJobs, getSettings, fetchJobs, cancelJob, retryJob } = useCodingJob();
+  const { getJobs, getSettings, fetchSettings, fetchJobs, cancelJob, retryJob } = useCodingJob();
   const { getUserDetails } = useMember();
   const { data: currentUser } = useUser();
-  const { allowPermissions } = useUserPermissions();
+  const {
+    issue: { getIssueById },
+  } = useIssueDetail();
+  const { getStateById } = useProjectState();
+  const { canWrite, isAdmin } = useCodingAccess(workspaceSlug, projectId);
   // derived values
   const jobs = getJobs(issueId);
   const settings = getSettings(projectId);
-  const canWrite = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT,
-    workspaceSlug,
-    projectId
-  );
-  const isAdmin =
-    allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, workspaceSlug, projectId) ||
-    allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE, workspaceSlug);
+  const issue = getIssueById(issueId);
+  // A retry is a new start, so it is offered only where a start would be accepted.
+  const canStart =
+    canWrite &&
+    !!settings?.configured &&
+    isWorkItemEligibleForCoding(issue, issue?.state_id ? getStateById(issue.state_id) : undefined);
+
+  useEffect(() => {
+    // Guests cannot read coding settings (403). The header asks too; the store sends one request.
+    if (canWrite && workspaceSlug && projectId) fetchSettings(workspaceSlug, projectId).catch(() => undefined);
+  }, [canWrite, workspaceSlug, projectId, fetchSettings]);
 
   const load = useCallback(() => {
     setLoadFailed(false);
@@ -144,7 +152,7 @@ export const CodingJobsPanel = observer(function CodingJobsPanel({ workspaceSlug
             const requester = job.requested_by ? getUserDetails(job.requested_by) : undefined;
             const canCancel =
               job.is_active && canWrite && (isAdmin || (!!currentUser && job.requested_by === currentUser.id));
-            const canRetry = job.is_retryable && canWrite;
+            const canRetry = job.is_retryable && canStart;
             // A cancelled job ends as a job error; "Cancelled" says more.
             const showOutcome = !!job.outcome && job.status !== "cancelled";
             const badgeLabel = showOutcome

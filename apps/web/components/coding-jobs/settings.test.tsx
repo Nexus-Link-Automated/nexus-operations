@@ -9,11 +9,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CodingJobServiceError } from "@plane/services";
 import { CodingJobStore } from "@/store/coding-job.store";
 import type { TRole } from "./test-utils";
-import { allowPermissionsFor, fakeCodingService, makeSettings } from "./test-utils";
+import { fakeCodingService, makeSettings, permissionsFor } from "./test-utils";
 
 const mocks = vi.hoisted(() => ({
   store: undefined as unknown,
   role: "admin" as string,
+  workspaceRole: "member" as string,
   createState: vi.fn(),
   setToast: vi.fn(),
 }));
@@ -37,10 +38,7 @@ vi.mock("@/hooks/store/use-project-state", () => ({
   }),
 }));
 vi.mock("@/hooks/store/user", () => ({
-  useUserPermissions: () => ({
-    allowPermissions: (...args: Parameters<ReturnType<typeof allowPermissionsFor>>) =>
-      allowPermissionsFor(mocks.role as TRole)(...args),
-  }),
+  useUserPermissions: () => permissionsFor(mocks.role as TRole, mocks.workspaceRole as TRole),
 }));
 
 // oxlint-disable-next-line import/first -- the module under test must load after the mocks
@@ -62,6 +60,7 @@ describe("CodingJobsSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.role = "admin";
+    mocks.workspaceRole = "member";
   });
 
   it("shows what each column resolves to now", async () => {
@@ -112,6 +111,59 @@ describe("CodingJobsSettings", () => {
     expect(screen.getByText("coding_jobs.settings.read_only")).toBeTruthy();
     expect(saveButton()).toBeNull();
     expect(createFailedButton()).toBeNull();
+  });
+
+  it("lets a workspace admin who is a project member edit", async () => {
+    mocks.role = "member";
+    mocks.workspaceRole = "admin";
+    await setup();
+    expect(repoInput().disabled).toBe(false);
+    expect(createFailedButton()).not.toBeNull();
+  });
+
+  it("locks the form while the Failed column is being created", async () => {
+    mocks.createState.mockReturnValue(new Promise(() => undefined));
+    await setup();
+    fireEvent.change(repoInput(), { target: { value: "https://github.com/acme/other" } });
+
+    fireEvent.click(createFailedButton()!);
+
+    await waitFor(() => expect(repoInput().disabled).toBe(true));
+    expect(saveButton()?.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("reloads the settings when the state was created but choosing it failed", async () => {
+    mocks.createState.mockResolvedValue({ id: "s-failed", name: "Failed" });
+    const getSettings = vi
+      .fn()
+      .mockResolvedValueOnce(makeSettings())
+      .mockResolvedValue(
+        makeSettings({
+          columns: { ready: null, failed: { id: "s-failed", name: "Failed", chosen: false }, in_review: null },
+        })
+      );
+    await setup({
+      getSettings,
+      updateSettings: vi.fn().mockRejectedValue(new CodingJobServiceError(400, { error: "No." })),
+    });
+
+    fireEvent.click(createFailedButton()!);
+
+    await waitFor(() => expect(getSettings).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(createFailedButton()).toBeNull());
+  });
+
+  it("shows another endpoint's error message when creating the state fails", async () => {
+    mocks.createState.mockRejectedValue({ error: "A state with this name already exists." });
+    await setup();
+
+    fireEvent.click(createFailedButton()!);
+
+    await waitFor(() =>
+      expect(mocks.setToast).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "error", message: "A state with this name already exists." })
+      )
+    );
   });
 
   it("creates a Failed column and sets it as the Failed state", async () => {

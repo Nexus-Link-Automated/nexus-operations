@@ -10,13 +10,15 @@ import { CodingJobServiceError } from "@plane/services";
 import type { TIssue } from "@plane/types";
 import { CodingJobStore } from "@/store/coding-job.store";
 import type { TRole } from "./test-utils";
-import { allowPermissionsFor, fakeCodingService, makeJob, makeSettings } from "./test-utils";
+import { fakeCodingService, makeJob, makeSettings, permissionsFor } from "./test-utils";
 
 const mocks = vi.hoisted(() => ({
   store: undefined as unknown,
   role: "member" as string,
+  workspaceRole: "member" as string,
   issue: undefined as Partial<TIssue> | undefined,
-  stateGroup: "started" as string,
+  /** The work item's state as the project state store returns it; intake triage states are never in it. */
+  state: { group: "started" } as { group: string } | undefined,
   setToast: vi.fn(),
 }));
 
@@ -27,13 +29,10 @@ vi.mock("@/hooks/store/use-issue-detail", () => ({
   useIssueDetail: () => ({ issue: { getIssueById: () => mocks.issue } }),
 }));
 vi.mock("@/hooks/store/use-project-state", () => ({
-  useProjectState: () => ({ getStateById: () => ({ group: mocks.stateGroup }) }),
+  useProjectState: () => ({ getStateById: () => mocks.state }),
 }));
 vi.mock("@/hooks/store/user", () => ({
-  useUserPermissions: () => ({
-    allowPermissions: (...args: Parameters<ReturnType<typeof allowPermissionsFor>>) =>
-      allowPermissionsFor(mocks.role as TRole)(...args),
-  }),
+  useUserPermissions: () => permissionsFor(mocks.role as TRole, mocks.workspaceRole as TRole),
 }));
 
 // oxlint-disable-next-line import/first -- the module under test must load after the mocks
@@ -42,9 +41,10 @@ import { CodingJobActions } from "./actions";
 const activeIssue: Partial<TIssue> = { id: "w1", state_id: "s1", archived_at: null, is_draft: false };
 
 function setup(service = fakeCodingService()) {
-  mocks.store = new CodingJobStore({ service });
+  const store = new CodingJobStore({ service });
+  mocks.store = store;
   render(<CodingJobActions workspaceSlug="acme" projectId="p1" issueId="w1" />);
-  return service;
+  return { service, store };
 }
 
 const trigger = () => screen.queryByRole("button", { name: "coding_jobs.menu.trigger" });
@@ -53,47 +53,55 @@ describe("CodingJobActions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.role = "member";
+    mocks.workspaceRole = "member";
     mocks.issue = { ...activeIssue };
-    mocks.stateGroup = "started";
+    mocks.state = { group: "started" };
   });
 
   it("shows the button to members when the project has coding jobs set up", async () => {
-    const service = setup();
+    const { service } = setup();
     await waitFor(() => expect(trigger()).not.toBeNull());
     expect(service.getSettings).toHaveBeenCalledWith("acme", "p1");
   });
 
   it("stays hidden when the project's coding jobs are not set up", async () => {
-    const service = setup(
+    const { store } = setup(
       fakeCodingService({ getSettings: vi.fn().mockResolvedValue(makeSettings({ configured: false })) })
     );
-    await waitFor(() => expect(service.getSettings).toHaveBeenCalled());
+    await waitFor(() => expect(store.getSettings("p1")).toBeDefined());
     expect(trigger()).toBeNull();
   });
 
-  it("stays hidden for guests, who cannot read the settings", async () => {
-    mocks.role = "guest";
-    const service = setup();
+  it.each([
+    ["guests", "guest", "member"],
+    ["a workspace admin who is a guest in the project", "guest", "admin"],
+  ])("stays hidden for %s, who cannot read the settings", async (_label, role, workspaceRole) => {
+    mocks.role = role;
+    mocks.workspaceRole = workspaceRole;
+    const { service } = setup();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(trigger()).toBeNull();
     expect(service.getSettings).not.toHaveBeenCalled();
   });
 
   it.each([
-    ["drafts", { is_draft: true }, "started"],
-    ["archived work items", { archived_at: "2026-11-01T00:00:00Z" }, "started"],
-    ["work items waiting in intake", { is_intake: true }, "started"],
-    ["work items in the intake (triage) state", {}, "triage"],
-  ])("stays hidden on %s", async (_label, overrides, stateGroup) => {
+    ["drafts", { is_draft: true }, { group: "started" }],
+    ["archived work items", { archived_at: "2026-11-01T00:00:00Z" }, { group: "started" }],
+    ["work items flagged as waiting in intake", { is_intake: true }, { group: "started" }],
+    // Pending, snoozed, rejected and duplicate intake items keep an intake (triage) state, which the project's
+    // state store never holds.
+    ["work items in an intake state", {}, undefined],
+  ])("stays hidden on %s", async (_label, overrides, state) => {
     mocks.issue = { ...activeIssue, ...overrides };
-    mocks.stateGroup = stateGroup;
-    const service = setup();
-    await waitFor(() => expect(service.getSettings).toHaveBeenCalled());
+    mocks.state = state;
+    const { store } = setup();
+    // Settings say configured, so only the work item keeps the button away.
+    await waitFor(() => expect(store.getSettings("p1")?.configured).toBe(true));
     expect(trigger()).toBeNull();
   });
 
   it("starts the chosen action with the chosen agent", async () => {
-    const service = setup(fakeCodingService({ start: vi.fn().mockResolvedValue(makeJob("j1")) }));
+    const { service } = setup(fakeCodingService({ start: vi.fn().mockResolvedValue(makeJob("j1")) }));
     await waitFor(() => expect(trigger()).not.toBeNull());
 
     fireEvent.click(trigger()!);
@@ -127,5 +135,30 @@ describe("CodingJobActions", () => {
     expect(mocks.setToast).toHaveBeenCalledWith(
       expect.objectContaining({ type: "error", message: "coding_jobs.errors.JOB_ACTIVE" })
     );
+  });
+
+  it("keeps the dialog and its message when the start shows coding was switched off", async () => {
+    const getSettings = vi
+      .fn()
+      .mockResolvedValueOnce(makeSettings())
+      .mockResolvedValue(makeSettings({ enabled: false, configured: false }));
+    setup(
+      fakeCodingService({
+        getSettings,
+        start: vi
+          .fn()
+          .mockRejectedValue(new CodingJobServiceError(400, { error: "Off.", code: "CODING_NOT_CONFIGURED" })),
+      })
+    );
+    await waitFor(() => expect(trigger()).not.toBeNull());
+
+    fireEvent.click(trigger()!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "coding_jobs.actions.fix_bug" }));
+    fireEvent.click(await screen.findByRole("button", { name: "coding_jobs.start_dialog.start" }));
+
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "coding_jobs.errors.CODING_NOT_CONFIGURED");
+    await waitFor(() => expect(getSettings).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(trigger()).toBeNull());
+    expect(screen.getByRole("alert")).toBeTruthy();
   });
 });

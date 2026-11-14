@@ -63,6 +63,7 @@ vi.mock("@/hooks/store/user", () => ({
 vi.mock("@/hooks/use-app-router", () => ({ useAppRouter: () => ({ push: mocks.push }) }));
 vi.mock("@/hooks/use-platform-os", () => ({ usePlatformOS: () => ({ isMobile: false }) }));
 vi.mock("./subscription", () => ({ IssueSubscription: () => null }));
+vi.mock("@/components/coding-jobs/actions", () => ({ CodingJobActions: () => null }));
 // the real delete and archive modals, opened at once, wired to the handlers the page passes down
 vi.mock("../issue-layouts/quick-action-dropdowns", async () => {
   const { DeleteIssueModal } = await import("../delete-issue-modal");

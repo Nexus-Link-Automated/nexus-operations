@@ -211,4 +211,48 @@ describe("CodingJobStore", () => {
     expect(service.updateSettings).toHaveBeenCalledWith("acme", "p1", { failed_state: "s9" });
     expect(store.getSettings("p1")?.failed_state).toBe("s9");
   });
+
+  it("keeps the newest list when two list requests answer out of order", async () => {
+    const answers: ((jobs: TCodingJob[]) => void)[] = [];
+    const service = fakeService({
+      list: vi.fn().mockImplementation(() => new Promise<TCodingJob[]>((resolve) => answers.push(resolve))),
+    });
+    const store = new CodingJobStore({ service });
+
+    const older = store.fetchJobs("acme", "p1", "w1");
+    const newer = store.fetchJobs("acme", "p1", "w1");
+    answers[1]([job("j1", { status: "running" })]);
+    await newer;
+    answers[0]([job("j1")]);
+    await older;
+
+    expect(store.getJobs("w1")?.[0].status).toBe("running");
+  });
+
+  it("sends one settings request at a time per project", async () => {
+    const service = fakeService();
+    const store = new CodingJobStore({ service });
+
+    await Promise.all([store.fetchSettings("acme", "p1"), store.fetchSettings("acme", "p1")]);
+
+    expect(service.getSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("a settings read that started before a save does not undo it", async () => {
+    let answer!: (value: TProjectCodingSettings) => void;
+    const service = fakeService({
+      getSettings: vi
+        .fn()
+        .mockImplementation(() => new Promise<TProjectCodingSettings>((resolve) => (answer = resolve))),
+      updateSettings: vi.fn().mockResolvedValue(settings({ repo_url: "https://github.com/acme/new" })),
+    });
+    const store = new CodingJobStore({ service });
+
+    const read = store.fetchSettings("acme", "p1");
+    await store.updateSettings("acme", "p1", { repo_url: "https://github.com/acme/new" });
+    answer(settings());
+    await read;
+
+    expect(store.getSettings("p1")?.repo_url).toBe("https://github.com/acme/new");
+  });
 });
