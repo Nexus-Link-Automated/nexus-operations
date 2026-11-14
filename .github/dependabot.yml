@@ -1,0 +1,15 @@
+# Keeps the digest-pinned base images current. Each Dockerfile pins `image:tag@sha256:...`;
+# Dependabot opens a PR when the tag's digest moves. Tag bumps (a new Node or Python
+# version) are left to a deliberate change, so minor and major updates are ignored.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directories:
+      - /apps/agent-bridge
+      - /apps/agent-runner
+      - /apps/mcp
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
