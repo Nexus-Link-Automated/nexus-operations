@@ -17,6 +17,7 @@ from plane.models.customers import (
 from plane_mcp.client import get_plane_client_context
 from plane_mcp.toolkit import (
     Action,
+    IdList,
     build_annotations,
     build_description,
     coerce_list,
@@ -139,8 +140,8 @@ def register(mcp: FastMCP) -> None:
         stage: str = "",
         contract_status: str = "",
         revenue: str = "",
-        link_ids: str = "",
-        unlink_ids: str = "",
+        link_ids: IdList = "",
+        unlink_ids: IdList = "",
         search: str = "",
         query: str = "",
         external_source: str = "",
