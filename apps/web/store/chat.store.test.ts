@@ -540,6 +540,30 @@ function holdOpen() {
   return { opened, open };
 }
 
+/** Counts `listMessages` calls under way at once; each answers a tick later, and not before `gate` while it is set. */
+function countPages(server: FakeChatServer) {
+  const counter = { inFlight: 0, peak: 0, gate: undefined as Promise<void> | undefined };
+  const service = server.service.bind(server);
+  server.service = () => {
+    const answers = service();
+    const listMessages = answers.listMessages;
+    answers.listMessages = async (...args) => {
+      counter.inFlight += 1;
+      counter.peak = Math.max(counter.peak, counter.inFlight);
+      try {
+        const answer = listMessages(...args);
+        await tick();
+        await counter.gate;
+        return await answer;
+      } finally {
+        counter.inFlight -= 1;
+      }
+    };
+    return answers;
+  };
+  return counter;
+}
+
 /** Let every pending fetch and its follow-ups finish. */
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 const settle = () => Array.from({ length: 20 }).reduce<Promise<unknown>>((done) => done.then(tick), Promise.resolve());
@@ -665,6 +689,75 @@ describe("ChatStore", () => {
 
     store.setAtNewest("c-general", true);
     await settle();
+    expect(store.channelMap["c-general"]!.unread_count).toBe(0);
+  });
+
+  it("doesn't re-read a channel for the event about its own read", async () => {
+    const { store, server, socket } = await setup((s) => {
+      s.post("c-general", ADA, "unread");
+    });
+    await store.openChannel("c-general");
+    const newest = server.messages.at(-1)!.id;
+    expect(server.calls).toContain(`markRead c-general ${newest}`);
+    server.calls = [];
+    socket.emit({
+      type: "read.updated",
+      workspace_id: WORKSPACE_ID,
+      channel_id: "c-general",
+      message_id: newest,
+      user_id: ME,
+      at: "t",
+    });
+    await settle();
+    expect(server.calls).toEqual([]);
+    expect(store.channelMap["c-general"]!.unread_count).toBe(0);
+  });
+
+  it("re-reads a channel read in another tab", async () => {
+    const { store, server, socket } = await setup((s) => {
+      s.post("c-general", ADA, "one");
+      s.post("c-general", ADA, "two");
+    });
+    expect(store.channelMap["c-general"]!.unread_count).toBe(2);
+    // The other tab reads up to the newest message.
+    const newest = server.messages.at(-1)!.id;
+    server.channels.get("c-general")!.cursors.set(ME, newest);
+    socket.emit({
+      type: "read.updated",
+      workspace_id: WORKSPACE_ID,
+      channel_id: "c-general",
+      message_id: newest,
+      user_id: ME,
+      at: "t",
+    });
+    await settle();
+    expect(server.calls).toEqual(["getChannel c-general"]);
+    expect(store.channelMap["c-general"]!.unread_count).toBe(0);
+    expect(store.channelMap["c-general"]!.last_read_message_id).toBe(newest);
+  });
+
+  it("re-reads a channel this tab has open when another tab reads further", async () => {
+    const { store, server, socket } = await setup((s) => {
+      s.post("c-general", ADA, "seen here");
+    });
+    await store.openChannel("c-general");
+    store.setDocumentVisible(false);
+    socket.emit(server.createdEvent(server.post("c-general", ADA, "seen in the other tab")));
+    await settle();
+    expect(store.channelMap["c-general"]!.unread_count).toBe(1);
+    const newest = server.messages.at(-1)!.id;
+    server.channels.get("c-general")!.cursors.set(ME, newest);
+    server.calls = [];
+    socket.emit({
+      type: "read.updated",
+      workspace_id: WORKSPACE_ID,
+      channel_id: "c-general",
+      message_id: newest,
+      user_id: ME,
+      at: "t",
+    });
+    await settle();
+    expect(server.calls).toEqual(["getChannel c-general"]);
     expect(store.channelMap["c-general"]!.unread_count).toBe(0);
   });
 
@@ -919,6 +1012,56 @@ describe("ChatStore", () => {
     expect(server.calls.filter((c) => c.includes('"after"'))).toHaveLength(3);
     expect(store.channelMap["c-new"]).toBeDefined();
     expect(store.channelMap["c-general"]!.unread_count).toBe(0);
+  });
+
+  it("catches up a few channels at a time after a reconnect, the open one first", async () => {
+    const channels = Array.from({ length: 7 }, (_, i) => `c-${i}`);
+    let pages!: ReturnType<typeof countPages>;
+    const { store, server, socket } = await setup((s) => {
+      for (const id of channels) {
+        s.addChannel(id);
+        s.post(id, ADA, `${id} before`);
+      }
+      pages = countPages(s);
+    });
+    // oxlint-disable-next-line no-await-in-loop -- one channel is open at a time
+    for (const id of channels) await store.openChannel(id);
+    await store.openChannel("c-3");
+    for (const id of channels) server.post(id, ADA, `${id} missed`);
+    server.calls = [];
+    pages.peak = 0;
+    socket.ready(true);
+    await settle();
+
+    expect(pages.peak).toBe(3);
+    for (const id of channels) expect(bodies(store, id)).toEqual([`${id} before`, `${id} missed`]);
+    expect(server.calls.find((call) => call.startsWith("listMessages"))).toMatch(/^listMessages c-3 /);
+  });
+
+  it("starts no more catch-ups once the store has moved on", async () => {
+    const channels = Array.from({ length: 5 }, (_, i) => `c-${i}`);
+    let pages!: ReturnType<typeof countPages>;
+    const { store, server, socket } = await setup((s) => {
+      for (const id of channels) {
+        s.addChannel(id);
+        s.post(id, ADA, `${id} before`);
+      }
+      pages = countPages(s);
+    });
+    // oxlint-disable-next-line no-await-in-loop -- one channel is open at a time
+    for (const id of channels) await store.openChannel(id);
+    const { opened, open } = holdOpen();
+    pages.gate = opened;
+    socket.ready(true);
+    await settle();
+    expect(pages.inFlight).toBe(3);
+
+    store.stop();
+    await store.start(SLUG, ME);
+    server.calls = [];
+    open();
+    await settle();
+    expect(server.calls.filter((call) => call.startsWith("listMessages"))).toEqual([]);
   });
 
   it("re-reads the newest page after a reconnect, for edits and removals it missed", async () => {
