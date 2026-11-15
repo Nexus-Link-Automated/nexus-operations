@@ -24,6 +24,8 @@ import type { TNameDescriptionLoader } from "@plane/types";
 import { EIssuesStoreType } from "@plane/types";
 import { Select } from "@plane/blocks/select";
 import { copyUrlToClipboard, generateWorkItemLink } from "@plane/utils";
+// components
+import { CodingJobActions } from "@/components/coding-jobs/actions";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useIssues } from "@/hooks/store/use-issues";
@@ -214,6 +216,7 @@ export const IssuePeekOverviewHeader = observer(function IssuePeekOverviewHeader
       <div className="flex items-center gap-x-4">
         <NameDescriptionUpdateStatus isSubmitting={isSubmitting} />
         <div className="flex items-center gap-2">
+          {!isArchived && <CodingJobActions workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} />}
           {currentUser && !isArchived && (
             <IssueSubscription workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} />
           )}

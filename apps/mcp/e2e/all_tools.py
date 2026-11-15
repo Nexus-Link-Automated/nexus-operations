@@ -267,7 +267,9 @@ async def scenario(c: Client) -> None:
         {"action": "create", **W, "comment_html": f"<p>@[{V.get('teammate')}]</p>"},
         expect_error="cannot be mentioned",
     )
-    await s("workitem_link", {"action": "create", **W, "url": "https://example.com/spec", "title": "Spec"}, {"link": "id"})
+    await s(
+        "workitem_link", {"action": "create", **W, "url": "https://example.com/spec", "title": "Spec"}, {"link": "id"}
+    )
     await s("workitem_link", {"action": "list", **W})
     await paged("workitem_link", {"action": "list", **W})
     await s("workitem_link", {"action": "retrieve", **W, "link_id": "$link"})
@@ -278,7 +280,12 @@ async def scenario(c: Client) -> None:
     await s("workitem_activity", {"action": "retrieve", **W, "activity_id": "$activity"})
     await s(
         "workitem_attachment",
-        {"action": "upload_from_url", **W, "url": "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png", "name": "logo.png"},
+        {
+            "action": "upload_from_url",
+            **W,
+            "url": "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png",
+            "name": "logo.png",
+        },
     )
     await s("workitem_attachment", {"action": "list", **W}, {"attachment": first})
     await s("workitem_attachment", {"action": "read", **W, "attachment_id": "$attachment"})
@@ -291,7 +298,12 @@ async def scenario(c: Client) -> None:
     await s("workitem_relation", {"action": "delete", **W, "related_workitem_id": "$w2", "is_dependency": True})
     await s(
         "workitem_relation",
-        {"action": "create_definition", "name": f"Implements {SUFFIX}", "outward": "implements", "inward": "implemented by"},
+        {
+            "action": "create_definition",
+            "name": f"Implements {SUFFIX}",
+            "outward": "implements",
+            "inward": "implemented by",
+        },
         {"reldef": "id"},
     )
     await s(
@@ -357,6 +369,62 @@ async def scenario(c: Client) -> None:
     await s("project", {"action": "worklog_summary", "project_id": P})
     await s("work_log", {"action": "delete", **W, "work_log_id": "$worklog"})
 
+    # Coding jobs. Nothing dispatches them yet, so a job stays queued until it is cancelled.
+    await s(
+        "coding_job",
+        {"action": "settings_get", "project_id": P},
+        check=lambda d: same(d["configured"], False, "configured"),
+    )
+    await s(
+        "coding_job",
+        {"action": "start", **W, "job_action": "fix_bug", "agent": "codex"},
+        expect_error="CODING_NOT_CONFIGURED",
+    )
+    await s(
+        "coding_job",
+        {
+            "action": "settings_update",
+            "project_id": P,
+            "enabled": True,
+            "repo_url": "https://github.com/example/app",
+            "default_branch": "main",
+            "ready_state_id": "$state_any",
+        },
+        check=lambda d: same((d["configured"], d["columns"]["ready"]["id"]), (True, V["state_any"]), "settings"),
+    )
+    await s(
+        "coding_job",
+        {"action": "settings_update", "project_id": P, "ready_state_id": "none"},
+        check=lambda d: same(d["ready_state"], None, "ready_state"),
+        label="state back to name match",
+    )
+    await s(
+        "coding_job",
+        {"action": "start", **W, "job_action": "fix_bug", "agent": "codex"},
+        {"job": "id"},
+        check=lambda d: same(d["status"], "queued", "status"),
+    )
+    await s(
+        "coding_job", {"action": "start", **W, "job_action": "fix_bug", "agent": "claude"}, expect_error="JOB_ACTIVE"
+    )
+    await s("coding_job", {"action": "list", **W}, check=lambda d: same(first(d), V["job"], "listed job"))
+    await paged("coding_job", {"action": "list", **W})
+    await s("coding_job", {"action": "get", **W, "job_id": "$job"})
+    await s("coding_job", {"action": "retry", **W, "job_id": "$job"}, expect_error="JOB_NOT_RETRYABLE")
+    await s(
+        "coding_job",
+        {"action": "cancel", **W, "job_id": "$job"},
+        check=lambda d: same((d["status"], d["outcome"]), ("cancelled", "job_error"), "cancelled job"),
+    )
+    await s(
+        "coding_job",
+        {"action": "retry", **W, "job_id": "$job", "agent": "claude"},
+        {"job2": "id"},
+        check=lambda d: same((d["retry_of"], d["agent"]), (V["job"], "claude"), "retry"),
+    )
+    await s("coding_job", {"action": "cancel", **W, "job_id": "$job2"}, label="the retry")
+    await s("coding_job", {"action": "settings_update", "project_id": P, "enabled": False}, label="off again")
+
     # Cycles
     start, end = TODAY.isoformat(), (TODAY + timedelta(days=14)).isoformat()
     later, later_end = (TODAY + timedelta(days=15)).isoformat(), (TODAY + timedelta(days=28)).isoformat()
@@ -411,12 +479,18 @@ async def scenario(c: Client) -> None:
     await s("intake", {"action": "list", "project_id": P})
     await s("intake", {"action": "retrieve", "project_id": P, "workitem_id": "$intake"})
     await s("intake", {"action": "update", "project_id": P, "workitem_id": "$intake", "status": 1})
-    await s("intake", {"action": "create", "project_id": P, "name": "Spam"}, {"intake2": lambda d: d.get("issue") or d["id"]})
+    await s(
+        "intake",
+        {"action": "create", "project_id": P, "name": "Spam"},
+        {"intake2": lambda d: d.get("issue") or d["id"]},
+    )
     await paged("intake", {"action": "list", "project_id": P})
     await s("intake", {"action": "delete", "project_id": P, "workitem_id": "$intake2"})
 
     # Estimates
-    await s("project_estimate", {"action": "create", "project_id": P, "name": "Points", "type": "points"}, {"est": "id"})
+    await s(
+        "project_estimate", {"action": "create", "project_id": P, "name": "Points", "type": "points"}, {"est": "id"}
+    )
     await s("project_estimate", {"action": "retrieve", "project_id": P})
     await s("project_estimate", {"action": "update", "project_id": P, "description": "story points"})
     await s(
@@ -425,9 +499,7 @@ async def scenario(c: Client) -> None:
         check=lambda d: same(d["description"], "story points", "description"),
         label="read back",
     )
-    await s(
-        "project_estimate", {"action": "update", "project_id": P, "external_id": "x"}, expect_error="external_id"
-    )
+    await s("project_estimate", {"action": "update", "project_id": P, "external_id": "x"}, expect_error="external_id")
     await s(
         "project_estimate",
         {
@@ -486,20 +558,34 @@ async def scenario(c: Client) -> None:
     await s("workitem_property", {"action": "retrieve", "workitem_property_id": "$prop", "workitem_type_id": "$wtype"})
     await s(
         "workitem_property",
-        {"action": "update", "workitem_property_id": "$prop", "workitem_type_id": "$wtype", "description": "account tier"},
+        {
+            "action": "update",
+            "workitem_property_id": "$prop",
+            "workitem_type_id": "$wtype",
+            "description": "account tier",
+        },
     )
-    await s("workitem_property", {"action": "manage_type_properties", "workitem_type_id": "$wtype", "attach_ids": "$prop"})
-    await s("workitem_property", {"action": "create_option", "property_id": "$prop", "name": "Silver"}, {"option": "id"})
+    await s(
+        "workitem_property", {"action": "manage_type_properties", "workitem_type_id": "$wtype", "attach_ids": "$prop"}
+    )
+    await s(
+        "workitem_property", {"action": "create_option", "property_id": "$prop", "name": "Silver"}, {"option": "id"}
+    )
     await s("workitem_property", {"action": "list_options", "property_id": "$prop"})
     await s("workitem_property", {"action": "retrieve_option", "property_id": "$prop", "option_id": "$option"})
-    await s("workitem_property", {"action": "update_option", "property_id": "$prop", "option_id": "$option", "color": "#9CA3AF"})
+    await s(
+        "workitem_property",
+        {"action": "update_option", "property_id": "$prop", "option_id": "$option", "color": "#9CA3AF"},
+    )
     await s("workitem_property", {"action": "set_value", **W, "property_id": "$prop", "value": "$option"})
     await s("workitem_property", {"action": "get_value", **W, "property_id": "$prop"})
     V["cf_pql"] = f'cf["{V.get("prop")}"] = "{V.get("option")}"'
     await s("workitem", {"action": "list", "project_id": P, "pql": "$cf_pql"})
     await s("workitem_property", {"action": "delete_value", **W, "property_id": "$prop"})
     await s("workitem_property", {"action": "delete_option", "property_id": "$prop", "option_id": "$option"})
-    await s("workitem_property", {"action": "manage_type_properties", "workitem_type_id": "$wtype", "detach_ids": "$prop"})
+    await s(
+        "workitem_property", {"action": "manage_type_properties", "workitem_type_id": "$wtype", "detach_ids": "$prop"}
+    )
     await s("workitem_property", {"action": "delete", "workitem_property_id": "$prop", "workitem_type_id": "$wtype"})
 
     # Templates
@@ -537,7 +623,12 @@ async def scenario(c: Client) -> None:
     # Customers
     await s(
         "customer_property",
-        {"action": "create", "display_name": f"Plan {SUFFIX}", "property_type": "TEXT", "display_format": "single-line"},
+        {
+            "action": "create",
+            "display_name": f"Plan {SUFFIX}",
+            "property_type": "TEXT",
+            "display_format": "single-line",
+        },
         {"cprop": "id"},
     )
     await s("customer_property", {"action": "list"})
@@ -585,7 +676,10 @@ async def scenario(c: Client) -> None:
     )
     await s("customer_request", {"action": "list", "customer_id": "$customer"})
     await s("customer_request", {"action": "retrieve", "customer_id": "$customer", "request_id": "$creq"})
-    await s("customer_request", {"action": "update", "customer_id": "$customer", "request_id": "$creq", "link": "https://x.example"})
+    await s(
+        "customer_request",
+        {"action": "update", "customer_id": "$customer", "request_id": "$creq", "link": "https://x.example"},
+    )
     await s("customer_request", {"action": "delete", "customer_id": "$customer", "request_id": "$creq"})
     await s("customer", {"action": "manage_workitems", "customer_id": "$customer", "unlink_ids": "$w1"})
     await s("customer", {"action": "delete", "customer_id": "$customer"})
@@ -597,7 +691,11 @@ async def scenario(c: Client) -> None:
     await paged("release_tag", {"action": "list"})
     await s("release_tag", {"action": "retrieve", "tag_id": "$tag"})
     await s("release_tag", {"action": "update", "tag_id": "$tag", "description": "first"})
-    await s("release", {"action": "create", "name": f"Launch {SUFFIX}", "tag_id": "$tag", "status": "unreleased"}, {"release": "id"})
+    await s(
+        "release",
+        {"action": "create", "name": f"Launch {SUFFIX}", "tag_id": "$tag", "status": "unreleased"},
+        {"release": "id"},
+    )
     await s("release", {"action": "list"})
     await paged("release", {"action": "list"})
     await s("release", {"action": "retrieve", "release_id": "$release"})
@@ -619,12 +717,16 @@ async def scenario(c: Client) -> None:
     await s("release_tag", {"action": "delete", "tag_id": "$tag"})
 
     # Milestones
-    await s("milestone", {"action": "create", "project_id": P, "title": "Beta", "target_date": end}, {"milestone": "id"})
+    await s(
+        "milestone", {"action": "create", "project_id": P, "title": "Beta", "target_date": end}, {"milestone": "id"}
+    )
     await s("milestone", {"action": "list", "project_id": P})
     await paged("milestone", {"action": "list", "project_id": P})
     await s("milestone", {"action": "retrieve", "project_id": P, "milestone_id": "$milestone"})
     await s("milestone", {"action": "update", "project_id": P, "milestone_id": "$milestone", "title": "Public beta"})
-    await s("milestone", {"action": "manage_workitems", "project_id": P, "milestone_id": "$milestone", "add_ids": "$w1"})
+    await s(
+        "milestone", {"action": "manage_workitems", "project_id": P, "milestone_id": "$milestone", "add_ids": "$w1"}
+    )
     await s("milestone", {"action": "list_workitems", "project_id": P, "milestone_id": "$milestone"})
     await s("milestone", {"action": "delete", "project_id": P, "milestone_id": "$milestone"})
 
@@ -660,7 +762,11 @@ async def scenario(c: Client) -> None:
     await s("collection", {"action": "retrieve", "collection_id": "$collection"})
     await s("collection", {"action": "update", "collection_id": "$collection", "name": f"Docs {SUFFIX} v2"})
     await s("collection", {"action": "add_pages", "collection_id": "$collection", "page_ids": "$wpage"})
-    await s("collection", {"action": "list_pages", "collection_id": "$collection"}, {"pagecol": lambda d: first(d, "page_collection_id")})
+    await s(
+        "collection",
+        {"action": "list_pages", "collection_id": "$collection"},
+        {"pagecol": lambda d: first(d, "page_collection_id")},
+    )
     await s("collection", {"action": "search_pages", "collection_id": "$collection", "search": "Hand"})
     await s("collection", {"action": "remove_page", "collection_id": "$collection", "page_collection_id": "$pagecol"})
     await s("page", {"action": "set_collection", "page_id": "$wpage", "collection_id": "$collection"})
@@ -672,9 +778,16 @@ async def scenario(c: Client) -> None:
     )
     await s(
         "collection",
-        {"action": "update_member", "collection_id": "$collection", "collection_member_id": "$cmember", "member_access": "view"},
+        {
+            "action": "update_member",
+            "collection_id": "$collection",
+            "collection_member_id": "$cmember",
+            "member_access": "view",
+        },
     )
-    await s("collection", {"action": "remove_member", "collection_id": "$collection", "collection_member_id": "$cmember"})
+    await s(
+        "collection", {"action": "remove_member", "collection_id": "$collection", "collection_member_id": "$cmember"}
+    )
     await s("collection", {"action": "delete", "collection_id": "$collection"})
     await s("page", {"action": "archive", "project_id": P, "page_id": "$page"})
     await s("page", {"action": "archive", "project_id": P, "page_id": "$page", "archive": False})
@@ -710,13 +823,17 @@ async def main() -> int:
         tools = await client.list_tools()
         await scenario(client)
 
-    declared = {f"{t.name}.{a}" for t in tools for a in (t.inputSchema["properties"].get("action", {}).get("enum") or ["read"])}
+    declared = {
+        f"{t.name}.{a}" for t in tools for a in (t.inputSchema["properties"].get("action", {}).get("enum") or ["read"])
+    }
     ran = {name for name, _, _ in RESULTS}
     failed = [r for r in RESULTS if r[1] == "FAIL"]
     for name, status, detail in RESULTS:
         print(f"{status:8} {name}" + (f"\n         {detail}" if status == "FAIL" else ""))
-    print(f"\n{len(tools)} tools, {len(declared)} actions declared; {len(ran & declared)} exercised; "
-          f"{sum(r[1] != 'FAIL' for r in RESULTS)} passed, {len(failed)} failed")
+    print(
+        f"\n{len(tools)} tools, {len(declared)} actions declared; {len(ran & declared)} exercised; "
+        f"{sum(r[1] != 'FAIL' for r in RESULTS)} passed, {len(failed)} failed"
+    )
     missing = sorted(declared - ran)
     if missing:
         print("not exercised:", ", ".join(missing))

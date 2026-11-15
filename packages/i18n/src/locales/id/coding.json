@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Perbaiki bug",
+      "write_test": "Tulis tes",
+      "write_and_run_test": "Tulis & jalankan tes"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Tugas coding"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Agen coding mencoba memperbaiki bug ini dan membuka pull request. Setelah diperbaiki, item kerja dipindahkan ke In review.",
+        "write_test": "Agen coding menulis tes untuk item kerja ini dan membuka pull request. Tes tidak dijalankan. Setelah itu item kerja dipindahkan ke Ready.",
+        "write_and_run_test": "Agen coding menulis tes dan menjalankannya. Jika lulus, item kerja dipindahkan ke Ready; jika gagal karena kodenya mengandung bug, item kerja dipindahkan ke Failed."
+      },
+      "agent": "Agen",
+      "machine": "Mesin",
+      "machine_auto": "Otomatis",
+      "machine_hint": "Tugas berjalan di salah satu mesin milik Anda sendiri. Pemilihan mesin akan tersedia nanti.",
+      "start": "Mulai tugas",
+      "starting": "Memulai..."
+    },
+    "toasts": {
+      "started": "Tugas coding dimulai",
+      "start_failed": "Tidak dapat memulai tugas coding",
+      "cancelled": "Tugas coding dibatalkan",
+      "cancel_failed": "Tidak dapat membatalkan tugas coding",
+      "retried": "Tugas coding dimulai lagi",
+      "retry_failed": "Tidak dapat mencoba ulang tugas coding"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Tugas coding belum disiapkan untuk proyek ini. Admin proyek harus mengaktifkannya dan mengatur repositori.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Tugas coding tidak dapat dijalankan pada draf, item kerja yang diarsipkan, atau item kerja yang menunggu di Penerimaan.",
+      "JOB_ACTIVE": "Item kerja ini sudah memiliki tugas jenis ini yang sedang berjalan.",
+      "JOB_NOT_ACTIVE": "Tugas ini sudah berakhir, sehingga tidak dapat dibatalkan.",
+      "JOB_NOT_RETRYABLE": "Hanya tugas yang dibatalkan atau yang tidak selesai yang dapat dicoba ulang.",
+      "forbidden": "Anda tidak memiliki izin untuk melakukan ini.",
+      "generic": "Terjadi kesalahan. Silakan coba lagi."
+    },
+    "panel": {
+      "title": "Tugas coding",
+      "refresh": "Segarkan tugas coding",
+      "empty": "Belum ada tugas coding.",
+      "load_failed": "Tidak dapat memuat tugas coding.",
+      "requested_by": "Dimulai oleh {name}",
+      "unknown_user": "Anggota tidak dikenal",
+      "finished": "Selesai {time}",
+      "error_reason": "Alasan",
+      "pr": "Pull request",
+      "cancel": "Batal",
+      "retry": "Coba lagi"
+    },
+    "status": {
+      "queued": "Dalam antrean",
+      "running": "Berjalan",
+      "needs_input": "Perlu masukan",
+      "finished": "Selesai",
+      "cancelled": "Dibatalkan"
+    },
+    "outcome": {
+      "fixed": "Diperbaiki",
+      "could_not_fix": "Tidak dapat diperbaiki",
+      "test_written": "Tes ditulis",
+      "test_passed": "Tes lulus",
+      "bug_found": "Bug ditemukan",
+      "job_error": "Tidak selesai"
+    },
+    "settings": {
+      "label": "Tugas coding",
+      "title": "Tugas coding",
+      "description": "Izinkan agen coding memperbaiki bug dan menulis tes dari item kerja proyek ini.",
+      "enabled": "Tugas coding",
+      "enabled_description": "Anggota dapat memulai Perbaiki bug, Tulis tes, dan Tulis & jalankan tes pada item kerja.",
+      "repo_url": "URL repositori",
+      "repo_url_hint": "Alamat https repositori tempat agen bekerja. Tanpa kredensial.",
+      "default_branch": "Cabang default",
+      "columns_title": "Kolom hasil",
+      "columns_description": "Status tujuan item kerja untuk setiap hasil.",
+      "column": {
+        "ready": "Siap",
+        "failed": "Gagal",
+        "in_review": "Dalam peninjauan"
+      },
+      "column_hint": {
+        "ready": "Setelah tes ditulis, atau ditulis dan lulus.",
+        "failed": "Saat tes gagal karena kode produk mengandung bug.",
+        "in_review": "Setelah bug diperbaiki dan pull request-nya dibuka."
+      },
+      "match_by_name": "Cocokkan berdasarkan nama (\"{name}\")",
+      "resolves_to": "Saat ini: {state}",
+      "resolves_to_by_name": "Saat ini: {state} (cocok berdasarkan nama)",
+      "resolves_none": "Saat ini: tidak ada status yang cocok, jadi item kerja tetap di tempatnya.",
+      "create_failed": "Buat kolom Failed",
+      "creating_failed": "Membuat...",
+      "failed_created": "Kolom Failed dibuat",
+      "create_failed_error": "Tidak dapat membuat kolom Failed",
+      "save": "Simpan perubahan",
+      "saving": "Menyimpan...",
+      "saved": "Pengaturan coding disimpan",
+      "save_failed": "Tidak dapat menyimpan pengaturan coding",
+      "read_only": "Hanya admin proyek yang dapat mengubah pengaturan ini.",
+      "not_configured": "Tugas coding nonaktif untuk proyek ini. Aktifkan dan atur repositori agar anggota dapat memulai tugas."
+    }
+  }
+}

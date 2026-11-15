@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Fix bug",
+      "write_test": "Write test",
+      "write_and_run_test": "Write & run test"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Coding job"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "A coding agent tries to fix this bug and opens a pull request. When it is fixed, the work item moves to In review.",
+        "write_test": "A coding agent writes a test for this work item and opens a pull request. The test is not run. The work item then moves to Ready.",
+        "write_and_run_test": "A coding agent writes a test and runs it. If it passes, the work item moves to Ready; if it fails because the code is buggy, it moves to Failed."
+      },
+      "agent": "Agent",
+      "machine": "Machine",
+      "machine_auto": "Auto",
+      "machine_hint": "The job runs on one of your own machines. Choosing a machine comes later.",
+      "start": "Start job",
+      "starting": "Starting..."
+    },
+    "toasts": {
+      "started": "Coding job started",
+      "start_failed": "Couldn't start the coding job",
+      "cancelled": "Coding job cancelled",
+      "cancel_failed": "Couldn't cancel the coding job",
+      "retried": "Coding job started again",
+      "retry_failed": "Couldn't retry the coding job"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Coding jobs are not set up for this project. A project admin must turn them on and set the repository.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Coding jobs can't run on drafts, archived work items or work items waiting in intake.",
+      "JOB_ACTIVE": "This work item already has a job of this kind in progress.",
+      "JOB_NOT_ACTIVE": "This job has already ended, so it can't be cancelled.",
+      "JOB_NOT_RETRYABLE": "Only a cancelled job or one that did not finish can be retried.",
+      "forbidden": "You don't have permission to do this.",
+      "generic": "Something went wrong. Please try again."
+    },
+    "panel": {
+      "title": "Coding jobs",
+      "refresh": "Refresh coding jobs",
+      "empty": "No coding jobs yet.",
+      "load_failed": "Couldn't load the coding jobs.",
+      "requested_by": "Started by {name}",
+      "unknown_user": "Unknown member",
+      "finished": "Finished {time}",
+      "error_reason": "Reason",
+      "pr": "Pull request",
+      "cancel": "Cancel",
+      "retry": "Retry"
+    },
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "needs_input": "Needs input",
+      "finished": "Finished",
+      "cancelled": "Cancelled"
+    },
+    "outcome": {
+      "fixed": "Fixed",
+      "could_not_fix": "Could not fix",
+      "test_written": "Test written",
+      "test_passed": "Test passed",
+      "bug_found": "Bug found",
+      "job_error": "Did not finish"
+    },
+    "settings": {
+      "label": "Coding jobs",
+      "title": "Coding jobs",
+      "description": "Let coding agents fix bugs and write tests from this project's work items.",
+      "enabled": "Coding jobs",
+      "enabled_description": "Members can start Fix bug, Write test and Write & run test on work items.",
+      "repo_url": "Repository URL",
+      "repo_url_hint": "The https address of the repository the agents work in. No credentials.",
+      "default_branch": "Default branch",
+      "columns_title": "Outcome columns",
+      "columns_description": "The state each outcome moves the work item to.",
+      "column": {
+        "ready": "Ready",
+        "failed": "Failed",
+        "in_review": "In review"
+      },
+      "column_hint": {
+        "ready": "After a test is written, or written and passing.",
+        "failed": "When a test fails because the product code is buggy.",
+        "in_review": "After a bug is fixed and its pull request is open."
+      },
+      "match_by_name": "Match by name (\"{name}\")",
+      "resolves_to": "Now: {state}",
+      "resolves_to_by_name": "Now: {state} (matched by name)",
+      "resolves_none": "Now: no matching state, so the work item stays where it is.",
+      "create_failed": "Create Failed column",
+      "creating_failed": "Creating...",
+      "failed_created": "Failed column created",
+      "create_failed_error": "Couldn't create the Failed column",
+      "save": "Save changes",
+      "saving": "Saving...",
+      "saved": "Coding settings saved",
+      "save_failed": "Couldn't save the coding settings",
+      "read_only": "Only project admins can change these settings.",
+      "not_configured": "Coding jobs are off for this project. Turn them on and set the repository so members can start jobs."
+    }
+  }
+}

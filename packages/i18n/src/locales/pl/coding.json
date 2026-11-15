@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Napraw błąd",
+      "write_test": "Napisz test",
+      "write_and_run_test": "Napisz i uruchom test"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Zadanie programistyczne"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Agent programistyczny próbuje naprawić ten błąd i otwiera pull request. Po naprawie element pracy zostaje przeniesiony do „In review”.",
+        "write_test": "Agent programistyczny pisze test dla tego elementu pracy i otwiera pull request. Test nie jest uruchamiany. Następnie element pracy zostaje przeniesiony do „Ready”.",
+        "write_and_run_test": "Agent programistyczny pisze test i go uruchamia. Jeśli test przejdzie, element pracy zostaje przeniesiony do „Ready”; jeśli nie przejdzie z powodu błędu w kodzie, zostaje przeniesiony do „Failed”."
+      },
+      "agent": "Agent",
+      "machine": "Maszyna",
+      "machine_auto": "Automatycznie",
+      "machine_hint": "Zadanie działa na jednej z Twoich własnych maszyn. Wybór maszyny pojawi się później.",
+      "start": "Uruchom zadanie",
+      "starting": "Uruchamianie..."
+    },
+    "toasts": {
+      "started": "Uruchomiono zadanie programistyczne",
+      "start_failed": "Nie udało się uruchomić zadania programistycznego",
+      "cancelled": "Anulowano zadanie programistyczne",
+      "cancel_failed": "Nie udało się anulować zadania programistycznego",
+      "retried": "Ponownie uruchomiono zadanie programistyczne",
+      "retry_failed": "Nie udało się ponowić zadania programistycznego"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Zadania programistyczne nie są skonfigurowane dla tego projektu. Administrator projektu musi je włączyć i ustawić repozytorium.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Zadań programistycznych nie można uruchamiać dla szkiców, zarchiwizowanych elementów pracy ani elementów pracy oczekujących w Zgłoszeniach.",
+      "JOB_ACTIVE": "Dla tego elementu pracy trwa już zadanie tego rodzaju.",
+      "JOB_NOT_ACTIVE": "To zadanie już się zakończyło, więc nie można go anulować.",
+      "JOB_NOT_RETRYABLE": "Ponowić można tylko anulowane zadanie lub takie, które się nie zakończyło.",
+      "forbidden": "Brak uprawnień do wykonania tej czynności.",
+      "generic": "Coś poszło nie tak. Spróbuj ponownie."
+    },
+    "panel": {
+      "title": "Zadania programistyczne",
+      "refresh": "Odśwież zadania programistyczne",
+      "empty": "Brak zadań programistycznych.",
+      "load_failed": "Nie udało się wczytać zadań programistycznych.",
+      "requested_by": "Uruchomione przez: {name}",
+      "unknown_user": "Nieznany członek",
+      "finished": "Zakończone {time}",
+      "error_reason": "Powód",
+      "pr": "Pull request",
+      "cancel": "Anuluj",
+      "retry": "Ponów"
+    },
+    "status": {
+      "queued": "W kolejce",
+      "running": "W toku",
+      "needs_input": "Wymaga danych",
+      "finished": "Zakończone",
+      "cancelled": "Anulowane"
+    },
+    "outcome": {
+      "fixed": "Naprawiono",
+      "could_not_fix": "Nie udało się naprawić",
+      "test_written": "Napisano test",
+      "test_passed": "Test zaliczony",
+      "bug_found": "Znaleziono błąd",
+      "job_error": "Nie zakończono"
+    },
+    "settings": {
+      "label": "Zadania programistyczne",
+      "title": "Zadania programistyczne",
+      "description": "Pozwól agentom programistycznym naprawiać błędy i pisać testy na podstawie elementów pracy tego projektu.",
+      "enabled": "Zadania programistyczne",
+      "enabled_description": "Członkowie mogą uruchamiać „Napraw błąd”, „Napisz test” oraz „Napisz i uruchom test” dla elementów pracy.",
+      "repo_url": "URL repozytorium",
+      "repo_url_hint": "Adres https repozytorium, w którym pracują agenci. Bez danych uwierzytelniających.",
+      "default_branch": "Domyślna gałąź",
+      "columns_title": "Kolumny wyników",
+      "columns_description": "Stan, do którego każdy wynik przenosi element pracy.",
+      "column": {
+        "ready": "Gotowe",
+        "failed": "Nieudane",
+        "in_review": "W przeglądzie"
+      },
+      "column_hint": {
+        "ready": "Po napisaniu testu lub gdy test jest napisany i zaliczony.",
+        "failed": "Gdy test nie przechodzi, ponieważ kod produktu zawiera błąd.",
+        "in_review": "Po naprawieniu błędu i otwarciu jego pull requesta."
+      },
+      "match_by_name": "Dopasuj po nazwie („{name}”)",
+      "resolves_to": "Obecnie: {state}",
+      "resolves_to_by_name": "Obecnie: {state} (dopasowano po nazwie)",
+      "resolves_none": "Obecnie: brak pasującego stanu, więc element pracy pozostaje na miejscu.",
+      "create_failed": "Utwórz kolumnę Failed",
+      "creating_failed": "Tworzenie...",
+      "failed_created": "Utworzono kolumnę Failed",
+      "create_failed_error": "Nie udało się utworzyć kolumny Failed",
+      "save": "Zapisz zmiany",
+      "saving": "Zapisywanie...",
+      "saved": "Zapisano ustawienia zadań programistycznych",
+      "save_failed": "Nie udało się zapisać ustawień zadań programistycznych",
+      "read_only": "Tylko administratorzy projektu mogą zmieniać te ustawienia.",
+      "not_configured": "Zadania programistyczne są wyłączone dla tego projektu. Włącz je i ustaw repozytorium, aby członkowie mogli uruchamiać zadania."
+    }
+  }
+}

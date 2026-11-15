@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Corregir error",
+      "write_test": "Escribir prueba",
+      "write_and_run_test": "Escribir y ejecutar prueba"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Tarea de programación"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Un agente de programación intenta corregir este error y abre una pull request. Cuando se corrige, el elemento de trabajo pasa a \"In review\".",
+        "write_test": "Un agente de programación escribe una prueba para este elemento de trabajo y abre una pull request. La prueba no se ejecuta. Después, el elemento de trabajo pasa a \"Ready\".",
+        "write_and_run_test": "Un agente de programación escribe una prueba y la ejecuta. Si se supera, el elemento de trabajo pasa a \"Ready\"; si falla porque el código tiene errores, pasa a \"Failed\"."
+      },
+      "agent": "Agente",
+      "machine": "Máquina",
+      "machine_auto": "Automática",
+      "machine_hint": "La tarea se ejecuta en una de tus propias máquinas. La elección de máquina llegará más adelante.",
+      "start": "Iniciar tarea",
+      "starting": "Iniciando..."
+    },
+    "toasts": {
+      "started": "Tarea de programación iniciada",
+      "start_failed": "No se pudo iniciar la tarea de programación",
+      "cancelled": "Tarea de programación cancelada",
+      "cancel_failed": "No se pudo cancelar la tarea de programación",
+      "retried": "Tarea de programación iniciada de nuevo",
+      "retry_failed": "No se pudo reintentar la tarea de programación"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Las tareas de programación no están configuradas para este proyecto. Un administrador del proyecto debe activarlas y definir el repositorio.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Las tareas de programación no se pueden ejecutar en borradores, elementos de trabajo archivados ni elementos de trabajo pendientes en Entrada.",
+      "JOB_ACTIVE": "Este elemento de trabajo ya tiene una tarea de este tipo en curso.",
+      "JOB_NOT_ACTIVE": "Esta tarea ya ha terminado, así que no se puede cancelar.",
+      "JOB_NOT_RETRYABLE": "Solo se puede reintentar una tarea cancelada o una que no terminó.",
+      "forbidden": "No tienes permiso para hacer esto.",
+      "generic": "Algo salió mal. Inténtalo de nuevo."
+    },
+    "panel": {
+      "title": "Tareas de programación",
+      "refresh": "Actualizar tareas de programación",
+      "empty": "Aún no hay tareas de programación.",
+      "load_failed": "No se pudieron cargar las tareas de programación.",
+      "requested_by": "Iniciada por {name}",
+      "unknown_user": "Miembro desconocido",
+      "finished": "Finalizada {time}",
+      "error_reason": "Motivo",
+      "pr": "Pull request",
+      "cancel": "Cancelar",
+      "retry": "Reintentar"
+    },
+    "status": {
+      "queued": "En cola",
+      "running": "En ejecución",
+      "needs_input": "Requiere información",
+      "finished": "Finalizada",
+      "cancelled": "Cancelada"
+    },
+    "outcome": {
+      "fixed": "Corregido",
+      "could_not_fix": "No se pudo corregir",
+      "test_written": "Prueba escrita",
+      "test_passed": "Prueba superada",
+      "bug_found": "Error encontrado",
+      "job_error": "No terminó"
+    },
+    "settings": {
+      "label": "Tareas de programación",
+      "title": "Tareas de programación",
+      "description": "Permite que agentes de programación corrijan errores y escriban pruebas a partir de los elementos de trabajo de este proyecto.",
+      "enabled": "Tareas de programación",
+      "enabled_description": "Los miembros pueden iniciar \"Corregir error\", \"Escribir prueba\" y \"Escribir y ejecutar prueba\" en los elementos de trabajo.",
+      "repo_url": "URL del repositorio",
+      "repo_url_hint": "La dirección https del repositorio en el que trabajan los agentes. Sin credenciales.",
+      "default_branch": "Rama predeterminada",
+      "columns_title": "Columnas de resultado",
+      "columns_description": "El estado al que cada resultado mueve el elemento de trabajo.",
+      "column": {
+        "ready": "Listo",
+        "failed": "Fallido",
+        "in_review": "En revisión"
+      },
+      "column_hint": {
+        "ready": "Después de escribir una prueba, o cuando está escrita y se supera.",
+        "failed": "Cuando una prueba falla porque el código del producto tiene errores.",
+        "in_review": "Después de corregir un error y abrir su pull request."
+      },
+      "match_by_name": "Coincidir por nombre (\"{name}\")",
+      "resolves_to": "Ahora: {state}",
+      "resolves_to_by_name": "Ahora: {state} (coincidencia por nombre)",
+      "resolves_none": "Ahora: ningún estado coincide, así que el elemento de trabajo se queda donde está.",
+      "create_failed": "Crear columna Failed",
+      "creating_failed": "Creando...",
+      "failed_created": "Columna Failed creada",
+      "create_failed_error": "No se pudo crear la columna Failed",
+      "save": "Guardar cambios",
+      "saving": "Guardando...",
+      "saved": "Configuración de programación guardada",
+      "save_failed": "No se pudo guardar la configuración de programación",
+      "read_only": "Solo los administradores del proyecto pueden cambiar esta configuración.",
+      "not_configured": "Las tareas de programación están desactivadas para este proyecto. Actívalas y define el repositorio para que los miembros puedan iniciar tareas."
+    }
+  }
+}

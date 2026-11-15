@@ -1,0 +1,110 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Fehler beheben",
+      "write_test": "Test schreiben",
+      "write_and_run_test": "Test schreiben & ausführen"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Coding-Job"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Ein Coding-Agent versucht, diesen Fehler zu beheben, und öffnet einen Pull Request. Sobald der Fehler behoben ist, wird das Arbeitselement nach „In review“ verschoben.",
+        "write_test": "Ein Coding-Agent schreibt einen Test für dieses Arbeitselement und öffnet einen Pull Request. Der Test wird nicht ausgeführt. Anschließend wird das Arbeitselement nach „Ready“ verschoben.",
+        "write_and_run_test": "Ein Coding-Agent schreibt einen Test und führt ihn aus. Ist er erfolgreich, wird das Arbeitselement nach „Ready“ verschoben; schlägt er fehl, weil der Code fehlerhaft ist, wird es nach „Failed“ verschoben."
+      },
+      "agent": "Agent",
+      "machine": "Rechner",
+      "machine_auto": "Automatisch",
+      "machine_hint": "Der Job läuft auf einem Ihrer eigenen Rechner. Die Auswahl eines Rechners folgt später.",
+      "start": "Job starten",
+      "starting": "Wird gestartet..."
+    },
+    "toasts": {
+      "started": "Coding-Job gestartet",
+      "start_failed": "Der Coding-Job konnte nicht gestartet werden",
+      "cancelled": "Coding-Job abgebrochen",
+      "cancel_failed": "Der Coding-Job konnte nicht abgebrochen werden",
+      "retried": "Coding-Job erneut gestartet",
+      "retry_failed": "Der Coding-Job konnte nicht erneut gestartet werden"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Coding-Jobs sind für dieses Projekt nicht eingerichtet. Ein Projektadministrator muss sie aktivieren und das Repository festlegen.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Coding-Jobs können nicht für Entwürfe, archivierte Arbeitselemente oder Arbeitselemente im Eingang ausgeführt werden.",
+      "JOB_ACTIVE": "Für dieses Arbeitselement läuft bereits ein Job dieser Art.",
+      "JOB_NOT_ACTIVE": "Dieser Job ist bereits beendet und kann daher nicht abgebrochen werden.",
+      "JOB_NOT_RETRYABLE": "Nur ein abgebrochener oder nicht abgeschlossener Job kann erneut versucht werden.",
+      "forbidden": "Sie haben keine Berechtigung, dies zu tun.",
+      "generic": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut."
+    },
+    "panel": {
+      "title": "Coding-Jobs",
+      "refresh": "Coding-Jobs aktualisieren",
+      "empty": "Noch keine Coding-Jobs.",
+      "load_failed": "Die Coding-Jobs konnten nicht geladen werden.",
+      "requested_by": "Gestartet von {name}",
+      "unknown_user": "Unbekanntes Mitglied",
+      "finished": "Beendet {time}",
+      "error_reason": "Grund",
+      "pr": "Pull Request",
+      "cancel": "Abbrechen",
+      "retry": "Erneut versuchen"
+    },
+    "status": {
+      "queued": "In Warteschlange",
+      "running": "Läuft",
+      "needs_input": "Eingabe erforderlich",
+      "finished": "Abgeschlossen",
+      "cancelled": "Abgebrochen"
+    },
+    "outcome": {
+      "fixed": "Behoben",
+      "could_not_fix": "Nicht behoben",
+      "test_written": "Test geschrieben",
+      "test_passed": "Test bestanden",
+      "bug_found": "Fehler gefunden",
+      "job_error": "Nicht abgeschlossen"
+    },
+    "settings": {
+      "label": "Coding-Jobs",
+      "title": "Coding-Jobs",
+      "description": "Lassen Sie Coding-Agenten Fehler beheben und Tests anhand der Arbeitselemente dieses Projekts schreiben.",
+      "enabled": "Coding-Jobs",
+      "enabled_description": "Mitglieder können „Fehler beheben“, „Test schreiben“ und „Test schreiben & ausführen“ für Arbeitselemente starten.",
+      "repo_url": "Repository-URL",
+      "repo_url_hint": "Die https-Adresse des Repositorys, in dem die Agenten arbeiten. Ohne Zugangsdaten.",
+      "default_branch": "Standard-Branch",
+      "columns_title": "Ergebnisspalten",
+      "columns_description": "Der Status, in den das jeweilige Ergebnis das Arbeitselement verschiebt.",
+      "column": {
+        "ready": "Bereit",
+        "failed": "Fehlgeschlagen",
+        "in_review": "In Prüfung"
+      },
+      "column_hint": {
+        "ready": "Nachdem ein Test geschrieben wurde oder geschrieben und bestanden ist.",
+        "failed": "Wenn ein Test fehlschlägt, weil der Produktcode fehlerhaft ist.",
+        "in_review": "Nachdem ein Fehler behoben und der zugehörige Pull Request geöffnet ist."
+      },
+      "match_by_name": "Nach Name zuordnen („{name}“)",
+      "resolves_to": "Aktuell: {state}",
+      "resolves_to_by_name": "Aktuell: {state} (nach Name zugeordnet)",
+      "resolves_none": "Aktuell: kein passender Status, daher bleibt das Arbeitselement, wo es ist.",
+      "create_failed": "Spalte „Failed“ erstellen",
+      "creating_failed": "Wird erstellt...",
+      "failed_created": "Spalte „Failed“ erstellt",
+      "create_failed_error": "Die Spalte „Failed“ konnte nicht erstellt werden",
+      "save": "Änderungen speichern",
+      "saving": "Wird gespeichert...",
+      "saved": "Coding-Einstellungen gespeichert",
+      "save_failed": "Die Coding-Einstellungen konnten nicht gespeichert werden",
+      "read_only": "Nur Projektadministratoren können diese Einstellungen ändern.",
+      "not_configured": "Coding-Jobs sind für dieses Projekt deaktiviert. Aktivieren Sie sie und legen Sie das Repository fest, damit Mitglieder Jobs starten können."
+    }
+  }
+}

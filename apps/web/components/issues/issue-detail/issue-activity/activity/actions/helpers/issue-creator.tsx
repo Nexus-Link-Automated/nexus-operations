@@ -28,6 +28,10 @@ export function IssueCreatorDisplay(props: TIssueUser) {
     <>
       {customUserName ? (
         <span className="text-primary">{customUserName || "Plane"}</span>
+      ) : activity.actor_detail?.is_bot ? (
+        // Bots (such as the "Coding agent" that applies coding job outcomes) are not workspace members, so they have
+        // no profile page to link to.
+        <span className="text-primary">{`${activity.actor_detail.first_name} Bot`}</span>
       ) : (
         <Link
           href={`/${activity?.workspace_detail?.slug}/profile/${activity?.actor_detail?.id}`}
