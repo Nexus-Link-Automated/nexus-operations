@@ -851,7 +851,6 @@ class IssueRetrievePublicEndpoint(BaseAPIView):
                 "description_json",
                 "description_html",
                 "description_stripped",
-                "description_binary",
                 "module_ids",
                 "label_ids",
                 "assignee_ids",
