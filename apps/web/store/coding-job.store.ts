@@ -53,7 +53,9 @@ export interface ICodingJobStore {
     projectId: string,
     workItemId: string,
     jobAction: TCodingAction,
-    agent: TCodingAgent
+    agent: TCodingAgent,
+    /** One of the requester's approved machines; null (the default) is Auto. */
+    machine?: string | null
   ) => Promise<TCodingJob>;
   cancelJob: (workspaceSlug: string, projectId: string, workItemId: string, jobId: string) => Promise<TCodingJob>;
   retryJob: (workspaceSlug: string, projectId: string, workItemId: string, jobId: string) => Promise<TCodingJob>;
@@ -143,10 +145,11 @@ export class CodingJobStore implements ICodingJobStore {
     projectId: string,
     workItemId: string,
     jobAction: TCodingAction,
-    agent: TCodingAgent
+    agent: TCodingAgent,
+    machine: string | null = null
   ) => {
     try {
-      const job = await this.service.start(workspaceSlug, projectId, workItemId, { action: jobAction, agent });
+      const job = await this.service.start(workspaceSlug, projectId, workItemId, { action: jobAction, agent, machine });
       this.upsertJob(workItemId, job);
       return job;
     } catch (error) {

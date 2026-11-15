@@ -300,6 +300,10 @@ export const coreRoutes: RouteConfigEntry[] = [
             ":workspaceSlug/settings/ai-providers",
             "./(all)/[workspaceSlug]/(settings)/settings/(workspace)/ai-providers/page.tsx"
           ),
+          route(
+            ":workspaceSlug/settings/coding-machines",
+            "./(all)/[workspaceSlug]/(settings)/settings/(workspace)/coding-machines/page.tsx"
+          ),
         ]),
 
         // --------------------------------------------------------------------

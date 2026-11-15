@@ -21,7 +21,7 @@
       "agent": "Agent",
       "machine": "Machine",
       "machine_auto": "Automatisch",
-      "machine_hint": "De taak draait op een van je eigen machines. Een machine kiezen komt later.",
+      "machine_hint": "Je eigen goedgekeurde machines die online zijn. Automatisch kiest er een.",
       "start": "Taak starten",
       "starting": "Starten..."
     },
@@ -39,6 +39,10 @@
       "JOB_ACTIVE": "Dit werkitem heeft al een taak van dit type in uitvoering.",
       "JOB_NOT_ACTIVE": "Deze taak is al beëindigd en kan dus niet worden geannuleerd.",
       "JOB_NOT_RETRYABLE": "Alleen een geannuleerde taak of een taak die niet is voltooid, kan opnieuw worden geprobeerd.",
+      "MACHINE_NOT_AVAILABLE": "Die machine is niet meer een van je goedgekeurde machines. Kies een andere of Automatisch.",
+      "MACHINE_LIMIT": "Je hebt al het maximale aantal machines in deze werkruimte. Verwijder er eerst een.",
+      "MACHINE_NOT_JOINED": "Deze machine is nog niet gekoppeld, dus er valt niets goed te keuren.",
+      "MACHINE_REVOKED": "Een werkruimtebeheerder heeft deze machine ingetrokken.",
       "forbidden": "Je hebt geen toestemming om dit te doen.",
       "generic": "Er is iets misgegaan. Probeer het opnieuw."
     },
@@ -105,6 +109,112 @@
       "save_failed": "Kan de codeerinstellingen niet opslaan",
       "read_only": "Alleen projectbeheerders kunnen deze instellingen wijzigen.",
       "not_configured": "Codeertaken zijn uitgeschakeld voor dit project. Schakel ze in en stel de repository in zodat leden taken kunnen starten."
+    }
+  },
+  "coding_machines": {
+    "label": "Machines",
+    "title": "Machines",
+    "description": "Je eigen computers die je codeertaken in {workspace} uitvoeren. Elke machine gebruikt zijn eigen Codex- en Claude-aanmeldingen en maakt alleen uitgaande verbindingen met het CRM.",
+    "no_workspace": "Machines horen bij een werkruimte. Word lid van een werkruimte of maak er een om een machine toe te voegen.",
+    "guest": "Machines zijn niet beschikbaar voor gasten.",
+    "empty": "Nog geen machines. Voeg je computer toe om je codeertaken erop uit te voeren.",
+    "load_failed": "Kan de machines niet laden.",
+    "add": "Machine toevoegen",
+    "state": {
+      "pending": "Wacht op koppeling",
+      "awaiting_approval": "Wacht op goedkeuring",
+      "active": "Actief",
+      "revoked": "Ingetrokken"
+    },
+    "online": "Online",
+    "offline": "Offline",
+    "last_seen": "laatst gezien {time}",
+    "never_seen": "nooit verbonden",
+    "host": "Host",
+    "agents": "Agents",
+    "no_agents": "Geen gevonden",
+    "agent_signed_in": "aangemeld",
+    "agent_not_signed_in": "niet aangemeld",
+    "agent_not_installed": "niet geïnstalleerd",
+    "docker": "Docker",
+    "docker_available": "Beschikbaar",
+    "docker_unavailable": "Niet beschikbaar",
+    "slots": "Vrije plaatsen",
+    "slots_value": "{free} van {total}",
+    "unknown": "onbekend",
+    "pending_hint": "Wacht tot de machine zich met zijn code koppelt. De code is geldig tot {time}.",
+    "pending_expired": "De koppelcode is verlopen voordat de machine hem gebruikte. Verwijder deze machine en voeg hem opnieuw toe.",
+    "awaiting_hint": "De machine is gekoppeld als {hostname}. Als dat je computer is, keur hem goed zodat hij je taken kan uitvoeren.",
+    "revoked_hint": "Een werkruimtebeheerder heeft deze machine ingetrokken: hij kan geen verbinding maken en krijgt geen taken. Je kunt hem verwijderen.",
+    "actions": {
+      "approve": "Goedkeuren",
+      "rename": "Hernoemen",
+      "remove": "Verwijderen"
+    },
+    "add_dialog": {
+      "title": "Machine toevoegen",
+      "description": "Geef de computer een naam. Daarna krijg je een koppelcode om erop te gebruiken.",
+      "name": "Naam",
+      "name_placeholder": "bijv. Werklaptop",
+      "create": "Machine toevoegen",
+      "creating": "Toevoegen...",
+      "code_title": "{name} koppelen",
+      "code_description": "Voer deze opdrachten uit op de machine. De koppelcode werkt één keer en wordt alleen nu getoond: zodra je dit venster sluit, is hij weg.",
+      "step_join": "1. Koppelen met de code",
+      "step_start": "2. De machineservice starten",
+      "copy": "Kopiëren",
+      "copied": "Gekopieerd naar klembord",
+      "expires": "De code verloopt op {time}.",
+      "after": "Zodra de machine als Wacht op goedkeuring wordt getoond, controleer je de hostnaam en keur je hem goed.",
+      "done": "Klaar"
+    },
+    "rename_dialog": {
+      "title": "Machine hernoemen",
+      "save": "Opslaan",
+      "saving": "Opslaan..."
+    },
+    "approve_dialog": {
+      "title": "{name} goedkeuren?",
+      "description": "De machine meldt host {hostname} ({os}). Keur hem alleen goed als het je eigen computer is: hij voert je codeertaken uit.",
+      "confirm": "Goedkeuren",
+      "confirming": "Goedkeuren..."
+    },
+    "remove_dialog": {
+      "title": "{name} verwijderen?",
+      "description": "De machine wordt definitief verwijderd: de sleutel werkt meteen niet meer en hij krijgt geen taken meer. Om hem weer te gebruiken, voeg je hem opnieuw toe.",
+      "confirm": "Verwijderen",
+      "confirming": "Verwijderen..."
+    },
+    "toasts": {
+      "added": "Machine toegevoegd",
+      "add_failed": "Kan de machine niet toevoegen",
+      "approved": "Machine goedgekeurd",
+      "approve_failed": "Kan de machine niet goedkeuren",
+      "renamed": "Machine hernoemd",
+      "rename_failed": "Kan de machine niet hernoemen",
+      "removed": "Machine verwijderd",
+      "remove_failed": "Kan de machine niet verwijderen",
+      "revoked": "Machine ingetrokken",
+      "revoke_failed": "Kan de machine niet intrekken"
+    },
+    "admin": {
+      "label": "Machines",
+      "title": "Machines",
+      "description": "Alle machines die mensen in deze werkruimte hebben toegevoegd voor hun codeertaken. Intrekken sluit een machine meteen af: de sleutel werkt niet meer en hij krijgt geen taken.",
+      "empty": "Nog niemand in deze werkruimte heeft een machine toegevoegd.",
+      "owner": "Eigenaar",
+      "name": "Machine",
+      "state": "Toestand",
+      "status": "Status",
+      "last_seen": "Laatst gezien",
+      "never": "Nooit",
+      "revoke": "Intrekken",
+      "revoke_dialog": {
+        "title": "{name} intrekken?",
+        "description": "Deze machine van {owner} werkt meteen niet meer en krijgt geen taken meer. Alleen de eigenaar kan hem verwijderen.",
+        "confirm": "Intrekken",
+        "confirming": "Intrekken..."
+      }
     }
   }
 }

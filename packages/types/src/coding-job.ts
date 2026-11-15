@@ -30,6 +30,8 @@ export type TCodingJob = {
   retry_of: string | null;
   comment: string | null;
   requested_by: string | null;
+  /** The requester's machine the job was sent to; null is Auto. */
+  machine: string | null;
   is_active: boolean;
   is_retryable: boolean;
   started_at: string | null;
@@ -68,6 +70,7 @@ export type TProjectCodingSettingsUpdate = Partial<
 /** The codes the coding endpoints refuse with (`{"error", "code"}`). */
 export type TCodingErrorCode =
   | "CODING_NOT_CONFIGURED"
+  | "MACHINE_NOT_AVAILABLE"
   | "WORK_ITEM_NOT_ELIGIBLE"
   | "JOB_ACTIVE"
   | "JOB_NOT_ACTIVE"

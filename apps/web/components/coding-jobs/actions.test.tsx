@@ -9,11 +9,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CodingJobServiceError } from "@plane/services";
 import type { TIssue } from "@plane/types";
 import { CodingJobStore } from "@/store/coding-job.store";
+import { CodingMachineStore } from "@/store/coding-machine.store";
+import { fakeMachineService } from "../coding-machines/test-utils";
 import type { TRole } from "./test-utils";
 import { fakeCodingService, makeJob, makeSettings, permissionsFor } from "./test-utils";
 
 const mocks = vi.hoisted(() => ({
   store: undefined as unknown,
+  machineStore: undefined as unknown,
   role: "member" as string,
   workspaceRole: "member" as string,
   issue: undefined as Partial<TIssue> | undefined,
@@ -25,6 +28,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@plane/i18n", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock("@plane/blocks/toast", () => ({ setToast: mocks.setToast }));
 vi.mock("@/hooks/store/use-coding-job", () => ({ useCodingJob: () => mocks.store }));
+vi.mock("@/hooks/store/use-coding-machine", () => ({
+  useCodingMachine: () => mocks.machineStore,
+}));
 vi.mock("@/hooks/store/use-issue-detail", () => ({
   useIssueDetail: () => ({ issue: { getIssueById: () => mocks.issue } }),
 }));
@@ -33,6 +39,7 @@ vi.mock("@/hooks/store/use-project-state", () => ({
 }));
 vi.mock("@/hooks/store/user", () => ({
   useUserPermissions: () => permissionsFor(mocks.role as TRole, mocks.workspaceRole as TRole),
+  useUser: () => ({ data: { id: "me" } }),
 }));
 
 // oxlint-disable-next-line import/first -- the module under test must load after the mocks
@@ -43,6 +50,7 @@ const activeIssue: Partial<TIssue> = { id: "w1", state_id: "s1", archived_at: nu
 function setup(service = fakeCodingService()) {
   const store = new CodingJobStore({ service });
   mocks.store = store;
+  mocks.machineStore = new CodingMachineStore({ service: fakeMachineService() });
   render(<CodingJobActions workspaceSlug="acme" projectId="p1" issueId="w1" />);
   return { service, store };
 }
@@ -107,12 +115,16 @@ describe("CodingJobActions", () => {
     fireEvent.click(trigger()!);
     fireEvent.click(await screen.findByRole("menuitem", { name: "coding_jobs.actions.write_and_run_test" }));
     expect(await screen.findByText("coding_jobs.start_dialog.description.write_and_run_test")).toBeTruthy();
-    // The machine picker offers only Auto until machines can be registered.
+    // With no machines of the requester's online, the machine picker offers only Auto.
     expect(screen.getByText("coding_jobs.start_dialog.machine_auto")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "coding_jobs.start_dialog.start" }));
 
     await waitFor(() =>
-      expect(service.start).toHaveBeenCalledWith("acme", "p1", "w1", { action: "write_and_run_test", agent: "codex" })
+      expect(service.start).toHaveBeenCalledWith("acme", "p1", "w1", {
+        action: "write_and_run_test",
+        agent: "codex",
+        machine: null,
+      })
     );
     await waitFor(() =>
       expect(mocks.setToast).toHaveBeenCalledWith({ type: "success", title: "coding_jobs.toasts.started" })

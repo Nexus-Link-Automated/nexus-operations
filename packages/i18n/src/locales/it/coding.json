@@ -21,7 +21,7 @@
       "agent": "Agente",
       "machine": "Macchina",
       "machine_auto": "Automatica",
-      "machine_hint": "L'attività viene eseguita su una delle tue macchine. La scelta della macchina arriverà in seguito.",
+      "machine_hint": "Le tue macchine approvate che sono online. Automatica ne sceglie una.",
       "start": "Avvia attività",
       "starting": "Avvio..."
     },
@@ -39,6 +39,10 @@
       "JOB_ACTIVE": "Questo elemento di lavoro ha già un'attività di questo tipo in corso.",
       "JOB_NOT_ACTIVE": "Questa attività è già terminata, quindi non può essere annullata.",
       "JOB_NOT_RETRYABLE": "Solo un'attività annullata o non completata può essere riprovata.",
+      "MACHINE_NOT_AVAILABLE": "Quella macchina non è più tra le tue macchine approvate. Scegline un'altra o Automatica.",
+      "MACHINE_LIMIT": "Hai già il numero massimo di macchine consentito in questo workspace. Rimuovine prima una.",
+      "MACHINE_NOT_JOINED": "Questa macchina non si è ancora collegata, quindi non c'è nulla da approvare.",
+      "MACHINE_REVOKED": "Questa macchina è stata revocata da un amministratore del workspace.",
       "forbidden": "Non hai l'autorizzazione per farlo.",
       "generic": "Qualcosa è andato storto. Riprova."
     },
@@ -105,6 +109,112 @@
       "save_failed": "Impossibile salvare le impostazioni di coding",
       "read_only": "Solo gli amministratori del progetto possono modificare queste impostazioni.",
       "not_configured": "Le attività di coding sono disattivate per questo progetto. Attivale e imposta il repository affinché i membri possano avviare attività."
+    }
+  },
+  "coding_machines": {
+    "label": "Macchine",
+    "title": "Macchine",
+    "description": "I tuoi computer che eseguono le tue attività di coding in {workspace}. Ognuno usa i propri accessi a Codex e Claude e si collega solo in uscita al CRM.",
+    "no_workspace": "Le macchine appartengono a un workspace. Unisciti a un workspace o creane uno per aggiungerne una.",
+    "guest": "Le macchine non sono disponibili per gli ospiti.",
+    "empty": "Nessuna macchina. Aggiungi il tuo computer per eseguire su di esso le tue attività di coding.",
+    "load_failed": "Impossibile caricare le macchine.",
+    "add": "Aggiungi macchina",
+    "state": {
+      "pending": "In attesa di collegamento",
+      "awaiting_approval": "In attesa di approvazione",
+      "active": "Attiva",
+      "revoked": "Revocata"
+    },
+    "online": "Online",
+    "offline": "Offline",
+    "last_seen": "vista {time}",
+    "never_seen": "mai collegata",
+    "host": "Host",
+    "agents": "Agenti",
+    "no_agents": "Nessuno trovato",
+    "agent_signed_in": "accesso effettuato",
+    "agent_not_signed_in": "accesso non effettuato",
+    "agent_not_installed": "non installato",
+    "docker": "Docker",
+    "docker_available": "Disponibile",
+    "docker_unavailable": "Non disponibile",
+    "slots": "Slot liberi",
+    "slots_value": "{free} su {total}",
+    "unknown": "sconosciuto",
+    "pending_hint": "In attesa che la macchina si colleghi con il suo codice. Il codice è valido fino a {time}.",
+    "pending_expired": "Il codice di collegamento è scaduto prima che la macchina lo usasse. Rimuovi questa macchina e aggiungila di nuovo.",
+    "awaiting_hint": "La macchina si è collegata come {hostname}. Se è il tuo computer, approvala così potrà eseguire le tue attività.",
+    "revoked_hint": "Un amministratore del workspace ha revocato questa macchina: non può collegarsi né ricevere attività. Puoi rimuoverla.",
+    "actions": {
+      "approve": "Approva",
+      "rename": "Rinomina",
+      "remove": "Rimuovi"
+    },
+    "add_dialog": {
+      "title": "Aggiungi macchina",
+      "description": "Dai un nome al computer. Poi riceverai un codice di collegamento da usare su di esso.",
+      "name": "Nome",
+      "name_placeholder": "es. Portatile di lavoro",
+      "create": "Aggiungi macchina",
+      "creating": "Aggiunta in corso...",
+      "code_title": "Collega {name}",
+      "code_description": "Esegui questi comandi sulla macchina. Il codice di collegamento funziona una sola volta ed è mostrato solo ora: chiusa questa finestra, non sarà più disponibile.",
+      "step_join": "1. Collegati con il codice",
+      "step_start": "2. Avvia il servizio della macchina",
+      "copy": "Copia",
+      "copied": "Copiato negli appunti",
+      "expires": "Il codice scade il {time}.",
+      "after": "Quando la macchina risulta In attesa di approvazione, controlla il suo hostname e approvala.",
+      "done": "Fatto"
+    },
+    "rename_dialog": {
+      "title": "Rinomina macchina",
+      "save": "Salva",
+      "saving": "Salvataggio..."
+    },
+    "approve_dialog": {
+      "title": "Approvare {name}?",
+      "description": "La macchina riporta l'host {hostname} ({os}). Approvala solo se è il tuo computer: eseguirà le tue attività di coding.",
+      "confirm": "Approva",
+      "confirming": "Approvazione..."
+    },
+    "remove_dialog": {
+      "title": "Rimuovere {name}?",
+      "description": "La macchina viene rimossa definitivamente: la sua chiave smette subito di funzionare e non riceve più attività. Per usarla di nuovo, aggiungila di nuovo.",
+      "confirm": "Rimuovi",
+      "confirming": "Rimozione..."
+    },
+    "toasts": {
+      "added": "Macchina aggiunta",
+      "add_failed": "Impossibile aggiungere la macchina",
+      "approved": "Macchina approvata",
+      "approve_failed": "Impossibile approvare la macchina",
+      "renamed": "Macchina rinominata",
+      "rename_failed": "Impossibile rinominare la macchina",
+      "removed": "Macchina rimossa",
+      "remove_failed": "Impossibile rimuovere la macchina",
+      "revoked": "Macchina revocata",
+      "revoke_failed": "Impossibile revocare la macchina"
+    },
+    "admin": {
+      "label": "Macchine",
+      "title": "Macchine",
+      "description": "Tutte le macchine aggiunte dalle persone di questo workspace per le loro attività di coding. Revocarne una la scollega subito: la sua chiave non funziona più e non riceve attività.",
+      "empty": "Nessuno in questo workspace ha ancora aggiunto una macchina.",
+      "owner": "Proprietario",
+      "name": "Macchina",
+      "state": "Stato",
+      "status": "Connessione",
+      "last_seen": "Ultima connessione",
+      "never": "Mai",
+      "revoke": "Revoca",
+      "revoke_dialog": {
+        "title": "Revocare {name}?",
+        "description": "Questa macchina di {owner} smette subito di funzionare e non riceve più attività. Solo il proprietario può rimuoverla.",
+        "confirm": "Revoca",
+        "confirming": "Revoca in corso..."
+      }
     }
   }
 }

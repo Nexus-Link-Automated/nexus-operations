@@ -21,7 +21,7 @@
       "agent": "Ajan",
       "machine": "Makine",
       "machine_auto": "Otomatik",
-      "machine_hint": "Görev kendi makinelerinizden birinde çalışır. Makine seçimi daha sonra gelecek.",
+      "machine_hint": "Çevrimiçi olan, onaylanmış kendi makineleriniz. Otomatik bunlardan birini seçer.",
       "start": "Görevi başlat",
       "starting": "Başlatılıyor..."
     },
@@ -39,6 +39,10 @@
       "JOB_ACTIVE": "Bu iş öğesinde bu türde devam eden bir görev zaten var.",
       "JOB_NOT_ACTIVE": "Bu görev zaten sona erdi, bu yüzden iptal edilemez.",
       "JOB_NOT_RETRYABLE": "Yalnızca iptal edilmiş veya tamamlanmamış bir görev yeniden denenebilir.",
+      "MACHINE_NOT_AVAILABLE": "Bu makine artık onaylı makinelerinizden biri değil. Başka bir makine veya Otomatik seçin.",
+      "MACHINE_LIMIT": "Bu çalışma alanında izin verilen en fazla makine sayısına ulaştınız. Önce birini kaldırın.",
+      "MACHINE_NOT_JOINED": "Bu makine henüz katılmadı, bu yüzden onaylanacak bir şey yok.",
+      "MACHINE_REVOKED": "Bu makine bir çalışma alanı yöneticisi tarafından iptal edildi.",
       "forbidden": "Bunu yapma izniniz yok.",
       "generic": "Bir şeyler ters gitti. Lütfen tekrar deneyin."
     },
@@ -105,6 +109,112 @@
       "save_failed": "Kodlama ayarları kaydedilemedi",
       "read_only": "Bu ayarları yalnızca proje yöneticileri değiştirebilir.",
       "not_configured": "Bu proje için kodlama görevleri kapalı. Üyelerin görev başlatabilmesi için bunları açın ve repository'yi ayarlayın."
+    }
+  },
+  "coding_machines": {
+    "label": "Makineler",
+    "title": "Makineler",
+    "description": "{workspace} içinde kodlama görevlerinizi çalıştıran kendi bilgisayarlarınız. Her biri kendi Codex ve Claude oturumlarını kullanır ve CRM'e yalnızca dışarıya doğru bağlanır.",
+    "no_workspace": "Makineler bir çalışma alanına aittir. Makine eklemek için bir çalışma alanına katılın veya bir tane oluşturun.",
+    "guest": "Makineler misafirler için kullanılamaz.",
+    "empty": "Henüz makine yok. Kodlama görevlerinizi üzerinde çalıştırmak için bilgisayarınızı ekleyin.",
+    "load_failed": "Makineler yüklenemedi.",
+    "add": "Makine ekle",
+    "state": {
+      "pending": "Katılım bekleniyor",
+      "awaiting_approval": "Onay bekleniyor",
+      "active": "Etkin",
+      "revoked": "İptal edildi"
+    },
+    "online": "Çevrimiçi",
+    "offline": "Çevrimdışı",
+    "last_seen": "son görülme {time}",
+    "never_seen": "hiç bağlanmadı",
+    "host": "Ana makine",
+    "agents": "Ajanlar",
+    "no_agents": "Bulunamadı",
+    "agent_signed_in": "oturum açık",
+    "agent_not_signed_in": "oturum açılmamış",
+    "agent_not_installed": "yüklü değil",
+    "docker": "Docker",
+    "docker_available": "Kullanılabilir",
+    "docker_unavailable": "Kullanılamaz",
+    "slots": "Boş yuvalar",
+    "slots_value": "{total} içinden {free}",
+    "unknown": "bilinmiyor",
+    "pending_hint": "Makinenin koduyla katılması bekleniyor. Kod {time} tarihine kadar geçerli.",
+    "pending_expired": "Katılım kodunun süresi makine kullanmadan doldu. Bu makineyi kaldırıp yeniden ekleyin.",
+    "awaiting_hint": "Makine {hostname} olarak katıldı. Bu sizin bilgisayarınızsa görevlerinizi çalıştırabilmesi için onaylayın.",
+    "revoked_hint": "Bir çalışma alanı yöneticisi bu makineyi iptal etti: bağlanamaz ve görev alamaz. Kaldırabilirsiniz.",
+    "actions": {
+      "approve": "Onayla",
+      "rename": "Yeniden adlandır",
+      "remove": "Kaldır"
+    },
+    "add_dialog": {
+      "title": "Makine ekle",
+      "description": "Bilgisayara bir ad verin. Ardından üzerinde kullanacağınız bir katılım kodu alırsınız.",
+      "name": "Ad",
+      "name_placeholder": "ör. İş dizüstü bilgisayarı",
+      "create": "Makine ekle",
+      "creating": "Ekleniyor...",
+      "code_title": "{name} bağla",
+      "code_description": "Bu komutları makinede çalıştırın. Katılım kodu bir kez çalışır ve yalnızca şimdi gösterilir: bu pencereyi kapattığınızda kaybolur.",
+      "step_join": "1. Kodla katıl",
+      "step_start": "2. Makine hizmetini başlat",
+      "copy": "Kopyala",
+      "copied": "Panoya kopyalandı",
+      "expires": "Kodun süresi {time} tarihinde doluyor.",
+      "after": "Makine Onay bekleniyor olarak göründüğünde ana makine adını kontrol edip onaylayın.",
+      "done": "Bitti"
+    },
+    "rename_dialog": {
+      "title": "Makineyi yeniden adlandır",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor..."
+    },
+    "approve_dialog": {
+      "title": "{name} onaylansın mı?",
+      "description": "Makine {hostname} ({os}) ana makinesini bildiriyor. Yalnızca kendi bilgisayarınızsa onaylayın: kodlama görevlerinizi çalıştıracak.",
+      "confirm": "Onayla",
+      "confirming": "Onaylanıyor..."
+    },
+    "remove_dialog": {
+      "title": "{name} kaldırılsın mı?",
+      "description": "Makine kalıcı olarak kaldırılır: anahtarı hemen çalışmayı bırakır ve artık görev almaz. Yeniden kullanmak için tekrar ekleyin.",
+      "confirm": "Kaldır",
+      "confirming": "Kaldırılıyor..."
+    },
+    "toasts": {
+      "added": "Makine eklendi",
+      "add_failed": "Makine eklenemedi",
+      "approved": "Makine onaylandı",
+      "approve_failed": "Makine onaylanamadı",
+      "renamed": "Makine yeniden adlandırıldı",
+      "rename_failed": "Makine yeniden adlandırılamadı",
+      "removed": "Makine kaldırıldı",
+      "remove_failed": "Makine kaldırılamadı",
+      "revoked": "Makine iptal edildi",
+      "revoke_failed": "Makine iptal edilemedi"
+    },
+    "admin": {
+      "label": "Makineler",
+      "title": "Makineler",
+      "description": "Bu çalışma alanındaki kişilerin kodlama görevleri için eklediği tüm makineler. İptal etmek makineyi hemen keser: anahtarı çalışmaz ve görev almaz.",
+      "empty": "Bu çalışma alanında henüz kimse makine eklemedi.",
+      "owner": "Sahip",
+      "name": "Makine",
+      "state": "Durum",
+      "status": "Bağlantı",
+      "last_seen": "Son görülme",
+      "never": "Hiç",
+      "revoke": "İptal et",
+      "revoke_dialog": {
+        "title": "{name} iptal edilsin mi?",
+        "description": "{owner} kullanıcısının bu makinesi hemen çalışmayı bırakır ve artık görev almaz. Yalnızca sahibi kaldırabilir.",
+        "confirm": "İptal et",
+        "confirming": "İptal ediliyor..."
+      }
     }
   }
 }

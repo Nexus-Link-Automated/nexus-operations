@@ -21,7 +21,7 @@
       "agent": "Agente",
       "machine": "Máquina",
       "machine_auto": "Automática",
-      "machine_hint": "A tarefa é executada em uma das suas próprias máquinas. A escolha da máquina virá depois.",
+      "machine_hint": "Suas próprias máquinas aprovadas que estão online. Automática escolhe uma delas.",
       "start": "Iniciar tarefa",
       "starting": "Iniciando..."
     },
@@ -39,6 +39,10 @@
       "JOB_ACTIVE": "Este item de trabalho já tem uma tarefa desse tipo em andamento.",
       "JOB_NOT_ACTIVE": "Esta tarefa já terminou, então não pode ser cancelada.",
       "JOB_NOT_RETRYABLE": "Só é possível tentar novamente uma tarefa cancelada ou que não terminou.",
+      "MACHINE_NOT_AVAILABLE": "Essa máquina não é mais uma das suas máquinas aprovadas. Escolha outra ou Automática.",
+      "MACHINE_LIMIT": "Você já tem o máximo de máquinas permitido neste espaço de trabalho. Remova uma primeiro.",
+      "MACHINE_NOT_JOINED": "Esta máquina ainda não entrou, então não há nada para aprovar.",
+      "MACHINE_REVOKED": "Esta máquina foi revogada por um administrador do espaço de trabalho.",
       "forbidden": "Você não tem permissão para fazer isso.",
       "generic": "Algo deu errado. Tente novamente."
     },
@@ -105,6 +109,112 @@
       "save_failed": "Não foi possível salvar as configurações de programação",
       "read_only": "Somente administradores do projeto podem alterar essas configurações.",
       "not_configured": "As tarefas de programação estão desativadas para este projeto. Ative-as e defina o repositório para que os membros possam iniciar tarefas."
+    }
+  },
+  "coding_machines": {
+    "label": "Máquinas",
+    "title": "Máquinas",
+    "description": "Seus próprios computadores que executam suas tarefas de programação em {workspace}. Cada um usa seus próprios logins do Codex e do Claude e só faz conexões de saída para o CRM.",
+    "no_workspace": "Máquinas pertencem a um espaço de trabalho. Entre em um espaço de trabalho ou crie um para adicionar uma.",
+    "guest": "Máquinas não estão disponíveis para convidados.",
+    "empty": "Nenhuma máquina ainda. Adicione seu computador para executar nele suas tarefas de programação.",
+    "load_failed": "Não foi possível carregar as máquinas.",
+    "add": "Adicionar máquina",
+    "state": {
+      "pending": "Aguardando entrada",
+      "awaiting_approval": "Aguardando aprovação",
+      "active": "Ativa",
+      "revoked": "Revogada"
+    },
+    "online": "Online",
+    "offline": "Offline",
+    "last_seen": "vista {time}",
+    "never_seen": "nunca conectada",
+    "host": "Host",
+    "agents": "Agentes",
+    "no_agents": "Nenhum encontrado",
+    "agent_signed_in": "conectado",
+    "agent_not_signed_in": "não conectado",
+    "agent_not_installed": "não instalado",
+    "docker": "Docker",
+    "docker_available": "Disponível",
+    "docker_unavailable": "Indisponível",
+    "slots": "Vagas livres",
+    "slots_value": "{free} de {total}",
+    "unknown": "desconhecido",
+    "pending_hint": "Aguardando a máquina entrar com o código. O código é válido até {time}.",
+    "pending_expired": "O código de entrada expirou antes de a máquina usá-lo. Remova esta máquina e adicione-a novamente.",
+    "awaiting_hint": "A máquina entrou como {hostname}. Se for o seu computador, aprove-a para que ela possa executar suas tarefas.",
+    "revoked_hint": "Um administrador do espaço de trabalho revogou esta máquina: ela não pode se conectar nem receber tarefas. Você pode removê-la.",
+    "actions": {
+      "approve": "Aprovar",
+      "rename": "Renomear",
+      "remove": "Remover"
+    },
+    "add_dialog": {
+      "title": "Adicionar máquina",
+      "description": "Dê um nome ao computador. Em seguida, você recebe um código de entrada para usar nele.",
+      "name": "Nome",
+      "name_placeholder": "ex.: Notebook do trabalho",
+      "create": "Adicionar máquina",
+      "creating": "Adicionando...",
+      "code_title": "Conectar {name}",
+      "code_description": "Execute estes comandos na máquina. O código de entrada funciona uma vez e só é exibido agora: ao fechar esta janela, ele some.",
+      "step_join": "1. Entrar com o código",
+      "step_start": "2. Iniciar o serviço da máquina",
+      "copy": "Copiar",
+      "copied": "Copiado para a área de transferência",
+      "expires": "O código expira em {time}.",
+      "after": "Quando a máquina aparecer como Aguardando aprovação, confira o nome do host e aprove-a.",
+      "done": "Concluído"
+    },
+    "rename_dialog": {
+      "title": "Renomear máquina",
+      "save": "Salvar",
+      "saving": "Salvando..."
+    },
+    "approve_dialog": {
+      "title": "Aprovar {name}?",
+      "description": "A máquina informa o host {hostname} ({os}). Aprove-a apenas se for o seu próprio computador: ela executará suas tarefas de programação.",
+      "confirm": "Aprovar",
+      "confirming": "Aprovando..."
+    },
+    "remove_dialog": {
+      "title": "Remover {name}?",
+      "description": "A máquina é removida definitivamente: a chave dela para de funcionar na hora e ela não recebe mais tarefas. Para usá-la de novo, adicione-a novamente.",
+      "confirm": "Remover",
+      "confirming": "Removendo..."
+    },
+    "toasts": {
+      "added": "Máquina adicionada",
+      "add_failed": "Não foi possível adicionar a máquina",
+      "approved": "Máquina aprovada",
+      "approve_failed": "Não foi possível aprovar a máquina",
+      "renamed": "Máquina renomeada",
+      "rename_failed": "Não foi possível renomear a máquina",
+      "removed": "Máquina removida",
+      "remove_failed": "Não foi possível remover a máquina",
+      "revoked": "Máquina revogada",
+      "revoke_failed": "Não foi possível revogar a máquina"
+    },
+    "admin": {
+      "label": "Máquinas",
+      "title": "Máquinas",
+      "description": "Todas as máquinas que as pessoas deste espaço de trabalho adicionaram para suas tarefas de programação. Revogar uma a desliga na hora: a chave para de funcionar e ela não recebe tarefas.",
+      "empty": "Ninguém neste espaço de trabalho adicionou uma máquina ainda.",
+      "owner": "Proprietário",
+      "name": "Máquina",
+      "state": "Estado",
+      "status": "Conexão",
+      "last_seen": "Visto por último",
+      "never": "Nunca",
+      "revoke": "Revogar",
+      "revoke_dialog": {
+        "title": "Revogar {name}?",
+        "description": "Esta máquina de {owner} para de funcionar na hora e não recebe mais tarefas. Somente o proprietário pode removê-la.",
+        "confirm": "Revogar",
+        "confirming": "Revogando..."
+      }
     }
   }
 }

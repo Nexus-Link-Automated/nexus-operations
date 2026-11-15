@@ -36,6 +36,16 @@ describe("CodingJobService", () => {
     expect(post).toHaveBeenCalledWith("/api/workspaces/acme/projects/p1/work-items/w1/coding-jobs/j1/cancel/", {});
     await coding.retry("acme", "p1", "w1", "j1");
     expect(post).toHaveBeenCalledWith("/api/workspaces/acme/projects/p1/work-items/w1/coding-jobs/j1/retry/", {});
+    await coding.start("acme", "p1", "w1", { action: "fix_bug", agent: "claude", machine: "m1" });
+    expect(post).toHaveBeenLastCalledWith("/api/workspaces/acme/projects/p1/work-items/w1/coding-jobs/", {
+      action: "fix_bug",
+      agent: "claude",
+      machine: "m1",
+    });
+    await coding.retry("acme", "p1", "w1", "j1", { machine: null });
+    expect(post).toHaveBeenLastCalledWith("/api/workspaces/acme/projects/p1/work-items/w1/coding-jobs/j1/retry/", {
+      machine: null,
+    });
 
     await coding.updateSettings("acme", "p1", { enabled: true });
     expect(patch).toHaveBeenCalledWith("/api/workspaces/acme/projects/p1/coding-settings/", { enabled: true });

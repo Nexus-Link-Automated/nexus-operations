@@ -21,7 +21,7 @@
       "agent": "Agent",
       "machine": "Stroj",
       "machine_auto": "Automaticky",
-      "machine_hint": "Úloha poběží na jednom z vašich vlastních strojů. Výběr stroje přijde později.",
+      "machine_hint": "Vaše vlastní schválené stroje, které jsou online. Automaticky vybere jeden z nich.",
       "start": "Spustit úlohu",
       "starting": "Spouštění..."
     },
@@ -39,6 +39,10 @@
       "JOB_ACTIVE": "Tato pracovní položka již má rozpracovanou úlohu tohoto typu.",
       "JOB_NOT_ACTIVE": "Tato úloha již skončila, takže ji nelze zrušit.",
       "JOB_NOT_RETRYABLE": "Zopakovat lze pouze zrušenou úlohu nebo úlohu, která nebyla dokončena.",
+      "MACHINE_NOT_AVAILABLE": "Tento stroj už nepatří mezi vaše schválené stroje. Vyberte jiný nebo Automaticky.",
+      "MACHINE_LIMIT": "V tomto pracovním prostoru už máte maximální povolený počet strojů. Nejprve jeden odeberte.",
+      "MACHINE_NOT_JOINED": "Tento stroj se ještě nepřipojil, takže není co schvalovat.",
+      "MACHINE_REVOKED": "Tento stroj odvolal správce pracovního prostoru.",
       "forbidden": "Nemáte oprávnění k této akci.",
       "generic": "Něco se pokazilo. Zkuste to prosím znovu."
     },
@@ -105,6 +109,112 @@
       "save_failed": "Nastavení programování se nepodařilo uložit",
       "read_only": "Tato nastavení mohou měnit pouze správci projektu.",
       "not_configured": "Programovací úlohy jsou pro tento projekt vypnuté. Zapněte je a nastavte repozitář, aby členové mohli spouštět úlohy."
+    }
+  },
+  "coding_machines": {
+    "label": "Stroje",
+    "title": "Stroje",
+    "description": "Vaše vlastní počítače, které spouštějí vaše programovací úlohy v {workspace}. Každý používá vlastní přihlášení ke Codexu a Claude a k CRM se připojuje jen směrem ven.",
+    "no_workspace": "Stroje patří k pracovnímu prostoru. Připojte se k pracovnímu prostoru nebo jej vytvořte, abyste mohli stroj přidat.",
+    "guest": "Stroje nejsou dostupné pro hosty.",
+    "empty": "Zatím žádné stroje. Přidejte svůj počítač, abyste na něm spouštěli své programovací úlohy.",
+    "load_failed": "Stroje se nepodařilo načíst.",
+    "add": "Přidat stroj",
+    "state": {
+      "pending": "Čeká na připojení",
+      "awaiting_approval": "Čeká na schválení",
+      "active": "Aktivní",
+      "revoked": "Odvolaný"
+    },
+    "online": "Online",
+    "offline": "Offline",
+    "last_seen": "naposledy {time}",
+    "never_seen": "nikdy nepřipojen",
+    "host": "Hostitel",
+    "agents": "Agenti",
+    "no_agents": "Žádní nenalezeni",
+    "agent_signed_in": "přihlášen",
+    "agent_not_signed_in": "nepřihlášen",
+    "agent_not_installed": "nenainstalován",
+    "docker": "Docker",
+    "docker_available": "Dostupný",
+    "docker_unavailable": "Nedostupný",
+    "slots": "Volné sloty",
+    "slots_value": "{free} z {total}",
+    "unknown": "neznámý",
+    "pending_hint": "Čeká se, až se stroj připojí pomocí svého kódu. Kód platí do {time}.",
+    "pending_expired": "Platnost připojovacího kódu vypršela dřív, než ho stroj použil. Odeberte tento stroj a přidejte ho znovu.",
+    "awaiting_hint": "Stroj se připojil jako {hostname}. Pokud je to váš počítač, schvalte ho, aby mohl spouštět vaše úlohy.",
+    "revoked_hint": "Správce pracovního prostoru tento stroj odvolal: nemůže se připojit ani dostávat úlohy. Můžete ho odebrat.",
+    "actions": {
+      "approve": "Schválit",
+      "rename": "Přejmenovat",
+      "remove": "Odebrat"
+    },
+    "add_dialog": {
+      "title": "Přidat stroj",
+      "description": "Pojmenujte počítač. Poté dostanete připojovací kód, který na něm použijete.",
+      "name": "Název",
+      "name_placeholder": "např. Pracovní notebook",
+      "create": "Přidat stroj",
+      "creating": "Přidávání...",
+      "code_title": "Připojit {name}",
+      "code_description": "Spusťte tyto příkazy na stroji. Připojovací kód funguje jednou a zobrazí se jen teď: jakmile toto okno zavřete, je pryč.",
+      "step_join": "1. Připojit se pomocí kódu",
+      "step_start": "2. Spustit službu stroje",
+      "copy": "Kopírovat",
+      "copied": "Zkopírováno do schránky",
+      "expires": "Kód vyprší {time}.",
+      "after": "Až se stroj zobrazí jako Čeká na schválení, zkontrolujte jeho název hostitele a schvalte ho.",
+      "done": "Hotovo"
+    },
+    "rename_dialog": {
+      "title": "Přejmenovat stroj",
+      "save": "Uložit",
+      "saving": "Ukládání..."
+    },
+    "approve_dialog": {
+      "title": "Schválit {name}?",
+      "description": "Stroj hlásí hostitele {hostname} ({os}). Schvalte ho, jen pokud je to váš vlastní počítač: bude spouštět vaše programovací úlohy.",
+      "confirm": "Schválit",
+      "confirming": "Schvalování..."
+    },
+    "remove_dialog": {
+      "title": "Odebrat {name}?",
+      "description": "Stroj bude odebrán natrvalo: jeho klíč okamžitě přestane fungovat a nebude dostávat žádné další úlohy. Chcete-li ho znovu použít, přidejte ho znovu.",
+      "confirm": "Odebrat",
+      "confirming": "Odebírání..."
+    },
+    "toasts": {
+      "added": "Stroj přidán",
+      "add_failed": "Stroj se nepodařilo přidat",
+      "approved": "Stroj schválen",
+      "approve_failed": "Stroj se nepodařilo schválit",
+      "renamed": "Stroj přejmenován",
+      "rename_failed": "Stroj se nepodařilo přejmenovat",
+      "removed": "Stroj odebrán",
+      "remove_failed": "Stroj se nepodařilo odebrat",
+      "revoked": "Stroj odvolán",
+      "revoke_failed": "Stroj se nepodařilo odvolat"
+    },
+    "admin": {
+      "label": "Stroje",
+      "title": "Stroje",
+      "description": "Všechny stroje, které lidé v tomto pracovním prostoru přidali pro své programovací úlohy. Odvolání stroj okamžitě odpojí: jeho klíč přestane fungovat a nedostane žádné úlohy.",
+      "empty": "V tomto pracovním prostoru zatím nikdo nepřidal stroj.",
+      "owner": "Vlastník",
+      "name": "Stroj",
+      "state": "Stav",
+      "status": "Připojení",
+      "last_seen": "Naposledy viděn",
+      "never": "Nikdy",
+      "revoke": "Odvolat",
+      "revoke_dialog": {
+        "title": "Odvolat {name}?",
+        "description": "Tento stroj uživatele {owner} okamžitě přestane fungovat a nebude dostávat další úlohy. Odebrat ho může jen jeho vlastník.",
+        "confirm": "Odvolat",
+        "confirming": "Odvolávání..."
+      }
     }
   }
 }

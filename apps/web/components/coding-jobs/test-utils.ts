@@ -27,6 +27,7 @@ export const makeJob = (id: string, overrides: Partial<TCodingJob> = {}): TCodin
   retry_of: null,
   comment: null,
   requested_by: "me",
+  machine: null,
   is_active: true,
   is_retryable: false,
   started_at: null,

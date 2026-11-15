@@ -91,8 +91,9 @@ export const CodingJobActions = observer(function CodingJobActions({ workspaceSl
       )}
       {action && (
         <CodingJobStartDialog
+          workspaceSlug={workspaceSlug}
           action={action}
-          onStart={(agent) => startJob(workspaceSlug, projectId, issueId, action, agent)}
+          onStart={(agent, machine) => startJob(workspaceSlug, projectId, issueId, action, agent, machine)}
           onClose={() => setAction(null)}
         />
       )}

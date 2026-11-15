@@ -21,7 +21,7 @@
       "agent": "Tác nhân",
       "machine": "Máy",
       "machine_auto": "Tự động",
-      "machine_hint": "Tác vụ chạy trên một trong các máy của riêng bạn. Tính năng chọn máy sẽ có sau.",
+      "machine_hint": "Các máy đã phê duyệt của chính bạn đang trực tuyến. Tự động sẽ chọn một trong số đó.",
       "start": "Bắt đầu tác vụ",
       "starting": "Đang bắt đầu..."
     },
@@ -39,6 +39,10 @@
       "JOB_ACTIVE": "Hạng mục công việc này đã có một tác vụ cùng loại đang được thực hiện.",
       "JOB_NOT_ACTIVE": "Tác vụ này đã kết thúc nên không thể hủy.",
       "JOB_NOT_RETRYABLE": "Chỉ có thể thử lại tác vụ đã bị hủy hoặc chưa hoàn tất.",
+      "MACHINE_NOT_AVAILABLE": "Máy đó không còn là một trong các máy đã phê duyệt của bạn. Hãy chọn máy khác hoặc Tự động.",
+      "MACHINE_LIMIT": "Bạn đã có số máy tối đa được phép trong không gian làm việc này. Hãy xóa một máy trước.",
+      "MACHINE_NOT_JOINED": "Máy này chưa tham gia nên chưa có gì để phê duyệt.",
+      "MACHINE_REVOKED": "Máy này đã bị quản trị viên không gian làm việc thu hồi.",
       "forbidden": "Bạn không có quyền thực hiện thao tác này.",
       "generic": "Đã xảy ra lỗi. Vui lòng thử lại."
     },
@@ -105,6 +109,112 @@
       "save_failed": "Không thể lưu cài đặt lập trình",
       "read_only": "Chỉ quản trị viên dự án mới có thể thay đổi các cài đặt này.",
       "not_configured": "Tác vụ lập trình đang tắt cho dự án này. Hãy bật tính năng và thiết lập kho lưu trữ để thành viên có thể bắt đầu tác vụ."
+    }
+  },
+  "coding_machines": {
+    "label": "Máy",
+    "title": "Máy",
+    "description": "Các máy tính của riêng bạn chạy tác vụ lập trình của bạn trong {workspace}. Mỗi máy dùng thông tin đăng nhập Codex và Claude riêng và chỉ kết nối ra ngoài tới CRM.",
+    "no_workspace": "Máy thuộc về một không gian làm việc. Hãy tham gia hoặc tạo một không gian làm việc để thêm máy.",
+    "guest": "Khách không thể sử dụng máy.",
+    "empty": "Chưa có máy nào. Hãy thêm máy tính của bạn để chạy các tác vụ lập trình trên đó.",
+    "load_failed": "Không thể tải danh sách máy.",
+    "add": "Thêm máy",
+    "state": {
+      "pending": "Đang chờ tham gia",
+      "awaiting_approval": "Đang chờ phê duyệt",
+      "active": "Đang hoạt động",
+      "revoked": "Đã thu hồi"
+    },
+    "online": "Trực tuyến",
+    "offline": "Ngoại tuyến",
+    "last_seen": "lần cuối {time}",
+    "never_seen": "chưa từng kết nối",
+    "host": "Máy chủ",
+    "agents": "Tác tử",
+    "no_agents": "Không tìm thấy",
+    "agent_signed_in": "đã đăng nhập",
+    "agent_not_signed_in": "chưa đăng nhập",
+    "agent_not_installed": "chưa cài đặt",
+    "docker": "Docker",
+    "docker_available": "Có sẵn",
+    "docker_unavailable": "Không có sẵn",
+    "slots": "Khe trống",
+    "slots_value": "{free} / {total}",
+    "unknown": "không rõ",
+    "pending_hint": "Đang chờ máy tham gia bằng mã của nó. Mã có hiệu lực đến {time}.",
+    "pending_expired": "Mã tham gia đã hết hạn trước khi máy sử dụng. Hãy xóa máy này và thêm lại.",
+    "awaiting_hint": "Máy đã tham gia với tên {hostname}. Nếu đó là máy tính của bạn, hãy phê duyệt để nó có thể chạy tác vụ của bạn.",
+    "revoked_hint": "Quản trị viên không gian làm việc đã thu hồi máy này: nó không thể kết nối hay nhận tác vụ. Bạn có thể xóa nó.",
+    "actions": {
+      "approve": "Phê duyệt",
+      "rename": "Đổi tên",
+      "remove": "Xóa"
+    },
+    "add_dialog": {
+      "title": "Thêm máy",
+      "description": "Đặt tên cho máy tính. Sau đó bạn sẽ nhận được mã tham gia để dùng trên máy đó.",
+      "name": "Tên",
+      "name_placeholder": "vd: Laptop công việc",
+      "create": "Thêm máy",
+      "creating": "Đang thêm...",
+      "code_title": "Kết nối {name}",
+      "code_description": "Chạy các lệnh này trên máy. Mã tham gia chỉ dùng được một lần và chỉ hiển thị lúc này: khi bạn đóng hộp thoại này, mã sẽ biến mất.",
+      "step_join": "1. Tham gia bằng mã",
+      "step_start": "2. Khởi động dịch vụ máy",
+      "copy": "Sao chép",
+      "copied": "Đã sao chép vào bộ nhớ tạm",
+      "expires": "Mã hết hạn lúc {time}.",
+      "after": "Khi máy hiển thị là Đang chờ phê duyệt, hãy kiểm tra tên máy chủ của nó và phê duyệt.",
+      "done": "Xong"
+    },
+    "rename_dialog": {
+      "title": "Đổi tên máy",
+      "save": "Lưu",
+      "saving": "Đang lưu..."
+    },
+    "approve_dialog": {
+      "title": "Phê duyệt {name}?",
+      "description": "Máy báo cáo máy chủ {hostname} ({os}). Chỉ phê duyệt nếu đây là máy tính của chính bạn: nó sẽ chạy các tác vụ lập trình của bạn.",
+      "confirm": "Phê duyệt",
+      "confirming": "Đang phê duyệt..."
+    },
+    "remove_dialog": {
+      "title": "Xóa {name}?",
+      "description": "Máy sẽ bị xóa vĩnh viễn: khóa của nó ngừng hoạt động ngay lập tức và không nhận thêm tác vụ. Để dùng lại, hãy thêm lại.",
+      "confirm": "Xóa",
+      "confirming": "Đang xóa..."
+    },
+    "toasts": {
+      "added": "Đã thêm máy",
+      "add_failed": "Không thể thêm máy",
+      "approved": "Đã phê duyệt máy",
+      "approve_failed": "Không thể phê duyệt máy",
+      "renamed": "Đã đổi tên máy",
+      "rename_failed": "Không thể đổi tên máy",
+      "removed": "Đã xóa máy",
+      "remove_failed": "Không thể xóa máy",
+      "revoked": "Đã thu hồi máy",
+      "revoke_failed": "Không thể thu hồi máy"
+    },
+    "admin": {
+      "label": "Máy",
+      "title": "Máy",
+      "description": "Tất cả các máy mà mọi người trong không gian làm việc này đã thêm cho tác vụ lập trình của họ. Thu hồi sẽ ngắt máy ngay lập tức: khóa của nó ngừng hoạt động và không nhận tác vụ.",
+      "empty": "Chưa có ai trong không gian làm việc này thêm máy.",
+      "owner": "Chủ sở hữu",
+      "name": "Máy",
+      "state": "Trạng thái",
+      "status": "Kết nối",
+      "last_seen": "Lần cuối trực tuyến",
+      "never": "Chưa bao giờ",
+      "revoke": "Thu hồi",
+      "revoke_dialog": {
+        "title": "Thu hồi {name}?",
+        "description": "Máy này của {owner} sẽ ngừng hoạt động ngay lập tức và không nhận thêm tác vụ. Chỉ chủ sở hữu mới có thể xóa nó.",
+        "confirm": "Thu hồi",
+        "confirming": "Đang thu hồi..."
+      }
     }
   }
 }

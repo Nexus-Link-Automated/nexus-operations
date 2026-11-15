@@ -38,7 +38,8 @@ export class CodingJobServiceError extends Error {
   }
 }
 
-function toCodingError(error: unknown): CodingJobServiceError {
+/** The thrown axios error as a `CodingJobServiceError`; shared with `CodingMachineService`. */
+export function toCodingError(error: unknown): CodingJobServiceError {
   const response = (error as { response?: { status?: number; data?: unknown } } | undefined)?.response;
   return new CodingJobServiceError(response?.status ?? 0, response?.data);
 }
@@ -71,11 +72,12 @@ export class CodingJobService extends APIService {
       });
   }
 
+  /** `machine` is one of the requester's approved machines, or null for Auto. */
   async start(
     workspaceSlug: string,
     projectId: string,
     workItemId: string,
-    data: { action: TCodingAction; agent: TCodingAgent }
+    data: { action: TCodingAction; agent: TCodingAgent; machine?: string | null }
   ): Promise<TCodingJob> {
     return this.post(this.jobsPath(workspaceSlug, projectId, workItemId), data)
       .then((response) => response?.data)
@@ -92,9 +94,18 @@ export class CodingJobService extends APIService {
       });
   }
 
-  /** Starts a new job like this one; the API answers with the new job. */
-  async retry(workspaceSlug: string, projectId: string, workItemId: string, jobId: string): Promise<TCodingJob> {
-    return this.post(`${this.jobsPath(workspaceSlug, projectId, workItemId)}${jobId}/retry/`, {})
+  /**
+   * Starts a new job like this one; the API answers with the new job. `agent` and `machine` left out keep the
+   * retried job's (its machine only while it is still one of the retrier's approved machines, else Auto).
+   */
+  async retry(
+    workspaceSlug: string,
+    projectId: string,
+    workItemId: string,
+    jobId: string,
+    data: { agent?: TCodingAgent; machine?: string | null } = {}
+  ): Promise<TCodingJob> {
+    return this.post(`${this.jobsPath(workspaceSlug, projectId, workItemId)}${jobId}/retry/`, data)
       .then((response) => response?.data)
       .catch((error) => {
         throw toCodingError(error);

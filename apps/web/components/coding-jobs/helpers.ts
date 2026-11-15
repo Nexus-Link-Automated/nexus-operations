@@ -5,7 +5,7 @@
  */
 
 import { CodingJobServiceError } from "@plane/services";
-import type { TCodingAction, TCodingAgent, TCodingErrorCode, TIssue } from "@plane/types";
+import type { TCodingAction, TCodingAgent, TCodingErrorCode, TCodingMachineErrorCode, TIssue } from "@plane/types";
 
 export const CODING_ACTIONS: TCodingAction[] = ["fix_bug", "write_test", "write_and_run_test"];
 
@@ -13,11 +13,15 @@ export const CODING_AGENTS: TCodingAgent[] = ["codex", "claude"];
 
 const REFUSAL_CODES = new Set<string>([
   "CODING_NOT_CONFIGURED",
+  "MACHINE_NOT_AVAILABLE",
   "WORK_ITEM_NOT_ELIGIBLE",
   "JOB_ACTIVE",
   "JOB_NOT_ACTIVE",
   "JOB_NOT_RETRYABLE",
-] satisfies TCodingErrorCode[]);
+  "MACHINE_LIMIT",
+  "MACHINE_NOT_JOINED",
+  "MACHINE_REVOKED",
+] satisfies (TCodingErrorCode | TCodingMachineErrorCode)[]);
 
 /**
  * Whether a job may start on this work item, as the API decides it (`Issue.issue_objects`, else 400

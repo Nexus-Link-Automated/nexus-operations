@@ -5,3 +5,4 @@
  */
 
 export * from "./coding-job.service";
+export * from "./coding-machine.service";

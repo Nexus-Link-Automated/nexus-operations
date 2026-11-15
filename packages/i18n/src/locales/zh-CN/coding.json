@@ -21,7 +21,7 @@
       "agent": "代理",
       "machine": "机器",
       "machine_auto": "自动",
-      "machine_hint": "任务会在您自己的某台机器上运行。选择机器的功能稍后提供。",
+      "machine_hint": "你自己的已批准且在线的机器。“自动”会从中选择一台。",
       "start": "开始任务",
       "starting": "正在开始..."
     },
@@ -39,6 +39,10 @@
       "JOB_ACTIVE": "此工作项已有同类任务正在进行中。",
       "JOB_NOT_ACTIVE": "此任务已结束，无法取消。",
       "JOB_NOT_RETRYABLE": "只有已取消或未完成的任务才能重试。",
+      "MACHINE_NOT_AVAILABLE": "该机器已不再是你已批准的机器。请选择其他机器或“自动”。",
+      "MACHINE_LIMIT": "你在此工作区中的机器数量已达上限。请先移除一台。",
+      "MACHINE_NOT_JOINED": "此机器尚未加入，因此无需批准。",
+      "MACHINE_REVOKED": "此机器已被工作区管理员吊销。",
       "forbidden": "您没有执行此操作的权限。",
       "generic": "出现错误，请重试。"
     },
@@ -105,6 +109,112 @@
       "save_failed": "无法保存编码设置",
       "read_only": "只有项目管理员可以更改这些设置。",
       "not_configured": "此项目的编码任务已关闭。请启用该功能并设置仓库，以便成员可以启动任务。"
+    }
+  },
+  "coding_machines": {
+    "label": "机器",
+    "title": "机器",
+    "description": "在 {workspace} 中运行你的编码任务的你自己的电脑。每台机器使用自己的 Codex 和 Claude 登录，并且只向外连接到 CRM。",
+    "no_workspace": "机器属于某个工作区。加入或创建一个工作区后即可添加机器。",
+    "guest": "访客无法使用机器。",
+    "empty": "还没有机器。添加你的电脑，在上面运行你的编码任务。",
+    "load_failed": "无法加载机器。",
+    "add": "添加机器",
+    "state": {
+      "pending": "等待加入",
+      "awaiting_approval": "等待批准",
+      "active": "已启用",
+      "revoked": "已吊销"
+    },
+    "online": "在线",
+    "offline": "离线",
+    "last_seen": "最后在线 {time}",
+    "never_seen": "从未连接",
+    "host": "主机",
+    "agents": "代理",
+    "no_agents": "未找到",
+    "agent_signed_in": "已登录",
+    "agent_not_signed_in": "未登录",
+    "agent_not_installed": "未安装",
+    "docker": "Docker",
+    "docker_available": "可用",
+    "docker_unavailable": "不可用",
+    "slots": "空闲槽位",
+    "slots_value": "{free} / {total}",
+    "unknown": "未知",
+    "pending_hint": "正在等待机器使用其代码加入。代码有效期至 {time}。",
+    "pending_expired": "加入代码在机器使用前已过期。请移除此机器并重新添加。",
+    "awaiting_hint": "机器已以 {hostname} 的身份加入。如果这是你的电脑，请批准它，以便它运行你的任务。",
+    "revoked_hint": "工作区管理员已吊销此机器：它无法连接，也不会收到任务。你可以将其移除。",
+    "actions": {
+      "approve": "批准",
+      "rename": "重命名",
+      "remove": "移除"
+    },
+    "add_dialog": {
+      "title": "添加机器",
+      "description": "为这台电脑命名。接下来你会获得一个在该电脑上使用的加入代码。",
+      "name": "名称",
+      "name_placeholder": "例如：工作笔记本",
+      "create": "添加机器",
+      "creating": "正在添加...",
+      "code_title": "连接 {name}",
+      "code_description": "在机器上运行以下命令。加入代码只能使用一次，并且只在此刻显示：关闭此对话框后它就会消失。",
+      "step_join": "1. 使用代码加入",
+      "step_start": "2. 启动机器服务",
+      "copy": "复制",
+      "copied": "已复制到剪贴板",
+      "expires": "代码将于 {time} 过期。",
+      "after": "当机器显示为“等待批准”时，请检查其主机名并批准它。",
+      "done": "完成"
+    },
+    "rename_dialog": {
+      "title": "重命名机器",
+      "save": "保存",
+      "saving": "正在保存..."
+    },
+    "approve_dialog": {
+      "title": "批准 {name}？",
+      "description": "该机器报告的主机为 {hostname}（{os}）。只有当它是你自己的电脑时才批准：它将运行你的编码任务。",
+      "confirm": "批准",
+      "confirming": "正在批准..."
+    },
+    "remove_dialog": {
+      "title": "移除 {name}？",
+      "description": "机器将被永久移除：其密钥立即失效，且不再接收任务。如需再次使用，请重新添加。",
+      "confirm": "移除",
+      "confirming": "正在移除..."
+    },
+    "toasts": {
+      "added": "已添加机器",
+      "add_failed": "无法添加机器",
+      "approved": "已批准机器",
+      "approve_failed": "无法批准机器",
+      "renamed": "已重命名机器",
+      "rename_failed": "无法重命名机器",
+      "removed": "已移除机器",
+      "remove_failed": "无法移除机器",
+      "revoked": "已吊销机器",
+      "revoke_failed": "无法吊销机器"
+    },
+    "admin": {
+      "label": "机器",
+      "title": "机器",
+      "description": "此工作区中成员为其编码任务添加的所有机器。吊销会立即切断机器：其密钥失效，且不再接收任务。",
+      "empty": "此工作区中还没有人添加机器。",
+      "owner": "所有者",
+      "name": "机器",
+      "state": "状态",
+      "status": "连接",
+      "last_seen": "最后在线",
+      "never": "从未",
+      "revoke": "吊销",
+      "revoke_dialog": {
+        "title": "吊销 {name}？",
+        "description": "{owner} 的这台机器将立即停止工作，不再接收任务。只有其所有者可以移除它。",
+        "confirm": "吊销",
+        "confirming": "正在吊销..."
+      }
     }
   }
 }

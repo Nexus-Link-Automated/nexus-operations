@@ -25,6 +25,7 @@ const job = (id: string, overrides: Partial<TCodingJob> = {}): TCodingJob => ({
   retry_of: null,
   comment: null,
   requested_by: "u1",
+  machine: null,
   is_active: true,
   is_retryable: false,
   started_at: null,
@@ -90,9 +91,13 @@ describe("CodingJobStore", () => {
     const store = new CodingJobStore({ service });
     await store.fetchJobs("acme", "p1", "w1");
 
-    const started = await store.startJob("acme", "p1", "w1", "write_test", "claude");
+    const started = await store.startJob("acme", "p1", "w1", "write_test", "claude", "m1");
 
-    expect(service.start).toHaveBeenCalledWith("acme", "p1", "w1", { action: "write_test", agent: "claude" });
+    expect(service.start).toHaveBeenCalledWith("acme", "p1", "w1", {
+      action: "write_test",
+      agent: "claude",
+      machine: "m1",
+    });
     expect(started.id).toBe("j2");
     expect(store.getJobs("w1")?.map((j) => j.id)).toEqual(["j2", "j1"]);
   });

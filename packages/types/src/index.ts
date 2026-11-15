@@ -8,6 +8,7 @@ export * from "./activity";
 export * from "./agent";
 export * from "./chat";
 export * from "./coding-job";
+export * from "./coding-machine";
 export * from "./ai";
 export * from "./analytics";
 export * from "./api_token";

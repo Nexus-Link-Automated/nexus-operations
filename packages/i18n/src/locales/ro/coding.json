@@ -21,7 +21,7 @@
       "agent": "Agent",
       "machine": "Mașină",
       "machine_auto": "Automat",
-      "machine_hint": "Sarcina rulează pe una dintre propriile dvs. mașini. Alegerea mașinii va veni mai târziu.",
+      "machine_hint": "Propriile tale mașini aprobate care sunt online. Automat alege una dintre ele.",
       "start": "Pornește sarcina",
       "starting": "Se pornește..."
     },
@@ -39,6 +39,10 @@
       "JOB_ACTIVE": "Această activitate are deja în desfășurare o sarcină de acest tip.",
       "JOB_NOT_ACTIVE": "Această sarcină s-a încheiat deja, deci nu poate fi anulată.",
       "JOB_NOT_RETRYABLE": "Doar o sarcină anulată sau una care nu s-a finalizat poate fi reîncercată.",
+      "MACHINE_NOT_AVAILABLE": "Mașina aceea nu mai este una dintre mașinile tale aprobate. Alege alta sau Automat.",
+      "MACHINE_LIMIT": "Ai deja numărul maxim de mașini permis în acest spațiu de lucru. Elimină mai întâi una.",
+      "MACHINE_NOT_JOINED": "Această mașină nu s-a alăturat încă, deci nu ai ce aproba.",
+      "MACHINE_REVOKED": "Această mașină a fost revocată de un administrator al spațiului de lucru.",
       "forbidden": "Nu aveți permisiunea de a face acest lucru.",
       "generic": "A apărut o problemă. Încercați din nou."
     },
@@ -105,6 +109,112 @@
       "save_failed": "Setările de programare nu au putut fi salvate",
       "read_only": "Doar administratorii proiectului pot modifica aceste setări.",
       "not_configured": "Sarcinile de programare sunt dezactivate pentru acest proiect. Activați-le și setați repozitoriul pentru ca membrii să poată porni sarcini."
+    }
+  },
+  "coding_machines": {
+    "label": "Mașini",
+    "title": "Mașini",
+    "description": "Propriile tale computere care rulează sarcinile tale de programare în {workspace}. Fiecare folosește propriile autentificări Codex și Claude și se conectează la CRM doar spre exterior.",
+    "no_workspace": "Mașinile aparțin unui spațiu de lucru. Alătură-te unui spațiu de lucru sau creează unul pentru a adăuga o mașină.",
+    "guest": "Mașinile nu sunt disponibile pentru invitați.",
+    "empty": "Încă nu există mașini. Adaugă-ți computerul pentru a rula pe el sarcinile tale de programare.",
+    "load_failed": "Mașinile nu au putut fi încărcate.",
+    "add": "Adaugă mașină",
+    "state": {
+      "pending": "Așteaptă alăturarea",
+      "awaiting_approval": "Așteaptă aprobarea",
+      "active": "Activă",
+      "revoked": "Revocată"
+    },
+    "online": "Online",
+    "offline": "Offline",
+    "last_seen": "văzută {time}",
+    "never_seen": "niciodată conectată",
+    "host": "Gazdă",
+    "agents": "Agenți",
+    "no_agents": "Niciunul găsit",
+    "agent_signed_in": "autentificat",
+    "agent_not_signed_in": "neautentificat",
+    "agent_not_installed": "neinstalat",
+    "docker": "Docker",
+    "docker_available": "Disponibil",
+    "docker_unavailable": "Indisponibil",
+    "slots": "Sloturi libere",
+    "slots_value": "{free} din {total}",
+    "unknown": "necunoscut",
+    "pending_hint": "Se așteaptă ca mașina să se alăture cu codul ei. Codul este valabil până la {time}.",
+    "pending_expired": "Codul de alăturare a expirat înainte ca mașina să-l folosească. Elimină această mașină și adaug-o din nou.",
+    "awaiting_hint": "Mașina s-a alăturat ca {hostname}. Dacă este computerul tău, aprob-o ca să poată rula sarcinile tale.",
+    "revoked_hint": "Un administrator al spațiului de lucru a revocat această mașină: nu se poate conecta și nu primește sarcini. O poți elimina.",
+    "actions": {
+      "approve": "Aprobă",
+      "rename": "Redenumește",
+      "remove": "Elimină"
+    },
+    "add_dialog": {
+      "title": "Adaugă mașină",
+      "description": "Dă un nume computerului. Apoi primești un cod de alăturare de folosit pe el.",
+      "name": "Nume",
+      "name_placeholder": "ex. Laptop de serviciu",
+      "create": "Adaugă mașina",
+      "creating": "Se adaugă...",
+      "code_title": "Conectează {name}",
+      "code_description": "Rulează aceste comenzi pe mașină. Codul de alăturare funcționează o singură dată și este afișat doar acum: după ce închizi această fereastră, dispare.",
+      "step_join": "1. Alătură-te cu codul",
+      "step_start": "2. Pornește serviciul mașinii",
+      "copy": "Copiază",
+      "copied": "Copiat în clipboard",
+      "expires": "Codul expiră la {time}.",
+      "after": "Când mașina apare ca Așteaptă aprobarea, verifică numele gazdei și aprob-o.",
+      "done": "Gata"
+    },
+    "rename_dialog": {
+      "title": "Redenumește mașina",
+      "save": "Salvează",
+      "saving": "Se salvează..."
+    },
+    "approve_dialog": {
+      "title": "Aprobi {name}?",
+      "description": "Mașina raportează gazda {hostname} ({os}). Aprob-o doar dacă este propriul tău computer: va rula sarcinile tale de programare.",
+      "confirm": "Aprobă",
+      "confirming": "Se aprobă..."
+    },
+    "remove_dialog": {
+      "title": "Elimini {name}?",
+      "description": "Mașina este eliminată definitiv: cheia ei nu mai funcționează imediat și nu mai primește sarcini. Pentru a o folosi din nou, adaug-o din nou.",
+      "confirm": "Elimină",
+      "confirming": "Se elimină..."
+    },
+    "toasts": {
+      "added": "Mașină adăugată",
+      "add_failed": "Mașina nu a putut fi adăugată",
+      "approved": "Mașină aprobată",
+      "approve_failed": "Mașina nu a putut fi aprobată",
+      "renamed": "Mașină redenumită",
+      "rename_failed": "Mașina nu a putut fi redenumită",
+      "removed": "Mașină eliminată",
+      "remove_failed": "Mașina nu a putut fi eliminată",
+      "revoked": "Mașină revocată",
+      "revoke_failed": "Mașina nu a putut fi revocată"
+    },
+    "admin": {
+      "label": "Mașini",
+      "title": "Mașini",
+      "description": "Toate mașinile pe care persoanele din acest spațiu de lucru le-au adăugat pentru sarcinile lor de programare. Revocarea o deconectează imediat: cheia ei nu mai funcționează și nu primește sarcini.",
+      "empty": "Nimeni din acest spațiu de lucru nu a adăugat încă o mașină.",
+      "owner": "Proprietar",
+      "name": "Mașină",
+      "state": "Stare",
+      "status": "Conexiune",
+      "last_seen": "Văzută ultima dată",
+      "never": "Niciodată",
+      "revoke": "Revocă",
+      "revoke_dialog": {
+        "title": "Revoci {name}?",
+        "description": "Această mașină a lui {owner} nu mai funcționează imediat și nu mai primește sarcini. Doar proprietarul ei o poate elimina.",
+        "confirm": "Revocă",
+        "confirming": "Se revocă..."
+      }
     }
   }
 }

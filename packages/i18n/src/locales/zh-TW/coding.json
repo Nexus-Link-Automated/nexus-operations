@@ -21,7 +21,7 @@
       "agent": "代理",
       "machine": "機器",
       "machine_auto": "自動",
-      "machine_hint": "工作會在您自己的某台機器上執行。選擇機器的功能稍後提供。",
+      "machine_hint": "你自己已核准且上線的機器。「自動」會從中選擇一台。",
       "start": "開始工作",
       "starting": "正在開始..."
     },
@@ -39,6 +39,10 @@
       "JOB_ACTIVE": "此工作項目已有同類工作正在進行中。",
       "JOB_NOT_ACTIVE": "此工作已結束，無法取消。",
       "JOB_NOT_RETRYABLE": "只有已取消或未完成的工作才能重試。",
+      "MACHINE_NOT_AVAILABLE": "該機器已不再是你已核准的機器。請選擇其他機器或「自動」。",
+      "MACHINE_LIMIT": "你在此工作區的機器數量已達上限。請先移除一台。",
+      "MACHINE_NOT_JOINED": "此機器尚未加入，因此無需核准。",
+      "MACHINE_REVOKED": "此機器已被工作區管理員撤銷。",
       "forbidden": "您沒有執行此操作的權限。",
       "generic": "發生錯誤，請再試一次。"
     },
@@ -105,6 +109,112 @@
       "save_failed": "無法儲存編碼設定",
       "read_only": "只有專案管理員可以變更這些設定。",
       "not_configured": "此專案的編碼工作已關閉。請啟用此功能並設定儲存庫，讓成員可以開始工作。"
+    }
+  },
+  "coding_machines": {
+    "label": "機器",
+    "title": "機器",
+    "description": "在 {workspace} 中執行你的編碼工作的你自己的電腦。每台機器使用自己的 Codex 和 Claude 登入，並且只向外連線到 CRM。",
+    "no_workspace": "機器屬於某個工作區。加入或建立一個工作區後即可新增機器。",
+    "guest": "訪客無法使用機器。",
+    "empty": "還沒有機器。新增你的電腦，在上面執行你的編碼工作。",
+    "load_failed": "無法載入機器。",
+    "add": "新增機器",
+    "state": {
+      "pending": "等待加入",
+      "awaiting_approval": "等待核准",
+      "active": "已啟用",
+      "revoked": "已撤銷"
+    },
+    "online": "上線",
+    "offline": "離線",
+    "last_seen": "最後上線 {time}",
+    "never_seen": "從未連線",
+    "host": "主機",
+    "agents": "代理",
+    "no_agents": "找不到",
+    "agent_signed_in": "已登入",
+    "agent_not_signed_in": "未登入",
+    "agent_not_installed": "未安裝",
+    "docker": "Docker",
+    "docker_available": "可用",
+    "docker_unavailable": "無法使用",
+    "slots": "可用插槽",
+    "slots_value": "{free} / {total}",
+    "unknown": "未知",
+    "pending_hint": "正在等待機器使用其代碼加入。代碼有效期限至 {time}。",
+    "pending_expired": "加入代碼在機器使用前已過期。請移除此機器並重新新增。",
+    "awaiting_hint": "機器已以 {hostname} 的身分加入。如果這是你的電腦，請核准它，讓它執行你的工作。",
+    "revoked_hint": "工作區管理員已撤銷此機器：它無法連線，也不會收到工作。你可以將其移除。",
+    "actions": {
+      "approve": "核准",
+      "rename": "重新命名",
+      "remove": "移除"
+    },
+    "add_dialog": {
+      "title": "新增機器",
+      "description": "為這台電腦命名。接著你會取得一組在該電腦上使用的加入代碼。",
+      "name": "名稱",
+      "name_placeholder": "例如：工作筆電",
+      "create": "新增機器",
+      "creating": "正在新增...",
+      "code_title": "連線 {name}",
+      "code_description": "在機器上執行以下指令。加入代碼只能使用一次，且只在此刻顯示：關閉此對話框後就會消失。",
+      "step_join": "1. 使用代碼加入",
+      "step_start": "2. 啟動機器服務",
+      "copy": "複製",
+      "copied": "已複製到剪貼簿",
+      "expires": "代碼將於 {time} 過期。",
+      "after": "當機器顯示為「等待核准」時，請檢查其主機名稱並核准它。",
+      "done": "完成"
+    },
+    "rename_dialog": {
+      "title": "重新命名機器",
+      "save": "儲存",
+      "saving": "正在儲存..."
+    },
+    "approve_dialog": {
+      "title": "核准 {name}？",
+      "description": "該機器回報的主機為 {hostname}（{os}）。只有當它是你自己的電腦時才核准：它將執行你的編碼工作。",
+      "confirm": "核准",
+      "confirming": "正在核准..."
+    },
+    "remove_dialog": {
+      "title": "移除 {name}？",
+      "description": "機器將被永久移除：其金鑰立即失效，且不再接收工作。如需再次使用，請重新新增。",
+      "confirm": "移除",
+      "confirming": "正在移除..."
+    },
+    "toasts": {
+      "added": "已新增機器",
+      "add_failed": "無法新增機器",
+      "approved": "已核准機器",
+      "approve_failed": "無法核准機器",
+      "renamed": "已重新命名機器",
+      "rename_failed": "無法重新命名機器",
+      "removed": "已移除機器",
+      "remove_failed": "無法移除機器",
+      "revoked": "已撤銷機器",
+      "revoke_failed": "無法撤銷機器"
+    },
+    "admin": {
+      "label": "機器",
+      "title": "機器",
+      "description": "此工作區成員為其編碼工作新增的所有機器。撤銷會立即切斷機器：其金鑰失效，且不再接收工作。",
+      "empty": "此工作區中還沒有人新增機器。",
+      "owner": "擁有者",
+      "name": "機器",
+      "state": "狀態",
+      "status": "連線",
+      "last_seen": "最後上線",
+      "never": "從未",
+      "revoke": "撤銷",
+      "revoke_dialog": {
+        "title": "撤銷 {name}？",
+        "description": "{owner} 的這台機器將立即停止運作，不再接收工作。只有其擁有者可以移除它。",
+        "confirm": "撤銷",
+        "confirming": "正在撤銷..."
+      }
     }
   }
 }

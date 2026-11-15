@@ -6,7 +6,14 @@
 
 import type React from "react";
 import type { IconGlyph } from "@makeplane/propel/components/icon";
-import { KeyOutline, LockOutline, SettingsOutline, SubscribeOutline, UserOutline } from "@makeplane/propel/icons";
+import {
+  KeyOutline,
+  LockOutline,
+  MonitorOutline,
+  SettingsOutline,
+  SubscribeOutline,
+  UserOutline,
+} from "@makeplane/propel/icons";
 import { observer } from "mobx-react";
 import { useParams } from "react-router";
 // plane imports
@@ -30,6 +37,7 @@ const ICONS: Record<TProfileSettingsTabs, IconGlyph | React.FC<ISvgIcons>> = {
   preferences: SettingsOutline,
   notifications: SubscribeOutline,
   "api-tokens": KeyOutline,
+  machines: MonitorOutline,
 };
 
 type Props = {
