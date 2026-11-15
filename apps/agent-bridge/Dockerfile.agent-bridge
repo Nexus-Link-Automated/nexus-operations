@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # The agent bridge: an ACP policy proxy. It never runs agents, so this image has no agent CLIs,
 # no adapter bins and no provider SDKs (turbo prune keeps @plane/acp-adapters out of its graph).
-FROM node:24-alpine AS base
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS base
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PNPM_HOME/bin:$PATH"
