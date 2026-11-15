@@ -63,9 +63,9 @@ docker compose -f docker-compose-test.yml down -v
 
 | Service      | Image                                               | Purpose                                 |
 | ------------ | --------------------------------------------------- | --------------------------------------- |
-| `test-db`    | `postgres:15.7-alpine`                              | Application database                    |
+| `test-db`    | `postgres:15.20-alpine`                              | Application database                    |
 | `test-redis` | `valkey/valkey:7.2.11-alpine`                       | Cache / Celery broker                   |
-| `test-mq`    | `rabbitmq:3.13.6-management-alpine`                 | Task queue                              |
+| `test-mq`    | `rabbitmq:3.13.7-management-alpine`                 | Task queue                              |
 | `test-minio` | `docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z` | S3-compatible object storage            |
 | `api-tests`  | built from `apps/api/Dockerfile.dev`                | `uv sync`s the locked deps, runs pytest |
 
