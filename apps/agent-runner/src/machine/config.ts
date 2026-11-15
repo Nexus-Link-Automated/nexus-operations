@@ -111,6 +111,18 @@ export function loadMachineConfig(file: string): LoadResult {
 }
 
 /**
+ * Makes sure the config can be saved, before a join uses up its one-time code: creates the dir
+ * (0700) and writes and removes a probe file. Throws what saving would throw.
+ */
+export function checkConfigWritable(file: string): void {
+  const dir = path.dirname(file);
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const probe = path.join(dir, `.${CONFIG_FILE_NAME}.${process.pid}.probe`);
+  writeFileSync(probe, "", { mode: 0o600, flag: "w" });
+  rmSync(probe, { force: true });
+}
+
+/**
  * Writes the config atomically: a private temp file next to it, then a rename, so a crash never
  * leaves half a key behind. The dir is made (or tightened) to 0700 and the file is 0600.
  */

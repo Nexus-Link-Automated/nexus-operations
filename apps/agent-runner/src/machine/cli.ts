@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 
 import type { Logger } from "../logger.ts";
 import { CrmClient, type FetchLike } from "./client.ts";
-import { checkCrmUrl, configPath, loadMachineConfig, saveMachineConfig } from "./config.ts";
+import { checkConfigWritable, checkCrmUrl, configPath, loadMachineConfig, saveMachineConfig } from "./config.ts";
 import { createMachineLogger } from "./log.ts";
 import { aboutMachine, clampSlots, detectCapabilities, LIMITS, type About, type DetectDeps } from "./report.ts";
 import { EXIT_CONFIG, EXIT_FAILURE, EXIT_OK, EXIT_USAGE, runMachine, type RunOptions } from "./service.ts";
@@ -138,6 +138,13 @@ async function join(parsed: Parsed, deps: CliDeps): Promise<number> {
     deps.err(
       `nexus-machine: this machine has already joined (${file}). Use --force to replace that config with a new join.`
     );
+    return EXIT_FAILURE;
+  }
+  // The code works once: find out now, not after spending it, that the key could not be saved.
+  try {
+    checkConfigWritable(file);
+  } catch (error) {
+    deps.err(`nexus-machine: cannot save the config at ${file} (${(error as Error).message}). Nothing was sent.`);
     return EXIT_FAILURE;
   }
 

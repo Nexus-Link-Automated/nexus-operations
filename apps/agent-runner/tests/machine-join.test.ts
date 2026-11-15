@@ -134,6 +134,16 @@ describe("nexus-machine join", () => {
     expect(checkCrmUrl("http://[::1]:8000")).toEqual({ ok: true, url: "http://[::1]:8000" });
   });
 
+  it("checks the config can be saved before spending the one-time code", async () => {
+    // A file where the config dir should be: mkdir fails, whoever runs the test.
+    const blocked = path.join(home, "not-a-dir");
+    writeFileSync(blocked, "");
+    const env = { HOME: home, XDG_CONFIG_HOME: blocked, PATH: "/usr/bin" };
+    expect(await main(["join", crm.url, CODE], deps({ env }))).toBe(EXIT_FAILURE);
+    expect(out.join("\n")).toMatch(/cannot save the config.*Nothing was sent/);
+    expect(crm.requests).toHaveLength(0);
+  });
+
   it("refuses to overwrite an existing config unless forced", async () => {
     const file = configPath(deps().env);
     crm.respond = () => ({
