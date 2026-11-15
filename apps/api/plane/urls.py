@@ -22,6 +22,9 @@ urlpatterns = [
     path("api/v1/", include("plane.api.urls")),
     # Nexus additions: endpoints the paid plans serve. Mounted after Plane's own so they never shadow one.
     path("api/v1/", include("plane.nexus.urls")),
+    # Coding jobs on work items: the public API (above) and the web app's routes (below).
+    path("api/v1/", include("plane.coding.urls.api")),
+    path("api/", include("plane.coding.urls.app")),
     # Nexus Messages: the web app's chat, scoped to a workspace like plane.app's routes.
     path("api/workspaces/<str:slug>/chat/", include("plane.chat.urls")),
     path("auth/", include("plane.authentication.urls")),

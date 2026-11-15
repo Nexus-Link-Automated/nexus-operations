@@ -210,3 +210,135 @@ Give the container cpu, memory and pids limits.
 pnpm --filter agent-runner test     # includes the browser → bridge → runner → echo end-to-end test
 docker build -f apps/agent-runner/Dockerfile.agent-runner -t plane-agent-runner .  # BUILDX_BUILDER=default locally
 ```
+
+## Machine service
+
+`nexus-machine` runs on a person's own Linux computer (a laptop or desktop) and makes it a coding
+machine for the CRM (`apps/api/plane/coding/README.md`, "Machines"). It runs as that person, with
+their own Codex and Claude sign-ins, toolchains and docker. It only connects out to the CRM over
+HTTPS (one kept-alive connection) and opens no port. For now it only reports what the computer can
+do; jobs stay queued on the CRM until dispatch is added.
+
+The code is in `src/machine/`: `config.ts` (the saved config), `report.ts` (detection),
+`client.ts` (the CRM endpoints), `service.ts` (the heartbeat loop), `cli.ts` and `bin.ts`.
+
+### Install
+
+Needs Linux, systemd and Node.js 24 or newer. As the person who will use the machine (not root):
+
+```sh
+pnpm --filter agent-runner build:machine     # → apps/agent-runner/dist/machine/
+sh apps/agent-runner/dist/machine/install.sh
+```
+
+`dist/machine/` holds everything an install needs (`nexus-machine.mjs` with every dependency
+bundled, `install.sh`, `nexus-machine.service`), so it can be copied to another computer as is. The
+installer puts:
+
+| What                     | Where                                                                            |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| the bundle               | `~/.local/share/nexus-machine/nexus-machine.mjs`                                 |
+| a launcher               | `~/.local/bin/nexus-machine` (runs the bundle with the `node` it found)          |
+| the systemd user unit    | `~/.config/systemd/user/nexus-machine.service` (under `$XDG_CONFIG_HOME` if set) |
+| the service's env (once) | `~/.config/nexus-machine/env` (0600): your `PATH` at install time                |
+
+A systemd user service does not get your login shell's `PATH`, so the installer saves it in the
+env file, which the unit loads; that is how the service finds `codex`, `claude` and toolchains
+installed under your home (nvm, `~/.cargo/bin`, ...). Edit it freely; running the installer again
+upgrades the bundle and keeps it. Keys the agents should use (e.g. `ANTHROPIC_API_KEY`) can go
+there too.
+
+### Join and run
+
+1. In the CRM, add a machine; copy its one-time join code (valid 30 minutes).
+2. `nexus-machine join https://<your CRM address> <join code> [--slots N]` trades the code for the
+   machine's key and saves `$XDG_CONFIG_HOME/nexus-machine/config.json` (default
+   `~/.config/nexus-machine/`; dir 0700, file 0600): `{url, machineId, key, workspaceSlug, name,
+slots}`. The key is never printed. Only `https://` URLs are accepted (plain `http://` only to
+   `localhost`, for development). An existing config is kept unless `--force` is given. `--slots`
+   (0-32, default 1) is how many jobs may run at once.
+3. `systemctl --user enable --now nexus-machine` starts it now and at every login;
+   `loginctl enable-linger $USER` keeps it running while you are logged out.
+4. The owner approves the machine in the CRM. Until then it shows `awaiting_approval`.
+
+`nexus-machine status` shows the saved config (never the key) and the report the machine sends.
+Logs: `journalctl --user -u nexus-machine -f`. Set `NEXUS_MACHINE_DEBUG=1` (in the env file) for
+every retry.
+
+To remove it: `systemctl --user disable --now nexus-machine`, then delete the files above and
+`~/.config/nexus-machine`, and remove the machine in the CRM.
+
+### What it does while running
+
+- Sends a heartbeat every `heartbeat_seconds` from the CRM's last answer (kept within 5 s - 5 min)
+  with `Authorization: Bearer <key>` and `{hostname, os, version, capabilities}`.
+- Detects capabilities at start and then every 5 minutes, not on every heartbeat (detection starts
+  a process per tool). Every command runs without a shell, with stdin closed, in its own process
+  group, with a 10 s timeout; a command that fails reads as absent.
+- Network errors, 5xx and 429: retries after 1 s, doubling to 60 s, with jitter (each wait is
+  50-100% of that); a 429's `Retry-After` is honoured up to 60 s. Back to normal after a success.
+- 403 (`MACHINE_OWNER_NOT_ALLOWED`): keeps retrying every 30-60 s; it may be allowed again.
+- 400 (the CRM refused the report): heartbeats go without `capabilities` until the next detection.
+- 401 with `MACHINE_KEY_INVALID`, `MACHINE_UNKNOWN` or `MACHINE_REVOKED`: logs why and exits 78. A 401 without
+  one of those codes (a proxy or sign-in gateway in front of the CRM, say) is retried at the slowest pace.
+- SIGTERM / SIGINT: stops at once and exits 0.
+
+### What it reports
+
+```json
+{
+  "hostname": "laptop",
+  "os": "linux x64 Ubuntu 24.04.1 LTS",
+  "version": "1.5.0",
+  "capabilities": {
+    "agents": [
+      { "id": "codex", "installed": true, "signed_in": true, "version": "0.47.0" },
+      { "id": "claude", "installed": true, "signed_in": false, "version": "2.0.14" }
+    ],
+    "toolchains": [
+      { "name": "git", "version": "2.43.0" },
+      { "name": "node", "version": "24.1.0" }
+    ],
+    "docker": { "available": true, "version": "28.1.1" },
+    "slots": { "total": 1, "free": 1 }
+  }
+}
+```
+
+- `hostname`: `os.hostname()`; `os`: platform, arch and the distro's `PRETTY_NAME` (or the kernel
+  release); `version`: this package's version. Every string is cut to the CRM's limits.
+- `agents`: `installed` means the binary is on `PATH`; `version` comes from `--version`.
+  `signed_in` uses the same signals as `@plane/acp-adapters`, read offline:
+  - Codex: `$CODEX_HOME/auth.json` (default `~/.codex/auth.json`) holds ChatGPT tokens or a saved
+    API key; without it, `codex login status` exits 0 (covers a sign-in kept in the OS keyring). An
+    `OPENAI_API_KEY` in the env alone does not count.
+  - Claude: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` in the service's env, or the Claude
+    CLI's stored sign-in (`$CLAUDE_CONFIG_DIR/.credentials.json`, default `~/.claude/`, or a
+    `primaryApiKey` in `~/.claude.json`).
+- `toolchains`: those found on `PATH` among git, gh, node, npm, pnpm, yarn, bun, deno, python3,
+  uv, go, rustc, cargo, java, dotnet, ruby, php, make and gcc, with their versions (empty when the
+  tool does not say).
+- `docker`: available when `docker version --format '{{.Server.Version}}'` gets an answer from the
+  daemon (so not when it is stopped or this user may not use it).
+- `slots`: `total` from the config; `free` equals `total`, since nothing runs yet.
+
+### Exit codes
+
+| Code | Meaning                                                                  | systemd                                       |
+| ---- | ------------------------------------------------------------------------ | --------------------------------------------- |
+| 0    | stopped by a signal; or a command finished                               | not restarted                                 |
+| 1    | `join` failed (code refused, CRM unreachable, config not saved); a crash | `run`: restarted after 10 s                   |
+| 64   | bad usage                                                                |                                               |
+| 78   | not joined, a broken config, or the CRM refused the key for good (`run`) | not restarted (`RestartPreventExitStatus=78`) |
+
+Any other failure is restarted after 10 s (`Restart=on-failure`). After a 78, join again
+(`--force`) and `systemctl --user restart nexus-machine`.
+
+The unit adds hardening that needs no user namespaces, so it works on any distro: `NoNewPrivileges`,
+`LockPersonality`, `RestrictRealtime`, `RestrictSUIDSGID`, `SystemCallArchitectures=native` and
+`UMask=0077`. It leaves out filesystem sandboxing (`ProtectHome` and similar), because jobs need
+your home, your sign-ins, your toolchains and the docker socket.
+
+```sh
+pnpm --filter agent-runner exec vitest run tests/machine-*.test.ts
+```
