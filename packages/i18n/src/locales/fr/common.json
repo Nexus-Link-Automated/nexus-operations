@@ -162,6 +162,8 @@
   "something_went_wrong": "Une erreur s’est produite",
   "failed_to_reorder_favorite": "Échec de la réorganisation du favori",
   "favorite_removed_successfully": "Favori supprimé avec succès",
+  "remove_favorite_folder_title": "Supprimer le dossier des favoris ?",
+  "remove_favorite_folder_description": "Supprimer « {name} » retire aussi {count, plural, one {le # favori} other {les # favoris}} qu’il contient. Les éléments eux-mêmes ne sont pas supprimés.",
   "failed_to_create_favorite": "Échec de la création du favori",
   "failed_to_rename_favorite": "Échec du renommage du favori",
   "project_link_copied_to_clipboard": "Lien du projet copié dans le presse-papiers",

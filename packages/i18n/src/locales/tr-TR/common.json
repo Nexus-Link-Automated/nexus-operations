@@ -162,6 +162,8 @@
   "something_went_wrong": "Bir şeyler yanlış gitti",
   "failed_to_reorder_favorite": "Favori sıralaması değiştirilemedi",
   "favorite_removed_successfully": "Favori başarıyla kaldırıldı",
+  "remove_favorite_folder_title": "Klasör favorilerden kaldırılsın mı?",
+  "remove_favorite_folder_description": "\"{name}\" kaldırıldığında içindeki {count, plural, other {# favori}} de kaldırılır. Öğelerin kendisi silinmez.",
   "failed_to_create_favorite": "Favori oluşturulamadı",
   "failed_to_rename_favorite": "Favori yeniden adlandırılamadı",
   "project_link_copied_to_clipboard": "Proje bağlantısı panoya kopyalandı",

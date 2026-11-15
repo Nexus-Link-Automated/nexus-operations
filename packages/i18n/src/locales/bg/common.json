@@ -162,6 +162,8 @@
   "something_went_wrong": "Нещо се обърка",
   "failed_to_reorder_favorite": "Неуспешно пренареждане на любимия елемент",
   "favorite_removed_successfully": "Любимият елемент е премахнат успешно",
+  "remove_favorite_folder_title": "Да се премахне ли папката от любими?",
+  "remove_favorite_folder_description": "Премахването на „{name}“ премахва и {count, plural, one {# любим елемент} other {# любими елемента}} в нея. Самите елементи не се изтриват.",
   "failed_to_create_favorite": "Неуспешно създаване на любим елемент",
   "failed_to_rename_favorite": "Неуспешно преименуване на любимия елемент",
   "project_link_copied_to_clipboard": "Връзката към проекта е копирана в клипборда",

@@ -162,6 +162,8 @@
   "something_went_wrong": "Algo deu errado",
   "failed_to_reorder_favorite": "Falha ao reordenar o favorito",
   "favorite_removed_successfully": "Favorito removido com sucesso",
+  "remove_favorite_folder_title": "Remover a pasta dos favoritos?",
+  "remove_favorite_folder_description": "Remover \"{name}\" também remove {count, plural, one {o # favorito} other {os # favoritos}} dentro dela. Os itens em si não são excluídos.",
   "failed_to_create_favorite": "Falha ao criar favorito",
   "failed_to_rename_favorite": "Falha ao renomear favorito",
   "project_link_copied_to_clipboard": "Link do projeto copiado para a área de transferência",
