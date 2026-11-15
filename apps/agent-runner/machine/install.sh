@@ -8,7 +8,7 @@
 #   sh install.sh [path/to/nexus-machine.mjs]
 #
 # Puts the bundle in ~/.local/share/nexus-machine, a launcher in ~/.local/bin and a systemd user
-# unit in ~/.config/systemd/user. Running it again upgrades in place and keeps your config.
+# unit in ~/.config/systemd/user (or $XDG_CONFIG_HOME/systemd/user). Running it again upgrades in place and keeps your config.
 set -eu
 
 die() {
@@ -56,10 +56,18 @@ esac
 
 data_dir="$HOME/.local/share/nexus-machine"
 bin_dir="$HOME/.local/bin"
-unit_dir="$HOME/.config/systemd/user"
+# systemd looks for user units under $XDG_CONFIG_HOME too.
+unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nexus-machine"
 launcher="$bin_dir/nexus-machine"
 env_file="$config_dir/env"
+# The unit quotes these paths; systemd would read $, ", \ and newlines in them as syntax.
+for value in "$launcher" "$env_file"; do
+  case "$value" in
+    *'$'* | *'"'* | *'\'* | *"
+"*) die "cannot install under a path containing \$, \", \\ or a newline: $value" ;;
+  esac
+done
 
 umask 077
 mkdir -p "$data_dir" "$bin_dir" "$unit_dir" "$config_dir"

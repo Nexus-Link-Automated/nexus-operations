@@ -24,6 +24,7 @@ import { IconButton } from "@makeplane/propel/components/icon-button";
 import { InputField } from "@makeplane/propel/components/input-field";
 import { CopyOutline } from "@makeplane/propel/icons";
 import { setToast } from "@plane/blocks/toast";
+import { API_BASE_URL } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import type { TCodingMachineCreated } from "@plane/types";
 import { copyTextToClipboard, renderFormattedDate } from "@plane/utils";
@@ -37,8 +38,9 @@ type Props = {
   onClose: () => void;
 };
 
-/** The CRM address the machine service joins: this web app's own origin. */
-const crmUrl = () => (typeof window === "undefined" ? "" : window.location.origin);
+/** The CRM address the machine service joins: where the API is, which is this web app's origin unless the API is
+ * served from another one. */
+const crmUrl = () => API_BASE_URL.replace(/\/+$/, "") || (typeof window === "undefined" ? "" : window.location.origin);
 
 function CommandLine({ label, command }: { label: string; command: string }) {
   const { t } = useTranslation();

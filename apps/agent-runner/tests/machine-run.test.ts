@@ -169,6 +169,16 @@ describe("machine service: reconnecting", () => {
     expect(log.lines.join("\n")).toMatch(/error .*refused this machine's key for good.*MACHINE_REVOKED/);
   });
 
+  it("retries a 401 without one of the CRM's key codes (e.g. a proxy in front of it)", async () => {
+    const answers = [{ status: 401, body: { error: "sign in" } }];
+    crm.respond = () => answers.shift() ?? heartbeatOk();
+    const { code, delays } = await runLoop((sleeps, stop) => {
+      if (sleeps.length === 2) stop();
+    });
+    expect(code).toBe(EXIT_OK);
+    expect(delays).toEqual([60_000, 15_000]);
+  });
+
   it("keeps retrying at the slowest pace while the owner is not allowed (403)", async () => {
     let refusals = 3;
     crm.respond = () =>

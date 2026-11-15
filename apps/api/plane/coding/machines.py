@@ -95,7 +95,7 @@ def join(code: str, *, hostname: str = "", os: str = "", version: str = "") -> t
     key = None
     with transaction.atomic():
         machine = (
-            CodingMachine.objects.select_for_update()
+            CodingMachine.objects.select_for_update(of=("self",))
             .select_related("workspace", "owner")
             .filter(join_code_hash=code_hash)
             .first()
@@ -118,6 +118,9 @@ def join(code: str, *, hostname: str = "", os: str = "", version: str = "") -> t
             machine.joined_at = now
             machine.last_seen_at = now
             machine.hostname, machine.os, machine.version = hostname, os, version
+        elif machine.join_code_expires_at is None or machine.join_code_expires_at > timezone.now():
+            # The code is spent: show it as expired, not as still usable.
+            machine.join_code_expires_at = timezone.now()
         machine.save()
     if key is None:
         raise CodingError("This join code is not valid or has expired.", code="JOIN_CODE_INVALID")
@@ -145,7 +148,9 @@ def heartbeat(machine: CodingMachine, report: dict) -> CodingMachine:
     """Record that the machine is connected, and what it reported."""
     fields = {"last_seen_at": timezone.now(), "updated_at": timezone.now()}
     if report:
-        fields["capabilities"] = report.get("capabilities", {})
+        # A heartbeat without a report (the machine's last one was refused) keeps the stored one.
+        if "capabilities" in report:
+            fields["capabilities"] = report["capabilities"]
         for field in ("hostname", "os", "version"):
             if field in report:
                 fields[field] = report[field]

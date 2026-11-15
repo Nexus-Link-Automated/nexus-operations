@@ -86,7 +86,7 @@ only that person's jobs go to it. It uses its own Codex and Claude sign-ins and 
 | `pending` | added; waiting for the machine to use its join code | no | no |
 | `awaiting_approval` | the machine joined and has its key; the owner has not approved it | yes | no |
 | `active` | approved | yes | yes |
-| `revoked` | a workspace admin cut it off; its key is gone | no | no |
+| `revoked` | a workspace admin cut it off; its key is refused (the machine is told it was revoked) | no | no |
 
 1. The owner adds a machine with a name. The answer has a **join code** (`XXXX-XXXX-XXXX-XXXX`, 80 random bits) that
    works once and for 30 minutes. Only its SHA-256 is stored; it is never shown again.
@@ -95,6 +95,8 @@ only that person's jobs go to it. It uses its own Codex and Claude sign-ins and 
 3. The owner checks the hostname the machine reported and approves it.
 4. The machine sends a heartbeat every `heartbeat_seconds` (15) with its report. It counts as online (`is_online`)
    while the last heartbeat is at most 45 s old.
+
+The answer that carries a join code is logged with the code redacted (`APITokenLogMiddleware`).
 
 Removing a machine deletes its record and key hash, so the key stops working at once. Jobs that asked for it keep
 `machine` null (Auto). A machine whose owner leaves the workspace or becomes a guest is refused until that changes.
@@ -112,7 +114,10 @@ People's endpoints, on the public API and the web app's routes, under `/api/v1/w
 | POST | `coding-machines/<id>/approve/` | the owner | `awaiting_approval` → `active` (again on `active`: no change) |
 | POST | `coding-machines/<id>/revoke/` | workspace admins | → `revoked` (again: no change) |
 
-Guests get 403 on all of them. Another person's machine is 404 to a member; to an admin it is readable and revocable,
+Guests get 403 on listing, adding, renaming and approving; someone who became a guest can still read and remove a
+machine they own (removing only takes access away). An in-app agent's session token cannot add or approve a machine
+(403 `AGENT_SESSION_NOT_ALLOWED`): those are the owner's own check of which computers get their jobs. Revoking cuts off
+one machine, not the person: to stop someone having machines, make them a guest or remove them from the workspace. Another person's machine is 404 to a member; to an admin it is readable and revocable,
 and any other action is 403. Names are 1 to 80 characters. A person has at most 20 machines per workspace
 (409 `MACHINE_LIMIT`). Approving a machine that has not joined is 409 `MACHINE_NOT_JOINED`; a revoked one, 409
 `MACHINE_REVOKED`.

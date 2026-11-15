@@ -73,6 +73,13 @@ export function backoffDelay(failures: number, backoff: Backoff): number {
   return Math.min(backoff.maxMs, backoff.baseMs * 2 ** Math.max(0, failures - 1));
 }
 
+/** The CRM's codes for a key that will never work again. */
+export const KEY_REFUSED_FOR_GOOD: ReadonlySet<string> = new Set([
+  "MACHINE_KEY_INVALID",
+  "MACHINE_UNKNOWN",
+  "MACHINE_REVOKED",
+]);
+
 const STATE_MESSAGES: Record<string, string> = {
   awaiting_approval: "machine-service: joined; waiting for the owner to approve this machine in the CRM",
   active: "machine-service: approved and online; jobs will arrive once dispatch is enabled",
@@ -120,8 +127,9 @@ export async function runMachine(options: RunOptions): Promise<number> {
       const seconds = result.value.heartbeatSeconds;
       delay =
         seconds > 0 ? Math.min(MAX_HEARTBEAT_MS, Math.max(MIN_HEARTBEAT_MS, seconds * 1000)) : DEFAULT_HEARTBEAT_MS;
-    } else if (result.kind === "http" && result.status === 401) {
-      // MACHINE_KEY_INVALID / MACHINE_UNKNOWN / MACHINE_REVOKED: retrying can never help.
+    } else if (result.kind === "http" && result.status === 401 && KEY_REFUSED_FOR_GOOD.has(result.code ?? "")) {
+      // Retrying can never help. A 401 without one of these codes (a proxy or sign-in gateway in front of the
+      // CRM, say) is retried slowly below instead.
       log.error("machine-service: the CRM refused this machine's key for good; join again with a new code", {
         status: 401,
         code: result.code ?? null,

@@ -59,9 +59,7 @@ class TestAPITokenLogMiddleware:
     def test_token_identifier_is_hashed_not_plaintext(self, middleware, request_factory):
         log_data = self._captured_log_data(middleware, request_factory)
 
-        expected_hash = hmac.new(
-            settings.SECRET_KEY.encode(), self.API_KEY.encode(), hashlib.sha256
-        ).hexdigest()
+        expected_hash = hmac.new(settings.SECRET_KEY.encode(), self.API_KEY.encode(), hashlib.sha256).hexdigest()
         assert log_data["token_identifier"] == expected_hash
         assert self.API_KEY not in log_data["token_identifier"]
 
@@ -96,3 +94,37 @@ class TestAPITokenLogMiddleware:
         with patch("plane.middleware.logger.process_logs") as process_logs:
             middleware.process_request(request, HttpResponse(b"{}"), request_body=b"")
             assert not process_logs.delay.called
+
+
+@pytest.mark.unit
+class TestOneTimeSecretsInResponses:
+    """A machine's join code is shown once in the answer to adding it; the request log must not keep it."""
+
+    def _logged_response(self, middleware, request_factory, path, content):
+        request = request_factory.post(path, HTTP_X_API_KEY="k")
+        request.user = AnonymousUser()
+        request.auth = "k"
+        with patch("plane.middleware.logger.process_logs") as process_logs:
+            middleware.process_request(request, HttpResponse(content), request_body=b"{}")
+            return process_logs.delay.call_args.kwargs["log_data"]["response_body"]
+
+    def test_join_code_is_redacted(self, middleware, request_factory):
+        body = self._logged_response(
+            middleware,
+            request_factory,
+            "/api/v1/workspaces/acme/coding-machines/",
+            b'{"id": "m1", "name": "Laptop", "join_code": "ABCD-EFGH-JKMN-PQRS"}',
+        )
+        assert "ABCD-EFGH-JKMN-PQRS" not in body
+        assert '"join_code": "[REDACTED]"' in body and '"name": "Laptop"' in body
+
+    def test_unparseable_answer_on_that_path_is_dropped(self, middleware, request_factory):
+        body = self._logged_response(
+            middleware, request_factory, "/api/v1/workspaces/acme/coding-machines/", b"join_code=ABCD"
+        )
+        assert body == "[REDACTED]"
+
+    def test_other_paths_are_untouched(self, middleware, request_factory):
+        content = b'{"join_code": "kept on other paths"}'
+        body = self._logged_response(middleware, request_factory, "/api/v1/workspaces/acme/projects/", content)
+        assert body == content.decode()

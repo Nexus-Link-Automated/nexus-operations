@@ -32,6 +32,7 @@ from plane.coding.serializers import (
     MachineNameSerializer,
 )
 from plane.db.models import Workspace, WorkspaceMember
+from plane.db.models.api import AGENT_SESSION_TOKEN_LABEL, APIToken
 
 from .base import CodingEndpointMixin
 
@@ -64,6 +65,13 @@ class _WorkspaceMachines(CodingEndpointMixin):
     def require_member(self):
         if not machines.owner_may_use_machines(self.request.user, self.workspace):
             raise Forbidden("Guests cannot have machines: they cannot run coding jobs.")
+
+    def refuse_agent_sessions(self):
+        """Adding and approving are the owner's own check of which computers get their jobs. An in-app agent works
+        from text anyone in the workspace can write, so its session token may not do either."""
+        token = getattr(self.request, "auth", None)
+        if isinstance(token, str) and APIToken.objects.filter(token=token, label=AGENT_SESSION_TOKEN_LABEL).exists():
+            raise Forbidden("An agent session cannot add or approve machines.", code="AGENT_SESSION_NOT_ALLOWED")
 
     def require_admin(self):
         if not self.is_admin:
@@ -102,6 +110,7 @@ class CodingMachineListMixin(_WorkspaceMachines):
     def post(self, request, slug):
         """Add a machine. The answer carries `join_code` (and `join_code_expires_at`): shown once, never again."""
         self.require_member()
+        self.refuse_agent_sessions()
         serializer = MachineNameSerializer(data=request.data)
         if not serializer.is_valid():
             return self.invalid(serializer.errors)
@@ -142,7 +151,9 @@ class CodingMachineDetailMixin(_WorkspaceMachines):
 class CodingMachineApproveMixin(_WorkspaceMachines):
     def post(self, request, slug, machine_id):
         """Approve a machine that has joined, so it can take jobs. The owner only."""
-        return Response(self.payload(machines.approve(self.get_own_machine())))
+        machine = self.get_own_machine()
+        self.refuse_agent_sessions()
+        return Response(self.payload(machines.approve(machine)))
 
 
 class CodingMachineRevokeMixin(_WorkspaceMachines):

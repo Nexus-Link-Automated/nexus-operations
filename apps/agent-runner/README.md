@@ -235,12 +235,12 @@ sh apps/agent-runner/dist/machine/install.sh
 bundled, `install.sh`, `nexus-machine.service`), so it can be copied to another computer as is. The
 installer puts:
 
-| What                     | Where                                                                   |
-| ------------------------ | ----------------------------------------------------------------------- |
-| the bundle               | `~/.local/share/nexus-machine/nexus-machine.mjs`                        |
-| a launcher               | `~/.local/bin/nexus-machine` (runs the bundle with the `node` it found) |
-| the systemd user unit    | `~/.config/systemd/user/nexus-machine.service`                          |
-| the service's env (once) | `~/.config/nexus-machine/env` (0600): your `PATH` at install time       |
+| What                     | Where                                                                            |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| the bundle               | `~/.local/share/nexus-machine/nexus-machine.mjs`                                 |
+| a launcher               | `~/.local/bin/nexus-machine` (runs the bundle with the `node` it found)          |
+| the systemd user unit    | `~/.config/systemd/user/nexus-machine.service` (under `$XDG_CONFIG_HOME` if set) |
+| the service's env (once) | `~/.config/nexus-machine/env` (0600): your `PATH` at install time                |
 
 A systemd user service does not get your login shell's `PATH`, so the installer saves it in the
 env file, which the unit loads; that is how the service finds `codex`, `claude` and toolchains
@@ -279,7 +279,8 @@ To remove it: `systemctl --user disable --now nexus-machine`, then delete the fi
   50-100% of that); a 429's `Retry-After` is honoured up to 60 s. Back to normal after a success.
 - 403 (`MACHINE_OWNER_NOT_ALLOWED`): keeps retrying every 30-60 s; it may be allowed again.
 - 400 (the CRM refused the report): heartbeats go without `capabilities` until the next detection.
-- 401 (`MACHINE_KEY_INVALID`, `MACHINE_UNKNOWN`, `MACHINE_REVOKED`): logs why and exits 78.
+- 401 with `MACHINE_KEY_INVALID`, `MACHINE_UNKNOWN` or `MACHINE_REVOKED`: logs why and exits 78. A 401 without
+  one of those codes (a proxy or sign-in gateway in front of the CRM, say) is retried at the slowest pace.
 - SIGTERM / SIGINT: stops at once and exits 0.
 
 ### What it reports

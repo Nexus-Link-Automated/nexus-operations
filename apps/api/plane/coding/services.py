@@ -67,7 +67,12 @@ def start_job(issue, action: str, agent: str, user, retry_of: CodingJob | None =
             )
             return job
     except IntegrityError:
-        # Another request started one between the check and the insert (coding_job_one_active_per_action).
+        # Another request started one between the check and the insert (coding_job_one_active_per_action), or
+        # the machine was removed meanwhile (its foreign key fails at commit).
+        if machine is not None and not CodingMachine.objects.filter(pk=machine.pk).exists():
+            raise CodingError(
+                "That machine is not one of your approved machines in this workspace.", code="MACHINE_NOT_AVAILABLE"
+            )
         raise _active_conflict(issue, action) or Conflict("Could not start the job.", code="JOB_ACTIVE")
 
 

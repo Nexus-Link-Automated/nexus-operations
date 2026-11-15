@@ -9,9 +9,11 @@ import json
 import re
 from datetime import timedelta
 from unittest import mock
+from uuid import uuid4
 
 import pytest
 from django.core.cache import cache
+from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -19,6 +21,7 @@ from plane.coding import machines
 from plane.coding.models import CodingJob, CodingMachine, JobOutcome, JobStatus
 from plane.coding.outcomes import apply_result
 from plane.db.models import WorkspaceMember
+from plane.db.models.api import AGENT_SESSION_TOKEN_LABEL, APIToken
 
 from .conftest import GUEST, MEMBER
 
@@ -211,9 +214,12 @@ class TestJoin:
         assert res.status_code == 400 and res.data["code"] == "JOIN_CODE_INVALID"
 
     def test_owner_who_became_a_guest_cannot_join(self, member, machines_url, workspace):
-        code = add(member[1], machines_url)["join_code"]
+        added = add(member[1], machines_url)
         WorkspaceMember.objects.filter(workspace=workspace, member=member[0]).update(role=GUEST)
-        assert join(code).status_code == 400
+        assert join(added["join_code"]).status_code == 400
+        # The spent code reads as expired, not as still usable.
+        machine = CodingMachine.objects.get(pk=added["id"])
+        assert machine.join_code_hash is None and machine.join_code_expired
 
     def test_join_is_rate_limited(self, db):
         statuses = {join("AAAA-BBBB-CCCC-DDDD").status_code for _ in range(31)}
@@ -256,8 +262,10 @@ class TestHeartbeat:
         machine, key = active
         heartbeat(key)
         assert heartbeat(key, {}).status_code == 200
+        # Without capabilities (the machine's last report was refused) the stored report stays.
+        assert heartbeat(key, {"hostname": "laptop-2"}).status_code == 200
         machine.refresh_from_db()
-        assert machine.capabilities == REPORT["capabilities"]
+        assert machine.capabilities == REPORT["capabilities"] and machine.hostname == "laptop-2"
 
     @pytest.mark.parametrize(
         "change",
@@ -352,6 +360,23 @@ class TestOwnerActions:
         assert res.status_code == 400
         res = member[1].patch(machines_url(f"{machine.id}/"), {"state": "active"}, format="json")
         assert res.status_code == 400
+
+    def test_agent_session_cannot_add_or_approve(self, joined, member, workspace, machines_url):
+        machine, _ = joined
+        token = APIToken.objects.create(
+            user=member[0], label=AGENT_SESSION_TOKEN_LABEL, token=f"agent-{uuid4().hex}", workspace=workspace
+        )
+        client = APIClient()
+        client.credentials(HTTP_X_API_KEY=token.token)
+        res = client.post(machines_url(), {"name": "x"}, format="json")
+        assert res.status_code == 403 and res.data["code"] == "AGENT_SESSION_NOT_ALLOWED"
+        res = client.post(machines_url(f"{machine.id}/approve/"))
+        assert res.status_code == 403 and res.data["code"] == "AGENT_SESSION_NOT_ALLOWED"
+        machine.refresh_from_db()
+        assert machine.state == "awaiting_approval"
+        # Reading and renaming are fine.
+        assert client.get(machines_url()).status_code == 200
+        assert client.patch(machines_url(f"{machine.id}/"), {"name": "Desk"}, format="json").status_code == 200
 
     def test_another_member_cannot_see_or_touch_it(self, joined, other_member, machines_url):
         machine, _ = joined
@@ -484,6 +509,17 @@ class TestJobMachine:
         assert res.status_code == 400 and res.data["code"] == "MACHINE_NOT_AVAILABLE"
         res = self.start(member[1], jobs_url, issue, machine="laptop")
         assert res.status_code == 400 and res.data["errors"]["machine"]
+
+    def test_machine_removed_while_starting(self, coding_settings, active, member, issue, jobs_url):
+        machine, _ = active
+        # Removed by another request after the check: the insert's foreign key then fails at commit.
+        gone = CodingMachine(pk=uuid4())
+        with (
+            mock.patch("plane.coding.services.available_machine", return_value=gone),
+            mock.patch("plane.coding.services.CodingJob.objects.create", side_effect=IntegrityError("fk")),
+        ):
+            res = self.start(member[1], jobs_url, issue, machine=str(machine.id))
+        assert res.status_code == 400 and res.data["code"] == "MACHINE_NOT_AVAILABLE"
 
     def test_removing_the_machine_leaves_the_job_on_auto(
         self, coding_settings, active, member, issue, jobs_url, machines_url
