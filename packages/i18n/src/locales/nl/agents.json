@@ -139,6 +139,7 @@
         "session_expired": "De chatsessie is verlopen.",
         "too_many_chats": "U hebt te veel chats geopend. Sluit er een in een ander tabblad en probeer het opnieuw.",
         "agent_unavailable": "De agent is momenteel niet beschikbaar. Probeer het zo dadelijk opnieuw.",
+        "agent_busy": "De agentservice is momenteel druk bezet. Probeer het over een paar minuten opnieuw.",
         "unknown": "De chatverbinding is onverwacht verbroken."
       }
     },

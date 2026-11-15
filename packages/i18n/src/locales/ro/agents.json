@@ -139,6 +139,7 @@
         "session_expired": "Sesiunea de chat a expirat.",
         "too_many_chats": "Aveți prea multe chaturi deschise. Închideți unul într-o altă filă și încercați din nou.",
         "agent_unavailable": "Agentul nu este disponibil momentan. Încercați din nou în scurt timp.",
+        "agent_busy": "Serviciul de agenți este ocupat momentan. Încercați din nou peste câteva minute.",
         "unknown": "Conexiunea chatului s-a închis în mod neașteptat."
       }
     },

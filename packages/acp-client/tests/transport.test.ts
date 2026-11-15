@@ -128,6 +128,7 @@ describe("describeClose", () => {
     expect(describeClose(4410)).toEqual({ reason: "session_expired", canReconnect: true, autoReconnect: true });
     expect(describeClose(4408)).toMatchObject({ reason: "idle_timeout", canReconnect: true, autoReconnect: false });
     expect(describeClose(4403)).toMatchObject({ reason: "forbidden", canReconnect: false });
+    expect(describeClose(4503)).toMatchObject({ reason: "agent_busy", canReconnect: true, autoReconnect: false });
     expect(describeClose(4999)).toMatchObject({ reason: "unknown", canReconnect: true });
   });
 });
