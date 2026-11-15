@@ -24,6 +24,7 @@ from plane.models.work_items import PaginatedWorkItemResponse
 from plane_mcp.client import get_plane_client_context
 from plane_mcp.toolkit import (
     Action,
+    IdList,
     build_annotations,
     build_description,
     coerce_list,
@@ -143,9 +144,9 @@ def register(mcp: FastMCP) -> None:
         end_date: str = "",
         state: str = "",
         lead: str = "",
-        project_ids: str = "",
-        add_ids: str = "",
-        remove_ids: str = "",
+        project_ids: IdList = "",
+        add_ids: IdList = "",
+        remove_ids: IdList = "",
         cursor: str = "",
         per_page: int = 0,
     ) -> Initiative | list[Initiative] | dict[str, Any] | str | None:
