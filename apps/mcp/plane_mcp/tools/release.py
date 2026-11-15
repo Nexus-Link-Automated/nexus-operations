@@ -22,6 +22,7 @@ from plane_mcp.client import get_plane_client_context
 from plane_mcp.toolkit import (
     DEFAULT_PAGE_SIZE,
     Action,
+    IdList,
     build_annotations,
     build_description,
     coerce_list,
@@ -149,8 +150,8 @@ def register(mcp: FastMCP) -> None:
         target_date: str = "",
         tag_id: str = "",
         lead_id: str = "",
-        add_ids: str = "",
-        remove_ids: str = "",
+        add_ids: IdList = "",
+        remove_ids: IdList = "",
         is_prerelease: bool | None = None,
         external_source: str = "",
         external_id: str = "",

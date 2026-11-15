@@ -211,16 +211,18 @@ def validate_html_content(html_content: str):
             attributes=ATTRIBUTES,
             url_schemes=SAFE_PROTOCOLS,
         )
-        # Report removals to logger (Sentry) if anything was stripped
-        diff = _compute_html_sanitization_diff(html_content, clean_html)
-        if diff.get("removed_tags") or diff.get("removed_attributes"):
-            try:
-                import json
+        # Report removals to logger (Sentry) if anything was stripped. The diff
+        # parses both documents, so skip it when sanitising changed nothing.
+        if clean_html != html_content:
+            diff = _compute_html_sanitization_diff(html_content, clean_html)
+            if diff.get("removed_tags") or diff.get("removed_attributes"):
+                try:
+                    import json
 
-                summary = json.dumps(diff)
-            except Exception:
-                summary = str(diff)
-            logger.warning(f"HTML sanitization removals: {summary}")
+                    summary = json.dumps(diff)
+                except Exception:
+                    summary = str(diff)
+                logger.warning(f"HTML sanitization removals: {summary}")
         return True, None, clean_html
     except Exception as e:
         log_exception(e)

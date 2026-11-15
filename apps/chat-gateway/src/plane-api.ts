@@ -37,10 +37,11 @@ export interface PlaneApi {
    */
   workspace(cookie: string, slug: string, signal?: AbortSignal): Promise<{ id: string }>;
   /**
-   * Every channel the user can see in the workspace, and whether they are in it
-   * (`GET chat/channels/`, which lists live channels or, with `archived`, archived ones).
+   * Every channel the user can see in the workspace, live or archived, and whether they are in it
+   * (`GET chat/channels/access/`). An API too old to have that route answers it with a 404; then the full channel
+   * lists are read instead (`GET chat/channels/`, live and `?archived=true`), which say the same at a higher cost.
    */
-  channels(cookie: string, slug: string, archived: boolean, signal?: AbortSignal): Promise<ChannelAccess[]>;
+  channelAccess(cookie: string, slug: string, signal?: AbortSignal): Promise<ChannelAccess[]>;
   /** One channel, if the user can see it (`GET chat/channels/<id>/`). A channel they can't see is a 404. */
   channel(cookie: string, slug: string, channelId: string, signal?: AbortSignal): Promise<ChannelAccess>;
 }
@@ -61,6 +62,8 @@ export interface PlaneApiOptions {
   readonly fetch?: typeof fetch;
   /** Most calls under way at once; the rest wait their turn. Default: no limit. */
   readonly maxConcurrent?: number;
+  /** After `chat/channels/access/` answers 404, how long to use the channel lists before trying it again. */
+  readonly accessRetryMs?: number;
 }
 
 /** At most `limit` holders at once. A waiter whose signal aborts gives up its place. */
@@ -113,6 +116,9 @@ export function createPlaneApi(options: PlaneApiOptions): PlaneApi {
   const doFetch = options.fetch ?? fetch;
   const timeoutMs = options.timeoutMs ?? 15_000;
   const limiter = new Limiter(options.maxConcurrent ?? Number.POSITIVE_INFINITY);
+  const accessRetryMs = options.accessRetryMs ?? 5 * 60_000;
+  /** Until when `chat/channels/access/` is taken to be missing from the API (a gateway deployed ahead of it). */
+  let accessMissingUntil = 0;
 
   /** GET `path` as the user and parse the JSON body with `schema`, once there is room to. */
   const get = async <T>(path: string, cookie: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> => {
@@ -163,13 +169,23 @@ export function createPlaneApi(options: PlaneApiOptions): PlaneApi {
       const me = await get(`/api/workspaces/${encodeURIComponent(slug)}/chat/me/`, cookie, chatMeSchema, signal);
       return { id: me.workspace_id };
     },
-    channels: (cookie, slug, archived, signal) =>
-      get(
-        `/api/workspaces/${encodeURIComponent(slug)}/chat/channels/?archived=${archived}`,
-        cookie,
-        z.array(channelSchema),
-        signal
-      ),
+    channelAccess: async (cookie, slug, signal) => {
+      const channels = `/api/workspaces/${encodeURIComponent(slug)}/chat/channels/`;
+      if (Date.now() >= accessMissingUntil) {
+        try {
+          return await get(`${channels}access/`, cookie, z.array(channelSchema), signal);
+        } catch (error) {
+          if (!(error instanceof PlaneApiError && error.status === 404)) throw error;
+          // Should the route be there and answer 404 for another reason, the lists below answer it the same way.
+          accessMissingUntil = Date.now() + accessRetryMs;
+        }
+      }
+      const [live, archived] = await Promise.all([
+        get(`${channels}?archived=false`, cookie, z.array(channelSchema), signal),
+        get(`${channels}?archived=true`, cookie, z.array(channelSchema), signal),
+      ]);
+      return [...live, ...archived];
+    },
     channel: (cookie, slug, channelId, signal) =>
       get(
         `/api/workspaces/${encodeURIComponent(slug)}/chat/channels/${encodeURIComponent(channelId)}/`,

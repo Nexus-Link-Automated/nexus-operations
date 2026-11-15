@@ -162,6 +162,8 @@
   "something_went_wrong": "發生錯誤",
   "failed_to_reorder_favorite": "無法重新排序我的最愛",
   "favorite_removed_successfully": "我的最愛移除成功",
+  "remove_favorite_folder_title": "從我的最愛移除資料夾？",
+  "remove_favorite_folder_description": "移除「{name}」也會移除其中的{count, plural, other {# 個最愛項目}}。項目本身不會被刪除。",
   "failed_to_create_favorite": "無法建立我的最愛",
   "failed_to_rename_favorite": "無法重新命名我的最愛",
   "project_link_copied_to_clipboard": "專案連結已複製到剪貼簿",

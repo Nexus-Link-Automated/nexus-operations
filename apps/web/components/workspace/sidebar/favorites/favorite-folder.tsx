@@ -39,6 +39,7 @@ import { ListItem, ListItemLabel } from "@makeplane/propel/components/list";
 import { ListItemButton } from "@makeplane/propel/elements/list";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@makeplane/propel/components/menu";
 import { DropIndicator } from "@plane/blocks/common";
+import { ConfirmDialog } from "@plane/blocks/dialog";
 // helpers
 import { cn } from "@plane/utils";
 // hooks
@@ -69,6 +70,7 @@ export function FavoriteFolder(props: Props) {
   const [isDragging, setIsDragging] = useState(false);
   const [folderToRename, setFolderToRename] = useState<string | boolean | null>(null);
   const [instruction, setInstruction] = useState<InstructionType | undefined>(undefined);
+  const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false);
   // refs
   const actionSectionRef = useRef<HTMLDivElement | null>(null);
   const elementRef = useRef<HTMLDivElement | null>(null);
@@ -157,6 +159,14 @@ export function FavoriteFolder(props: Props) {
 
   useOutsideClickDetector(actionSectionRef, () => setIsMenuActive(false));
 
+  const childCount = favorite.children?.length ?? 0;
+
+  // Removing a folder also removes every favorite inside it, so ask first unless it is empty.
+  const handleRemoveFolder = () => {
+    if (childCount > 0) setIsRemoveConfirmOpen(true);
+    else handleRemoveFromFavorites(favorite);
+  };
+
   return folderToRename ? (
     <NewFavoriteFolder
       setCreateNewFolder={setFolderToRename}
@@ -166,6 +176,18 @@ export function FavoriteFolder(props: Props) {
     />
   ) : (
     <>
+      <ConfirmDialog
+        isOpen={isRemoveConfirmOpen}
+        handleClose={() => setIsRemoveConfirmOpen(false)}
+        handleSubmit={() => {
+          setIsRemoveConfirmOpen(false);
+          handleRemoveFromFavorites(favorite);
+        }}
+        isSubmitting={false}
+        title={t("remove_favorite_folder_title")}
+        content={t("remove_favorite_folder_description", { name: favorite.name, count: childCount })}
+        primaryButtonText={{ default: t("remove") }}
+      />
       <div
         key={`${favorite.id}`}
         ref={elementRef}
@@ -254,7 +276,7 @@ export function FavoriteFolder(props: Props) {
                   <MenuItem
                     icon={<Icon icon={<StarFilled className="text-label-yellow-icon-strong" />} />}
                     label={t("remove_from_favorites")}
-                    onClick={() => handleRemoveFromFavorites(favorite)}
+                    onClick={handleRemoveFolder}
                   />
                   <MenuItem
                     icon={<Icon icon={DraftsOutline} tint="tertiary" />}

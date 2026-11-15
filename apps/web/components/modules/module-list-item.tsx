@@ -15,7 +15,7 @@ import { IconButton } from "@makeplane/propel/components/icon-button";
 import { useTranslation } from "@plane/i18n";
 import { ProgressRing } from "@plane/blocks/progress";
 // components
-import { generateQueryParams } from "@plane/utils";
+import { generateQueryParams, getModuleProgress } from "@plane/utils";
 import { ListItem } from "@/components/core/list";
 import { ModuleListItemAction, ModuleQuickActions } from "@/components/modules";
 // helpers
@@ -47,10 +47,7 @@ export const ModuleListItem = observer(function ModuleListItem(props: Props) {
 
   if (!moduleDetails) return null;
 
-  // Same rule as the module sidebar: cancelled work items are left out of the scope, not counted as done.
-  const progressScope = Math.max(moduleDetails.total_issues - moduleDetails.cancelled_issues, 0);
-  const progress =
-    progressScope > 0 ? Math.floor((Math.min(moduleDetails.completed_issues, progressScope) * 100) / progressScope) : 0;
+  const progress = getModuleProgress(moduleDetails).percentage;
 
   const completedModuleCheck = moduleDetails.status === "completed";
 

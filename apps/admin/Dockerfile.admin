@@ -79,8 +79,9 @@ RUN pnpm turbo run build --filter=admin
 
 FROM caddy:2.11.7-builder-alpine AS caddy-builder
 
+# Pin the plugin: without a version xcaddy takes whatever the module proxy calls latest.
 RUN XCADDY_SKIP_CLEANUP=1 xcaddy build \
-    --with github.com/mholt/caddy-ratelimit
+    --with github.com/mholt/caddy-ratelimit@v0.1.0
 
 # Caddy's own go.mod pins x/crypto, x/net and x/text at versions with open CVEs
 # (CVE-2026-56854 CRITICAL in x/crypto, CVE-2026-46600 in x/net,

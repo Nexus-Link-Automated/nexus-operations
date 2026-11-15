@@ -369,16 +369,11 @@ export class Connection implements Recipient {
 
   /** The channels the user can see in the workspace, and the ones among them they are in. */
   async #loadChannels(): Promise<{ members: Set<string>; visible: Set<string> }> {
-    const { slug } = this.workspace;
-    const signal = this.#abort.signal;
-    // Archived channels stay in a member's feed, so unarchiving one reaches them.
-    const [live, archived] = await Promise.all([
-      this.#api.channels(this.#cookie, slug, false, signal),
-      this.#api.channels(this.#cookie, slug, true, signal),
-    ]);
+    // Archived channels are included and stay in a member's feed, so unarchiving one reaches them.
+    const channels = await this.#api.channelAccess(this.#cookie, this.workspace.slug, this.#abort.signal);
     const members = new Set<string>();
     const visible = new Set<string>();
-    for (const channel of [...live, ...archived]) {
+    for (const channel of channels) {
       visible.add(channel.id);
       if (channel.is_member) members.add(channel.id);
     }

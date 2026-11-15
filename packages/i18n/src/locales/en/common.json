@@ -162,6 +162,8 @@
   "something_went_wrong": "Something went wrong",
   "failed_to_reorder_favorite": "Failed to reorder favorite",
   "favorite_removed_successfully": "Favorite removed successfully",
+  "remove_favorite_folder_title": "Remove folder from favorites?",
+  "remove_favorite_folder_description": "Removing \"{name}\" also removes the {count, plural, one {# favorite} other {# favorites}} inside it. The items themselves are not deleted.",
   "failed_to_create_favorite": "Failed to create favorite",
   "failed_to_rename_favorite": "Failed to rename favorite",
   "project_link_copied_to_clipboard": "Project link copied to clipboard",

@@ -236,6 +236,14 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    # It runs as nobody and needs no capabilities. Attachment bodies it handles are
+    # capped at 5 MB, so these limits leave plenty of headroom.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${MCP_MEMORY:-512m}
+    memswap_limit: ${MCP_MEMORY:-512m}
+    pids_limit: ${MCP_PIDS:-256}
     # agents: the agent runner reaches it as http://mcp:8211/mcp.
     networks: [app, agents]
     depends_on:

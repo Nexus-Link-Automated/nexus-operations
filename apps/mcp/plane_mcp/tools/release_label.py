@@ -21,6 +21,7 @@ from plane.models.releases import (
 from plane_mcp.client import get_plane_client_context
 from plane_mcp.toolkit import (
     Action,
+    IdList,
     build_annotations,
     build_description,
     coerce_list,
@@ -86,7 +87,7 @@ def register(mcp: FastMCP) -> None:
         action: Literal["list", "create", "update", "delete", "attach", "detach"],
         release_id: str = "",
         label_id: str = "",
-        label_ids: str = "",
+        label_ids: IdList = "",
         name: str = "",
         color: str = "",
         # 0 is a real sort position, so it cannot use the 0 sentinel.

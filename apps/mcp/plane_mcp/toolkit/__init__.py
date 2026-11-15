@@ -44,6 +44,7 @@ from plane_mcp.toolkit.mentions import (
 )
 from plane_mcp.toolkit.paging import DEFAULT_PAGE_SIZE, dump_results, envelope, pql_failure, workitem_page
 from plane_mcp.toolkit.runtime import (
+    IdList,
     as_params,
     coerce_list,
     ids_of,
@@ -69,6 +70,7 @@ __all__ = [
     "MENTION_TOKEN",
     "WORK_ITEM_TYPES",
     "Action",
+    "IdList",
     "StripOutputSchemas",
     "action_names",
     "as_params",

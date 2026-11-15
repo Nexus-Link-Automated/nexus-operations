@@ -21,6 +21,7 @@ from plane.models.query_params import CollectionPageQueryParams
 from plane_mcp.client import get_plane_client_context
 from plane_mcp.toolkit import (
     Action,
+    IdList,
     as_params,
     build_annotations,
     build_description,
@@ -119,7 +120,7 @@ def register(mcp: FastMCP) -> None:
         member_access: str = "",
         user_id: str = "",
         collection_member_id: str = "",
-        page_ids: str = "",
+        page_ids: IdList = "",
         page_collection_id: str = "",
         parent_id: str = "",
         search: str = "",

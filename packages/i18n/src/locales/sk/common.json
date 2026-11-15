@@ -162,6 +162,8 @@
   "something_went_wrong": "Niečo sa pokazilo",
   "failed_to_reorder_favorite": "Zmena poradia obľúbeného zlyhala",
   "favorite_removed_successfully": "Obľúbené bolo úspešne odstránené",
+  "remove_favorite_folder_title": "Odstrániť priečinok z obľúbených?",
+  "remove_favorite_folder_description": "Odstránením priečinka „{name}“ odstránite z obľúbených aj {count, plural, one {# položku} few {# položky} many {# položky} other {# položiek}} v ňom. Samotné položky sa neodstránia.",
   "failed_to_create_favorite": "Vytvorenie obľúbeného zlyhalo",
   "failed_to_rename_favorite": "Premenovanie obľúbeného zlyhalo",
   "project_link_copied_to_clipboard": "Odkaz na projekt bol skopírovaný do schránky",

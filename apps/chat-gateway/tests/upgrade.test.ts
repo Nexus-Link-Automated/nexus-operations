@@ -296,6 +296,54 @@ describe("the API client", () => {
     await expect(third).resolves.toEqual({ id: "b" });
   });
 
+  it("reads the channel lists while the channel access route is missing, and tries the route again later", async () => {
+    let missing = true;
+    const paths: string[] = [];
+    const api = createPlaneApi({
+      baseUrl: "http://api.test",
+      accessRetryMs: 50,
+      fetch: (url) => {
+        const { pathname, search } = new URL(String(url));
+        paths.push(`${pathname}${search}`);
+        if (pathname.endsWith("/access/")) {
+          return Promise.resolve(
+            missing ? new Response(null, { status: 404 }) : Response.json([{ id: "c", is_member: true }])
+          );
+        }
+        const archived = search === "?archived=true";
+        return Promise.resolve(Response.json([{ id: archived ? "b" : "a", is_member: archived }]));
+      },
+    });
+    const channels = `/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`;
+    const lists = [`${channels}?archived=false`, `${channels}?archived=true`];
+
+    await expect(api.channelAccess(USER_COOKIE, WORKSPACE_SLUG)).resolves.toEqual([
+      { id: "a", is_member: false },
+      { id: "b", is_member: true },
+    ]);
+    expect(paths.splice(0)).toEqual([`${channels}access/`, ...lists]);
+    await api.channelAccess(USER_COOKIE, WORKSPACE_SLUG);
+    expect(paths.splice(0)).toEqual(lists);
+
+    missing = false;
+    await settle(60);
+    await expect(api.channelAccess(USER_COOKIE, WORKSPACE_SLUG)).resolves.toEqual([{ id: "c", is_member: true }]);
+    expect(paths.splice(0)).toEqual([`${channels}access/`]);
+  });
+
+  it("doesn't fall back to the channel lists for any other refusal", async () => {
+    const paths: string[] = [];
+    const api = createPlaneApi({
+      baseUrl: "http://api.test",
+      fetch: (url) => {
+        paths.push(new URL(String(url)).pathname);
+        return Promise.resolve(new Response(null, { status: 403 }));
+      },
+    });
+    await expect(api.channelAccess(USER_COOKIE, WORKSPACE_SLUG)).rejects.toMatchObject({ status: 403 });
+    expect(paths).toEqual([`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/access/`]);
+  });
+
   it("lets go of the body of a refused request, so its connection can be reused", async () => {
     let cancelled = false;
     const body = new ReadableStream({

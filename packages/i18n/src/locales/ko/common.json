@@ -162,6 +162,8 @@
   "something_went_wrong": "문제가 발생했습니다",
   "failed_to_reorder_favorite": "즐겨찾기 재정렬 실패",
   "favorite_removed_successfully": "즐겨찾기가 성공적으로 제거되었습니다",
+  "remove_favorite_folder_title": "폴더를 즐겨찾기에서 제거할까요?",
+  "remove_favorite_folder_description": "\"{name}\"을(를) 제거하면 안에 있는 {count, plural, other {즐겨찾기 #개}}도 함께 제거됩니다. 항목 자체는 삭제되지 않습니다.",
   "failed_to_create_favorite": "즐겨찾기 생성 실패",
   "failed_to_rename_favorite": "즐겨찾기 이름 변경 실패",
   "project_link_copied_to_clipboard": "프로젝트 링크가 클립보드에 복사되었습니다",
