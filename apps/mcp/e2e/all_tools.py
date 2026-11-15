@@ -22,6 +22,7 @@ import os
 import random
 import string
 import sys
+import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -123,6 +124,22 @@ async def step(
             return data
     RESULTS.append((name, "PASS", ""))
     return data
+
+
+async def join_machine(code: str) -> None:
+    """What the machine service does with a join code: trade it for the machine's key at the public API."""
+    base = os.environ.get("PLANE_INTERNAL_BASE_URL") or os.environ.get("PLANE_BASE_URL", "http://localhost:8000")
+    body = json.dumps({"code": code, "hostname": f"e2e-{SUFFIX.lower()}", "os": "linux", "version": "e2e"}).encode()
+    request = urllib.request.Request(
+        f"{base.rstrip('/')}/api/v1/coding-machines/join/", body, {"Content-Type": "application/json"}, method="POST"
+    )
+    try:
+        with await asyncio.to_thread(urllib.request.urlopen, request, timeout=30) as response:
+            data = json.loads(response.read())
+        problem = same((data["state"], data["key"][:4]), ("awaiting_approval", "nxm_"), "joined machine")
+    except Exception as exc:  # an HTTP error or an unreadable answer
+        problem = f"{type(exc).__name__}: {exc}"[:400]
+    RESULTS.append(("machine service.join", "FAIL" if problem else "PASS", problem or ""))
 
 
 def one_page(data: Any) -> str | None:
@@ -423,6 +440,72 @@ async def scenario(c: Client) -> None:
         check=lambda d: same((d["retry_of"], d["agent"]), (V["job"], "claude"), "retry"),
     )
     await s("coding_job", {"action": "cancel", **W, "job_id": "$job2"}, label="the retry")
+
+    # Coding machines. Joining is the machine service's call, not an MCP action: done over HTTP below.
+    ids = lambda d: [m["id"] for m in rows(d)]  # noqa: E731
+    await s(
+        "coding_machine",
+        {"action": "add", "name": f"E2E machine {SUFFIX}"},
+        {"machine": "id", "join_code": "join_code"},
+        check=lambda d: same((d["state"], len(d["join_code"])), ("pending", 19), "new machine"),
+    )
+    await s(
+        "coding_machine",
+        {"action": "get", "machine_id": "$machine"},
+        check=lambda d: same(d["join_code_expired"], False, "join_code_expired"),
+    )
+    await s(
+        "coding_machine",
+        {"action": "rename", "machine_id": "$machine", "name": f"E2E box {SUFFIX}"},
+        check=lambda d: same(d["name"], f"E2E box {SUFFIX}", "renamed"),
+    )
+    await s("coding_machine", {"action": "list"}, check=lambda d: same(V["machine"] in ids(d), True, "listed"))
+    await s("coding_machine", {"action": "list_all"}, check=lambda d: same(V["machine"] in ids(d), True, "listed"))
+    await s("coding_machine", {"action": "approve", "machine_id": "$machine"}, expect_error="MACHINE_NOT_JOINED")
+    start = {"action": "start", **W, "job_action": "fix_bug", "agent": "codex"}
+    await s(
+        "coding_job", {**start, "machine": "$machine"}, expect_error="MACHINE_NOT_AVAILABLE", label="unapproved machine"
+    )
+    await join_machine(V["join_code"])
+    await s(
+        "coding_machine",
+        {"action": "approve", "machine_id": "$machine"},
+        check=lambda d: same(d["state"], "active", "state"),
+    )
+    await s(
+        "coding_job",
+        {**start, "machine": "$machine"},
+        {"job3": "id"},
+        check=lambda d: same(d["machine"], V["machine"], "machine"),
+        label="on a machine",
+    )
+    await s("coding_job", {"action": "cancel", **W, "job_id": "$job3"}, label="the machine's job")
+    await s(
+        "coding_job",
+        {"action": "retry", **W, "job_id": "$job3"},
+        {"job4": "id"},
+        check=lambda d: same(d["machine"], V["machine"], "machine kept"),
+        label="keeps the machine",
+    )
+    await s("coding_job", {"action": "cancel", **W, "job_id": "$job4"}, label="the kept-machine retry")
+    await s(
+        "coding_job",
+        {"action": "retry", **W, "job_id": "$job4", "machine": "auto"},
+        {"job5": "id"},
+        check=lambda d: same(d["machine"], None, "machine"),
+        label="machine=auto",
+    )
+    await s("coding_job", {"action": "cancel", **W, "job_id": "$job5"}, label="the auto retry")
+    await s(
+        "coding_machine",
+        {"action": "revoke", "machine_id": "$machine"},
+        check=lambda d: same(d["state"], "revoked", "state"),
+    )
+    await s(
+        "coding_job", {**start, "machine": "$machine"}, expect_error="MACHINE_NOT_AVAILABLE", label="revoked machine"
+    )
+    await s("coding_machine", {"action": "remove", "machine_id": "$machine"})
+    await s("coding_machine", {"action": "get", "machine_id": "$machine"}, expect_error="not found", label="removed")
     await s("coding_job", {"action": "settings_update", "project_id": P, "enabled": False}, label="off again")
 
     # Cycles

@@ -18,6 +18,7 @@ from types import ModuleType
 
 from plane_mcp.tools import (
     coding_job,
+    coding_machine,
     collection,
     customer,
     customer_property,
@@ -82,6 +83,7 @@ RESOURCES: tuple[ModuleType, ...] = (
     template,
     collection,
     coding_job,
+    coding_machine,
 )
 
 

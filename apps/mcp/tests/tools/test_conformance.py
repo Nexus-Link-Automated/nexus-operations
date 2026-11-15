@@ -16,7 +16,8 @@ from plane_mcp.toolkit.governance import WORKSPACE_MANAGED
 from plane_mcp.toolkit.spec import action_names
 
 # Ratchets. Lowering these is routine; raising one is a design decision.
-LISTING_BUDGET_CHARS = 70_000
+# Raised from 70_000 for coding_machine (machine registration): a new tool is ~1.1k chars even kept terse.
+LISTING_BUDGET_CHARS = 70_500
 MAX_ADVERTISED_TOOLS = 35  # strictest published client cap is 40 -- leave headroom
 NAME_BUDGET = 46  # 64-char provider limit, less room for a client prefix
 UNMAPPED_BUDGET = 7  # retired tools that cannot be aliased; see the test for the shape
@@ -67,6 +68,7 @@ CATALOGUE = [
     "template",
     "collection",
     "coding_job",
+    "coding_machine",
 ]
 
 

@@ -65,3 +65,34 @@ def test_a_server_error_is_not_swallowed(registered, spy):
         assert exc.status_code == 500
     else:
         raise AssertionError("a 500 must surface as an error")
+
+
+def test_start_runs_on_auto_unless_a_machine_is_given(registered, spy):
+    start = dict(action="start", **W, job_action="fix_bug", agent="codex")
+    registered["coding_job"].fn(**start)
+    registered["coding_job"].fn(**start, machine="m-1")
+    registered["coding_job"].fn(**start, machine="auto")
+    assert [call.kwargs["data"] for call in spy.recorder.calls] == [
+        {"action": "fix_bug", "agent": "codex"},
+        {"action": "fix_bug", "agent": "codex", "machine": "m-1"},
+        {"action": "fix_bug", "agent": "codex", "machine": None},
+    ]
+
+
+def test_retry_keeps_the_machine_unless_one_or_auto_is_given(registered, spy):
+    """Left out, the API keeps the retried job's machine; "auto" is an explicit null."""
+    registered["coding_job"].fn(action="retry", **W, job_id="j")
+    registered["coding_job"].fn(action="retry", **W, job_id="j", machine="m-2")
+    registered["coding_job"].fn(action="retry", **W, job_id="j", agent="claude", machine="Auto")
+    assert [call.kwargs["data"] for call in spy.recorder.calls] == [
+        {},
+        {"machine": "m-2"},
+        {"agent": "claude", "machine": None},
+    ]
+
+
+def test_a_machine_that_is_not_yours_reads_as_the_api_refusal(registered, spy):
+    body = {"error": "That machine is not one of your approved machines.", "code": "MACHINE_NOT_AVAILABLE"}
+    spy.returns["coding_jobs.create"] = HttpError("HTTP 400", 400, body)
+    result = registered["coding_job"].fn(action="start", **W, job_action="fix_bug", agent="codex", machine="m-9")
+    assert result == f"Error: {body['error']} (MACHINE_NOT_AVAILABLE)"

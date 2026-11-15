@@ -22,12 +22,12 @@ STATUSES = ("queued", "running", "needs_input", "finished", "cancelled")
 ACTIONS = (
     Action("list", ("project_id", "workitem_id"), ("status", "job_action", "cursor", "per_page"), read=True),
     Action("get", ("project_id", "workitem_id", "job_id"), read=True),
-    Action("start", ("project_id", "workitem_id", "job_action", "agent")),
+    Action("start", ("project_id", "workitem_id", "job_action", "agent"), ("machine",)),
     Action("cancel", ("project_id", "workitem_id", "job_id"), note="the person who started it or a project admin"),
     Action(
         "retry",
         ("project_id", "workitem_id", "job_id"),
-        ("agent",),
+        ("agent", "machine"),
         note="only a cancelled or job_error job; starts a new job",
     ),
     Action("settings_get", ("project_id",), read=True),
@@ -40,8 +40,10 @@ ACTIONS = (
 )
 
 FOOTER = (
-    f"job_action: {', '.join(JOB_ACTIONS)}. agent: {', '.join(AGENTS)}. Jobs run on the requester's own machines; "
-    "the CRM moves the work item and comments when one ends: fixed -> In review, test_written or test_passed -> "
+    f"job_action: {', '.join(JOB_ACTIONS)}. agent: {', '.join(AGENTS)}. "
+    'machine: one of your approved coding_machine ids, or "auto"; omitted, start uses auto and retry keeps the '
+    "job's machine if still allowed. "
+    "The CRM moves the work item and comments when one ends: fixed -> In review, test_written or test_passed -> "
     "Ready, bug_found -> Failed; could_not_fix and job_error leave it. One active job per work item and job_action. "
     'A state id set to "none" goes back to matching the column by name; repo_url "none" clears it.'
 )
@@ -104,6 +106,13 @@ def _refusal(exc: HttpError) -> str | None:
     return message
 
 
+def _machine(value: str) -> dict[str, str | None]:
+    """The job's machine: left out ("") sends nothing, so the API's default applies; "auto" sends null (Auto)."""
+    if not value:
+        return {}
+    return {"machine": None if value.lower() == "auto" else value}
+
+
 def _state(value: str) -> str | None:
     return None if value.lower() == "none" else value
 
@@ -121,6 +130,7 @@ def register(mcp: FastMCP) -> None:
         job_id: str = "",
         job_action: str = "",
         agent: str = "",
+        machine: str = "",
         status: str = "",
         # False switches coding jobs off, so unset is None rather than False.
         enabled: bool | None = None,
@@ -172,7 +182,8 @@ def register(mcp: FastMCP) -> None:
             if action == "start":
                 if error := needs(action, job_action=job_action, agent=agent):
                     return error
-                return api.create(workspace_slug, project_id, workitem_id, {"action": job_action, "agent": agent})
+                data = {"action": job_action, "agent": agent, **_machine(machine)}
+                return api.create(workspace_slug, project_id, workitem_id, data)
 
             if error := needs(action, job_id=job_id):
                 return error
@@ -180,7 +191,8 @@ def register(mcp: FastMCP) -> None:
                 return api.retrieve(workspace_slug, project_id, workitem_id, job_id)
             if action == "cancel":
                 return api.cancel(workspace_slug, project_id, workitem_id, job_id)
-            return api.retry(workspace_slug, project_id, workitem_id, job_id, {"agent": agent} if agent else {})
+            data = {"agent": agent} if agent else {}
+            return api.retry(workspace_slug, project_id, workitem_id, job_id, {**data, **_machine(machine)})
         except HttpError as exc:
             if refusal := _refusal(exc):
                 return refusal
