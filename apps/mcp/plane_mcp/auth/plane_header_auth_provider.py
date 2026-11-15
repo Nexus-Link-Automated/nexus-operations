@@ -23,6 +23,10 @@ logger = get_logger(__name__)
 # request used to call /users/me/, which spent the token's 60/min API budget on
 # authentication alone; a revoked token keeps working for at most this long.
 VALIDATION_TTL_SECONDS = 60
+# How long a token Plane rejected (401/403) is refused without asking again, so
+# a client retrying a bad token does not cost Plane a lookup per request. Short,
+# because a token created moments ago may be tried before it is visible.
+REJECTION_TTL_SECONDS = 10
 _CACHE_SIZE = 1024
 _SAFE_SLUG = re.compile(r"[\w-]+")
 
@@ -54,6 +58,11 @@ def _auth_error_response(conn: HTTPConnection, exc: AuthenticationError) -> Resp
 class PlaneHeaderAuthProvider(TokenVerifier):
     def __init__(self, required_scopes: list[str] | None = None, timeout_seconds: int = 10):
         super().__init__(required_scopes=required_scopes)
+        # One client for every check, so they reuse pooled connections to Plane.
+        self._client: httpx.AsyncClient | None = None
+        # Same keys as _valid_until, for tokens Plane definitely rejected. Kept
+        # apart so a run of bad tokens cannot evict accepted ones.
+        self._rejected_until: OrderedDict[str, float] = OrderedDict()
         self.timeout_seconds = timeout_seconds
         # sha256(base_url, token) -> monotonic expiry. Hashed so the cache never
         # holds a usable token.
@@ -65,6 +74,24 @@ class PlaneHeaderAuthProvider(TokenVerifier):
             Middleware(AuthenticationMiddleware, backend=BearerAuthBackend(self), on_error=_auth_error_response),
             Middleware(AuthContextMiddleware),
         ]
+
+    def _http(self) -> httpx.AsyncClient:
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=self.timeout_seconds)
+        return self._client
+
+    def _recently_rejected(self, key: str) -> bool:
+        expiry = self._rejected_until.get(key)
+        if expiry is not None and expiry <= time.monotonic():
+            del self._rejected_until[key]
+            return False
+        return expiry is not None
+
+    def _remember_rejection(self, key: str) -> None:
+        self._rejected_until[key] = time.monotonic() + REJECTION_TTL_SECONDS
+        self._rejected_until.move_to_end(key)
+        while len(self._rejected_until) > _CACHE_SIZE:
+            self._rejected_until.popitem(last=False)
 
     def _cache_key(self, base_url: str, token: str) -> str:
         return hashlib.sha256(f"{base_url}\0{token}".encode()).hexdigest()
@@ -90,17 +117,18 @@ class PlaneHeaderAuthProvider(TokenVerifier):
         key = self._cache_key(base_url, token)
         if self._cached(key):
             return True
+        if self._recently_rejected(key):
+            return False
         user_url = f"{base_url}/api/v1/users/me/"
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                response = await client.get(
-                    user_url,
-                    headers={
-                        "x-api-key": token,
-                        "Content-Type": "application/json",
-                    },
-                )
+            response = await self._http().get(
+                user_url,
+                headers={
+                    "x-api-key": token,
+                    "Content-Type": "application/json",
+                },
+            )
         except httpx.RequestError as e:
             logger.warning("API key validation request failed: %s", e)
             raise _upstream_unavailable() from e
@@ -118,6 +146,8 @@ class PlaneHeaderAuthProvider(TokenVerifier):
         logger.warning("API key validation failed: %s", response.status_code)
         if response.status_code >= 500:
             raise _upstream_unavailable()
+        if response.status_code in (401, 403):
+            self._remember_rejection(key)
         return False
 
     async def verify_token(self, token: str) -> AccessToken | None:
