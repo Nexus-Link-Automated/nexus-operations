@@ -7,7 +7,16 @@
 from django.db import IntegrityError, transaction
 
 from plane.coding.exceptions import CodingError, Conflict, NotConfigured
-from plane.coding.models import ACTIVE_STATUSES, CodingJob, JobOutcome, JobStatus, ProjectCodingSettings
+from plane.coding.machines import available_machine
+from plane.coding.models import (
+    ACTIVE_STATUSES,
+    CodingJob,
+    CodingMachine,
+    JobOutcome,
+    JobStatus,
+    MachineState,
+    ProjectCodingSettings,
+)
 from plane.coding.outcomes import apply_result, user_name
 from plane.db.models import Issue, IssueSubscriber
 
@@ -32,7 +41,8 @@ def _active_conflict(issue, action) -> Conflict | None:
     )
 
 
-def start_job(issue, action: str, agent: str, user, retry_of: CodingJob | None = None) -> CodingJob:
+def start_job(issue, action: str, agent: str, user, retry_of: CodingJob | None = None, machine_id=None) -> CodingJob:
+    """`machine_id` is one of the requester's approved machines, or None for Auto."""
     require_configured(issue.project)
     # Not on drafts, archived work items or ones still waiting in intake: an outcome would move them.
     if not Issue.issue_objects.filter(pk=issue.pk).exists():
@@ -40,13 +50,14 @@ def start_job(issue, action: str, agent: str, user, retry_of: CodingJob | None =
             "Coding jobs can only run on active work items, not drafts, archived ones or ones waiting in intake.",
             code="WORK_ITEM_NOT_ELIGIBLE",
         )
+    machine = available_machine(machine_id, issue.workspace, user) if machine_id else None
     conflict = _active_conflict(issue, action)
     if conflict:
         raise conflict
     try:
         with transaction.atomic():
             job = CodingJob.objects.create(
-                issue=issue, action=action, agent=agent, requested_by=user, retry_of=retry_of
+                issue=issue, action=action, agent=agent, requested_by=user, retry_of=retry_of, machine=machine
             )
             # So the outcome comment reaches the person who asked for the job.
             IssueSubscriber.objects.get_or_create(
@@ -82,9 +93,23 @@ def cancel_job(job: CodingJob, user) -> CodingJob:
     return applied.job
 
 
-def retry_job(job: CodingJob, user, agent: str | None = None) -> CodingJob:
+_SAME_MACHINE = object()
+
+
+def retry_job(job: CodingJob, user, agent: str | None = None, machine_id=_SAME_MACHINE) -> CodingJob:
+    """Leave `machine_id` out to keep the job's machine when it is still one the retrier may use (else Auto)."""
     if not job.is_retryable:
         raise Conflict(
             "Only a job that was cancelled or ended in a job error can be retried.", code="JOB_NOT_RETRYABLE"
         )
-    return start_job(job.issue, job.action, agent or job.agent, user, retry_of=job)
+    if machine_id is _SAME_MACHINE:
+        machine_id = None
+        if job.machine_id is not None:
+            machine_id = (
+                CodingMachine.objects.filter(
+                    pk=job.machine_id, workspace_id=job.workspace_id, owner=user, state=MachineState.ACTIVE
+                )
+                .values_list("pk", flat=True)
+                .first()
+            )
+    return start_job(job.issue, job.action, agent or job.agent, user, retry_of=job, machine_id=machine_id)

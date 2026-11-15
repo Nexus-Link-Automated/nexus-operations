@@ -69,6 +69,10 @@ class CodingJob(BaseModel):
     pr_url = models.URLField(max_length=2000, blank=True, default="")
     error_reason = models.TextField(blank=True, default="")
     retry_of = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True, related_name="retries")
+    # The requester's machine the job asked for; null means Auto (any of the requester's machines).
+    machine = models.ForeignKey(
+        "coding.CodingMachine", on_delete=models.SET_NULL, null=True, blank=True, related_name="jobs"
+    )
     # The comment the outcome wrote on the work item.
     comment = models.ForeignKey(
         "db.IssueComment", on_delete=models.SET_NULL, null=True, blank=True, related_name="coding_jobs"

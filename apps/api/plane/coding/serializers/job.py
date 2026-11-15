@@ -28,6 +28,7 @@ class CodingJobSerializer(serializers.ModelSerializer):
             "pr_url",
             "error_reason",
             "retry_of",
+            "machine",
             "comment",
             "requested_by",
             "is_active",
@@ -43,8 +44,13 @@ class CodingJobSerializer(serializers.ModelSerializer):
 class StartJobSerializer(StrictSerializer):
     action = serializers.ChoiceField(choices=CodingAction.choices)
     agent = serializers.ChoiceField(choices=CodingAgent.choices)
+    # One of the requester's approved machines; null or left out means Auto.
+    machine = serializers.UUIDField(required=False, allow_null=True)
 
 
 class RetryJobSerializer(StrictSerializer):
     # The agent to use this time; the retried job's agent when left out.
     agent = serializers.ChoiceField(choices=CodingAgent.choices, required=False)
+    # null means Auto. Left out: the retried job's machine if it is still one of the retrier's approved machines,
+    # else Auto.
+    machine = serializers.UUIDField(required=False, allow_null=True)

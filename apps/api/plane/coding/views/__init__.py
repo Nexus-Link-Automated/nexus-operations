@@ -8,7 +8,18 @@ from plane.api.views.base import BaseAPIView as PublicBaseAPIView
 from plane.app.views.base import BaseAPIView as AppBaseAPIView
 
 from .job import CodingJobCancelMixin, CodingJobDetailMixin, CodingJobListMixin, CodingJobRetryMixin
+from .machine import (
+    CodingMachineAllMixin,
+    CodingMachineApproveMixin,
+    CodingMachineDetailMixin,
+    CodingMachineListMixin,
+    CodingMachineRevokeMixin,
+    MachineHeartbeatEndpoint,
+    MachineJoinEndpoint,
+)
 from .project_settings import ProjectCodingSettingsMixin
+
+__all__ = ["MachineHeartbeatEndpoint", "MachineJoinEndpoint"]
 
 
 class CodingJobListAPIEndpoint(CodingJobListMixin, PublicBaseAPIView):
@@ -48,4 +59,44 @@ class CodingJobRetryAppEndpoint(CodingJobRetryMixin, AppBaseAPIView):
 
 
 class ProjectCodingSettingsAppEndpoint(ProjectCodingSettingsMixin, AppBaseAPIView):
+    pass
+
+
+class CodingMachineListAPIEndpoint(CodingMachineListMixin, PublicBaseAPIView):
+    pass
+
+
+class CodingMachineAllAPIEndpoint(CodingMachineAllMixin, PublicBaseAPIView):
+    pass
+
+
+class CodingMachineDetailAPIEndpoint(CodingMachineDetailMixin, PublicBaseAPIView):
+    pass
+
+
+class CodingMachineApproveAPIEndpoint(CodingMachineApproveMixin, PublicBaseAPIView):
+    pass
+
+
+class CodingMachineRevokeAPIEndpoint(CodingMachineRevokeMixin, PublicBaseAPIView):
+    pass
+
+
+class CodingMachineListAppEndpoint(CodingMachineListMixin, AppBaseAPIView):
+    pass
+
+
+class CodingMachineAllAppEndpoint(CodingMachineAllMixin, AppBaseAPIView):
+    pass
+
+
+class CodingMachineDetailAppEndpoint(CodingMachineDetailMixin, AppBaseAPIView):
+    pass
+
+
+class CodingMachineApproveAppEndpoint(CodingMachineApproveMixin, AppBaseAPIView):
+    pass
+
+
+class CodingMachineRevokeAppEndpoint(CodingMachineRevokeMixin, AppBaseAPIView):
     pass

@@ -15,6 +15,11 @@ urlpatterns = routes(
         "cancel": views.CodingJobCancelAppEndpoint,
         "retry": views.CodingJobRetryAppEndpoint,
         "settings": views.ProjectCodingSettingsAppEndpoint,
+        "machines": views.CodingMachineListAppEndpoint,
+        "machines_all": views.CodingMachineAllAppEndpoint,
+        "machine": views.CodingMachineDetailAppEndpoint,
+        "machine_approve": views.CodingMachineApproveAppEndpoint,
+        "machine_revoke": views.CodingMachineRevokeAppEndpoint,
     },
     prefix="app",
 )

@@ -64,7 +64,8 @@ class CodingJobListMixin(_WorkItemJobs):
         serializer = StartJobSerializer(data=request.data)
         if not serializer.is_valid():
             return self.invalid(serializer.errors)
-        job = start_job(issue, serializer.validated_data["action"], serializer.validated_data["agent"], request.user)
+        data = serializer.validated_data
+        job = start_job(issue, data["action"], data["agent"], request.user, machine_id=data.get("machine"))
         return Response(CodingJobSerializer(job).data, status=status.HTTP_201_CREATED)
 
 
@@ -94,5 +95,7 @@ class CodingJobRetryMixin(_WorkItemJobs):
         serializer = RetryJobSerializer(data=request.data)
         if not serializer.is_valid():
             return self.invalid(serializer.errors)
-        new_job = retry_job(job, request.user, agent=serializer.validated_data.get("agent"))
+        data = serializer.validated_data
+        options = {"machine_id": data["machine"]} if "machine" in data else {}
+        new_job = retry_job(job, request.user, agent=data.get("agent"), **options)
         return Response(CodingJobSerializer(new_job).data, status=status.HTTP_201_CREATED)

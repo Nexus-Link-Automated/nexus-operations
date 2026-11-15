@@ -7,6 +7,8 @@ from django.urls import path
 PROJECT = "workspaces/<str:slug>/projects/<uuid:project_id>/"
 JOBS = PROJECT + "work-items/<uuid:issue_id>/coding-jobs/"
 JOB = JOBS + "<uuid:job_id>/"
+MACHINES = "workspaces/<str:slug>/coding-machines/"
+MACHINE = MACHINES + "<uuid:machine_id>/"
 
 
 def routes(views: dict, prefix: str) -> list:
@@ -20,5 +22,26 @@ def routes(views: dict, prefix: str) -> list:
             PROJECT + "coding-settings/",
             views["settings"].as_view(http_method_names=["get", "patch"]),
             name=f"{prefix}-coding-settings",
+        ),
+        path(MACHINES, views["machines"].as_view(http_method_names=["get", "post"]), name=f"{prefix}-coding-machines"),
+        path(
+            MACHINES + "all/",
+            views["machines_all"].as_view(http_method_names=["get"]),
+            name=f"{prefix}-coding-machines-all",
+        ),
+        path(
+            MACHINE,
+            views["machine"].as_view(http_method_names=["get", "patch", "delete"]),
+            name=f"{prefix}-coding-machine",
+        ),
+        path(
+            MACHINE + "approve/",
+            views["machine_approve"].as_view(http_method_names=["post"]),
+            name=f"{prefix}-coding-machine-approve",
+        ),
+        path(
+            MACHINE + "revoke/",
+            views["machine_revoke"].as_view(http_method_names=["post"]),
+            name=f"{prefix}-coding-machine-revoke",
         ),
     ]
