@@ -100,6 +100,87 @@ class TestChannelList:
         assert count_queries() == one
 
 
+def _access(response):
+    return {(str(row["id"]), row["is_member"]) for row in response.data}
+
+
+@pytest.mark.contract
+@pytest.mark.django_db
+class TestChannelAccess:
+    """channels/access/: what the gateway re-reads for each socket, so it must match the two channel lists."""
+
+    def _archive(self, channel):
+        channel.archived_at = channel.created_at
+        channel.save()
+        return channel
+
+    def _lists(self, actor, url):
+        live = actor.client.get(url("channels/"))
+        archived = actor.client.get(url("channels/"), {"archived": "true"})
+        return _access(live) | _access(archived)
+
+    def test_member_sees_what_the_live_and_archived_lists_show(
+        self, member, member2, make_actor, make_channel, foreign_channel, url
+    ):
+        joined = make_channel(members=[member.user])
+        public = make_channel()
+        mine_private = make_channel(ChannelKind.PRIVATE, members=[member.user])
+        make_channel(ChannelKind.PRIVATE, members=[member2.user])
+        archived_joined = self._archive(make_channel(members=[member.user]))
+        archived_public = self._archive(make_channel())
+        my_dm, _ = Channel.objects.get_or_create_dm(joined.workspace, member.user, member2.user)
+        Channel.objects.get_or_create_dm(joined.workspace, member2.user, make_actor().user)
+
+        res = member.client.get(url("channels/access/"))
+        assert res.status_code == 200
+        assert _access(res) == {
+            (str(joined.id), True),
+            (str(public.id), False),
+            (str(mine_private.id), True),
+            (str(archived_joined.id), True),
+            (str(archived_public.id), False),
+            (str(my_dm.id), True),
+        }
+        assert str(foreign_channel.id) not in {channel_id for channel_id, _ in _access(res)}
+        assert _access(res) == self._lists(member, url)
+        assert set(res.data[0]) == {"id", "is_member"}
+
+    def test_guest_sees_only_channels_they_are_in(self, guest, make_channel, url):
+        theirs = make_channel(members=[guest.user])
+        archived = self._archive(make_channel(ChannelKind.PRIVATE, members=[guest.user]))
+        make_channel()
+        self._archive(make_channel())
+        make_channel(ChannelKind.PRIVATE)
+        res = guest.client.get(url("channels/access/"))
+        assert res.status_code == 200
+        assert _access(res) == {(str(theirs.id), True), (str(archived.id), True)} == self._lists(guest, url)
+
+    def test_admin_does_not_see_others_private_channels_or_dms(self, admin, member, member2, make_channel, url):
+        public = make_channel(members=[member.user])
+        make_channel(ChannelKind.PRIVATE, members=[member.user])
+        Channel.objects.get_or_create_dm(public.workspace, member.user, member2.user)
+        res = admin.client.get(url("channels/access/"))
+        assert _access(res) == {(str(public.id), False)} == self._lists(admin, url)
+
+    def test_outsider_and_anonymous_are_refused(self, outsider, make_channel, url):
+        make_channel()
+        assert outsider.client.get(url("channels/access/")).status_code == 403
+        assert APIClient().get(url("channels/access/")).status_code in (401, 403)
+
+    def test_one_query_however_many_channels(self, member, member2, make_channel, send, url):
+        def count_queries():
+            with CaptureQueriesContext(connection) as ctx:
+                assert member.client.get(url("channels/access/")).status_code == 200
+            return len(ctx.captured_queries)
+
+        send(make_channel(members=[member.user]), member2.user)
+        one = count_queries()
+        for _ in range(4):
+            send(make_channel(members=[member.user]), member2.user)
+            self._archive(make_channel())
+        assert count_queries() == one
+
+
 @pytest.mark.contract
 @pytest.mark.django_db
 class TestChannelCreate:

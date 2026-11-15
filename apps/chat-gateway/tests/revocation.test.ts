@@ -92,7 +92,7 @@ describe("access.revoked", () => {
     const home = h.api.addChannel({ members: [ADA.id] });
     h.api.delayPaths.set(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`, 250);
     const ada = h.connect({ cookie: ADA.cookie });
-    await waitUntil(() => h!.api.requestsTo(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`).length === 2);
+    await waitUntil(() => h!.api.requestsTo(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`).length === 1);
     await h.publish(chatEvent("access.revoked", { user_id: ADA.id }));
     await h.publish(message(home));
     await ada.next("ready");
@@ -169,9 +169,7 @@ describe("re-checking on a timer", () => {
     const ada = await h.open(ADA.cookie);
     await settle(400);
     expect(ada.of("resync")).toEqual([]);
-    expect(h.api.requestsTo(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/?archived=false`).length).toBeGreaterThan(
-      2
-    );
+    expect(h.api.requestsTo(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/access/`).length).toBeGreaterThan(2);
   });
 
   it("doesn't mistake its own re-read for a change when an event got there first", async () => {
