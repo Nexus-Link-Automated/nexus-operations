@@ -10,12 +10,13 @@ import { setTimeout as wait } from "node:timers/promises";
 import type { Logger } from "../logger.ts";
 import type { CrmResult, HeartbeatAnswer, HeartbeatBody } from "./client.ts";
 import type { MachineConfig } from "./config.ts";
+import type { JobManager } from "./jobs.ts";
 import type { About, Capabilities } from "./report.ts";
 
 /**
  * The machine service's loop: one heartbeat at a time, every `heartbeat_seconds` the CRM asks
- * for, with the latest capabilities report. It never runs jobs yet (Step 4 adds them); jobs stay
- * queued on the CRM.
+ * for, with the latest capabilities report and the jobs it runs. The answer brings new jobs and
+ * jobs to stop, which go to the `JobManager`; it also sends their progress and results.
  */
 
 export const EXIT_OK = 0;
@@ -61,6 +62,10 @@ export interface RunOptions {
   readonly now?: () => number;
   readonly backoff?: Backoff;
   readonly redetectMs?: number;
+  /** Runs the jobs the CRM hands out. Without it the machine only reports (and gets no jobs). */
+  readonly jobs?: JobManager;
+  /** Applied to the report on every heartbeat (the job image's readiness, free slots). */
+  readonly adjust?: (capabilities: Capabilities) => Capabilities;
 }
 
 /** `ms` with jitter: somewhere in [ms/2, ms], so machines that lost the CRM together do not return together. */
@@ -82,7 +87,7 @@ export const KEY_REFUSED_FOR_GOOD: ReadonlySet<string> = new Set([
 
 const STATE_MESSAGES: Record<string, string> = {
   awaiting_approval: "machine-service: joined; waiting for the owner to approve this machine in the CRM",
-  active: "machine-service: approved and online; jobs will arrive once dispatch is enabled",
+  active: "machine-service: approved and online; ready for jobs",
 };
 
 /** Runs until `signal` aborts (→ 0) or the CRM says the key will never work (→ 78). */
@@ -103,72 +108,97 @@ export async function runMachine(options: RunOptions): Promise<number> {
   let lastProblem: string | undefined;
 
   log.info("machine-service: starting", { machine: config.name, workspace: config.workspaceSlug, crm: config.url });
-  while (!signal.aborted) {
-    if (capabilities === undefined || now() - detectedAt >= redetectMs) {
-      capabilities = await options.detect().catch(() => capabilities);
-      detectedAt = now();
-      reportRefused = false;
-      if (signal.aborted) break;
+  const { jobs } = options;
+  // Ends the progress loop when this loop ends, whether by a signal or an exit code.
+  const done = new AbortController();
+  const flushing = jobs?.flushLoop(AbortSignal.any([signal, done.signal]));
+  try {
+    return await loop();
+  } finally {
+    done.abort();
+    if (jobs) {
+      await jobs.shutdown("The machine service stopped during the job.");
+      await flushing;
     }
-    const body: HeartbeatBody = capabilities && !reportRefused ? { ...about, capabilities } : { ...about };
-    const result = await client.heartbeat(config.key, body, signal);
-    if (signal.aborted) break;
-
-    let delay: number;
-    if (result.kind === "ok") {
-      if (failures > 0) log.info("machine-service: connected again", { after: failures });
-      failures = 0;
-      lastProblem = undefined;
-      const { state } = result.value;
-      if (state !== lastState) {
-        log.info(STATE_MESSAGES[state] ?? "machine-service: state changed", { state });
-        lastState = state;
-      }
-      const seconds = result.value.heartbeatSeconds;
-      delay =
-        seconds > 0 ? Math.min(MAX_HEARTBEAT_MS, Math.max(MIN_HEARTBEAT_MS, seconds * 1000)) : DEFAULT_HEARTBEAT_MS;
-    } else if (result.kind === "http" && result.status === 401 && KEY_REFUSED_FOR_GOOD.has(result.code ?? "")) {
-      // Retrying can never help. A 401 without one of these codes (a proxy or sign-in gateway in front of the
-      // CRM, say) is retried slowly below instead.
-      log.error("machine-service: the CRM refused this machine's key for good; join again with a new code", {
-        status: 401,
-        code: result.code ?? null,
-      });
-      return EXIT_CONFIG;
-    } else {
-      failures += 1;
-      const problem = describe(result);
-      // Each retry is logged at debug; a new kind of problem is logged once.
-      if (problem !== lastProblem) {
-        log.warn(`machine-service: ${problem}; retrying`, { attempt: failures });
-        lastProblem = problem;
-      } else {
-        log.debug(`machine-service: ${problem}; retrying`, { attempt: failures });
-      }
-      if (result.kind === "http" && result.status === 403) {
-        // MACHINE_OWNER_NOT_ALLOWED: it may change (the owner is let back in), so keep asking, slowly.
-        delay = jitter(backoff.maxMs, random);
-      } else if (result.kind === "http" && result.status === 429) {
-        const wanted = Math.min(backoff.maxMs, result.retryAfterMs ?? 0);
-        delay = Math.max(jitter(backoffDelay(failures, backoff), random), wanted);
-      } else if (result.kind === "http" && result.status === 400) {
-        // Our report did not pass the CRM's schema (a newer CRM?). Stay online without it.
-        log.warn("machine-service: the CRM refused the capabilities report; sending heartbeats without it", {
-          errors: result.errors ?? null,
-        });
-        reportRefused = true;
-        delay = jitter(backoffDelay(failures, backoff), random);
-      } else if (result.kind === "network" || result.status >= 500) {
-        delay = jitter(backoffDelay(failures, backoff), random);
-      } else {
-        // Anything else (404 from a wrong URL, an HTML page): not going to fix itself quickly.
-        delay = jitter(backoff.maxMs, random);
-      }
-    }
-    await sleep(delay, signal);
   }
-  log.info("machine-service: stopped");
-  return EXIT_OK;
+
+  async function loop(): Promise<number> {
+    while (!signal.aborted) {
+      if (capabilities === undefined || now() - detectedAt >= redetectMs) {
+        capabilities = await options.detect().catch(() => capabilities);
+        detectedAt = now();
+        reportRefused = false;
+        if (signal.aborted) break;
+      }
+      const report = capabilities && options.adjust ? options.adjust(capabilities) : capabilities;
+      const body: HeartbeatBody = {
+        ...about,
+        ...(report && !reportRefused ? { capabilities: report } : {}),
+        ...(jobs ? { running: jobs.runningIds } : {}),
+      };
+      const result = await client.heartbeat(config.key, body, signal);
+      if (signal.aborted) break;
+
+      let delay: number;
+      if (result.kind === "ok") {
+        if (failures > 0) log.info("machine-service: connected again", { after: failures });
+        failures = 0;
+        lastProblem = undefined;
+        const { state } = result.value;
+        if (jobs) {
+          jobs.cancel(result.value.cancel);
+          jobs.accept(result.value.jobs);
+        }
+        if (state !== lastState) {
+          log.info(STATE_MESSAGES[state] ?? "machine-service: state changed", { state });
+          lastState = state;
+        }
+        const seconds = result.value.heartbeatSeconds;
+        delay =
+          seconds > 0 ? Math.min(MAX_HEARTBEAT_MS, Math.max(MIN_HEARTBEAT_MS, seconds * 1000)) : DEFAULT_HEARTBEAT_MS;
+      } else if (result.kind === "http" && result.status === 401 && KEY_REFUSED_FOR_GOOD.has(result.code ?? "")) {
+        // Retrying can never help. A 401 without one of these codes (a proxy or sign-in gateway in front of the
+        // CRM, say) is retried slowly below instead.
+        log.error("machine-service: the CRM refused this machine's key for good; join again with a new code", {
+          status: 401,
+          code: result.code ?? null,
+        });
+        return EXIT_CONFIG;
+      } else {
+        failures += 1;
+        const problem = describe(result);
+        // Each retry is logged at debug; a new kind of problem is logged once.
+        if (problem !== lastProblem) {
+          log.warn(`machine-service: ${problem}; retrying`, { attempt: failures });
+          lastProblem = problem;
+        } else {
+          log.debug(`machine-service: ${problem}; retrying`, { attempt: failures });
+        }
+        if (result.kind === "http" && result.status === 403) {
+          // MACHINE_OWNER_NOT_ALLOWED: it may change (the owner is let back in), so keep asking, slowly.
+          delay = jitter(backoff.maxMs, random);
+        } else if (result.kind === "http" && result.status === 429) {
+          const wanted = Math.min(backoff.maxMs, result.retryAfterMs ?? 0);
+          delay = Math.max(jitter(backoffDelay(failures, backoff), random), wanted);
+        } else if (result.kind === "http" && result.status === 400) {
+          // Our report did not pass the CRM's schema (a newer CRM?). Stay online without it.
+          log.warn("machine-service: the CRM refused the capabilities report; sending heartbeats without it", {
+            errors: result.errors ?? null,
+          });
+          reportRefused = true;
+          delay = jitter(backoffDelay(failures, backoff), random);
+        } else if (result.kind === "network" || result.status >= 500) {
+          delay = jitter(backoffDelay(failures, backoff), random);
+        } else {
+          // Anything else (404 from a wrong URL, an HTML page): not going to fix itself quickly.
+          delay = jitter(backoff.maxMs, random);
+        }
+      }
+      await sleep(delay, signal);
+    }
+    log.info("machine-service: stopped");
+    return EXIT_OK;
+  }
 }
 
 function describe(result: Exclude<CrmResult<unknown>, { kind: "ok" }>): string {

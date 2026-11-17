@@ -5,9 +5,9 @@
  */
 
 import os from "node:os";
-import path from "node:path";
 
-import { findOnPath, homeOf, mapLimit, type CommandRunner, type MachineFs } from "./system.ts";
+import { claudeCredential, codexAuthFile, codexSignIn } from "./signins.ts";
+import { findOnPath, mapLimit, type CommandRunner, type MachineFs } from "./system.ts";
 import { MACHINE_VERSION } from "./version.ts";
 
 /**
@@ -144,65 +144,31 @@ function readJsonObject(fs: MachineFs, file: string): Record<string, unknown> | 
   }
 }
 
-const nonEmpty = (value: unknown): boolean => typeof value === "string" && value.trim().length > 0;
-
 /**
- * Codex sign-in, checked the way `@plane/acp-adapters` checks it (`src/login/codex.ts`
- * `codexStatus`): the sign-in lives in `$CODEX_HOME/auth.json` (default `~/.codex/auth.json`).
- * The adapters then ask `codex app-server` for the account, which is too heavy to run every few
- * minutes, so this reads the file instead: ChatGPT tokens, or an API key saved with
- * `codex login --with-api-key`. When there is no file but codex is installed, `codex login
- * status` decides by its exit code (0 = signed in): that covers a sign-in kept in the OS keyring
- * instead of the file. It reads local state only; its output is never read or logged because it
- * can show part of a key. An `OPENAI_API_KEY` in the env alone is not counted: the adapters' ChatGPT
- * mode drops it, and the codex CLI does not sign in with it unless it is saved as above.
+ * Codex sign-in, as a job can use it: jobs run in a container and get a copy of
+ * `$CODEX_HOME/auth.json` (default `~/.codex/auth.json`) holding ChatGPT tokens or an API key saved
+ * with `codex login --with-api-key` (`signins.ts`). A sign-in kept in the OS keyring instead of the
+ * file cannot be copied into a container, so it does not count. An `OPENAI_API_KEY` in the env
+ * alone does not count either: the CLI does not sign in with it unless it is saved as above.
  */
-export async function codexSignedIn(deps: DetectDeps, binary: string | undefined): Promise<boolean> {
-  const codexHome = deps.env.CODEX_HOME?.trim() || path.join(homeOf(deps.env), ".codex");
-  const auth = readJsonObject(deps.fs, path.join(path.resolve(homeOf(deps.env), codexHome), "auth.json"));
-  if (auth) {
-    const tokens = auth.tokens;
-    if (typeof tokens === "object" && tokens !== null) {
-      const record = tokens as Record<string, unknown>;
-      if (nonEmpty(record.access_token) || nonEmpty(record.refresh_token)) return true;
-    }
-    if (nonEmpty(auth.OPENAI_API_KEY)) return true;
-  }
-  if (!binary) return false;
-  const result = await deps.run(binary, ["login", "status"], { timeoutMs: COMMAND_TIMEOUT_MS, env: deps.env });
-  return result.code === 0;
+export function codexSignedIn(deps: DetectDeps): boolean {
+  return codexSignIn(readJsonObject(deps.fs, codexAuthFile(deps.env))) !== undefined;
 }
 
 /**
- * Claude sign-in, from the same signals the Claude adapter and the CLI use, all offline:
- * - `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` in the service's env: the two the adapter's
- *   `requireAuth` accepts (`@plane/acp-adapters` `src/claude/index.ts`).
- * - the Claude CLI's stored sign-in: on Linux it keeps a subscription sign-in in
- *   `$CLAUDE_CONFIG_DIR/.credentials.json` (default `~/.claude/.credentials.json`) under
- *   `claudeAiOauth`, the file the adapters' path policy guards as a credential.
- * - an Anthropic Console key the CLI saved as `primaryApiKey` in `~/.claude.json` (older versions).
- * Token expiry is not checked: the CLI refreshes the token itself when it runs.
+ * Claude sign-in, as a job can use it: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` (from
+ * `claude setup-token`) in the service's env, the two the Claude adapter accepts
+ * (`@plane/acp-adapters` `src/claude/index.ts`). A sign-in the Claude CLI keeps for itself
+ * (`~/.claude/.credentials.json`) is not used by jobs, so it does not count.
  */
 export function claudeSignedIn(deps: DetectDeps): boolean {
-  if (nonEmpty(deps.env.ANTHROPIC_API_KEY) || nonEmpty(deps.env.CLAUDE_CODE_OAUTH_TOKEN)) return true;
-  const home = homeOf(deps.env);
-  const configDir = deps.env.CLAUDE_CONFIG_DIR?.trim() || path.join(home, ".claude");
-  const credentials = readJsonObject(deps.fs, path.join(configDir, ".credentials.json"));
-  const oauth = credentials?.claudeAiOauth;
-  if (typeof oauth === "object" && oauth !== null) {
-    const record = oauth as Record<string, unknown>;
-    if (nonEmpty(record.accessToken) || nonEmpty(record.refreshToken)) return true;
-  }
-  for (const file of new Set([path.join(home, ".claude.json"), path.join(configDir, ".claude.json")])) {
-    if (nonEmpty(readJsonObject(deps.fs, file)?.primaryApiKey)) return true;
-  }
-  return false;
+  return claudeCredential(deps.env) !== undefined;
 }
 
 async function detectAgent(deps: DetectDeps, id: AgentId): Promise<AgentReport> {
   const binary = findOnPath(id, deps.env, deps.fs);
   const version = binary ? await versionOf(deps, binary, ["--version"], LIMITS.agentVersion) : undefined;
-  const signedIn = id === "codex" ? await codexSignedIn(deps, binary) : claudeSignedIn(deps);
+  const signedIn = id === "codex" ? codexSignedIn(deps) : claudeSignedIn(deps);
   return { id, installed: binary !== undefined, signed_in: signedIn, version: version ?? null };
 }
 
@@ -245,7 +211,7 @@ export async function detectCapabilities(deps: DetectDeps, slots: number): Promi
     detectDocker(deps).catch(() => ({ available: false, version: null })),
   ]);
   const total = clampSlots(slots);
-  // Nothing runs yet (jobs arrive in Step 4), so every slot is free.
+  // `free` here is before running jobs are counted; the service lowers it on every heartbeat (`adjust`).
   return { agents, toolchains, docker, slots: { total, free: total } };
 }
 

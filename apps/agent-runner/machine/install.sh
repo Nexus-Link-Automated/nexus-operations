@@ -76,6 +76,14 @@ chmod 700 "$config_dir"
 cp "$bundle" "$data_dir/nexus-machine.mjs.new"
 mv -f "$data_dir/nexus-machine.mjs.new" "$data_dir/nexus-machine.mjs"
 
+# The job container's build context, next to the bundle (the service builds the image from it).
+job_image=$(dirname -- "$bundle")/job-image
+[ -f "$job_image/Dockerfile" ] || die "job-image/ not found next to the bundle; build it: pnpm --filter agent-runner build:machine"
+rm -rf "$data_dir/job-image.new"
+cp -R "$job_image" "$data_dir/job-image.new"
+rm -rf "$data_dir/job-image"
+mv "$data_dir/job-image.new" "$data_dir/job-image"
+
 {
   echo "#!/bin/sh"
   echo "# Written by nexus-machine's install.sh."
@@ -89,7 +97,8 @@ mv -f "$launcher.new" "$launcher"
 if [ ! -e "$env_file" ]; then
   {
     echo "# Environment for the nexus-machine service (systemd EnvironmentFile syntax: KEY=value)."
-    echo "# Add e.g. ANTHROPIC_API_KEY=... here if Claude should use an API key. Keep this file private."
+    echo "# Claude jobs need ANTHROPIC_API_KEY=... or CLAUDE_CODE_OAUTH_TOKEN=... (from 'claude setup-token') here."
+    echo "# Keep this file private."
     echo "PATH=$PATH"
     if [ -n "${XDG_CONFIG_HOME:-}" ]; then echo "XDG_CONFIG_HOME=$XDG_CONFIG_HOME"; fi
   } >"$env_file"
@@ -113,12 +122,16 @@ version=$("$launcher" version 2>/dev/null || echo "?")
 cat <<EOF
 Installed nexus-machine $version.
 
+Jobs run in Docker containers: Docker must be running and usable by you (docker version).
+
 Next:
   1. In the CRM, add a machine and copy its one-time join code. Then here:
        nexus-machine join https://<your CRM address> <join code>
-  2. Start it now and at every login:
+  2. Optionally build the job image now (the service does it on first start otherwise):
+       nexus-machine prepare
+  3. Start it now and at every login:
        systemctl --user enable --now nexus-machine
-  3. Watch it:
+  4. Watch it:
        nexus-machine status
        journalctl --user -u nexus-machine -f
 

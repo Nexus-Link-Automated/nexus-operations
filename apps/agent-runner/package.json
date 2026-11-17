@@ -15,7 +15,7 @@
   },
   "scripts": {
     "build": "tsdown",
-    "build:machine": "tsdown -c tsdown.machine.config.ts && cp machine/install.sh machine/nexus-machine.service dist/machine/",
+    "build:machine": "tsdown -c tsdown.machine.config.ts && cp machine/install.sh machine/nexus-machine.service dist/machine/ && node machine/job-image-context.mjs",
     "dev": "tsdown --watch --no-clean --onSuccess \"node --env-file-if-exists=.env dist/start.mjs\"",
     "start": "node --env-file-if-exists=.env dist/start.mjs",
     "test": "vitest run",

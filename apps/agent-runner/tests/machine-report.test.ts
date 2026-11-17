@@ -60,7 +60,8 @@ describe("machine capabilities report", () => {
     expect(capabilities).toEqual({
       agents: [
         { id: "codex", installed: true, signed_in: true, version: "0.47.0" },
-        { id: "claude", installed: true, signed_in: true, version: "2.0.14" },
+        // Only the CLI's own stored sign-in: jobs cannot use it (the adapter takes a key or token).
+        { id: "claude", installed: true, signed_in: false, version: "2.0.14" },
       ],
       toolchains: [
         { name: "git", version: "2.43.0" },
@@ -81,7 +82,7 @@ describe("machine capabilities report", () => {
       version: "1.5.0",
     });
     expectStrictHeartbeat({ ...about, capabilities });
-    // The sign-in file answered for codex, so `codex login status` was never run.
+    // Sign-ins are read from files and the env only.
     expect(deps.run.calls).not.toContain("codex login status");
   });
 
@@ -184,14 +185,12 @@ describe("machine capabilities report", () => {
 });
 
 describe("agent sign-in detection", () => {
-  const codexBin = "/usr/bin/codex";
-
   it("codex: signed in from ~/.codex/auth.json (ChatGPT tokens or a saved API key)", async () => {
     const run = fakeRunner({});
     for (const auth of [{ tokens: { access_token: "a" } }, { OPENAI_API_KEY: "sk-test" }]) {
       const fs = fakeFs({ files: { [`${HOME}/.codex/auth.json`]: JSON.stringify(auth) } });
       // oxlint-disable-next-line no-await-in-loop -- two cases, one after the other
-      expect(await codexSignedIn({ env: ENV, fs, run }, codexBin)).toBe(true);
+      expect(codexSignedIn({ env: ENV, fs, run })).toBe(true);
     }
     expect(run.calls).toEqual([]);
   });
@@ -199,27 +198,25 @@ describe("agent sign-in detection", () => {
   it("codex: honours CODEX_HOME", async () => {
     const fs = fakeFs({ files: { "/srv/codex/auth.json": JSON.stringify({ tokens: { refresh_token: "r" } }) } });
     const env = { ...ENV, CODEX_HOME: "/srv/codex" };
-    expect(await codexSignedIn({ env, fs, run: fakeRunner({}) }, undefined)).toBe(true);
+    expect(codexSignedIn({ env, fs, run: fakeRunner({}) })).toBe(true);
   });
 
-  it("codex: without a usable auth file, asks `codex login status` and trusts only its exit code", async () => {
+  it("codex: without a usable auth file it is not signed in (a keyring sign-in cannot go into a container)", () => {
     const empty = fakeFs({
       files: { [`${HOME}/.codex/auth.json`]: JSON.stringify({ OPENAI_API_KEY: null, tokens: null }) },
     });
-    const yes = fakeRunner({ "codex login status": { code: 0, stdout: "Logged in using ChatGPT" } });
-    expect(await codexSignedIn({ env: ENV, fs: empty, run: yes }, codexBin)).toBe(true);
-    expect(yes.calls).toEqual(["codex login status"]);
-    const no = fakeRunner({ "codex login status": { code: 1, stdout: "Not logged in" } });
-    expect(await codexSignedIn({ env: ENV, fs: empty, run: no }, codexBin)).toBe(false);
-    // Not installed: nothing to ask.
-    const none = fakeRunner({});
-    expect(await codexSignedIn({ env: ENV, fs: fakeFs(), run: none }, undefined)).toBe(false);
-    expect(none.calls).toEqual([]);
+    const run = fakeRunner({ "codex login status": { code: 0, stdout: "Logged in using ChatGPT" } });
+    expect(codexSignedIn({ env: ENV, fs: empty, run })).toBe(false);
+    expect(codexSignedIn({ env: ENV, fs: fakeFs({ files: { [`${HOME}/.codex/auth.json`]: "nope" } }), run })).toBe(
+      false
+    );
+    expect(codexSignedIn({ env: ENV, fs: fakeFs(), run })).toBe(false);
+    expect(run.calls).toEqual([]);
   });
 
   it("codex: an OPENAI_API_KEY in the env alone is not a sign-in", async () => {
     const env = { ...ENV, OPENAI_API_KEY: "sk-test" };
-    expect(await codexSignedIn({ env, fs: fakeFs(), run: fakeRunner({}) }, undefined)).toBe(false);
+    expect(codexSignedIn({ env, fs: fakeFs(), run: fakeRunner({}) })).toBe(false);
   });
 
   it("claude: signed in by an API key or OAuth token in the env", () => {
@@ -229,28 +226,17 @@ describe("agent sign-in detection", () => {
     expect(claudeSignedIn({ env: { ...ENV, ANTHROPIC_API_KEY: "  " }, fs: fakeFs(), run: fakeRunner({}) })).toBe(false);
   });
 
-  it("claude: signed in by the CLI's stored credentials", () => {
+  it("claude: the CLI's own stored sign-in does not count (jobs need a key or token in the env)", () => {
     const oauth = JSON.stringify({ claudeAiOauth: { accessToken: "t" } });
     const run = fakeRunner({});
     expect(
       claudeSignedIn({ env: ENV, fs: fakeFs({ files: { [`${HOME}/.claude/.credentials.json`]: oauth } }), run })
-    ).toBe(true);
-    const env = { ...ENV, CLAUDE_CONFIG_DIR: "/cfg/claude" };
-    expect(claudeSignedIn({ env, fs: fakeFs({ files: { "/cfg/claude/.credentials.json": oauth } }), run })).toBe(true);
+    ).toBe(false);
     const consoleKey = JSON.stringify({ primaryApiKey: "sk-ant-x" });
     expect(claudeSignedIn({ env: ENV, fs: fakeFs({ files: { [`${HOME}/.claude.json`]: consoleKey } }), run })).toBe(
-      true
+      false
     );
-  });
-
-  it("claude: not signed in with no key, an empty or a broken credentials file", () => {
-    const run = fakeRunner({});
     expect(claudeSignedIn({ env: ENV, fs: fakeFs(), run })).toBe(false);
-    for (const text of ["{}", "not json", JSON.stringify({ claudeAiOauth: { accessToken: "" } }), "[]"]) {
-      expect(
-        claudeSignedIn({ env: ENV, fs: fakeFs({ files: { [`${HOME}/.claude/.credentials.json`]: text } }), run })
-      ).toBe(false);
-    }
   });
 });
 

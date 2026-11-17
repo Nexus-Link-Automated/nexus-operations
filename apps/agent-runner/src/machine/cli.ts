@@ -5,13 +5,34 @@
  */
 
 import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { Logger } from "../logger.ts";
 import { CrmClient, type FetchLike } from "./client.ts";
+import { jobsDir, pruneJobDirs, runJob } from "./job.ts";
+import { JobManager } from "./jobs.ts";
+import { DockerSandboxProvider, type SandboxProvider } from "./sandbox.ts";
 import { checkConfigWritable, checkCrmUrl, configPath, loadMachineConfig, saveMachineConfig } from "./config.ts";
 import { createMachineLogger } from "./log.ts";
-import { aboutMachine, clampSlots, detectCapabilities, LIMITS, type About, type DetectDeps } from "./report.ts";
-import { EXIT_CONFIG, EXIT_FAILURE, EXIT_OK, EXIT_USAGE, runMachine, type RunOptions } from "./service.ts";
+import {
+  aboutMachine,
+  clampSlots,
+  detectCapabilities,
+  LIMITS,
+  type About,
+  type Capabilities,
+  type DetectDeps,
+} from "./report.ts";
+import {
+  defaultSleep,
+  EXIT_CONFIG,
+  EXIT_FAILURE,
+  EXIT_OK,
+  EXIT_USAGE,
+  runMachine,
+  type RunOptions,
+} from "./service.ts";
 import { defaultCommandRunner, defaultMachineFs, type CommandRunner, type MachineFs } from "./system.ts";
 import { MACHINE_VERSION } from "./version.ts";
 
@@ -22,7 +43,9 @@ Commands:
                  Trade a one-time join code for this machine's key and save it.
                  --slots: how many jobs may run at once (0-${LIMITS.slots}, default 1).
                  --force: replace an existing config (the old machine stays in the CRM).
-  run            Stay connected to the CRM and report what this machine can do.
+  run            Stay connected to the CRM and run the coding jobs it hands out, each in
+                 its own Docker container.
+  prepare        Build the job container image now (run does it on first start).
   status         Show the saved config (never the key) and what this machine reports.
   version        Print the version.
 
@@ -40,6 +63,33 @@ export interface CliDeps {
   readonly about?: About;
   readonly log?: Logger;
   readonly runOptions?: Partial<Pick<RunOptions, "sleep" | "random" | "now" | "backoff" | "redetectMs">>;
+  /** Where jobs run; Docker unless a test gives another. */
+  readonly sandbox?: (machineId: string, log: Logger) => SandboxProvider;
+}
+
+/** How often the job image is checked again while it is not ready (Docker stopped, a build failed). */
+const PREPARE_RETRY_MS = 5 * 60_000;
+
+/** `job-image/` next to the bundle (install.sh puts it there), or `NEXUS_MACHINE_JOB_IMAGE_DIR`. */
+export function jobImageDir(env: NodeJS.ProcessEnv): string {
+  const override = env.NEXUS_MACHINE_JOB_IMAGE_DIR?.trim();
+  if (override && path.isAbsolute(override)) return override;
+  return path.join(path.dirname(fileURLToPath(import.meta.url)), "job-image");
+}
+
+function dockerSandbox(deps: CliDeps, machineId: string, log: Logger): SandboxProvider {
+  if (deps.sandbox) return deps.sandbox(machineId, log);
+  const memory = deps.env.NEXUS_MACHINE_JOB_MEMORY?.trim();
+  const cpus = deps.env.NEXUS_MACHINE_JOB_CPUS?.trim();
+  return new DockerSandboxProvider({
+    machineId,
+    contextDir: jobImageDir(deps.env),
+    env: deps.env,
+    log,
+    ...(deps.run ? { run: deps.run } : {}),
+    ...(memory ? { memory } : {}),
+    ...(cpus ? { cpus } : {}),
+  });
 }
 
 interface Parsed {
@@ -94,6 +144,8 @@ export async function main(argv: readonly string[], deps: CliDeps): Promise<numb
       return run(deps);
     case "status":
       return status(deps);
+    case "prepare":
+      return prepare(deps);
     case "version":
     case "--version":
       deps.out(MACHINE_VERSION);
@@ -200,15 +252,76 @@ async function run(deps: CliDeps): Promise<number> {
   }
   const { config } = loaded;
   const detect = detectDeps(deps);
-  return runMachine({
+  const client = new CrmClient(config.url, deps.fetch ? { fetch: deps.fetch } : {});
+  const sandbox = dockerSandbox(deps, config.machineId, log);
+  const root = jobsDir(deps.env);
+  pruneJobDirs(root, new Set());
+  // Containers of jobs a previous run was running cannot be picked up again: the CRM ends those jobs.
+  const leftovers = await sandbox.removeLeftovers().catch(() => 0);
+  if (leftovers) log.warn("machine-service: removed job containers left from a previous run", { count: leftovers });
+  const jobs = new JobManager({
+    key: config.key,
+    slots: config.slots,
+    client,
+    log,
+    canRun: () => sandbox.status().ready,
+    run: (order, emit, stop) => runJob(order, { sandboxes: sandbox, jobsRoot: root, env: deps.env, log, emit }, stop),
+    onJobDone: (running) => pruneJobDirs(root, running),
+  });
+  const done = new AbortController();
+  const preparing = keepPrepared(sandbox, log, AbortSignal.any([deps.signal, done.signal]));
+  // Agents run in the job image, so they count as installed once it is ready; running jobs take slots.
+  const adjust = (capabilities: Capabilities): Capabilities => {
+    const ready = sandbox.status().ready;
+    return {
+      ...capabilities,
+      agents: capabilities.agents.map((agent) => ({ ...agent, installed: ready })),
+      slots: { total: capabilities.slots.total, free: ready ? Math.min(capabilities.slots.total, jobs.free) : 0 },
+    };
+  };
+  const code = await runMachine({
     config,
-    client: new CrmClient(config.url, deps.fetch ? { fetch: deps.fetch } : {}),
+    client,
     about: about(deps),
     detect: () => detectCapabilities(detect, config.slots),
     log,
     signal: deps.signal,
+    jobs,
+    adjust,
     ...deps.runOptions,
   });
+  done.abort();
+  await preparing;
+  return code;
+}
+
+/** Gets the job image ready, and tries again every few minutes while it is not. */
+async function keepPrepared(sandbox: SandboxProvider, log: Logger, signal: AbortSignal): Promise<void> {
+  let lastReason: string | undefined;
+  while (!signal.aborted) {
+    // oxlint-disable-next-line no-await-in-loop -- one preparation at a time
+    const prepared = await sandbox.prepare(signal);
+    if (prepared.ready) return;
+    if (prepared.reason !== lastReason) {
+      log.warn(`machine-service: cannot run jobs yet: ${prepared.reason ?? "unknown"}; retrying every few minutes`);
+      lastReason = prepared.reason;
+    }
+    // oxlint-disable-next-line no-await-in-loop -- waits between attempts
+    await defaultSleep(PREPARE_RETRY_MS, signal);
+  }
+}
+
+async function prepare(deps: CliDeps): Promise<number> {
+  const log = deps.log ?? createMachineLogger({ debug: deps.env.NEXUS_MACHINE_DEBUG === "1" });
+  const loaded = loadMachineConfig(configPath(deps.env));
+  const machineId = loaded.ok ? loaded.config.machineId : "unjoined";
+  const prepared = await dockerSandbox(deps, machineId, log).prepare(deps.signal);
+  if (prepared.ready) {
+    deps.out("The job image is ready.");
+    return EXIT_OK;
+  }
+  deps.err(`nexus-machine: the job image is not ready: ${prepared.reason ?? "unknown"}.`);
+  return EXIT_FAILURE;
 }
 
 async function status(deps: CliDeps): Promise<number> {

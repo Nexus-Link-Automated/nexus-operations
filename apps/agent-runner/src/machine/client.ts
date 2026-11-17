@@ -15,6 +15,8 @@ import { MACHINE_VERSION } from "./version.ts";
 
 export const JOIN_PATH = "/api/v1/coding-machines/join/";
 export const HEARTBEAT_PATH = "/api/v1/coding-machines/heartbeat/";
+export const EVENTS_PATH = "/api/v1/coding-machines/jobs/events/";
+export const resultPath = (jobId: string) => `/api/v1/coding-machines/jobs/${encodeURIComponent(jobId)}/result/`;
 
 /** A request that has not answered after this long is given up and retried. */
 export const REQUEST_TIMEOUT_MS = 30_000;
@@ -33,11 +35,39 @@ export interface HeartbeatAnswer {
   readonly name: string;
   readonly state: string;
   readonly heartbeatSeconds: number;
+  /** New jobs (and jobs offered again because the machine has not confirmed them yet), unparsed. */
   readonly jobs: readonly unknown[];
+  /** Jobs the machine said it runs that the CRM has ended or never gave it: stop them. */
+  readonly cancel: readonly string[];
 }
 
 export interface HeartbeatBody extends About {
   readonly capabilities?: Capabilities;
+  /** The jobs running now. Sent on every heartbeat; a machine that leaves it out gets no jobs. */
+  readonly running?: readonly string[];
+}
+
+export type EventKind = "status" | "message" | "tool" | "plan";
+
+export interface JobEvent {
+  readonly kind: EventKind;
+  readonly text: string;
+}
+
+export interface JobEventBatch {
+  readonly id: string;
+  readonly events: readonly JobEvent[];
+}
+
+export interface EventsAnswer {
+  /** Jobs that are no longer running on this machine: stop them. */
+  readonly ended: readonly string[];
+}
+
+export interface ResultAnswer {
+  readonly status: string;
+  readonly outcome: string | null;
+  readonly changed: boolean;
 }
 
 /** What came back: a parsed answer, a refusal with the CRM's error `code`, or no answer at all. */
@@ -61,6 +91,10 @@ export interface CrmClientOptions {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function strings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 /** `Retry-After` in seconds (all DRF sends) → ms. */
@@ -115,6 +149,27 @@ export class CrmClient {
         state: typeof answer.state === "string" ? answer.state : "",
         heartbeatSeconds: typeof answer.heartbeat_seconds === "number" ? answer.heartbeat_seconds : 0,
         jobs: Array.isArray(answer.jobs) ? answer.jobs : [],
+        cancel: strings(answer.cancel),
+      },
+    };
+  }
+
+  async events(key: string, jobs: readonly JobEventBatch[], signal?: AbortSignal): Promise<CrmResult<EventsAnswer>> {
+    const result = await this.#post(EVENTS_PATH, { jobs }, key, signal);
+    if (result.kind !== "ok") return result;
+    return { kind: "ok", value: { ended: strings(result.value.ended) } };
+  }
+
+  async result(key: string, jobId: string, body: unknown, signal?: AbortSignal): Promise<CrmResult<ResultAnswer>> {
+    const result = await this.#post(resultPath(jobId), { result: body }, key, signal);
+    if (result.kind !== "ok") return result;
+    const answer = result.value;
+    return {
+      kind: "ok",
+      value: {
+        status: typeof answer.status === "string" ? answer.status : "",
+        outcome: typeof answer.outcome === "string" ? answer.outcome : null,
+        changed: answer.changed === true,
       },
     };
   }

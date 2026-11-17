@@ -214,30 +214,38 @@ docker build -f apps/agent-runner/Dockerfile.agent-runner -t plane-agent-runner 
 ## Machine service
 
 `nexus-machine` runs on a person's own Linux computer (a laptop or desktop) and makes it a coding
-machine for the CRM (`apps/api/plane/coding/README.md`, "Machines"). It runs as that person, with
-their own Codex and Claude sign-ins, toolchains and docker. It only connects out to the CRM over
-HTTPS (one kept-alive connection) and opens no port. For now it only reports what the computer can
-do; jobs stay queued on the CRM until dispatch is added.
+machine for the CRM (`apps/api/plane/coding/README.md`, "Machines" and "Dispatch"). It runs as that
+person and runs the coding jobs the CRM hands it, each in its own Docker container, with the
+machine's own Codex and Claude sign-ins. It only connects out to the CRM over HTTPS (one kept-alive
+connection) and opens no port.
 
 The code is in `src/machine/`: `config.ts` (the saved config), `report.ts` (detection),
-`client.ts` (the CRM endpoints), `service.ts` (the heartbeat loop), `cli.ts` and `bin.ts`.
+`client.ts` (the CRM endpoints), `service.ts` (the heartbeat loop), `jobs.ts` (the running jobs,
+their progress and results), `job.ts` (one job), `sandbox.ts` (the job container), `signins.ts`,
+`acp-session.ts` (the agent over ACP), `progress.ts`, `orders.ts`, `cli.ts` and `bin.ts`. The job
+image is `machine/job-image/Dockerfile`.
 
 ### Install
 
-Needs Linux, systemd and Node.js 24 or newer. As the person who will use the machine (not root):
+Needs Linux, systemd, Node.js 24 or newer, and Docker (a running daemon this user may use, e.g. as a
+member of the `docker` group, which is as powerful as root on that computer). As the person who will
+use the machine (not root):
 
 ```sh
 pnpm --filter agent-runner build:machine     # → apps/agent-runner/dist/machine/
 sh apps/agent-runner/dist/machine/install.sh
 ```
 
-`dist/machine/` holds everything an install needs (`nexus-machine.mjs` with every dependency
-bundled, `install.sh`, `nexus-machine.service`), so it can be copied to another computer as is. The
+`build:machine` needs `@plane/acp-adapters` built first (`pnpm --filter agent-runner build` does
+that). `dist/machine/` holds everything an install needs (`nexus-machine.mjs` with every dependency
+bundled, `install.sh`, `nexus-machine.service`, and `job-image/`: the job image's Dockerfile, the
+built adapters and their dependency list), so it can be copied to another computer as is. The
 installer puts:
 
 | What                     | Where                                                                            |
 | ------------------------ | -------------------------------------------------------------------------------- |
 | the bundle               | `~/.local/share/nexus-machine/nexus-machine.mjs`                                 |
+| the job image's context  | `~/.local/share/nexus-machine/job-image/`                                        |
 | a launcher               | `~/.local/bin/nexus-machine` (runs the bundle with the `node` it found)          |
 | the systemd user unit    | `~/.config/systemd/user/nexus-machine.service` (under `$XDG_CONFIG_HOME` if set) |
 | the service's env (once) | `~/.config/nexus-machine/env` (0600): your `PATH` at install time                |
@@ -261,7 +269,10 @@ slots}`. The key is never printed. Only `https://` URLs are accepted (plain `htt
    `loginctl enable-linger $USER` keeps it running while you are logged out.
 4. The owner approves the machine in the CRM. Until then it shows `awaiting_approval`.
 
-`nexus-machine status` shows the saved config (never the key) and the report the machine sends.
+`nexus-machine prepare` builds the job image now (Node 24, git and a small toolbox, the Codex CLI and
+the ACP adapters; a few minutes and about 1.5 GB); otherwise `run` builds it on first start and takes
+no jobs until it is ready. `nexus-machine status` shows the saved config (never the key) and the
+report the machine sends.
 Logs: `journalctl --user -u nexus-machine -f`. Set `NEXUS_MACHINE_DEBUG=1` (in the env file) for
 every retry.
 
@@ -281,7 +292,46 @@ To remove it: `systemctl --user disable --now nexus-machine`, then delete the fi
 - 400 (the CRM refused the report): heartbeats go without `capabilities` until the next detection.
 - 401 with `MACHINE_KEY_INVALID`, `MACHINE_UNKNOWN` or `MACHINE_REVOKED`: logs why and exits 78. A 401 without
   one of those codes (a proxy or sign-in gateway in front of the CRM, say) is retried at the slowest pace.
-- SIGTERM / SIGINT: stops at once and exits 0.
+- SIGTERM / SIGINT: stops its jobs, tells the CRM they did not finish, and exits 0.
+
+### How a job runs
+
+1. A heartbeat answer hands it a job (`jobs`): the CRM's instructions, the repository and branch,
+   and a time limit. Every heartbeat lists the jobs running (`running`); the CRM answers with jobs
+   to stop (`cancel`: cancelled, timed out on its side, or no longer this machine's).
+2. A fresh folder `~/.local/share/nexus-machine/jobs/<job id>/` (0700, `$XDG_DATA_HOME` honoured)
+   with `work/`, `home/` and `out/`, and a container from the job image:
+   - as your uid, `--cap-drop ALL`, `no-new-privileges`, a pids limit (`NEXUS_MACHINE_JOB_MEMORY`
+     and `NEXUS_MACHINE_JOB_CPUS` add `--memory` and `--cpus`), on Docker's default network;
+   - only those three folders mounted (`/job/work`, `/job/home` as `HOME`, `/job/out`): never your
+     home, SSH keys, other sign-ins, the docker socket or the machine's key.
+3. The agent's sign-in, and nothing else:
+   - Codex: a copy of `~/.codex/auth.json` (or `$CODEX_HOME`) in the job's home. A token Codex
+     refreshes during the job is written back afterwards, unless your own copy changed meanwhile.
+     A sign-in kept in the OS keyring cannot be used.
+   - Claude: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) from the
+     env file. The Claude adapter takes only these.
+   - Keys reach the agent by name through `docker exec --env NAME`, never on a command line. The
+     agent can read its own sign-in inside the container; nothing else of yours is there.
+4. `git clone --depth 50 --single-branch --branch <branch>` of the https repository into
+   `/job/work/repo` (https only, no credentials: a private repository fails until jobs get
+   repository access).
+5. `node /opt/nexus/acp/dist/bin/<agent>.mjs` via `docker exec -i`, driven over ACP: a session in
+   the repository in `yolo` mode (nobody approves steps during a job; the container is the
+   boundary) and one prompt with the CRM's instructions. Progress (messages, tools run, failures,
+   the plan) goes to the CRM in batches every 3 s.
+6. The agent writes its result to `/job/out/result.json` (`NEXUS_RESULT_FILE`). The machine keeps
+   only the fields the outcome allows (never `pr_url`), cuts them to the CRM's limits, adds
+   `changed_files` from `git status`, and sends it. No result, a broken one, a crash, a failed
+   clone, a missing sign-in or the time limit become a `job_error` with the reason.
+7. The container is removed, with the job's home and result. A job that changed code keeps its
+   `work/repo` (there is no pull request yet), for 7 days and at most 20 jobs.
+
+A job stays in `running` until its result is delivered; while the CRM cannot be reached the job
+keeps running, progress is kept (up to 500 lines per job) and the result is retried. When the CRM
+ends a job, the agent gets `session/cancel` and 10 s, then its container is removed and no result is
+sent. A restarted service removes containers a previous run left (they cannot be reattached); the
+CRM ends those jobs as job errors.
 
 ### What it reports
 
@@ -307,20 +357,20 @@ To remove it: `systemctl --user disable --now nexus-machine`, then delete the fi
 
 - `hostname`: `os.hostname()`; `os`: platform, arch and the distro's `PRETTY_NAME` (or the kernel
   release); `version`: this package's version. Every string is cut to the CRM's limits.
-- `agents`: `installed` means the binary is on `PATH`; `version` comes from `--version`.
-  `signed_in` uses the same signals as `@plane/acp-adapters`, read offline:
+- `agents`: `installed` means the job image is ready (both agents run in it); `version` is the
+  version of a CLI on this computer's `PATH`, when there is one. `signed_in` means a job can use
+  the sign-in, read offline:
   - Codex: `$CODEX_HOME/auth.json` (default `~/.codex/auth.json`) holds ChatGPT tokens or a saved
-    API key; without it, `codex login status` exits 0 (covers a sign-in kept in the OS keyring). An
-    `OPENAI_API_KEY` in the env alone does not count.
-  - Claude: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` in the service's env, or the Claude
-    CLI's stored sign-in (`$CLAUDE_CONFIG_DIR/.credentials.json`, default `~/.claude/`, or a
-    `primaryApiKey` in `~/.claude.json`).
+    API key. A keyring sign-in, or an `OPENAI_API_KEY` in the env alone, does not count.
+  - Claude: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` in the service's env. The Claude CLI's
+    own stored sign-in does not count.
 - `toolchains`: those found on `PATH` among git, gh, node, npm, pnpm, yarn, bun, deno, python3,
   uv, go, rustc, cargo, java, dotnet, ruby, php, make and gcc, with their versions (empty when the
   tool does not say).
 - `docker`: available when `docker version --format '{{.Server.Version}}'` gets an answer from the
   daemon (so not when it is stopped or this user may not use it).
-- `slots`: `total` from the config; `free` equals `total`, since nothing runs yet.
+- `slots`: `total` from the config; `free` is `total` minus the jobs running (0 while the job image
+  is not ready).
 
 ### Exit codes
 
@@ -342,3 +392,6 @@ your home, your sign-ins, your toolchains and the docker socket.
 ```sh
 pnpm --filter agent-runner exec vitest run tests/machine-*.test.ts
 ```
+
+The job tests run jobs as plain processes with `tests/fixtures/fake-coding-agent.ts` (an ACP agent
+on the adapters' runtime) instead of containers.

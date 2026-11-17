@@ -102,7 +102,7 @@ export class FakeCrm {
 export function heartbeatOk(state = "active", heartbeatSeconds = 15): FakeAnswer {
   return {
     status: 200,
-    body: { machine_id: "m-1", name: "Laptop", state, heartbeat_seconds: heartbeatSeconds, jobs: [] },
+    body: { machine_id: "m-1", name: "Laptop", state, heartbeat_seconds: heartbeatSeconds, jobs: [], cancel: [] },
   };
 }
 
@@ -121,9 +121,14 @@ export function memoryLogger(): Logger & { lines: string[] } {
  */
 export function expectStrictHeartbeat(value: unknown): void {
   const body = value as Record<string, unknown>;
-  expect(Object.keys(body).toSorted()).toEqual(
-    "capabilities" in body ? ["capabilities", "hostname", "os", "version"] : ["hostname", "os", "version"]
-  );
+  const keys = ["hostname", "os", "version", ...("capabilities" in body ? ["capabilities"] : [])];
+  if ("running" in body) {
+    keys.push("running");
+    const running = body.running as unknown[];
+    expect(Array.isArray(running) && running.length <= 32).toBe(true);
+    for (const id of running) expect(id).toMatch(/^[0-9a-f-]{36}$/);
+  }
+  expect(Object.keys(body).toSorted()).toEqual(keys.toSorted());
   expectString(body.hostname, 255);
   expectString(body.os, 64);
   expectString(body.version, 32);
