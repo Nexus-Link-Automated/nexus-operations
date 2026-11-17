@@ -73,7 +73,8 @@ export interface ICodingJobStore {
    * Asks the API whether pull requests can be opened on the project's repository (it asks GitHub, so it is slow).
    * Members and admins only. One request per project at a time.
    */
-  fetchRepository: (workspaceSlug: string, projectId: string) => Promise<TCodingRepositoryAccess>;
+  /** `repoUrl`: the repository the caller shows; a request for another one is not reused. */
+  fetchRepository: (workspaceSlug: string, projectId: string, repoUrl?: string) => Promise<TCodingRepositoryAccess>;
   fetchJobs: (workspaceSlug: string, projectId: string, workItemId: string) => Promise<TCodingJob[]>;
   startJob: (
     workspaceSlug: string,
@@ -136,6 +137,7 @@ export class CodingJobStore implements ICodingJobStore {
   private settingsVersion: Record<string, number> = {};
   private eventsInFlight: Record<string, Promise<TCodingJobEvent[]>> = {};
   private repositoryInFlight: Record<string, Promise<TCodingRepositoryAccess>> = {};
+  private repositoryLatest: Record<string, Promise<TCodingRepositoryAccess>> = {};
   // Polling key → how many watchers share it and how to stop it.
   private watchers: Record<string, { count: number; stop: () => void }> = {};
 
@@ -187,21 +189,27 @@ export class CodingJobStore implements ICodingJobStore {
     return request;
   };
 
-  fetchRepository = (workspaceSlug: string, projectId: string) => {
-    const inFlight = this.repositoryInFlight[projectId];
+  fetchRepository = (workspaceSlug: string, projectId: string, repoUrl = "") => {
+    // Reused only for the same repository: a check started before the URL changed answers for the old one.
+    const key = `${projectId}\n${repoUrl}`;
+    const inFlight = this.repositoryInFlight[key];
     if (inFlight) return inFlight;
     const request = this.service
       .getRepository(workspaceSlug, projectId)
       .then((repository) => {
-        runInAction(() => {
-          this.repositoryMap[projectId] = repository;
-        });
+        // Only the newest check for the project is shown.
+        if (this.repositoryLatest[projectId] === request) {
+          runInAction(() => {
+            this.repositoryMap[projectId] = repository;
+          });
+        }
         return repository;
       })
       .finally(() => {
-        if (this.repositoryInFlight[projectId] === request) delete this.repositoryInFlight[projectId];
+        if (this.repositoryInFlight[key] === request) delete this.repositoryInFlight[key];
       });
-    this.repositoryInFlight[projectId] = request;
+    this.repositoryInFlight[key] = request;
+    this.repositoryLatest[projectId] = request;
     return request;
   };
 

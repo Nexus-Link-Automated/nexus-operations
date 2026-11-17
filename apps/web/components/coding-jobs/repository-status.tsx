@@ -51,16 +51,25 @@ export const CodingRepositoryStatus = observer(function CodingRepositoryStatus({
   const [state, setState] = useState<"loading" | "loaded" | "failed">("loading");
   const repository = getRepository(projectId);
 
-  const check = useCallback(() => {
-    setState("loading");
-    fetchRepository(workspaceSlug, projectId)
-      .then(() => setState("loaded"))
-      .catch(() => setState("failed"));
-  }, [fetchRepository, workspaceSlug, projectId]);
+  // `isCurrent` drops an answer that arrives after unmount or after the repository changed.
+  const check = useCallback(
+    (isCurrent: () => boolean = () => true) => {
+      setState("loading");
+      fetchRepository(workspaceSlug, projectId, repoUrl)
+        .then(() => isCurrent() && setState("loaded"))
+        .catch(() => isCurrent() && setState("failed"));
+    },
+    [fetchRepository, workspaceSlug, projectId, repoUrl]
+  );
 
   useEffect(() => {
-    if (workspaceSlug && projectId) check();
-  }, [check, workspaceSlug, projectId, repoUrl]);
+    if (!workspaceSlug || !projectId) return;
+    let current = true;
+    check(() => current);
+    return () => {
+      current = false;
+    };
+  }, [check, workspaceSlug, projectId]);
 
   const installUrl =
     repository && repository.installed !== true && !repository.pull_requests && isHttpsUrl(repository.install_url)
@@ -83,7 +92,7 @@ export const CodingRepositoryStatus = observer(function CodingRepositoryStatus({
           stretch="auto"
           label={t("coding_jobs.repository.check_again")}
           disabled={state === "loading"}
-          onClick={check}
+          onClick={() => check()}
         />
       </div>
       {state === "loading" && (

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   store: undefined as unknown,
   setToast: vi.fn(),
   copy: vi.fn(),
+  fetchWorkspaceMembers: vi.fn(() => Promise.resolve([])),
 }));
 
 vi.mock("@plane/i18n", () => ({
@@ -28,6 +29,9 @@ vi.mock("@plane/utils", async (importOriginal) => ({
   copyTextToClipboard: mocks.copy,
 }));
 vi.mock("@/hooks/store/use-bot-member", () => ({ useBotMember: () => mocks.store }));
+vi.mock("@/hooks/store/use-member", () => ({
+  useMember: () => ({ workspace: { fetchWorkspaceMembers: mocks.fetchWorkspaceMembers } }),
+}));
 
 // oxlint-disable-next-line import/first -- the module under test must load after the mocks
 import { BotMembersAdmin } from "./bot-members-admin";
@@ -173,6 +177,8 @@ describe("BotMembersAdmin", () => {
     await waitFor(() => expect(row("Triage").getByText("bot_members.status.removed")).toBeTruthy());
     expect(row("Triage").queryByRole("button")).toBeNull();
     expect(mocks.setToast).toHaveBeenCalledWith({ type: "success", title: "bot_members.toasts.removed" });
+    // The members list and pickers drop it at once.
+    expect(mocks.fetchWorkspaceMembers).toHaveBeenCalledWith("acme");
   });
 
   it("says when there are no bot members", async () => {

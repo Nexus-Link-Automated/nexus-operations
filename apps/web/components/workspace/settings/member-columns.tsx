@@ -160,7 +160,12 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
                     });
                   });
                 }}
-                getValues={() => ROLE_OPTIONS}
+                // A bot member is a member or a guest, never an admin.
+                getValues={() =>
+                  rowData.member.is_bot
+                    ? ROLE_OPTIONS.filter((role) => role.key !== EUserPermissions.ADMIN)
+                    : ROLE_OPTIONS
+                }
                 getOptionValue={(role) => String(role.key)}
                 getOptionLabel={(role) => role.label}
                 showSearch={false}

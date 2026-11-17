@@ -19,6 +19,7 @@ import type { DataTableColumn } from "@/components/common/data-table";
 import { DataTable } from "@/components/common/data-table";
 // hooks
 import { useBotMember } from "@/hooks/store/use-bot-member";
+import { useMember } from "@/hooks/store/use-member";
 // local imports
 import { codingErrorMessage } from "../coding-jobs/helpers";
 import { BotMemberFormDialog } from "./bot-member-form-dialog";
@@ -42,6 +43,11 @@ type TDialog =
 export const BotMembersAdmin = observer(function BotMembersAdmin({ workspaceSlug }: Props) {
   const { t } = useTranslation();
   const { getBots, fetchBots, createBot, updateBot, rotateToken, removeBot } = useBotMember();
+  const {
+    workspace: { fetchWorkspaceMembers },
+  } = useMember();
+  // A bot is a workspace member: the members list and pickers show the change at once.
+  const refreshMembers = () => void fetchWorkspaceMembers(workspaceSlug).catch(() => undefined);
   const [loadFailed, setLoadFailed] = useState(false);
   const [dialog, setDialog] = useState<TDialog | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,11 +73,13 @@ export const BotMembersAdmin = observer(function BotMembersAdmin({ workspaceSlug
 
   const handleCreate = async (data: TBotMemberCreate | TBotMemberUpdate) => {
     const created = await createBot(workspaceSlug, data as TBotMemberCreate);
+    refreshMembers();
     setDialog({ kind: "show_token", botName: created.name, token: created.token });
   };
 
   const handleUpdate = async (bot: TBotMember, data: TBotMemberCreate | TBotMemberUpdate) => {
     await updateBot(workspaceSlug, bot.id, data);
+    refreshMembers();
     setDialog(null);
   };
 
@@ -92,6 +100,7 @@ export const BotMembersAdmin = observer(function BotMembersAdmin({ workspaceSlug
     setIsSubmitting(true);
     try {
       await removeBot(workspaceSlug, bot.id);
+      refreshMembers();
       setToast({ type: "success", title: t("bot_members.toasts.removed") });
       setDialog(null);
     } catch (caught) {
