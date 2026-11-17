@@ -17,7 +17,9 @@ import {
 /**
  * One coding job's conversation with its agent over ACP: initialize, a session in the job's
  * repository in `yolo` mode (the job runs alone in its container, with nobody to approve each
- * step), one prompt with the CRM's instructions, and `session/cancel` when the job is stopped.
+ * step), the CRM's instructions as the first prompt, and `session/cancel` when the job is stopped.
+ * When a turn ends, `nextPrompt` may give the agent another one in the same session (the answer to
+ * a question it asked the CRM).
  */
 
 /** `session/new` `_meta` key the adapters read the starting permission mode from. */
@@ -36,6 +38,8 @@ export interface AgentSessionOptions {
   /** Aborted to stop the job: the agent gets `session/cancel`. */
   readonly signal: AbortSignal;
   readonly onUpdate: (update: SessionNotification["update"]) => void;
+  /** After each turn: the next prompt in the same session, or undefined to end. */
+  readonly nextPrompt?: (stopReason: string) => Promise<string | undefined>;
 }
 
 export interface AgentSessionResult {
@@ -86,11 +90,18 @@ export async function runAgentSession(options: AgentSessionOptions): Promise<Age
     sessionId = session.sessionId;
     if (options.signal.aborted) return { stopReason: "cancelled" };
     options.signal.addEventListener("abort", cancel, { once: true });
-    const answer = await agent.request("session/prompt", {
-      sessionId,
-      prompt: [{ type: "text", text: options.prompt }],
-    });
-    return { stopReason: answer.stopReason };
+    let prompt = options.prompt;
+    for (;;) {
+      // oxlint-disable-next-line no-await-in-loop -- one turn after the other, in the same session
+      const answer = await agent.request("session/prompt", { sessionId, prompt: [{ type: "text", text: prompt }] });
+      if (options.signal.aborted || answer.stopReason === "cancelled" || !options.nextPrompt) {
+        return { stopReason: answer.stopReason };
+      }
+      // oxlint-disable-next-line no-await-in-loop -- waits for the answer to the agent's question
+      const next = await options.nextPrompt(answer.stopReason);
+      if (!next || options.signal.aborted) return { stopReason: answer.stopReason };
+      prompt = next;
+    }
   } finally {
     options.signal.removeEventListener("abort", cancel);
     connection.close();

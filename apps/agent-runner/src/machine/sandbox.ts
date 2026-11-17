@@ -38,6 +38,8 @@ export const CONTAINER_REPO = "/job/work/repo";
 export const CONTAINER_HOME = "/job/home";
 export const CONTAINER_OUT = "/job/out";
 export const CONTAINER_RESULT_FILE = "/job/out/result.json";
+/** Where the agent writes a question for the CRM (`{"question": "..."}`) before it ends its turn. */
+export const CONTAINER_QUESTION_FILE = "/job/out/question.json";
 /** Where `collectChanges` writes the job's changes as a patch (`git diff --binary`). */
 export const CONTAINER_PATCH_FILE = "/job/out/changes.patch";
 /** Where the job image keeps the adapters (`machine/job-image/Dockerfile`). */

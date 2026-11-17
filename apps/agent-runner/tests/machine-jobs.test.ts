@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CrmClient } from "../src/machine/client.ts";
 import { runJob, shapeResult, type JobEnd } from "../src/machine/job.ts";
 import { JobManager } from "../src/machine/jobs.ts";
+import { a2aAsker, type Ask } from "../src/machine/questions.ts";
 import { parseOrder, type JobOrder } from "../src/machine/orders.ts";
 import type { Capabilities } from "../src/machine/report.ts";
 import {
@@ -146,7 +147,12 @@ function jobsRoot() {
   return path.join(home, "jobs");
 }
 
-async function run(job: JobOrder, stop = new AbortController().signal, events: { kind: string; text: string }[] = []) {
+async function run(
+  job: JobOrder,
+  stop = new AbortController().signal,
+  events: { kind: string; text: string }[] = [],
+  ask?: Ask
+) {
   return runJob(
     job,
     {
@@ -156,6 +162,7 @@ async function run(job: JobOrder, stop = new AbortController().signal, events: {
       log: memoryLogger(),
       emit: (e) => events.push(e),
       cancelGraceMs: 2_000,
+      ...(ask ? { ask } : {}),
     },
     stop
   );
@@ -247,6 +254,93 @@ describe("running one job", () => {
     expect(resultOf(await run(job))).toEqual({ outcome: "job_error", reason: "The job ran out of time (1 second)." });
     expect(Date.now() - started).toBeLessThan(10_000);
     expect(sandboxes.created[0]!.destroyed).toBe(true);
+  });
+});
+
+describe("questions to the CRM", () => {
+  it("asks the CRM the agent's question and gives it the answer in the same session", async () => {
+    sandboxes.agentMode = "ask";
+    const asked: string[] = [];
+    const events: { kind: string; text: string }[] = [];
+    const end = await run(order(), undefined, events, async (jobId, question) => {
+      expect(jobId).toBe(JOB_ID);
+      asked.push(question);
+      return "The answer, from the CRM agent: web.";
+    });
+    expect(asked).toEqual(["Web or mobile login?"]);
+    expect(resultOf(end)).toMatchObject({ outcome: "fixed", summary: "The answer, from the CRM agent: web." });
+    const texts = events.map((e) => e.text);
+    expect(texts).toContain("Asked the CRM: Web or mobile login?");
+    expect(texts).toContain("Got an answer; the agent goes on.");
+  });
+
+  it("does not count the time it waits against the job's limit", async () => {
+    sandboxes.agentMode = "ask";
+    const job = { ...order(), timeoutSeconds: 2 };
+    const end = await run(job, undefined, [], async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2_500));
+      return "web";
+    });
+    expect(resultOf(end).outcome).toBe("fixed");
+  });
+
+  it("without an answer (the job ended meanwhile) the agent's turn is the last", async () => {
+    sandboxes.agentMode = "ask";
+    const end = await run(order(), undefined, [], async () => undefined);
+    expect(resultOf(end).reason).toMatch(/without writing a result/);
+  });
+});
+
+describe("the A2A asker", () => {
+  it("sends the question as a message on the job's task and reads the answer back with tasks/get", async () => {
+    const requests: Record<string, unknown>[] = [];
+    let polls = 0;
+    const client = {
+      a2a: async (_key: string, request: Record<string, unknown>) => {
+        requests.push(request);
+        if (request.method === "message/send") {
+          return { kind: "ok" as const, value: { jsonrpc: "2.0", id: request.id, result: { kind: "task" } } };
+        }
+        polls += 1;
+        const sent = (requests[0]!.params as { message: { messageId: string } }).message.messageId;
+        const history =
+          polls < 2 ? [] : [{ role: "agent", metadata: { question_message_id: sent, prompt: "The answer is web." } }];
+        return {
+          kind: "ok" as const,
+          value: { jsonrpc: "2.0", id: request.id, result: { status: { state: "working" }, history } },
+        };
+      },
+    };
+    const ask = a2aAsker(client, "nxm_key", { pollMs: 1, sleep: async () => undefined });
+    expect(await ask(JOB_ID, "Web or mobile?", new AbortController().signal)).toBe("The answer is web.");
+    const message = (requests[0]!.params as { message: Record<string, unknown> }).message;
+    expect(message).toMatchObject({ role: "user", taskId: JOB_ID, parts: [{ kind: "text", text: "Web or mobile?" }] });
+    expect(requests.slice(1).every((r) => r.method === "tasks/get")).toBe(true);
+  });
+
+  it("a refused question tells the agent to go on, and an ended task ends the wait", async () => {
+    const refused = a2aAsker(
+      {
+        a2a: async (_key, request) => ({
+          kind: "ok",
+          value: { jsonrpc: "2.0", id: request.id, error: { code: -32600, message: "A job asks at most 3 questions" } },
+        }),
+      },
+      "k",
+      { sleep: async () => undefined }
+    );
+    expect(await refused(JOB_ID, "?", new AbortController().signal)).toMatch(/could not be asked .*at most 3/);
+    const ended = a2aAsker(
+      {
+        a2a: async (_key, request) => ({
+          kind: "ok",
+          value: { jsonrpc: "2.0", id: request.id, result: { status: { state: "canceled" }, history: [] } },
+        }),
+      },
+      "k",
+      { sleep: async () => undefined }
+    );
+    expect(await ended(JOB_ID, "?", new AbortController().signal)).toBeUndefined();
   });
 });
 

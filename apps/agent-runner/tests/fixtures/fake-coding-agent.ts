@@ -12,7 +12,9 @@
 // - `no_result`: ends its turn without a result;
 // - `bad_json`: writes a result file that is not JSON;
 // - `wait`: works until it is cancelled;
-// - `crash`: exits in the middle of the turn.
+// - `crash`: exits in the middle of the turn;
+// - `ask`: asks a question (`$NEXUS_QUESTION_FILE`) and ends its turn; with the answer (its next prompt) it writes a
+//   `fixed` result whose summary is that prompt.
 // It records the mode it was started in and its env in `$NEXUS_RESULT_FILE.env.json` for the tests.
 import { writeFileSync } from "node:fs";
 import path from "node:path";
@@ -26,6 +28,8 @@ import { runStdioAgent } from "../../../../packages/acp-adapters/src/core/stdio.
 
 const mode = process.env.FAKE_AGENT_MODE ?? "fixed";
 const resultFile = process.env.NEXUS_RESULT_FILE ?? "";
+const questionFile = process.env.NEXUS_QUESTION_FILE ?? "";
+let turns = 0;
 
 function writeResult(value: unknown): void {
   writeFileSync(resultFile, typeof value === "string" ? value : JSON.stringify(value));
@@ -37,6 +41,17 @@ const adapter: AgentAdapter = {
   startSession: async (init: SessionInit) => ({
     async prompt(turn: TurnContext): Promise<StopReason> {
       const { host } = init;
+      turns += 1;
+      const text = turn.prompt.map((block) => ("text" in block ? block.text : "")).join("");
+      if (mode === "ask" && turns === 1) {
+        writeFileSync(questionFile, JSON.stringify({ question: "Web or mobile login?" }));
+        return "end_turn";
+      }
+      if (mode === "ask") {
+        writeFileSync(path.join(process.cwd(), "fix.txt"), "fixed\n");
+        writeResult({ outcome: "fixed", summary: text });
+        return "end_turn";
+      }
       writeFileSync(
         `${resultFile}.env.json`,
         JSON.stringify({

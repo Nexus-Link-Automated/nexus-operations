@@ -87,6 +87,11 @@ class MessageSerializer(BaseSerializer):
         if message.system_event == MessageSystemEvent.WORK_ITEM_STATE and message.removed_at is None:
             visible_keys = {reference["id"]: reference["key"] for reference in data["references"]}
             data["body_html"] = body_for_reader(message, visible_keys)
+        elif message.system_event == MessageSystemEvent.CODING_QUESTION and message.removed_at is None:
+            from plane.coding.questions import thread_body_for_reader
+
+            visible_keys = {reference["id"]: reference["key"] for reference in data["references"]}
+            data["body_html"] = thread_body_for_reader(message, visible_keys)
         return data
 
     def get_references(self, message):

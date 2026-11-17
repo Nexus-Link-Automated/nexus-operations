@@ -109,3 +109,14 @@ def test_repository_reads_the_pull_request_access(registered, spy):
     registered["coding_job"].fn(action="repository", project_id="p")
     call = spy.recorder.only()
     assert call.method == "coding_jobs.repository"
+
+
+def test_answer_sends_the_text(registered, spy):
+    registered["coding_job"].fn(action="answer", **W, job_id="j", text="The mobile login.")
+    call = spy.recorder.only()
+    assert call.method == "coding_jobs.answer" and call.kwargs["data"] == {"text": "The mobile login."}
+
+
+def test_answer_needs_text(registered, spy):
+    result = registered["coding_job"].fn(action="answer", **W, job_id="j")
+    assert result.startswith("Error:") and not spy.recorder.calls

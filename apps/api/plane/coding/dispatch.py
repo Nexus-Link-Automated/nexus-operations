@@ -79,6 +79,8 @@ DEADLINE_GRACE = timedelta(minutes=2)
 # A job whose result arrived with changes is ended as a job error when its pull request is not open after this long.
 PUBLISH_WINDOW = timedelta(minutes=15)
 PROGRESS_MAX = 500
+# A job on a machine: running, or waiting there for the answer to its agent's question.
+ON_MACHINE = (JobStatus.RUNNING, JobStatus.NEEDS_INPUT)
 
 
 def job_timeout() -> timedelta:
@@ -192,7 +194,7 @@ def heartbeat_jobs(machine: CodingMachine, running) -> Handout:
         mine = list(
             CodingJob.all_objects.select_for_update(of=("self",))
             .select_related("issue", "issue__project", "workspace")
-            .filter(ran_on=machine, status=JobStatus.RUNNING)
+            .filter(ran_on=machine, status__in=ON_MACHINE)
         )
         # A job whose result arrived is the CRM's now (it is opening the pull request): the machine is done with it,
         # whether or not it still lists it.
@@ -311,7 +313,7 @@ def record_events(machine: CodingMachine, batches: list[dict]) -> list[str]:
         with transaction.atomic():
             job = (
                 CodingJob.all_objects.select_for_update(of=("self",))
-                .filter(pk=job_id, ran_on=machine, status=JobStatus.RUNNING)
+                .filter(pk=job_id, ran_on=machine, status__in=ON_MACHINE)
                 .first()
             )
             if job is None:
@@ -398,7 +400,7 @@ def expire_jobs(now=None) -> int:
     """End running jobs whose machine went silent or was removed, or whose deadline passed. Returns how many."""
     now = now or timezone.now()
     candidates = (
-        CodingJob.all_objects.filter(status=JobStatus.RUNNING)
+        CodingJob.all_objects.filter(status__in=ON_MACHINE)
         .filter(
             (
                 Q(result_received_at__isnull=True)
@@ -406,7 +408,8 @@ def expire_jobs(now=None) -> int:
                     Q(ran_on__isnull=True)
                     | Q(ran_on__last_seen_at__lt=now - SILENT_WINDOW)
                     | Q(ran_on__state=MachineState.REVOKED)
-                    | Q(deadline_at__lt=now - DEADLINE_GRACE)
+                    # The deadline does not run while the job waits for an answer (`plane.coding.questions`).
+                    | (Q(status=JobStatus.RUNNING) & Q(deadline_at__lt=now - DEADLINE_GRACE))
                 )
             )
             # The machine is done with a job whose result arrived; only the pull request can be late.
@@ -420,7 +423,7 @@ def expire_jobs(now=None) -> int:
         if job.result_received_at is not None:
             where = f" on {job.ran_on_name}" if job.ran_on_name else " on the machine"
             reason = f"Could not open the pull request: it took too long. The changes stay in the job's folder{where}."
-        elif job.deadline_at and job.deadline_at < now - DEADLINE_GRACE:
+        elif job.status == JobStatus.RUNNING and job.deadline_at and job.deadline_at < now - DEADLINE_GRACE:
             minutes = int((job.deadline_at - job.started_at).total_seconds() // 60) if job.started_at else None
             reason = f"The job ran out of time ({minutes} minutes)." if minutes else "The job ran out of time."
         elif job.ran_on is None:

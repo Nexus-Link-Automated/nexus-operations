@@ -325,7 +325,13 @@ To remove it: `systemctl --user disable --now nexus-machine`, then delete the fi
    the repository in `yolo` mode (nobody approves steps during a job; the container is the
    boundary) and one prompt with the CRM's instructions. Progress (messages, tools run, failures,
    the plan) goes to the CRM in batches every 3 s.
-6. The agent writes its result to `/job/out/result.json` (`NEXUS_RESULT_FILE`). Inside the
+6. When the agent needs information it cannot find, it may write `{"question": "..."}` to
+   `/job/out/question.json` (`NEXUS_QUESTION_FILE`) and end its turn. The machine reads it (as a
+   regular file, then removes it), sends it to the CRM agent over A2A (`message/send` on the job's
+   task), reads the answer back with `tasks/get` every 5 s, and gives the agent the answer the CRM
+   wrote as its next prompt in the same session. The job's time limit stops while it waits. At most
+   3 questions per job; a question written next to a result is not asked.
+7. The agent writes its result to `/job/out/result.json` (`NEXUS_RESULT_FILE`). Inside the
    container, the machine lists what changed since the starting commit (`git diff --name-status`,
    so commits the agent made count too) and writes the changes as a patch (`git diff --binary`);
    then the container is removed, and only then is anything it wrote read: as a regular file only
@@ -333,7 +339,7 @@ To remove it: `systemctl --user disable --now nexus-machine`, then delete the fi
    outcome allows (never `pr_url` or a branch), cuts them to the CRM's limits, adds
    `changed_files`, and sends it. No result, a broken one, a crash, a failed clone, a missing
    sign-in or the time limit become a `job_error` with the reason.
-7. With an outcome that has code (`fixed`, `test_written`, `test_passed`, `bug_found`), the
+8. With an outcome that has code (`fixed`, `test_written`, `test_passed`, `bug_found`), the
    machine also sends the changed files: the starting commit and each file's new content and mode
    (or that it was deleted), read on your computer from the clone after the container is gone.
    Each path is checked (inside the repository, nothing under `.git`), no folder on the way may be
@@ -342,7 +348,7 @@ To remove it: `systemctl --user disable --now nexus-machine`, then delete the fi
    without the files and says why. **The CRM, not the machine, pushes them**: to the job's own
    branch (`nexus/<action>/<job>`) with its GitHub App, and opens the pull request. No token that
    can write to the repository ever reaches the machine.
-8. The job's folder is removed. A job that changed code keeps only
+9. The job's folder is removed. A job that changed code keeps only
    `jobs/<job id>/changes.patch` for 7 days and at most 20 jobs (apply it in your own clone with
    `git apply` when the pull request could not be opened). The clone itself never stays: its git
    config and hooks were written by the agent, and git on your computer would run them.

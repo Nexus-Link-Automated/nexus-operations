@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import type { Logger } from "../logger.ts";
 import { CrmClient, type FetchLike } from "./client.ts";
 import { jobsDir, pruneJobDirs, runJob } from "./job.ts";
+import { a2aAsker } from "./questions.ts";
 import { JobManager } from "./jobs.ts";
 import { DockerSandboxProvider, type SandboxProvider } from "./sandbox.ts";
 import { checkConfigWritable, checkCrmUrl, configPath, loadMachineConfig, saveMachineConfig } from "./config.ts";
@@ -259,13 +260,15 @@ async function run(deps: CliDeps): Promise<number> {
   // Containers of jobs a previous run was running cannot be picked up again: the CRM ends those jobs.
   const leftovers = await sandbox.removeLeftovers().catch(() => 0);
   if (leftovers) log.warn("machine-service: removed job containers left from a previous run", { count: leftovers });
+  const ask = a2aAsker(client, config.key);
   const jobs = new JobManager({
     key: config.key,
     slots: config.slots,
     client,
     log,
     canRun: () => sandbox.status().ready,
-    run: (order, emit, stop) => runJob(order, { sandboxes: sandbox, jobsRoot: root, env: deps.env, log, emit }, stop),
+    run: (order, emit, stop) =>
+      runJob(order, { sandboxes: sandbox, jobsRoot: root, env: deps.env, log, emit, ask }, stop),
     onJobDone: (running) => pruneJobDirs(root, running),
   });
   const done = new AbortController();

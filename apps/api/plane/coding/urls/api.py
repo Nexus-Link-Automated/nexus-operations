@@ -17,6 +17,7 @@ urlpatterns = routes(
         "cancel": views.CodingJobCancelAPIEndpoint,
         "retry": views.CodingJobRetryAPIEndpoint,
         "events": views.CodingJobEventsAPIEndpoint,
+        "answer": views.CodingJobAnswerAPIEndpoint,
         "settings": views.ProjectCodingSettingsAPIEndpoint,
         "repository": views.ProjectCodingRepositoryAPIEndpoint,
         "machines": views.CodingMachineListAPIEndpoint,
@@ -35,6 +36,8 @@ urlpatterns += [
     path(
         "coding-machines/jobs/events/", views.MachineJobEventsEndpoint.as_view(), name="api-coding-machine-job-events"
     ),
+    path("coding-machines/a2a/", views.MachineA2AEndpoint.as_view(), name="api-coding-machine-a2a"),
+    path("coding-machines/a2a/agent-card/", views.A2AAgentCardEndpoint.as_view(), name="api-coding-a2a-agent-card"),
     path(
         "coding-machines/jobs/<uuid:job_id>/result/",
         views.MachineJobResultEndpoint.as_view(),

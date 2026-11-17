@@ -31,14 +31,19 @@ ACTIONS = (
         ("agent", "machine"),
         note="only a cancelled or job_error job; starts a new job",
     ),
+    Action(
+        "answer",
+        ("project_id", "workitem_id", "job_id", "text"),
+        note="a needs_input job's open question",
+    ),
     Action("settings_get", ("project_id",), read=True),
-    Action("repository", ("project_id",), read=True, note="can jobs open pull requests (GitHub App installed?)"),
     Action(
         "settings_update",
         ("project_id",),
         ("enabled", "repo_url", "default_branch", "ready_state_id", "failed_state_id", "in_review_state_id"),
         note="project admins; only what you pass changes",
     ),
+    Action("repository", ("project_id",), read=True, note="can jobs open pull requests"),
 )
 
 FOOTER = (
@@ -47,7 +52,6 @@ FOOTER = (
     "job's machine if still allowed. "
     "The CRM moves the work item and comments when one ends: fixed -> In review, test_written or test_passed -> "
     "Ready, bug_found -> Failed; could_not_fix and job_error leave it. One active job per work item and job_action. "
-    "Jobs with changes get a pull request from branch nexus/<action>/<job> when the CRM's GitHub App is installed. "
     'A state id set to "none" goes back to matching the column by name; repo_url "none" clears it.'
 )
 
@@ -87,6 +91,9 @@ class CodingJobs(BaseResource):
         self, workspace_slug: str, project_id: str, work_item_id: str, job_id: str, data: Mapping[str, Any]
     ) -> Any:
         return self._post(f"{self._jobs(workspace_slug, project_id, work_item_id)}/{job_id}/retry", data)
+
+    def answer(self, workspace_slug: str, project_id: str, work_item_id: str, job_id: str, data: Mapping[str, Any]) -> Any:
+        return self._post(f"{self._jobs(workspace_slug, project_id, work_item_id)}/{job_id}/answer", data)
 
     def get_settings(self, workspace_slug: str, project_id: str) -> Any:
         return self._get(f"{workspace_slug}/projects/{project_id}/coding-settings")
@@ -136,7 +143,16 @@ def register(mcp: FastMCP) -> None:
     )
     def coding_job(
         action: Literal[
-            "list", "get", "events", "start", "cancel", "retry", "settings_get", "settings_update", "repository"
+            "list",
+            "get",
+            "events",
+            "start",
+            "cancel",
+            "retry",
+            "answer",
+            "settings_get",
+            "settings_update",
+            "repository",
         ],
         project_id: str = "",
         workitem_id: str = "",
@@ -152,6 +168,7 @@ def register(mcp: FastMCP) -> None:
         ready_state_id: str = "",
         failed_state_id: str = "",
         in_review_state_id: str = "",
+        text: str = "",
         cursor: str = "",
         per_page: int = 0,
         after: int = 0,
@@ -210,6 +227,10 @@ def register(mcp: FastMCP) -> None:
                 return api.events(workspace_slug, project_id, workitem_id, job_id, params)
             if action == "cancel":
                 return api.cancel(workspace_slug, project_id, workitem_id, job_id)
+            if action == "answer":
+                if error := needs(action, text=text):
+                    return error
+                return api.answer(workspace_slug, project_id, workitem_id, job_id, {"text": text})
             data = {"agent": agent} if agent else {}
             return api.retry(workspace_slug, project_id, workitem_id, job_id, {**data, **_machine(machine)})
         except HttpError as exc:

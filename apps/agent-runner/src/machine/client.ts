@@ -17,6 +17,7 @@ import { MACHINE_VERSION } from "./version.ts";
 export const JOIN_PATH = "/api/v1/coding-machines/join/";
 export const HEARTBEAT_PATH = "/api/v1/coding-machines/heartbeat/";
 export const EVENTS_PATH = "/api/v1/coding-machines/jobs/events/";
+export const A2A_PATH = "/api/v1/coding-machines/a2a/";
 export const resultPath = (jobId: string) => `/api/v1/coding-machines/jobs/${encodeURIComponent(jobId)}/result/`;
 
 /** A request that has not answered after this long is given up and retried. */
@@ -181,6 +182,15 @@ export class CrmClient {
         changed: answer.changed === true,
       },
     };
+  }
+
+  /** One A2A JSON-RPC request to the CRM agent (`apps/api/plane/coding/a2a.py`); the answer is the JSON-RPC response. */
+  async a2a(
+    key: string,
+    request: Record<string, unknown>,
+    signal?: AbortSignal
+  ): Promise<CrmResult<Record<string, unknown>>> {
+    return this.#post(A2A_PATH, request, key, signal);
   }
 
   async #post(

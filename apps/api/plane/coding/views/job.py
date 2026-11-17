@@ -17,6 +17,8 @@ from plane.coding.serializers import (
     RetryJobSerializer,
     StartJobSerializer,
 )
+from plane.coding.questions import answer
+from plane.coding.serializers import AnswerSerializer
 from plane.coding.services import cancel_job, retry_job, start_job
 
 from .base import CodingEndpointMixin
@@ -42,7 +44,7 @@ class _WorkItemJobs(CodingEndpointMixin):
 class CodingJobListMixin(_WorkItemJobs):
     def get(self, request, slug, project_id, issue_id):
         """The work item's jobs, newest first. Filter with `status` and `action`."""
-        queryset = CodingJob.objects.filter(issue=self.issue)
+        queryset = CodingJob.objects.filter(issue=self.issue).prefetch_related("questions__answered_by")
         errors = {}
         for field, choices in (("status", JobStatus), ("action", CodingAction)):
             value = request.GET.get(field)
@@ -124,3 +126,17 @@ class CodingJobEventsMixin(_WorkItemJobs):
                 "has_more": len(events) > EVENTS_PAGE,
             }
         )
+
+
+class CodingJobAnswerMixin(_WorkItemJobs):
+    def post(self, request, slug, project_id, issue_id, job_id):
+        """Answer the question the job's coding agent is waiting on: the person who started the job, or any member
+        of the project. The first answer counts."""
+        job = self.get_job()
+        self.access.require_write()
+        serializer = AnswerSerializer(data=request.data)
+        if not serializer.is_valid():
+            return self.invalid(serializer.errors)
+        answer(job, serializer.validated_data["text"], request.user)
+        job.refresh_from_db()
+        return Response(CodingJobSerializer(job).data)

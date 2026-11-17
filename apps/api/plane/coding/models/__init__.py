@@ -7,6 +7,7 @@ from .event import EVENT_TEXT_MAX, MAX_EVENTS_PER_JOB, CodingJobEvent, EventKind
 from .job import ACTIVE_STATUSES, CodingAction, CodingAgent, CodingJob, JobOutcome, JobStatus
 from .machine import HEARTBEAT_SECONDS, ONLINE_WINDOW, CodingMachine, MachineState
 from .project_settings import ProjectCodingSettings
+from .question import MAX_QUESTIONS_PER_JOB, QUESTION_TEXT_MAX, CodingJobQuestion, QuestionStatus
 
 __all__ = [
     "ACTIVE_STATUSES",
@@ -15,6 +16,10 @@ __all__ = [
     "CodingJob",
     "CodingJobChanges",
     "CodingJobEvent",
+    "CodingJobQuestion",
+    "MAX_QUESTIONS_PER_JOB",
+    "QUESTION_TEXT_MAX",
+    "QuestionStatus",
     "EVENT_TEXT_MAX",
     "EventKind",
     "MAX_EVENTS_PER_JOB",

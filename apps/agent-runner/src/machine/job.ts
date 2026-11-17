@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import type { Logger } from "../logger.ts";
@@ -13,9 +13,11 @@ import { readChanges, type JobChanges } from "./changes.ts";
 import type { JobEvent } from "./client.ts";
 import type { JobAction, JobOrder } from "./orders.ts";
 import { ProgressCondenser } from "./progress.ts";
+import type { Ask } from "./questions.ts";
 import { readRegularFile, removeAll, withoutNul } from "./files.ts";
 import {
   CONTAINER_PATCH_FILE,
+  CONTAINER_QUESTION_FILE,
   CONTAINER_REPO,
   CONTAINER_WORK,
   CONTAINER_RESULT_FILE,
@@ -179,6 +181,72 @@ function readResult(dirs: JobDirs): unknown {
   }
 }
 
+/** At most this many questions per job (the CRM's own limit too). */
+export const MAX_QUESTIONS = 3;
+const MAX_QUESTION_BYTES = 64 * 1024;
+
+/**
+ * The job's time limit. It does not run while the job waits for the answer to its agent's question
+ * (the CRM moves the job's deadline on by the same time).
+ */
+export class Deadline {
+  readonly #controller = new AbortController();
+  #left: number;
+  #since = 0;
+  #timer: NodeJS.Timeout | undefined;
+
+  constructor(ms: number) {
+    this.#left = ms;
+    this.resume();
+  }
+
+  get signal(): AbortSignal {
+    return this.#controller.signal;
+  }
+
+  pause(): void {
+    if (!this.#timer) return;
+    clearTimeout(this.#timer);
+    this.#timer = undefined;
+    this.#left = Math.max(0, this.#left - (Date.now() - this.#since));
+  }
+
+  resume(): void {
+    if (this.#timer || this.#controller.signal.aborted) return;
+    this.#since = Date.now();
+    this.#timer = setTimeout(() => this.#controller.abort(new Error("timeout")), this.#left);
+    this.#timer.unref();
+  }
+
+  clear(): void {
+    if (this.#timer) clearTimeout(this.#timer);
+    this.#timer = undefined;
+  }
+}
+
+/** The agent's question, if it wrote one (`NEXUS_QUESTION_FILE`); the file is removed once read. */
+export function takeQuestion(dirs: JobDirs): string | undefined {
+  const file = path.join(dirs.out, path.basename(CONTAINER_QUESTION_FILE));
+  const read = readRegularFile(file, MAX_QUESTION_BYTES);
+  if (!read.ok && read.missing) return undefined;
+  try {
+    unlinkSync(file);
+  } catch {
+    // Already gone, or not a file the service may remove: nothing to ask either way.
+  }
+  // An agent that wrote its result is done: a question besides it is not asked.
+  const result = readRegularFile(path.join(dirs.out, path.basename(CONTAINER_RESULT_FILE)), 1);
+  if (!read.ok || result.ok || !result.missing) return undefined;
+  try {
+    const parsed = JSON.parse(read.text) as unknown;
+    const question =
+      typeof parsed === "object" && parsed !== null ? (parsed as { question?: unknown }).question : undefined;
+    return typeof question === "string" && question.trim() ? cut(question.trim(), 4000) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export interface JobDeps {
   readonly sandboxes: SandboxProvider;
   readonly jobsRoot: string;
@@ -187,6 +255,8 @@ export interface JobDeps {
   /** Progress lines, in order. */
   readonly emit: (event: JobEvent) => void;
   readonly cancelGraceMs?: number;
+  /** Asks the CRM agent the agent's question and resolves with the next prompt (A2A, `questions.ts`). */
+  readonly ask?: Ask;
 }
 
 function duration(seconds: number): string {
@@ -203,7 +273,8 @@ const AGENT_NAMES = { codex: "Codex", claude: "Claude" } as const;
 export async function runJob(order: JobOrder, deps: JobDeps, stop: AbortSignal): Promise<JobEnd> {
   const { log } = deps;
   const progress = new ProgressCondenser(deps.emit);
-  const timeout = AbortSignal.timeout(order.timeoutSeconds * 1000);
+  const deadline = new Deadline(order.timeoutSeconds * 1000);
+  const timeout = deadline.signal;
   const ended = AbortSignal.any([stop, timeout]);
   let dirs: JobDirs | undefined;
   let sandbox: JobSandbox | undefined;
@@ -223,9 +294,32 @@ export async function runJob(order: JobOrder, deps: JobDeps, stop: AbortSignal):
 
     progress.status(`${AGENT_NAMES[order.agent]} is working.`);
     const agent = sandbox.startAgent(order.agent, {
-      plain: { ...signIn.env.plain, NEXUS_RESULT_FILE: CONTAINER_RESULT_FILE, PLANE_AGENT_DEFAULT_MODE: "yolo" },
+      plain: {
+        ...signIn.env.plain,
+        NEXUS_RESULT_FILE: CONTAINER_RESULT_FILE,
+        NEXUS_QUESTION_FILE: CONTAINER_QUESTION_FILE,
+        PLANE_AGENT_DEFAULT_MODE: "yolo",
+      },
       secret: signIn.env.secret,
     });
+    const jobDirs = dirs;
+    let asked = 0;
+    // After a turn: a question the agent wrote goes to the CRM, and its answer is the next prompt. The clock stops
+    // while the job waits.
+    const nextPrompt = async (): Promise<string | undefined> => {
+      const question = takeQuestion(jobDirs);
+      if (!question || !deps.ask || asked >= MAX_QUESTIONS) return undefined;
+      asked += 1;
+      progress.status(`Asked the CRM: ${cut(question, 200)}`);
+      deadline.pause();
+      try {
+        const answer = await deps.ask(order.id, question, ended);
+        if (answer) progress.status("Got an answer; the agent goes on.");
+        return answer;
+      } finally {
+        deadline.resume();
+      }
+    };
     const session = runAgentSession({
       stdin: agent.stdin,
       stdout: agent.stdout,
@@ -233,6 +327,7 @@ export async function runJob(order: JobOrder, deps: JobDeps, stop: AbortSignal):
       prompt: order.instructions,
       signal: ended,
       onUpdate: (update) => progress.update(update),
+      nextPrompt,
     }).then(
       (answer) => ({ kind: "answer" as const, stopReason: answer.stopReason }),
       (error: unknown) => ({ kind: "failed" as const, error: error instanceof Error ? error.message : String(error) })
@@ -310,6 +405,7 @@ export async function runJob(order: JobOrder, deps: JobDeps, stop: AbortSignal):
     log.error("machine-service: job failed", { job: order.id, error: (error as Error).message });
     return { kind: "result", result: jobError(`The machine could not run the job (${(error as Error).message}).`) };
   } finally {
+    deadline.clear();
     progress.flush();
     await sandbox?.destroy().catch(() => undefined);
     try {

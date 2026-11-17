@@ -25,7 +25,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.views import APIView
 
-from plane.coding import dispatch, machines
+from plane.coding import a2a, dispatch, machines
 from plane.coding.exceptions import CodingError, Forbidden, NotFound
 from plane.coding.models import HEARTBEAT_SECONDS, CodingMachine
 from plane.coding.serializers import (
@@ -301,3 +301,39 @@ class MachineJobResultEndpoint(_MachineEndpoint):
         return Response(
             {"job_id": str(job.id), "status": job.status, "outcome": job.outcome, "changed": applied.changed}
         )
+
+
+class _A2AThrottle(_HeartbeatThrottle):
+    scope = "coding_machine_a2a"
+    # A machine reads each waiting job's task every few seconds.
+    rate = "3600/hour"
+
+
+class MachineA2AEndpoint(_MachineEndpoint):
+    """The CRM agent's A2A endpoint (`plane.coding.a2a`): JSON-RPC 2.0, authenticated by the machine's key."""
+
+    throttle_classes = [_A2AThrottle]
+
+    def handle_exception(self, exc):
+        from rest_framework.exceptions import ParseError
+
+        if isinstance(exc, ParseError):
+            return Response(a2a._error(None, a2a.PARSE_ERROR, "The body is not JSON."))
+        return super().handle_exception(exc)
+
+    def post(self, request):
+        machine = machines.authenticate_key(_bearer(request))
+        answer = a2a.handle(machine, request.data)
+        if answer is None:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(answer)
+
+
+class A2AAgentCardEndpoint(APIView):
+    """The CRM agent's A2A agent card. Public: it says what the agent does and how to authenticate, nothing else."""
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(a2a.agent_card())

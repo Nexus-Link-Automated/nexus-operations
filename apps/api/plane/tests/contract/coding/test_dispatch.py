@@ -70,11 +70,6 @@ def member(make_user, workspace, project):
     return make_user(MEMBER, workspace=workspace, project=project, name="Mia Member")
 
 
-@pytest.fixture
-def other_member(make_user, workspace, project):
-    return make_user(MEMBER, workspace=workspace, project=project, name="Otto Other")
-
-
 def handed(res):
     assert res.status_code == 200, res.data
     return [job["id"] for job in res.json()["jobs"]]

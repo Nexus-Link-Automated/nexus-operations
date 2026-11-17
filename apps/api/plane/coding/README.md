@@ -17,6 +17,9 @@ It also holds the registry of each person's own machines and hands queued jobs t
 | `dispatch.py` | Handing queued jobs to machines in heartbeats, progress lines, results from machines, ending jobs whose machine went quiet |
 | `instructions.py` | The prompt the CRM writes for a job, with the work item's text fenced as data |
 | `github.py` | The CRM's GitHub App: short-lived installation tokens for one repository |
+| `a2a.py` | The CRM agent's A2A endpoint: each job is a task; the coding agent's questions arrive here |
+| `questions.py` | Who answers a coding agent's question: the CRM agent from the work item, else a person |
+| `models/question.py` | `CodingJobQuestion`: a question, its answer and who gave it |
 | `publish.py` | Pushing a job's changes to its own branch and opening the pull request |
 | `models/changes.py` | `CodingJobChanges`: a finished job's changed files while the CRM pushes them |
 | `models/event.py` | `CodingJobEvent`: a progress line a machine reported |
@@ -99,6 +102,40 @@ on the repository, has its outcome applied at once, and the comment says why the
  "repo_default_branch", "pull_requests", "reason"}
 ```
 
+## Questions (A2A)
+
+A coding agent that cannot go on without information may ask, at most 3 times per job and one at a time: it writes
+`{"question": "..."}` to the file named by `NEXUS_QUESTION_FILE` and ends its turn. The machine sends the question
+to the CRM agent over [A2A](https://a2a-protocol.org) and gives the agent the answer as its next prompt, in the same
+session.
+
+The CRM hosts the A2A endpoint, `POST /api/v1/coding-machines/a2a/` (JSON-RPC 2.0, the machine's key as bearer; the
+agent card is at `GET /api/v1/coding-machines/a2a/agent-card/`). Each job is a task: `id` is the job's id,
+`contextId` its work item's. `message/send` with the question (role `user`, a text part, `taskId`) makes the job
+`needs_input` (task state `input-required`); `tasks/get` returns the task with its history, where each answer has
+role `agent` and `metadata` `{"answered_by": "crm_agent" | "person" | "nobody", "name", "question_message_id",
+"prompt"}`; `prompt` is what the machine gives the agent, written by the CRM. `tasks/cancel` is refused: people cancel
+jobs in the CRM. Errors are JSON-RPC errors (`-32001` task not found, `-32002` not cancelable, `-32600` with
+`data.code` `QUESTION_OPEN`, `QUESTION_LIMIT` or `JOB_NOT_ACTIVE`).
+
+Who answers:
+
+1. The CRM agent, first: the instance's AI provider (God mode → AI: `LLM_API_KEY`, `LLM_PROVIDER`, `LLM_MODEL`)
+   reads the work item, fenced as data, and answers only when the work item clearly does. Without a provider this
+   step is skipped.
+2. Otherwise a person. The bot comments the question on the work item (which notifies its subscribers, the
+   requester among them), and it is posted in the work item's Messages thread in every channel linked to the
+   project. Any member of the project answers, the first answer counting: in the coding jobs panel, with
+   `POST .../coding-jobs/<job_id>/answer/` `{"text"}` (MCP `coding_job` `answer`), or by replying in that thread.
+   A reply from someone who is not a member of the project is just a message.
+3. Nobody, after `CODING_QUESTION_TIMEOUT_MINUTES` (30): the agent is told to go on without an answer.
+
+The job's deadline does not run while it waits: when the question is answered (or not), `deadline_at` moves on by
+the time it waited, and the machine stops its own clock meanwhile. In Messages, the question and its answers show
+their text only to readers who can see the work item; the stored body (searched and exported) says only that a coding
+job asked something. Jobs carry their `questions` (`seq`, `question`, `status`: `thinking`, `waiting`, `answered`,
+`unanswered`; `answer`, `answered_by`, `answered_by_agent`, `answered_by_name`, `asked_at`, `answered_at`).
+
 ## Endpoints
 
 Public API (personal access tokens), and the same paths under `/api/` with session auth for the web app:
@@ -111,6 +148,7 @@ Public API (personal access tokens), and the same paths under `/api/` with sessi
 | GET | `.../coding-jobs/<job_id>/events/` (`?after=<seq>`) | anyone who can see the work item |
 | POST | `.../coding-jobs/<job_id>/cancel/` | the requester or a project admin |
 | POST | `.../coding-jobs/<job_id>/retry/` `{"agent"?, "machine"?}` | members and admins |
+| POST | `.../coding-jobs/<job_id>/answer/` `{"text"}` | members and admins |
 | GET | `coding-settings/` | members and admins |
 | PATCH | `coding-settings/` | project admins |
 
@@ -253,7 +291,7 @@ A private GitHub repository's order also has `clone_token` (see "Pull requests")
 repository and not under `.git`. `changes_note` (at most 300 characters) says why a job with changed files sends none.
 
 `instructions` is the whole prompt (`instructions.py`): the task for the action, the rules (work only in the clone, no
-commits, pushes or questions), the work item's title, description and latest 10 human comments between two lines of a
+commits or pushes; how to ask a question), the work item's title, description and latest 10 human comments between two lines of a
 random marker, stated to be data and not instructions, and the result format. The agent writes its result as one JSON
 object to the file named by `NEXUS_RESULT_FILE`; the machine sends it to `result/`, where `outcomes.apply_result`
 validates and applies it. The same result again answers `changed: false`; a different one, or one for a job that has

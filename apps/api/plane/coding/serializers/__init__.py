@@ -2,7 +2,14 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-from .job import CodingJobEventSerializer, CodingJobSerializer, RetryJobSerializer, StartJobSerializer
+from .job import (
+    AnswerSerializer,
+    CodingJobEventSerializer,
+    CodingJobQuestionSerializer,
+    CodingJobSerializer,
+    RetryJobSerializer,
+    StartJobSerializer,
+)
 from .machine import (
     CodingMachineSerializer,
     HeartbeatSerializer,
@@ -14,6 +21,8 @@ from .machine import (
 from .project_settings import ProjectCodingSettingsUpdateSerializer, settings_payload
 
 __all__ = [
+    "AnswerSerializer",
+    "CodingJobQuestionSerializer",
     "CodingJobEventSerializer",
     "CodingJobSerializer",
     "CodingMachineSerializer",

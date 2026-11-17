@@ -180,3 +180,8 @@ def start(issue, coding_settings):
         )
 
     return start_job
+
+
+@pytest.fixture
+def other_member(make_user, workspace, project):
+    return make_user(MEMBER, workspace=workspace, project=project, name="Otto Other")

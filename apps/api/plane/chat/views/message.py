@@ -26,7 +26,7 @@ from plane.chat.agents import agents_by_slug
 from plane.chat.attachments import attachments_for, claim_attachments, has_attachments
 from plane.chat.events import EventType, message_event, publish_on_commit
 from plane.chat.exceptions import BadRequest, Conflict, Forbidden, NotFound
-from plane.chat.models import ChannelKind, Message, MessageReference
+from plane.chat.models import ChannelKind, Message, MessageReference, MessageSystemEvent
 from plane.chat.notifications import message_url, notify_mentions, refresh_mention_previews
 from plane.chat.pagination import paginate_messages
 from plane.chat.references import references_for, sync_references, visible_work_item
@@ -112,6 +112,11 @@ class MessageEndpoint(ChatBaseEndpoint):
         # New messages only: editing a mention in never sets an agent off. In an agent DM, every new top-level message
         # from its person is for the agent.
         queue_agent_replies(message)
+        if parent is not None and parent.system_event == MessageSystemEvent.CODING_QUESTION:
+            # A reply in a coding job's question thread answers the question (plane.coding.questions).
+            from plane.coding.questions import answer_from_chat
+
+            transaction.on_commit(lambda: answer_from_chat(message))
         return Response(_payload(message.id, request.user), status=status.HTTP_201_CREATED)
 
 
