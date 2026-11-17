@@ -7,6 +7,7 @@
 import type { SessionNotification } from "@agentclientprotocol/sdk";
 
 import type { JobEvent } from "./client.ts";
+import { withoutNul } from "./files.ts";
 
 /**
  * Turns the agent's ACP stream into a few readable progress lines for the work item's jobs panel:
@@ -21,7 +22,7 @@ export const EVENT_TEXT_MAX = 2000;
 type Update = SessionNotification["update"];
 
 function cut(text: string): string {
-  const chars = Array.from(text.trim());
+  const chars = Array.from(withoutNul(text).trim());
   return chars.length <= EVENT_TEXT_MAX ? chars.join("") : `${chars.slice(0, EVENT_TEXT_MAX - 1).join("")}…`;
 }
 

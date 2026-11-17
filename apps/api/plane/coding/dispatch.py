@@ -55,6 +55,7 @@ __all__ = [
     "SILENT_WINDOW",
     "Handout",
     "apply_machine_result",
+    "end_queued_for",
     "expire_jobs",
     "heartbeat_jobs",
     "job_timeout",
@@ -180,8 +181,10 @@ def heartbeat_jobs(machine: CodingMachine, running) -> Handout:
         if running is None:
             return handout
         running = {str(job_id) for job_id in running}
+        # `all_objects`: a job whose work item was deleted is soft-deleted with it, but still runs on the machine
+        # until it is ended here or by its result.
         mine = list(
-            CodingJob.objects.select_for_update(of=("self",))
+            CodingJob.all_objects.select_for_update(of=("self",))
             .select_related("issue", "issue__project", "workspace")
             .filter(ran_on=machine, status=JobStatus.RUNNING)
         )
@@ -260,8 +263,16 @@ def heartbeat_jobs(machine: CodingMachine, running) -> Handout:
     return handout
 
 
+def end_queued_for(machine: CodingMachine, reason: str) -> int:
+    """End the queued jobs that asked for `machine` (revoked: it will never take them). Returns how many."""
+    jobs = list(CodingJob.objects.filter(machine=machine, status=JobStatus.QUEUED))
+    for job in jobs:
+        _end(job, reason)
+    return len(jobs)
+
+
 def _machine_job(machine: CodingMachine, job_id) -> CodingJob:
-    job = CodingJob.objects.filter(pk=job_id, ran_on=machine).first()
+    job = CodingJob.all_objects.filter(pk=job_id, ran_on=machine).first()
     if job is None:
         raise NotFound("No such job on this machine.", code="JOB_NOT_FOUND")
     return job
@@ -276,7 +287,7 @@ def record_events(machine: CodingMachine, batches: list[dict]) -> list[str]:
         job_id, events = str(batch["id"]), batch["events"]
         with transaction.atomic():
             job = (
-                CodingJob.objects.select_for_update(of=("self",))
+                CodingJob.all_objects.select_for_update(of=("self",))
                 .filter(pk=job_id, ran_on=machine, status=JobStatus.RUNNING)
                 .first()
             )
@@ -313,7 +324,7 @@ def expire_jobs(now=None) -> int:
     """End running jobs whose machine went silent or was removed, or whose deadline passed. Returns how many."""
     now = now or timezone.now()
     candidates = (
-        CodingJob.objects.filter(status=JobStatus.RUNNING)
+        CodingJob.all_objects.filter(status=JobStatus.RUNNING)
         .filter(
             Q(ran_on__isnull=True)
             | Q(ran_on__last_seen_at__lt=now - SILENT_WINDOW)

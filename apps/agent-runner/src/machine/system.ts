@@ -24,6 +24,8 @@ export interface CommandResult {
 export interface CommandOptions {
   readonly timeoutMs: number;
   readonly env: NodeJS.ProcessEnv;
+  /** Stops the command (and its process group) early. */
+  readonly signal?: AbortSignal;
 }
 
 export type CommandRunner = (file: string, args: readonly string[], options: CommandOptions) => Promise<CommandResult>;
@@ -44,7 +46,7 @@ const MAX_READ_BYTES = 1024 * 1024;
  * process group so a timeout also kills what it started (`codex` and `pnpm` are shims that start
  * another process).
  */
-export const defaultCommandRunner: CommandRunner = (file, args, { timeoutMs, env }) =>
+export const defaultCommandRunner: CommandRunner = (file, args, { timeoutMs, env, signal }) =>
   new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
@@ -55,10 +57,19 @@ export const defaultCommandRunner: CommandRunner = (file, args, { timeoutMs, env
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
       // oxlint-disable-next-line promise/no-multiple-resolved -- `settled` lets only the first call through
       resolve({ code, stdout, stderr });
     };
-    let child: ReturnType<typeof spawn>;
+    let child: ReturnType<typeof spawn> | undefined;
+    const onAbort = () => {
+      killGroup(child?.pid);
+      finish(null);
+    };
+    if (signal?.aborted) {
+      finish(null);
+      return;
+    }
     try {
       child = spawn(file, [...args], {
         cwd: homeOf(env),
@@ -71,8 +82,9 @@ export const defaultCommandRunner: CommandRunner = (file, args, { timeoutMs, env
       finish(null);
       return;
     }
+    signal?.addEventListener("abort", onAbort, { once: true });
     timer = setTimeout(() => {
-      killGroup(child.pid);
+      killGroup(child?.pid);
       finish(null);
     }, timeoutMs);
     timer.unref();
@@ -87,7 +99,7 @@ export const defaultCommandRunner: CommandRunner = (file, args, { timeoutMs, env
     child.once("error", () => finish(null));
     child.once("close", (code) => {
       // Anything the command left running in its group goes with it.
-      killGroup(child.pid);
+      killGroup(child?.pid);
       finish(code);
     });
   });

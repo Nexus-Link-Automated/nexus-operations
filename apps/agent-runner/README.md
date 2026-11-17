@@ -307,8 +307,9 @@ To remove it: `systemctl --user disable --now nexus-machine`, then delete the fi
      home, SSH keys, other sign-ins, the docker socket or the machine's key.
 3. The agent's sign-in, and nothing else:
    - Codex: a copy of `~/.codex/auth.json` (or `$CODEX_HOME`) in the job's home. A token Codex
-     refreshes during the job is written back afterwards, unless your own copy changed meanwhile.
-     A sign-in kept in the OS keyring cannot be used.
+     refreshes during the job is written back afterwards, only if it is still a plain file with
+     Codex's own fields, for the same account (`tokens.account_id`), and your own copy did not change
+     meanwhile. A sign-in kept in the OS keyring cannot be used.
    - Claude: `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) from the
      env file. The Claude adapter takes only these.
    - Keys reach the agent by name through `docker exec --env NAME`, never on a command line. The
@@ -320,18 +321,29 @@ To remove it: `systemctl --user disable --now nexus-machine`, then delete the fi
    the repository in `yolo` mode (nobody approves steps during a job; the container is the
    boundary) and one prompt with the CRM's instructions. Progress (messages, tools run, failures,
    the plan) goes to the CRM in batches every 3 s.
-6. The agent writes its result to `/job/out/result.json` (`NEXUS_RESULT_FILE`). The machine keeps
+6. The agent writes its result to `/job/out/result.json` (`NEXUS_RESULT_FILE`). Inside the
+   container, the machine writes the changes as a patch (`git diff --binary`) and lists the
+   changed files; then the container is removed, and only then is anything it wrote read: as a
+   regular file only (never through a link, never a FIFO), with a size limit. The machine keeps
    only the fields the outcome allows (never `pr_url`), cuts them to the CRM's limits, adds
-   `changed_files` from `git status`, and sends it. No result, a broken one, a crash, a failed
-   clone, a missing sign-in or the time limit become a `job_error` with the reason.
-7. The container is removed, with the job's home and result. A job that changed code keeps its
-   `work/repo` (there is no pull request yet), for 7 days and at most 20 jobs.
+   `changed_files`, and sends it. No result, a broken one, a crash, a failed clone, a missing
+   sign-in or the time limit become a `job_error` with the reason.
+7. The job's folder is removed. A job that changed code keeps only
+   `jobs/<job id>/changes.patch` (there is no pull request yet; apply it in your own clone with
+   `git apply`), for 7 days and at most 20 jobs. The clone itself never stays: its git config and
+   hooks were written by the agent, and git on your computer would run them.
 
 A job stays in `running` until its result is delivered; while the CRM cannot be reached the job
-keeps running, progress is kept (up to 500 lines per job) and the result is retried. When the CRM
+keeps running, progress is kept (up to 500 lines per job) and the result is retried. Progress lines
+the CRM refuses (400) are dropped rather than sent again. When the CRM
 ends a job, the agent gets `session/cancel` and 10 s, then its container is removed and no result is
-sent. A restarted service removes containers a previous run left (they cannot be reattached); the
-CRM ends those jobs as job errors.
+sent. A restarted service removes containers a previous run left (they cannot be reattached), and
+everything but `changes.patch` from their folders; the CRM ends those jobs as job errors. Folders a
+job made read-only are made writable and removed; one that still cannot be removed is logged.
+
+The container is on Docker's default bridge network: it reaches the internet (the agents' APIs,
+package registries, the repository) and also whatever that network reaches, such as your LAN and,
+on a cloud VM, its metadata endpoint. Limiting that is part of hardening (Step 8).
 
 ### What it reports
 

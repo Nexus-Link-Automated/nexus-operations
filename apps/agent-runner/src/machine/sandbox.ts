@@ -12,6 +12,7 @@ import path from "node:path";
 import type { Logger } from "../logger.ts";
 import type { JobOrder } from "./orders.ts";
 import type { AgentId } from "./report.ts";
+import { withoutNul } from "./files.ts";
 import { defaultCommandRunner, type CommandRunner } from "./system.ts";
 import { MACHINE_VERSION } from "./version.ts";
 
@@ -37,6 +38,8 @@ export const CONTAINER_REPO = "/job/work/repo";
 export const CONTAINER_HOME = "/job/home";
 export const CONTAINER_OUT = "/job/out";
 export const CONTAINER_RESULT_FILE = "/job/out/result.json";
+/** Where `collectChanges` writes the job's changes as a patch (`git diff --binary`). */
+export const CONTAINER_PATCH_FILE = "/job/out/changes.patch";
 /** Where the job image keeps the adapters (`machine/job-image/Dockerfile`). */
 export const ADAPTER_BIN: Record<AgentId, string> = {
   codex: "/opt/nexus/acp/dist/bin/codex.mjs",
@@ -78,8 +81,12 @@ export interface JobSandbox {
   start(): Promise<void>;
   clone(repoUrl: string, branch: string, signal: AbortSignal): Promise<void>;
   startAgent(agent: AgentId, env: AgentEnv): AgentProcess;
-  /** Paths (relative to the repository) the job added, changed or removed. */
-  changedFiles(): Promise<string[]>;
+  /**
+   * Paths (relative to the repository) the job added, changed or removed; also writes the changes
+   * as a patch to `CONTAINER_PATCH_FILE`. Git runs inside the container, never on the host: the
+   * agent could have written the repository's git config and hooks.
+   */
+  collectChanges(): Promise<string[]>;
   /** Stops everything the job started. Idempotent. */
   destroy(): Promise<void>;
 }
@@ -289,8 +296,8 @@ class DockerSandbox implements JobSandbox {
     this.#name = `nexus-job-${order.id}`;
   }
 
-  #docker(args: readonly string[], timeoutMs = SHORT_TIMEOUT_MS) {
-    return this.#run("docker", args, { timeoutMs, env: this.#options.env });
+  #docker(args: readonly string[], timeoutMs = SHORT_TIMEOUT_MS, signal?: AbortSignal) {
+    return this.#run("docker", args, { timeoutMs, env: this.#options.env, ...(signal ? { signal } : {}) });
   }
 
   async start(): Promise<void> {
@@ -333,7 +340,8 @@ class DockerSandbox implements JobSandbox {
         repoUrl,
         CONTAINER_REPO,
       ],
-      CLONE_TIMEOUT_MS
+      CLONE_TIMEOUT_MS,
+      signal
     );
     if (result.code !== 0) {
       throw new SandboxError(
@@ -368,11 +376,22 @@ class DockerSandbox implements JobSandbox {
     return { stdin: child.stdin!, stdout: child.stdout!, exited, stderrTail: () => lines.join("\n") };
   }
 
-  async changedFiles(): Promise<string[]> {
+  async collectChanges(): Promise<string[]> {
+    // A fixed script, nothing from the job in it. Untracked files are added as intent-to-add so the diff shows them.
+    await this.#docker([
+      "exec",
+      this.#name,
+      "sh",
+      "-c",
+      `cd ${CONTAINER_REPO} && rm -f ${CONTAINER_PATCH_FILE} && git add --all --intent-to-add . >/dev/null 2>&1; ` +
+        `git -c core.fsmonitor=false diff --binary --no-ext-diff --no-color HEAD > ${CONTAINER_PATCH_FILE}`,
+    ]);
     const result = await this.#docker([
       "exec",
       this.#name,
       "git",
+      "-c",
+      "core.fsmonitor=false",
       "-C",
       CONTAINER_REPO,
       "status",
@@ -403,7 +422,9 @@ export function parsePorcelain(output: string): string[] {
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i] as string;
     if (entry.length < 4) continue;
-    files.push(entry.slice(3));
+    // The CRM takes paths of up to 500 characters.
+    const name = withoutNul(entry.slice(3)).slice(0, 500);
+    if (name.trim()) files.push(name);
     // Renames and copies are followed by the old path.
     if (/[RC]/.test(entry.slice(0, 2))) i++;
     if (files.length >= MAX_CHANGED_FILES) break;

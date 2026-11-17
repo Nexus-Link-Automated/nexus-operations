@@ -115,8 +115,8 @@ only that person's jobs go to it. It uses its own Codex and Claude sign-ins and 
 
 The answer that carries a join code is logged with the code redacted (`APITokenLogMiddleware`).
 
-Removing a machine deletes its record and key hash, so the key stops working at once. Jobs that asked for it keep
-`machine` null (Auto). A machine whose owner leaves the workspace or becomes a guest is refused until that changes.
+Removing a machine deletes its record and key hash, so the key stops working at once. Queued jobs that asked for it
+keep `machine` null (Auto); revoking it ends them as job errors instead, since it will never take them. A machine whose owner leaves the workspace or becomes a guest is refused until that changes.
 
 People's endpoints, on the public API and the web app's routes, under `/api/v1/workspaces/<slug>/` (or `/api/...`):
 

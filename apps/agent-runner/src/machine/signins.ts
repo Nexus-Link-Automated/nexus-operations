@@ -9,6 +9,7 @@ import path from "node:path";
 
 import type { AgentId } from "./report.ts";
 import type { AgentEnv } from "./sandbox.ts";
+import { readRegularFile } from "./files.ts";
 import { CONTAINER_HOME } from "./sandbox.ts";
 import { homeOf } from "./system.ts";
 
@@ -36,15 +37,42 @@ export interface StagedSignIn {
 
 export class SignInMissing extends Error {}
 
-function readJson(file: string): Record<string, unknown> | undefined {
+const MAX_AUTH_BYTES = 256 * 1024;
+
+function parseObject(text: string): Record<string, unknown> | undefined {
   try {
-    const value: unknown = JSON.parse(readFileSync(file, "utf8"));
+    const value: unknown = JSON.parse(text);
     return typeof value === "object" && value !== null && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : undefined;
   } catch {
     return undefined;
   }
+}
+
+function readJson(file: string): Record<string, unknown> | undefined {
+  try {
+    return parseObject(readFileSync(file, "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+const AUTH_KEYS = new Set(["OPENAI_API_KEY", "tokens", "last_refresh"]);
+const TOKEN_KEYS = new Set(["id_token", "access_token", "refresh_token", "account_id"]);
+
+/**
+ * Whether `next` is Codex's refresh of the `original` ChatGPT sign-in rather than something a job
+ * put there: only Codex's own keys, tokens present, and the same account (`tokens.account_id`).
+ * Without an account id in the original nothing can be compared, so nothing is written back.
+ */
+export function isRefreshOf(original: Record<string, unknown>, next: Record<string, unknown> | undefined): boolean {
+  if (!next || codexSignIn(next) !== "chatgpt") return false;
+  if (Object.keys(next).some((key) => !AUTH_KEYS.has(key))) return false;
+  const before = original.tokens as Record<string, unknown> | undefined;
+  const after = next.tokens as Record<string, unknown>;
+  if (Object.keys(after).some((key) => !TOKEN_KEYS.has(key))) return false;
+  return nonEmpty(before?.account_id) && after.account_id === before.account_id;
 }
 
 const nonEmpty = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
@@ -129,17 +157,18 @@ export function stageSignIn(agent: AgentId, homeDir: string, env: NodeJS.Process
   return {
     env: { plain: { PLANE_AGENT_AUTH: "chatgpt", CODEX_HOME: `${CONTAINER_HOME}/.codex` }, secret: {} },
     finish() {
-      let refreshed: string;
+      // The container could write this file: read it as a regular file only, never through a link.
+      const copy = readRegularFile(staged, MAX_AUTH_BYTES);
       let current: string;
       try {
-        refreshed = readFileSync(staged, "utf8");
         current = readFileSync(source, "utf8");
       } catch {
         return;
       }
-      // Only a changed, still valid sign-in, and only over the one this job started from.
-      if (refreshed === original || current !== original || codexSignIn(readJson(staged)) !== "chatgpt") return;
-      writePrivate(source, refreshed);
+      if (!copy.ok || copy.text === original || current !== original) return;
+      // Only a refresh of the same sign-in, and only over the one this job started from.
+      if (!isRefreshOf(auth, parseObject(copy.text))) return;
+      writePrivate(source, copy.text);
     },
   };
 }

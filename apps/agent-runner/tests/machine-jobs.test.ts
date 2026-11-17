@@ -5,7 +5,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -97,7 +97,11 @@ class ProcessSandboxes implements SandboxProvider {
         const exited = new Promise<number | null>((resolve) => child.once("exit", (code) => resolve(code)));
         return { stdin: child.stdin, stdout: child.stdout, exited, stderrTail: () => stderr.slice(-500) };
       },
-      changedFiles: async () => readdirSync(repo).filter((name) => name !== "README.md"),
+      collectChanges: async () => {
+        const files = readdirSync(repo).filter((name) => name !== "README.md");
+        if (files.length) writeFileSync(path.join(dirs.out, "changes.patch"), `+${files.join("\n+")}\n`);
+        return files;
+      },
       destroy: async () => {
         record.destroyed = true;
         for (const child of children) child.kill("SIGKILL");
@@ -167,8 +171,9 @@ describe("running one job", () => {
     // The Claude key goes by name only; the result file is the container's.
     expect(created!.env!.secret).toEqual({ ANTHROPIC_API_KEY: "sk-ant-test" });
     expect(created!.env!.plain.NEXUS_RESULT_FILE).toBe("/job/out/result.json");
-    // A job with changes keeps its repository for the owner, but never its home (sign-ins) or result.
-    expect(existsSync(path.join(created!.dirs.work, "repo", "fix.txt"))).toBe(true);
+    // A job with changes keeps only a patch: not the clone (its git config is the agent's), its home or its result.
+    expect(readFileSync(path.join(created!.dirs.root, "changes.patch"), "utf8")).toBe("+fix.txt\n");
+    expect(existsSync(created!.dirs.work)).toBe(false);
     expect(existsSync(created!.dirs.home)).toBe(false);
     expect(existsSync(created!.dirs.out)).toBe(false);
   });
@@ -355,6 +360,42 @@ describe("the job manager", () => {
     const ok = crm.requests.filter((r) => r.url.endsWith("/jobs/events/")).length;
     expect(ok).toBeGreaterThan(0);
     expect(jobs.runningIds).toEqual([]);
+  });
+
+  it("drops progress lines the CRM refuses, and never sends more than 50 lines of one job", async () => {
+    const sizes: number[] = [];
+    let refuse = true;
+    crm.respond = (request) => {
+      if (request.url.endsWith("/jobs/events/")) {
+        for (const job of (request.body as { jobs: { events: unknown[] }[] }).jobs) sizes.push(job.events.length);
+        if (refuse) {
+          refuse = false;
+          return { status: 400, body: { errors: { jobs: ["bad"] } } };
+        }
+        return { status: 200, body: { ended: [] } };
+      }
+      return { status: 200, body: { status: "finished", outcome: "fixed", changed: true } };
+    };
+    const gate = Promise.withResolvers<void>();
+    const jobs = new JobManager({
+      key: KEY,
+      slots: 1,
+      client: new CrmClient(crm.url),
+      log: memoryLogger(),
+      run: async (_job, emit) => {
+        for (let i = 0; i < 600; i++) emit({ kind: "status", text: `line ${i}\0` });
+        await gate.promise;
+        return { kind: "result", result: { outcome: "fixed", summary: "x" } };
+      },
+      resultRetryMs: 10,
+    });
+    jobs.accept([ORDER]);
+    await jobs.flush(); // refused: that batch is dropped, the rest goes on
+    await jobs.flush();
+    gate.resolve();
+    await jobs.idle();
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(50);
+    expect(sizes.length).toBeGreaterThan(2);
   });
 
   it("reports a refused result as a job error, and gives up on a definite refusal", async () => {

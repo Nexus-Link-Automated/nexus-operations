@@ -179,6 +179,15 @@ def approve(machine: CodingMachine) -> CodingMachine:
 
 
 def revoke(machine: CodingMachine, by) -> CodingMachine:
+    """Cut the machine off. Queued jobs that asked for it end as job errors: it will never take them."""
+    machine = _revoke(machine, by)
+    from plane.coding.dispatch import end_queued_for  # dispatch imports this module
+
+    end_queued_for(machine, f"The machine {machine.name} was revoked before it took the job.")
+    return machine
+
+
+def _revoke(machine: CodingMachine, by) -> CodingMachine:
     with transaction.atomic():
         machine = CodingMachine.objects.select_for_update().get(pk=machine.pk)
         if machine.state == MachineState.REVOKED:
@@ -194,8 +203,13 @@ def revoke(machine: CodingMachine, by) -> CodingMachine:
 
 
 def remove(machine: CodingMachine) -> None:
-    """Delete the record and its key hash for good. Jobs that asked for it keep running on Auto."""
-    machine.delete(soft=False)
+    """Delete the record and its key hash for good. Queued jobs that asked for it go to Auto; one it was running
+    ends as a job error when the expiry sweep next runs."""
+    with transaction.atomic():
+        # The machine row first, as a heartbeat locks it before its jobs, so the two never deadlock.
+        locked = CodingMachine.objects.select_for_update().filter(pk=machine.pk).first()
+        if locked is not None:
+            locked.delete(soft=False)
 
 
 def available_machine(machine_id, workspace, user) -> CodingMachine:

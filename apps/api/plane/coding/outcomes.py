@@ -217,9 +217,7 @@ CHANGED_FILES_SHOWN = 20
 CODE_OUTCOMES = (JobOutcome.FIXED, JobOutcome.TEST_WRITTEN, JobOutcome.TEST_PASSED, JobOutcome.BUG_FOUND)
 
 
-def build_comment(
-    job: CodingJob, data: dict, column: Column | None, state, moved: bool, archived: bool = False
-) -> str:
+def build_comment(job: CodingJob, data: dict, column: Column | None, state, moved: bool, archived: bool = False) -> str:
     """The comment's HTML. Every agent-written value is escaped; output and commands are code blocks."""
     agent = job.get_agent_display()
     machine = f" on {html.escape(job.ran_on_name)}" if job.ran_on_name else ""
@@ -400,7 +398,8 @@ def apply_result(job: CodingJob, result, *, status: str = JobStatus.FINISHED) ->
     data = validate_result(job.action, result)
     with transaction.atomic():
         job = (
-            CodingJob.objects.select_related("issue", "workspace", "requested_by")
+            # `all_objects`: deleting a work item soft-deletes its jobs, which still end with their outcome.
+            CodingJob.all_objects.select_related("issue", "workspace", "requested_by")
             .select_for_update(of=("self",))
             .get(pk=job.pk)
         )
@@ -421,7 +420,12 @@ def apply_result(job: CodingJob, result, *, status: str = JobStatus.FINISHED) ->
         # Archived (or turned back into a draft or intake item) during the job: the outcome is still recorded and
         # commented, but the work item is not moved, since moving it would bring it back onto the board.
         archived = issue.deleted_at is None and not Issue.issue_objects.filter(pk=issue.pk).exists()
-        state = resolve_column(job.project_id, coding_settings, column)[0] if column and not archived else None
+        deleted = issue.deleted_at is not None
+        state = (
+            resolve_column(job.project_id, coding_settings, column)[0]
+            if column and not archived and not deleted
+            else None
+        )
         moved = state is not None and issue.state_id != state.id
         queued = []
         comment = None
@@ -430,7 +434,7 @@ def apply_result(job: CodingJob, result, *, status: str = JobStatus.FINISHED) ->
             if moved:
                 queued.append(_move(issue, state, bot, slug))
             # A deleted work item gets no comment; the job still ends with its outcome.
-            if issue.deleted_at is None:
+            if not deleted:
                 comment, queue_comment = _comment(
                     issue, build_comment(job, data, column, state, moved, archived), bot, slug
                 )

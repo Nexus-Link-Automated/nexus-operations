@@ -5,7 +5,8 @@
  */
 
 import { EventEmitter } from "node:events";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -13,6 +14,7 @@ import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { choosePermission } from "../src/machine/acp-session.ts";
+import { readRegularFile, removeAll } from "../src/machine/files.ts";
 import { makeJobDirs, pruneJobDirs } from "../src/machine/job.ts";
 import { parseOrder } from "../src/machine/orders.ts";
 import { ProgressCondenser } from "../src/machine/progress.ts";
@@ -157,6 +159,7 @@ describe("the job container", () => {
       "new.py",
     ]);
     expect(parsePorcelain("")).toEqual([]);
+    expect(parsePorcelain(`?? ${"d/".repeat(300)}f\0`)[0]).toHaveLength(500);
   });
 });
 
@@ -175,6 +178,35 @@ function parsedOrder() {
   return parsed.order;
 }
 
+describe("reading what a container wrote", () => {
+  it("never blocks on a FIFO, never follows a link, and never reads past its limit", () => {
+    const fifo = path.join(dir, "fifo");
+    execFileSync("mkfifo", [fifo]);
+    const started = Date.now();
+    expect(readRegularFile(fifo, 1000)).toMatchObject({ ok: false, error: "not a regular file" });
+    expect(Date.now() - started).toBeLessThan(1000);
+    const link = path.join(dir, "link");
+    symlinkSync("/etc/hostname", link);
+    expect(readRegularFile(link, 1000)).toMatchObject({ ok: false });
+    const big = path.join(dir, "big");
+    writeFileSync(big, "x".repeat(2000));
+    expect(readRegularFile(big, 1000)).toMatchObject({ ok: false, error: "too large" });
+    expect(readRegularFile(path.join(dir, "none"), 1000)).toMatchObject({ ok: false, missing: true });
+    writeFileSync(big, "{}");
+    expect(readRegularFile(big, 1000)).toEqual({ ok: true, text: "{}" });
+  });
+
+  it("removes folders a job made read-only", () => {
+    const root = path.join(dir, "ro");
+    mkdirSync(path.join(root, "a", "b"), { recursive: true });
+    writeFileSync(path.join(root, "a", "b", "f"), "x");
+    chmodSync(path.join(root, "a", "b"), 0o555);
+    chmodSync(path.join(root, "a"), 0o555);
+    expect(removeAll(root)).toBe(true);
+    expect(() => statSync(root)).toThrow();
+  });
+});
+
 describe("job folders", () => {
   it("are private, fresh per attempt, and kept ones are pruned by count and age", () => {
     const root = path.join(dir, "jobs");
@@ -185,12 +217,14 @@ describe("job folders", () => {
     expect(statSync(dirs.home).mode & 0o777).toBe(0o700);
     expect(() => makeJobDirs(path.join(dir, "a,b"), "x")).toThrow(/comma/);
 
-    // A job the service was killed in the middle of: its sign-in copy goes, its work stays.
+    // A job the service was killed in the middle of: its clone and sign-in copy go, a patch stays.
     const killed = makeJobDirs(root, "killed");
     writeFileSync(path.join(killed.home, "auth.json"), "{}");
-    pruneJobDirs(root, new Set());
+    writeFileSync(path.join(killed.root, "changes.patch"), "+x");
+    pruneJobDirs(root, new Set(["a"]));
     expect(() => statSync(killed.home)).toThrow();
-    expect(statSync(killed.work).isDirectory()).toBe(true);
+    expect(() => statSync(killed.work)).toThrow();
+    expect(readFileSync(path.join(killed.root, "changes.patch"), "utf8")).toBe("+x");
 
     makeJobDirs(root, "old");
     pruneJobDirs(root, new Set(["a"]), Date.now() + 8 * 24 * 60 * 60_000);
@@ -204,7 +238,7 @@ describe("sign-ins for a job", () => {
     const home = path.join(dir, "home");
     const authFile = path.join(home, ".codex", "auth.json");
     mkdirSync(path.dirname(authFile), { recursive: true });
-    const original = JSON.stringify({ tokens: { access_token: "a1", refresh_token: "r1" } });
+    const original = JSON.stringify({ tokens: { access_token: "a1", refresh_token: "r1", account_id: "acct-1" } });
     writeFileSync(authFile, original);
     const jobHome = path.join(dir, "job-home");
     const staged = stageSignIn("codex", jobHome, { HOME: home });
@@ -212,20 +246,53 @@ describe("sign-ins for a job", () => {
     const copy = path.join(jobHome, ".codex", "auth.json");
     expect(readFileSync(copy, "utf8")).toBe(original);
     expect(statSync(copy).mode & 0o777).toBe(0o600);
-    const refreshed = JSON.stringify({ tokens: { access_token: "a2", refresh_token: "r2" } });
+    const refreshed = JSON.stringify({
+      tokens: { access_token: "a2", refresh_token: "r2", account_id: "acct-1" },
+      last_refresh: "2026-11-17T00:00:00Z",
+    });
     writeFileSync(copy, refreshed);
     staged.finish();
     expect(readFileSync(authFile, "utf8")).toBe(refreshed);
+  });
+
+  it("never writes back another account, unknown keys or a file the container swapped for a link", () => {
+    const home = path.join(dir, "home");
+    const authFile = path.join(home, ".codex", "auth.json");
+    mkdirSync(path.dirname(authFile), { recursive: true });
+    const original = JSON.stringify({ tokens: { access_token: "a1", account_id: "acct-1" } });
+    writeFileSync(authFile, original);
+    const jobHome = path.join(dir, "job-home");
+    const copy = path.join(jobHome, ".codex", "auth.json");
+    for (const planted of [
+      { tokens: { access_token: "evil", account_id: "acct-2" } },
+      { tokens: { access_token: "a2", account_id: "acct-1" }, extra: 1 },
+      { tokens: { access_token: "a2", account_id: "acct-1", shell: "x" } },
+    ]) {
+      const staged = stageSignIn("codex", jobHome, { HOME: home });
+      writeFileSync(copy, JSON.stringify(planted));
+      staged.finish();
+      expect(readFileSync(authFile, "utf8")).toBe(original);
+    }
+    const staged = stageSignIn("codex", jobHome, { HOME: home });
+    const elsewhere = path.join(dir, "elsewhere.json");
+    writeFileSync(elsewhere, JSON.stringify({ tokens: { access_token: "a3", account_id: "acct-1" } }));
+    rmSync(copy);
+    symlinkSync(elsewhere, copy);
+    staged.finish();
+    expect(readFileSync(authFile, "utf8")).toBe(original);
   });
 
   it("does not overwrite a sign-in that changed meanwhile, nor write back a broken one", () => {
     const home = path.join(dir, "home");
     const authFile = path.join(home, ".codex", "auth.json");
     mkdirSync(path.dirname(authFile), { recursive: true });
-    writeFileSync(authFile, JSON.stringify({ tokens: { access_token: "a1" } }));
+    writeFileSync(authFile, JSON.stringify({ tokens: { access_token: "a1", account_id: "acct-1" } }));
     const jobHome = path.join(dir, "job-home");
     const staged = stageSignIn("codex", jobHome, { HOME: home });
-    writeFileSync(path.join(jobHome, ".codex", "auth.json"), JSON.stringify({ tokens: { access_token: "a2" } }));
+    writeFileSync(
+      path.join(jobHome, ".codex", "auth.json"),
+      JSON.stringify({ tokens: { access_token: "a2", account_id: "acct-1" } })
+    );
     writeFileSync(authFile, JSON.stringify({ tokens: { access_token: "other" } }));
     staged.finish();
     expect(readFileSync(authFile, "utf8")).toContain("other");

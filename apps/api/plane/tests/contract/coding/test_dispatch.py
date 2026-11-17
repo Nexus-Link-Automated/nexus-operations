@@ -452,14 +452,37 @@ class TestResult:
         assert "archived during the job" in IssueComment.objects.get(issue=issue).comment_html
         assert CodingJob.objects.get(pk=job.pk).outcome == JobOutcome.FIXED
 
-    def test_deleted_during_the_job(self, member, make_machine, start, issue, tasks):
+    def _delete(self, issue, job):
+        # As deleting a work item does: it and (through soft_delete_related_objects) its jobs are soft-deleted.
+        now = timezone.now()
+        Issue.objects.filter(pk=issue.pk).update(deleted_at=now)
+        CodingJob.objects.filter(pk=job.pk).update(deleted_at=now)
+
+    def test_deleted_during_the_job(self, member, make_machine, start, issue, states, tasks):
         _, key = make_machine(member[0])
         job = start(member[0])
         run_on(key, job)
-        Issue.objects.filter(pk=issue.pk).update(deleted_at=timezone.now())
+        self._delete(issue, job)
         assert result(key, job.id, self.FIXED).status_code == 200
         job = CodingJob.all_objects.get(pk=job.pk)
         assert job.outcome == JobOutcome.FIXED and job.comment_id is None
+        # Not moved, and no activity queued for it.
+        assert Issue.all_objects.get(pk=issue.pk).state_id == states["todo"].id
+        assert tasks.issue_activity.delay.call_count == 0
+
+    def test_deleted_during_the_job_without_a_result(self, member, make_machine, start, issue, tasks):
+        machine, key = make_machine(member[0])
+        job = start(member[0])
+        run_on(key, job)
+        beat(key, report(running=[job.id]))
+        self._delete(issue, job)
+        # Still the machine's: not cancelled while it runs, and its events are taken.
+        assert beat(key, report(running=[job.id])).json()["cancel"] == []
+        assert events(key, [{"id": str(job.id), "events": [{"kind": "status", "text": "x"}]}]).json()["ended"] == []
+        # The machine going quiet still ends it.
+        CodingMachine.objects.filter(pk=machine.pk).update(last_seen_at=timezone.now() - timedelta(minutes=4))
+        assert dispatch.expire_jobs() == 1
+        assert CodingJob.all_objects.get(pk=job.pk).outcome == JobOutcome.JOB_ERROR
 
 
 @pytest.mark.contract
@@ -503,6 +526,17 @@ class TestExpiry:
         machines.remove(laptop)
         assert dispatch.expire_jobs() == 1
         assert "removed" in CodingJob.objects.get(pk=second.pk).error_reason
+
+    def test_revoke_ends_queued_jobs_that_asked_for_the_machine(
+        self, member, make_machine, start, project, states, tasks
+    ):
+        machine, _ = make_machine(member[0])
+        pinned = start(member[0], machine=machine)
+        auto = start(member[0], item=make_issue(project, "Two", state=states["todo"]))
+        machines.revoke(machine, member[0])
+        pinned.refresh_from_db()
+        assert pinned.outcome == JobOutcome.JOB_ERROR and "revoked before it took the job" in pinned.error_reason
+        assert CodingJob.objects.get(pk=auto.pk).status == JobStatus.QUEUED
 
     def test_task_runs_the_sweep(self, member, make_machine, start, tasks):
         from plane.coding.tasks import expire_coding_jobs

@@ -139,7 +139,11 @@ export class JobManager {
         this.#options.log.info("machine-service: job stopped by the CRM", { job: id });
       }
       this.#jobs.delete(id);
-      this.#options.onJobDone?.(new Set(this.#jobs.keys()));
+      try {
+        this.#options.onJobDone?.(new Set(this.#jobs.keys()));
+      } catch (error) {
+        this.#options.log.warn("machine-service: could not clean up job folders", { error: (error as Error).message });
+      }
     })();
   }
 
@@ -173,7 +177,8 @@ export class JobManager {
         const batches: JobEventBatch[] = [];
         for (const [id, job] of this.#jobs) {
           if (!job.buffer.length) continue;
-          const events = job.buffer.slice(0, BATCH_PER_JOB);
+          // The CRM takes at most BATCH_PER_JOB lines per job, the note about dropped lines included.
+          const events = job.buffer.slice(0, job.dropped ? BATCH_PER_JOB - 1 : BATCH_PER_JOB);
           if (job.dropped) {
             events.unshift({ kind: "status", text: `(${job.dropped} earlier progress lines were not sent)` });
           }
@@ -181,7 +186,14 @@ export class JobManager {
         }
         if (!batches.length) return;
         const answer = await this.#options.client.events(this.#options.key, batches, signal);
-        if (answer.kind !== "ok") return; // Kept for the next try.
+        const refused = answer.kind === "http" && answer.status === 400;
+        // Kept for the next try, unless the CRM refused them: sending the same lines again would never help.
+        if (answer.kind !== "ok" && !refused) return;
+        if (refused) {
+          this.#options.log.warn("machine-service: the CRM refused some progress lines; dropping them", {
+            errors: answer.errors ?? null,
+          });
+        }
         for (const batch of batches) {
           const job = this.#jobs.get(batch.id);
           if (!job) continue;
@@ -189,7 +201,7 @@ export class JobManager {
           job.buffer.splice(0, sent);
           job.dropped = 0;
         }
-        this.cancel(answer.value.ended);
+        if (answer.kind === "ok") this.cancel(answer.value.ended);
       }
     } finally {
       this.#flushing = false;
@@ -255,7 +267,8 @@ export class JobManager {
     for (const [, job] of jobs) job.stop.abort();
     await Promise.all(
       jobs.map(async ([id, job]) => {
-        await Promise.race([job.done, new Promise((resolve) => setTimeout(resolve, 15_000).unref())]);
+        // Long enough for the agent's grace period and the container's removal (systemd waits 30 s).
+        await Promise.race([job.done, new Promise((resolve) => setTimeout(resolve, 22_000).unref())]);
         const timeout = AbortSignal.timeout(5_000);
         await this.#options.client.result(this.#options.key, id, jobError(reason), timeout).catch(() => undefined);
       })

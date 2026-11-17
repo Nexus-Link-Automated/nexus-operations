@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import type { Logger } from "../logger.ts";
@@ -12,7 +12,9 @@ import { runAgentSession } from "./acp-session.ts";
 import type { JobEvent } from "./client.ts";
 import type { JobAction, JobOrder } from "./orders.ts";
 import { ProgressCondenser } from "./progress.ts";
+import { readRegularFile, removeAll, withoutNul } from "./files.ts";
 import {
+  CONTAINER_PATCH_FILE,
   CONTAINER_REPO,
   CONTAINER_RESULT_FILE,
   SandboxError,
@@ -68,7 +70,7 @@ export function jobError(reason: string): Record<string, unknown> {
 }
 
 function cut(value: string, max: number): string {
-  const chars = Array.from(value);
+  const chars = Array.from(withoutNul(value));
   return chars.length <= max ? value : `${chars.slice(0, max - 1).join("")}…`;
 }
 
@@ -120,7 +122,7 @@ export function makeJobDirs(root: string, jobId: string): JobDirs {
   // These paths become `--mount` values, where a comma separates options.
   if (/[,\n]/.test(root)) throw new SandboxError(`The jobs folder ${root} cannot contain a comma or a newline.`);
   const dir = path.join(root, jobId);
-  rmSync(dir, { recursive: true, force: true });
+  if (!removeAll(dir)) throw new SandboxError(`Could not clear the job's folder ${dir}.`);
   const dirs = { root: dir, work: path.join(dir, "work"), home: path.join(dir, "home"), out: path.join(dir, "out") };
   for (const folder of [root, dir, dirs.work, dirs.home, dirs.out]) mkdirSync(folder, { recursive: true, mode: 0o700 });
   return dirs;
@@ -128,8 +130,8 @@ export function makeJobDirs(root: string, jobId: string): JobDirs {
 
 /**
  * Removes kept job folders past `KEEP_JOBS` or older than `KEEP_JOB_MS`, never one in `running`. Of
- * the others only `work/` ever stays: a job the service could not finish (it was killed) may have
- * left its sign-in copy in `home/`.
+ * the others only `changes.patch` ever stays: a job the service could not finish (it was killed)
+ * may have left its clone, its sign-in copy in `home/` and its result. Never throws.
  */
 export function pruneJobDirs(root: string, running: ReadonlySet<string>, now = Date.now()): void {
   let entries: { name: string; mtime: number }[];
@@ -144,25 +146,25 @@ export function pruneJobDirs(root: string, running: ReadonlySet<string>, now = D
   entries.forEach((entry, index) => {
     const dir = path.join(root, entry.name);
     if (index >= KEEP_JOBS || now - entry.mtime > KEEP_JOB_MS) {
-      rmSync(dir, { recursive: true, force: true });
+      removeAll(dir);
     } else {
-      rmSync(path.join(dir, "home"), { recursive: true, force: true });
-      rmSync(path.join(dir, "out"), { recursive: true, force: true });
+      for (const part of ["work", "home", "out"]) removeAll(path.join(dir, part));
     }
   });
 }
 
+/** The kept changes of a job: `<jobs>/<id>/changes.patch`. */
+export const PATCH_FILE = "changes.patch";
+const MAX_PATCH_BYTES = 50 * 1024 * 1024;
+
+/** Read only once the container is gone, so nothing can change the file while it is read. */
 function readResult(dirs: JobDirs): unknown {
-  const file = path.join(dirs.out, path.basename(CONTAINER_RESULT_FILE));
-  let text: string;
-  try {
-    if (statSync(file).size > MAX_RESULT_BYTES) return { error: "The agent's result file is too large." };
-    text = readFileSync(file, "utf8");
-  } catch {
-    return undefined;
+  const file = readRegularFile(path.join(dirs.out, path.basename(CONTAINER_RESULT_FILE)), MAX_RESULT_BYTES);
+  if (!file.ok) {
+    return file.missing ? undefined : { error: `The agent's result file is ${file.error}.` };
   }
   try {
-    return JSON.parse(text) as unknown;
+    return JSON.parse(file.text) as unknown;
   } catch {
     return { error: "The agent's result file is not valid JSON." };
   }
@@ -249,6 +251,9 @@ export async function runJob(order: JobOrder, deps: JobDeps, stop: AbortSignal):
       };
     }
 
+    // Changes are collected inside the container; then it goes, before anything it wrote is read.
+    const files = await sandbox.collectChanges();
+    await sandbox.destroy();
     const raw = readResult(dirs);
     let result: Record<string, unknown>;
     if (raw === undefined) {
@@ -258,11 +263,15 @@ export async function runJob(order: JobOrder, deps: JobDeps, stop: AbortSignal):
     } else {
       result = shapeResult(order.action, raw);
     }
-    if (CODE_OUTCOMES.has(result.outcome as string)) {
-      const files = await sandbox.changedFiles();
-      if (files.length) result.changed_files = files;
-      // No pull request yet: the changes stay in the job's folder on this machine for a while.
-      keep = true;
+    if (CODE_OUTCOMES.has(result.outcome as string) && files.length) {
+      result.changed_files = files;
+      // No pull request yet: the changes stay on this machine as a patch for a while. Only the patch: the clone's
+      // git config and hooks were written by the agent, and git must never run them on the host.
+      const patch = readRegularFile(path.join(dirs.out, path.basename(CONTAINER_PATCH_FILE)), MAX_PATCH_BYTES);
+      if (patch.ok) {
+        writeFileSync(path.join(dirs.root, PATCH_FILE), patch.text, { mode: 0o600 });
+        keep = true;
+      }
     }
     progress.status(`Finished: ${String(result.outcome)}.`);
     return { kind: "result", result };
@@ -283,10 +292,12 @@ export async function runJob(order: JobOrder, deps: JobDeps, stop: AbortSignal):
       log.warn("machine-service: could not save the refreshed Codex sign-in", { error: (error as Error).message });
     }
     if (dirs) {
-      // The sign-in copy and the result never stay; the repository stays only for a job with changes.
-      rmSync(dirs.home, { recursive: true, force: true });
-      rmSync(dirs.out, { recursive: true, force: true });
-      if (!keep) rmSync(dirs.root, { recursive: true, force: true });
+      // Only a job's patch ever stays. A failed removal (a folder the job made read-only and that even a chmod
+      // cannot open) is logged; it never replaces the result.
+      const parts = keep ? [dirs.work, dirs.home, dirs.out] : [dirs.root];
+      for (const part of parts) {
+        if (!removeAll(part)) log.warn("machine-service: could not remove a job folder", { folder: part });
+      }
     }
   }
 }
