@@ -11,7 +11,12 @@ from rest_framework.response import Response
 
 from plane.coding.exceptions import NotFound
 from plane.coding.models import CodingAction, CodingJob, JobStatus
-from plane.coding.serializers import CodingJobSerializer, RetryJobSerializer, StartJobSerializer
+from plane.coding.serializers import (
+    CodingJobEventSerializer,
+    CodingJobSerializer,
+    RetryJobSerializer,
+    StartJobSerializer,
+)
 from plane.coding.services import cancel_job, retry_job, start_job
 
 from .base import CodingEndpointMixin
@@ -99,3 +104,23 @@ class CodingJobRetryMixin(_WorkItemJobs):
         options = {"machine_id": data["machine"]} if "machine" in data else {}
         new_job = retry_job(job, request.user, agent=data.get("agent"), **options)
         return Response(CodingJobSerializer(new_job).data, status=status.HTTP_201_CREATED)
+
+
+EVENTS_PAGE = 200
+
+
+class CodingJobEventsMixin(_WorkItemJobs):
+    def get(self, request, slug, project_id, issue_id, job_id):
+        """The job's progress lines, oldest first: up to 200 after `after` (a `seq`). Anyone who can see the work
+        item. The machine condenses the agent's work into these lines; they are plain text."""
+        job = self.get_job()
+        after = request.GET.get("after", "0")
+        if not after.isdigit():
+            return self.invalid({"after": ["Must be a whole number."]})
+        events = list(job.events.filter(seq__gt=int(after)).order_by("seq")[: EVENTS_PAGE + 1])
+        return Response(
+            {
+                "results": CodingJobEventSerializer(events[:EVENTS_PAGE], many=True).data,
+                "has_more": len(events) > EVENTS_PAGE,
+            }
+        )

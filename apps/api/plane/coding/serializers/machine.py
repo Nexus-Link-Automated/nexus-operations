@@ -4,7 +4,7 @@
 
 from rest_framework import serializers
 
-from plane.coding.models import CodingAgent, CodingMachine
+from plane.coding.models import EVENT_TEXT_MAX, CodingAgent, CodingMachine, EventKind
 from plane.coding.serializers.base import StrictSerializer
 
 NAME = {"max_length": 80, "trim_whitespace": True, "allow_blank": False}
@@ -95,3 +95,34 @@ class JoinSerializer(_About):
 
 class HeartbeatSerializer(_About):
     capabilities = _CapabilitiesReport(required=False)
+    # The jobs the machine is running now. Left out (a machine from before dispatch), it gets no jobs.
+    running = serializers.ListField(child=serializers.UUIDField(), max_length=32, required=False)
+
+
+# Progress and results from the machine.
+
+MAX_EVENT_JOBS = 32
+MAX_EVENTS_PER_BATCH = 50
+
+
+class _Event(StrictSerializer):
+    kind = serializers.ChoiceField(choices=EventKind.choices)
+    # Cut rather than refused: a long line from the agent should not lose the whole batch.
+    text = serializers.CharField(max_length=EVENT_TEXT_MAX * 4, trim_whitespace=False)
+
+    def validate_text(self, value):
+        return value[:EVENT_TEXT_MAX]
+
+
+class _JobEvents(StrictSerializer):
+    id = serializers.UUIDField()
+    events = _Event(many=True, max_length=MAX_EVENTS_PER_BATCH)
+
+
+class JobEventsSerializer(StrictSerializer):
+    jobs = _JobEvents(many=True, max_length=MAX_EVENT_JOBS)
+
+
+class JobResultSerializer(StrictSerializer):
+    # Validated against the job's action by `plane.coding.outcomes.validate_result`.
+    result = serializers.DictField()

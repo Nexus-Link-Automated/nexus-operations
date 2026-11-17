@@ -4,7 +4,7 @@
 
 from rest_framework import serializers
 
-from plane.coding.models import CodingAction, CodingAgent, CodingJob
+from plane.coding.models import CodingAction, CodingAgent, CodingJob, CodingJobEvent
 from plane.coding.serializers.base import StrictSerializer
 
 
@@ -29,6 +29,11 @@ class CodingJobSerializer(serializers.ModelSerializer):
             "error_reason",
             "retry_of",
             "machine",
+            "ran_on",
+            "ran_on_name",
+            "progress",
+            "progress_at",
+            "deadline_at",
             "comment",
             "requested_by",
             "is_active",
@@ -38,6 +43,13 @@ class CodingJobSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+        read_only_fields = fields
+
+
+class CodingJobEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CodingJobEvent
+        fields = ["seq", "kind", "text", "created_at"]
         read_only_fields = fields
 
 

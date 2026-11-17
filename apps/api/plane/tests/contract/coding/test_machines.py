@@ -243,6 +243,7 @@ class TestHeartbeat:
             "state": "awaiting_approval",
             "heartbeat_seconds": 15,
             "jobs": [],
+            "cancel": [],
         }
         body = member[1].get(machines_url(f"{machine.id}/")).json()
         assert body["is_online"] is True

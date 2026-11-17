@@ -14,6 +14,7 @@ urlpatterns = routes(
         "detail": views.CodingJobDetailAppEndpoint,
         "cancel": views.CodingJobCancelAppEndpoint,
         "retry": views.CodingJobRetryAppEndpoint,
+        "events": views.CodingJobEventsAppEndpoint,
         "settings": views.ProjectCodingSettingsAppEndpoint,
         "machines": views.CodingMachineListAppEndpoint,
         "machines_all": views.CodingMachineAllAppEndpoint,

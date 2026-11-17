@@ -4,10 +4,10 @@
 
 """A coding job: one action a coding agent does for one work item.
 
-A job is started by a person (or an agent acting as a user) from the work item. It stays `queued` until a machine
-takes it (Step 4 of the build plan adds dispatch). It ends with exactly one `outcome`, which only
-`plane.coding.outcomes.apply_result` sets: that service moves the work item and writes the comment, so the coding
-agent never changes the work item itself.
+A job is started by a person (or an agent acting as a user) from the work item. It stays `queued` until one of the
+requester's machines takes it in a heartbeat (`plane.coding.dispatch`); it is then `running` on that machine
+(`ran_on`). It ends with exactly one `outcome`, which only `plane.coding.outcomes.apply_result` sets: that service
+moves the work item and writes the comment, so the coding agent never changes the work item itself.
 
 At most one job per work item and action is active (queued, running or waiting for input) at a time. The partial
 unique constraint holds that even when two requests race; the API answers the loser with 409 `JOB_ACTIVE`.
@@ -73,6 +73,18 @@ class CodingJob(BaseModel):
     machine = models.ForeignKey(
         "coding.CodingMachine", on_delete=models.SET_NULL, null=True, blank=True, related_name="jobs"
     )
+    # The machine that took the job, and its name then (kept when the machine is removed).
+    ran_on = models.ForeignKey(
+        "coding.CodingMachine", on_delete=models.SET_NULL, null=True, blank=True, related_name="ran_jobs"
+    )
+    ran_on_name = models.CharField(max_length=80, blank=True, default="")
+    # When the machine first said it is running the job; until then the job is offered to it again.
+    acked_at = models.DateTimeField(null=True, blank=True)
+    # The machine stops the job at this time; the CRM ends it soon after if the machine does not report.
+    deadline_at = models.DateTimeField(null=True, blank=True)
+    # The latest progress line the machine reported, and when.
+    progress = models.CharField(max_length=500, blank=True, default="")
+    progress_at = models.DateTimeField(null=True, blank=True)
     # The comment the outcome wrote on the work item.
     comment = models.ForeignKey(
         "db.IssueComment", on_delete=models.SET_NULL, null=True, blank=True, related_name="coding_jobs"
@@ -83,7 +95,10 @@ class CodingJob(BaseModel):
     class Meta:
         db_table = "coding_jobs"
         ordering = ("-created_at",)
-        indexes = [models.Index(fields=["issue", "-created_at"], name="coding_job_issue_created")]
+        indexes = [
+            models.Index(fields=["issue", "-created_at"], name="coding_job_issue_created"),
+            models.Index(fields=["status", "requested_by"], name="coding_job_status_requester"),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["issue", "action"],

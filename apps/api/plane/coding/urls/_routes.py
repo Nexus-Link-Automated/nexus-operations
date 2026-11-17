@@ -17,6 +17,7 @@ def routes(views: dict, prefix: str) -> list:
         path(JOBS, views["list"].as_view(http_method_names=["get", "post"]), name=f"{prefix}-coding-jobs"),
         path(JOB, views["detail"].as_view(http_method_names=["get"]), name=f"{prefix}-coding-job"),
         path(JOB + "cancel/", views["cancel"].as_view(http_method_names=["post"]), name=f"{prefix}-coding-job-cancel"),
+        path(JOB + "events/", views["events"].as_view(http_method_names=["get"]), name=f"{prefix}-coding-job-events"),
         path(JOB + "retry/", views["retry"].as_view(http_method_names=["post"]), name=f"{prefix}-coding-job-retry"),
         path(
             PROJECT + "coding-settings/",

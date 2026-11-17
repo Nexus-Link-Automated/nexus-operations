@@ -11,7 +11,10 @@ People (public API and web app, mounted twice like every coding endpoint):
 
 The machine (public API only, authenticated by its own key, never by a person's token or cookie):
 - `POST /api/v1/coding-machines/join/` trades a join code for the key.
-- `POST /api/v1/coding-machines/heartbeat/` with `Authorization: Bearer <key>` keeps it online and carries its report.
+- `POST /api/v1/coding-machines/heartbeat/` with `Authorization: Bearer <key>` keeps it online, carries its report and
+  the jobs it runs, and answers with new jobs and jobs to stop (`plane.coding.dispatch`).
+- `POST /api/v1/coding-machines/jobs/events/` sends progress lines for its running jobs.
+- `POST /api/v1/coding-machines/jobs/<job_id>/result/` sends a job's result, which `outcomes.apply_result` applies.
 """
 
 from functools import cached_property
@@ -22,12 +25,14 @@ from rest_framework.response import Response
 from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.views import APIView
 
-from plane.coding import machines
+from plane.coding import dispatch, machines
 from plane.coding.exceptions import CodingError, Forbidden, NotFound
 from plane.coding.models import HEARTBEAT_SECONDS, CodingMachine
 from plane.coding.serializers import (
     CodingMachineSerializer,
     HeartbeatSerializer,
+    JobEventsSerializer,
+    JobResultSerializer,
     JoinSerializer,
     MachineNameSerializer,
 )
@@ -239,14 +244,56 @@ class MachineHeartbeatEndpoint(_MachineEndpoint):
         serializer = HeartbeatSerializer(data=request.data)
         if not serializer.is_valid():
             return self.invalid(serializer.errors)
-        machine = machines.heartbeat(machine, serializer.validated_data)
+        data = serializer.validated_data
+        machine = machines.heartbeat(machine, data)
+        handout = dispatch.heartbeat_jobs(machine, data.get("running"))
         return Response(
             {
                 "machine_id": str(machine.id),
                 "name": machine.name,
                 "state": machine.state,
                 "heartbeat_seconds": HEARTBEAT_SECONDS,
-                # Step 4 hands out jobs here.
-                "jobs": [],
+                "jobs": handout.jobs,
+                "cancel": handout.cancel,
             }
+        )
+
+
+class _JobEventsThrottle(_HeartbeatThrottle):
+    scope = "coding_machine_events"
+    # The machine sends one batch for all its jobs at most every few seconds.
+    rate = "1800/hour"
+
+
+class _JobResultThrottle(_HeartbeatThrottle):
+    scope = "coding_machine_result"
+    rate = "360/hour"
+
+
+class MachineJobEventsEndpoint(_MachineEndpoint):
+    throttle_classes = [_JobEventsThrottle]
+
+    def post(self, request):
+        """Progress lines for the machine's running jobs. `ended` lists the jobs it should stop."""
+        machine = machines.authenticate_key(_bearer(request))
+        serializer = JobEventsSerializer(data=request.data)
+        if not serializer.is_valid():
+            return self.invalid(serializer.errors)
+        ended = dispatch.record_events(machine, serializer.validated_data["jobs"])
+        return Response({"ended": ended})
+
+
+class MachineJobResultEndpoint(_MachineEndpoint):
+    throttle_classes = [_JobResultThrottle]
+
+    def post(self, request, job_id):
+        """The job's result. The same result again changes nothing; a job that has ended otherwise is 409."""
+        machine = machines.authenticate_key(_bearer(request))
+        serializer = JobResultSerializer(data=request.data)
+        if not serializer.is_valid():
+            return self.invalid(serializer.errors)
+        applied = dispatch.apply_machine_result(machine, job_id, serializer.validated_data["result"])
+        job = applied.job
+        return Response(
+            {"job_id": str(job.id), "status": job.status, "outcome": job.outcome, "changed": applied.changed}
         )

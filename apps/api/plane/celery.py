@@ -114,6 +114,10 @@ app.conf.beat_schedule = {
         "task": "plane.bgtasks.cleanup_task.delete_expired_agent_session_tokens",
         "schedule": crontab(minute=20),  # Every hour at :20
     },
+    "check-every-minute-to-expire-coding-jobs": {
+        "task": "plane.coding.tasks.expire_coding_jobs",
+        "schedule": crontab(),  # Every minute
+    },
 }
 
 

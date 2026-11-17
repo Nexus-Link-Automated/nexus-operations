@@ -79,6 +79,19 @@ class _HttpsUrlField(serializers.CharField):
         super().__init__(max_length=SHORT, validators=[URLValidator(schemes=["https"])], **kwargs)
 
 
+# Until jobs can push and open pull requests (Step 5 of the build plan adds repository access), a job that changed
+# code reports no `pr_url`; the changes stay in the job's folder on the machine, and the machine lists the changed
+# files. `pr_url` is therefore optional everywhere for now.
+_PR_URL = {"required": False}
+CHANGED_FILES_MAX = 200
+
+
+def _changed_files():
+    return serializers.ListField(
+        child=serializers.CharField(max_length=500), max_length=CHANGED_FILES_MAX, required=False
+    )
+
+
 class _Diagnosis(StrictSerializer):
     likely_cause = serializers.CharField(max_length=SHORT)
     file = serializers.CharField(max_length=500, required=False, allow_blank=True)
@@ -91,7 +104,8 @@ class _Result(StrictSerializer):
 
 class _Fixed(_Result):
     summary = serializers.CharField(max_length=LONG)
-    pr_url = _HttpsUrlField()
+    pr_url = _HttpsUrlField(**_PR_URL)
+    changed_files = _changed_files()
 
 
 class _CouldNotFix(_Result):
@@ -100,7 +114,8 @@ class _CouldNotFix(_Result):
 
 
 class _TestWritten(_Result):
-    pr_url = _HttpsUrlField()
+    pr_url = _HttpsUrlField(**_PR_URL)
+    changed_files = _changed_files()
     test_name = serializers.CharField(max_length=SHORT, required=False, allow_blank=True)
     summary = serializers.CharField(max_length=LONG, required=False, allow_blank=True)
 
@@ -116,7 +131,8 @@ class _BugFound(_Result):
     output = serializers.CharField(max_length=LONG, trim_whitespace=False)
     diagnosis = _Diagnosis()
     reproduce = serializers.CharField(max_length=SHORT, trim_whitespace=False)
-    pr_url = _HttpsUrlField()
+    pr_url = _HttpsUrlField(**_PR_URL)
+    changed_files = _changed_files()
 
 
 class _JobError(_Result):
@@ -182,9 +198,11 @@ def user_name(user) -> str:
     return user.display_name or full_name or "a member"
 
 
-def _where(column: Column | None, state, moved: bool) -> str:
+def _where(column: Column | None, state, moved: bool, archived: bool = False) -> str:
     if column is None:
         return "The work item stays where it is."
+    if archived:
+        return f"The work item was archived during the job, so it was not moved to {column.label}."
     if state is None:
         return (
             f"This project has no {column.label} column, so the work item was not moved. "
@@ -195,16 +213,23 @@ def _where(column: Column | None, state, moved: bool) -> str:
     return f"It is already in {state.name}."
 
 
-def build_comment(job: CodingJob, data: dict, column: Column | None, state, moved: bool) -> str:
+CHANGED_FILES_SHOWN = 20
+CODE_OUTCOMES = (JobOutcome.FIXED, JobOutcome.TEST_WRITTEN, JobOutcome.TEST_PASSED, JobOutcome.BUG_FOUND)
+
+
+def build_comment(
+    job: CodingJob, data: dict, column: Column | None, state, moved: bool, archived: bool = False
+) -> str:
     """The comment's HTML. Every agent-written value is escaped; output and commands are code blocks."""
     agent = job.get_agent_display()
+    machine = f" on {html.escape(job.ran_on_name)}" if job.ran_on_name else ""
     parts = [
         _p(
-            f"<strong>{html.escape(job.get_action_display())}</strong> with {html.escape(agent)}, "
+            f"<strong>{html.escape(job.get_action_display())}</strong> with {html.escape(agent)}{machine}, "
             f"requested by {html.escape(user_name(job.requested_by))}."
         )
     ]
-    where = html.escape(_where(column, state, moved))
+    where = html.escape(_where(column, state, moved, archived))
     outcome = data["outcome"]
     if outcome == JobOutcome.FIXED:
         parts += [_p("<strong>Fixed.</strong> ", where), _p(_text(data["summary"]))]
@@ -251,6 +276,22 @@ def build_comment(job: CodingJob, data: dict, column: Column | None, state, move
         parts.append(_p(_text(data["summary"])))
     if data.get("pr_url"):
         parts.append(_p("<strong>Pull request:</strong> ", _link(data["pr_url"])))
+    elif outcome in CODE_OUTCOMES:
+        where_kept = f" on {html.escape(job.ran_on_name)}" if job.ran_on_name else " on the machine"
+        parts.append(
+            _p(
+                "No pull request: jobs cannot push to the repository yet, so the changes stay in the job's folder",
+                f"{where_kept} (job {_code(str(job.id))}).",
+            )
+        )
+    files = data.get("changed_files") or []
+    if files and outcome in CODE_OUTCOMES:
+        shown = "".join(f"<li>{_code(name)}</li>" for name in files[:CHANGED_FILES_SHOWN])
+        more = len(files) - CHANGED_FILES_SHOWN
+        parts.append(_p("<strong>Changed files:</strong>"))
+        parts.append(f"<ul>{shown}</ul>")
+        if more > 0:
+            parts.append(_p(f"and {more} more."))
     return "".join(parts)
 
 
@@ -370,21 +411,30 @@ def apply_result(job: CodingJob, result, *, status: str = JobStatus.FINISHED) ->
         if not job.is_active:
             raise Conflict("This job has ended.", code="JOB_NOT_ACTIVE")
 
-        issue = Issue.objects.select_for_update().get(pk=job.issue_id)
+        # `all_objects`: a work item archived or deleted during the job still gets its job finished.
+        issue = Issue.all_objects.select_for_update().get(pk=job.issue_id)
         slug = job.workspace.slug
         bot = coding_bot(job.workspace)
         outcome = JobOutcome(data["outcome"])
         column = OUTCOME_COLUMN.get(outcome)
         coding_settings = ProjectCodingSettings.objects.filter(project_id=job.project_id).first()
-        state = resolve_column(job.project_id, coding_settings, column)[0] if column else None
+        # Archived (or turned back into a draft or intake item) during the job: the outcome is still recorded and
+        # commented, but the work item is not moved, since moving it would bring it back onto the board.
+        archived = issue.deleted_at is None and not Issue.issue_objects.filter(pk=issue.pk).exists()
+        state = resolve_column(job.project_id, coding_settings, column)[0] if column and not archived else None
         moved = state is not None and issue.state_id != state.id
         queued = []
+        comment = None
         # As the bot, so the rows it saves are attributed to it rather than to whoever made this request.
         with impersonate(bot):
             if moved:
                 queued.append(_move(issue, state, bot, slug))
-            comment, queue_comment = _comment(issue, build_comment(job, data, column, state, moved), bot, slug)
-            queued.append(queue_comment)
+            # A deleted work item gets no comment; the job still ends with its outcome.
+            if issue.deleted_at is None:
+                comment, queue_comment = _comment(
+                    issue, build_comment(job, data, column, state, moved, archived), bot, slug
+                )
+                queued.append(queue_comment)
 
             job.outcome = outcome
             job.result = data

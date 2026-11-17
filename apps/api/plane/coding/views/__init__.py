@@ -7,7 +7,13 @@
 from plane.api.views.base import BaseAPIView as PublicBaseAPIView
 from plane.app.views.base import BaseAPIView as AppBaseAPIView
 
-from .job import CodingJobCancelMixin, CodingJobDetailMixin, CodingJobListMixin, CodingJobRetryMixin
+from .job import (
+    CodingJobCancelMixin,
+    CodingJobDetailMixin,
+    CodingJobEventsMixin,
+    CodingJobListMixin,
+    CodingJobRetryMixin,
+)
 from .machine import (
     CodingMachineAllMixin,
     CodingMachineApproveMixin,
@@ -15,11 +21,18 @@ from .machine import (
     CodingMachineListMixin,
     CodingMachineRevokeMixin,
     MachineHeartbeatEndpoint,
+    MachineJobEventsEndpoint,
+    MachineJobResultEndpoint,
     MachineJoinEndpoint,
 )
 from .project_settings import ProjectCodingSettingsMixin
 
-__all__ = ["MachineHeartbeatEndpoint", "MachineJoinEndpoint"]
+__all__ = [
+    "MachineHeartbeatEndpoint",
+    "MachineJobEventsEndpoint",
+    "MachineJobResultEndpoint",
+    "MachineJoinEndpoint",
+]
 
 
 class CodingJobListAPIEndpoint(CodingJobListMixin, PublicBaseAPIView):
@@ -35,6 +48,10 @@ class CodingJobCancelAPIEndpoint(CodingJobCancelMixin, PublicBaseAPIView):
 
 
 class CodingJobRetryAPIEndpoint(CodingJobRetryMixin, PublicBaseAPIView):
+    pass
+
+
+class CodingJobEventsAPIEndpoint(CodingJobEventsMixin, PublicBaseAPIView):
     pass
 
 
@@ -55,6 +72,10 @@ class CodingJobCancelAppEndpoint(CodingJobCancelMixin, AppBaseAPIView):
 
 
 class CodingJobRetryAppEndpoint(CodingJobRetryMixin, AppBaseAPIView):
+    pass
+
+
+class CodingJobEventsAppEndpoint(CodingJobEventsMixin, AppBaseAPIView):
     pass
 
 
