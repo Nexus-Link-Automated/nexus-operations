@@ -1,0 +1,233 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Fehler beheben",
+      "write_test": "Test schreiben",
+      "write_and_run_test": "Test schreiben & ausführen"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Coding-Job"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Ein Coding-Agent versucht, diesen Fehler zu beheben, und öffnet einen Pull Request. Sobald der Fehler behoben ist, wird das Arbeitselement nach „In review“ verschoben.",
+        "write_test": "Ein Coding-Agent schreibt einen Test für dieses Arbeitselement und öffnet einen Pull Request. Der Test wird nicht ausgeführt. Anschließend wird das Arbeitselement nach „Ready“ verschoben.",
+        "write_and_run_test": "Ein Coding-Agent schreibt einen Test und führt ihn aus. Ist er erfolgreich, wird das Arbeitselement nach „Ready“ verschoben; schlägt er fehl, weil der Code fehlerhaft ist, wird es nach „Failed“ verschoben."
+      },
+      "agent": "Agent",
+      "machine": "Rechner",
+      "machine_auto": "Automatisch",
+      "machine_hint": "Ihre eigenen freigegebenen Rechner, die online sind. „Automatisch“ wählt einen davon.",
+      "start": "Job starten",
+      "starting": "Wird gestartet..."
+    },
+    "toasts": {
+      "started": "Coding-Job gestartet",
+      "start_failed": "Der Coding-Job konnte nicht gestartet werden",
+      "cancelled": "Coding-Job abgebrochen",
+      "cancel_failed": "Der Coding-Job konnte nicht abgebrochen werden",
+      "retried": "Coding-Job erneut gestartet",
+      "retry_failed": "Der Coding-Job konnte nicht erneut gestartet werden"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Coding-Jobs sind für dieses Projekt nicht eingerichtet. Ein Projektadministrator muss sie aktivieren und das Repository festlegen.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Coding-Jobs können nicht für Entwürfe, archivierte Arbeitselemente oder Arbeitselemente im Eingang ausgeführt werden.",
+      "JOB_ACTIVE": "Für dieses Arbeitselement läuft bereits ein Job dieser Art.",
+      "JOB_NOT_ACTIVE": "Dieser Job ist bereits beendet und kann daher nicht abgebrochen werden.",
+      "JOB_NOT_RETRYABLE": "Nur ein abgebrochener oder nicht abgeschlossener Job kann erneut versucht werden.",
+      "MACHINE_NOT_AVAILABLE": "Dieser Rechner gehört nicht mehr zu Ihren freigegebenen Rechnern. Wählen Sie einen anderen oder „Automatisch“.",
+      "MACHINE_LIMIT": "Sie haben bereits die maximale Anzahl an Rechnern in diesem Workspace. Entfernen Sie zuerst einen.",
+      "MACHINE_NOT_JOINED": "Dieser Rechner ist noch nicht beigetreten, daher gibt es nichts freizugeben.",
+      "MACHINE_REVOKED": "Dieser Rechner wurde von einem Workspace-Administrator widerrufen.",
+      "forbidden": "Sie haben keine Berechtigung, dies zu tun.",
+      "generic": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut."
+    },
+    "panel": {
+      "title": "Coding-Jobs",
+      "refresh": "Coding-Jobs aktualisieren",
+      "empty": "Noch keine Coding-Jobs.",
+      "load_failed": "Die Coding-Jobs konnten nicht geladen werden.",
+      "requested_by": "Gestartet von {name}",
+      "unknown_user": "Unbekanntes Mitglied",
+      "finished": "Beendet {time}",
+      "error_reason": "Grund",
+      "pr": "Pull Request",
+      "cancel": "Abbrechen",
+      "retry": "Erneut versuchen",
+      "waiting_for_machine": "Wartet auf eine Maschine",
+      "ran_on": "Lief auf {name}",
+      "started": "Gestartet {time}",
+      "progress": "Fortschritt",
+      "progress_loading": "Fortschritt wird geladen...",
+      "progress_empty": "Noch kein Fortschritt.",
+      "progress_load_failed": "Der Fortschritt konnte nicht geladen werden."
+    },
+    "status": {
+      "queued": "In Warteschlange",
+      "running": "Läuft",
+      "needs_input": "Eingabe erforderlich",
+      "finished": "Abgeschlossen",
+      "cancelled": "Abgebrochen"
+    },
+    "outcome": {
+      "fixed": "Behoben",
+      "could_not_fix": "Nicht behoben",
+      "test_written": "Test geschrieben",
+      "test_passed": "Test bestanden",
+      "bug_found": "Fehler gefunden",
+      "job_error": "Nicht abgeschlossen"
+    },
+    "event_kind": {
+      "status": "Status",
+      "message": "Nachricht",
+      "tool": "Werkzeug",
+      "plan": "Plan"
+    },
+    "settings": {
+      "label": "Coding-Jobs",
+      "title": "Coding-Jobs",
+      "description": "Lassen Sie Coding-Agenten Fehler beheben und Tests anhand der Arbeitselemente dieses Projekts schreiben.",
+      "enabled": "Coding-Jobs",
+      "enabled_description": "Mitglieder können „Fehler beheben“, „Test schreiben“ und „Test schreiben & ausführen“ für Arbeitselemente starten.",
+      "repo_url": "Repository-URL",
+      "repo_url_hint": "Die https-Adresse des Repositorys, in dem die Agenten arbeiten. Ohne Zugangsdaten.",
+      "default_branch": "Standard-Branch",
+      "columns_title": "Ergebnisspalten",
+      "columns_description": "Der Status, in den das jeweilige Ergebnis das Arbeitselement verschiebt.",
+      "column": {
+        "ready": "Bereit",
+        "failed": "Fehlgeschlagen",
+        "in_review": "In Prüfung"
+      },
+      "column_hint": {
+        "ready": "Nachdem ein Test geschrieben wurde oder geschrieben und bestanden ist.",
+        "failed": "Wenn ein Test fehlschlägt, weil der Produktcode fehlerhaft ist.",
+        "in_review": "Nachdem ein Fehler behoben und der zugehörige Pull Request geöffnet ist."
+      },
+      "match_by_name": "Nach Name zuordnen („{name}“)",
+      "resolves_to": "Aktuell: {state}",
+      "resolves_to_by_name": "Aktuell: {state} (nach Name zugeordnet)",
+      "resolves_none": "Aktuell: kein passender Status, daher bleibt das Arbeitselement, wo es ist.",
+      "create_failed": "Spalte „Failed“ erstellen",
+      "creating_failed": "Wird erstellt...",
+      "failed_created": "Spalte „Failed“ erstellt",
+      "create_failed_error": "Die Spalte „Failed“ konnte nicht erstellt werden",
+      "save": "Änderungen speichern",
+      "saving": "Wird gespeichert...",
+      "saved": "Coding-Einstellungen gespeichert",
+      "save_failed": "Die Coding-Einstellungen konnten nicht gespeichert werden",
+      "read_only": "Nur Projektadministratoren können diese Einstellungen ändern.",
+      "not_configured": "Coding-Jobs sind für dieses Projekt deaktiviert. Aktivieren Sie sie und legen Sie das Repository fest, damit Mitglieder Jobs starten können."
+    }
+  },
+  "coding_machines": {
+    "label": "Rechner",
+    "title": "Rechner",
+    "description": "Ihre eigenen Computer, auf denen Ihre Coding-Jobs in {workspace} laufen. Jeder nutzt seine eigenen Codex- und Claude-Anmeldungen und baut nur ausgehende Verbindungen zum CRM auf.",
+    "no_workspace": "Rechner gehören zu einem Workspace. Treten Sie einem Workspace bei oder erstellen Sie einen, um einen Rechner hinzuzufügen.",
+    "guest": "Rechner sind für Gäste nicht verfügbar.",
+    "empty": "Noch keine Rechner. Fügen Sie Ihren Computer hinzu, um Ihre Coding-Jobs darauf auszuführen.",
+    "load_failed": "Die Rechner konnten nicht geladen werden.",
+    "add": "Rechner hinzufügen",
+    "state": {
+      "pending": "Wartet auf Beitritt",
+      "awaiting_approval": "Wartet auf Freigabe",
+      "active": "Aktiv",
+      "revoked": "Widerrufen"
+    },
+    "online": "Online",
+    "offline": "Offline",
+    "last_seen": "zuletzt gesehen {time}",
+    "never_seen": "nie verbunden",
+    "host": "Host",
+    "agents": "Agents",
+    "no_agents": "Keine gefunden",
+    "agent_signed_in": "angemeldet",
+    "agent_not_signed_in": "nicht angemeldet",
+    "agent_not_installed": "nicht installiert",
+    "docker": "Docker",
+    "docker_available": "Verfügbar",
+    "docker_unavailable": "Nicht verfügbar",
+    "slots": "Freie Slots",
+    "slots_value": "{free} von {total}",
+    "unknown": "unbekannt",
+    "pending_hint": "Wartet darauf, dass der Rechner mit seinem Code beitritt. Der Code ist gültig bis {time}.",
+    "pending_expired": "Der Beitrittscode ist abgelaufen, bevor der Rechner ihn verwendet hat. Entfernen Sie diesen Rechner und fügen Sie ihn erneut hinzu.",
+    "awaiting_hint": "Der Rechner ist als {hostname} beigetreten. Wenn das Ihr Computer ist, geben Sie ihn frei, damit er Ihre Jobs ausführen kann.",
+    "revoked_hint": "Ein Workspace-Administrator hat diesen Rechner widerrufen: Er kann sich nicht verbinden und erhält keine Jobs. Sie können ihn entfernen.",
+    "actions": {
+      "approve": "Freigeben",
+      "rename": "Umbenennen",
+      "remove": "Entfernen"
+    },
+    "add_dialog": {
+      "title": "Rechner hinzufügen",
+      "description": "Geben Sie dem Computer einen Namen. Danach erhalten Sie einen Beitrittscode, den Sie darauf verwenden.",
+      "name": "Name",
+      "name_placeholder": "z. B. Arbeitslaptop",
+      "create": "Rechner hinzufügen",
+      "creating": "Wird hinzugefügt...",
+      "code_title": "{name} verbinden",
+      "code_description": "Führen Sie diese Befehle auf dem Rechner aus. Der Beitrittscode funktioniert einmal und wird nur jetzt angezeigt: Sobald Sie diesen Dialog schließen, ist er weg.",
+      "step_join": "1. Mit dem Code beitreten",
+      "step_start": "2. Den Rechner-Dienst starten",
+      "copy": "Kopieren",
+      "copied": "In die Zwischenablage kopiert",
+      "expires": "Der Code läuft ab: {time}.",
+      "after": "Sobald der Rechner als „Wartet auf Freigabe“ angezeigt wird, prüfen Sie seinen Hostnamen und geben Sie ihn frei.",
+      "done": "Fertig"
+    },
+    "rename_dialog": {
+      "title": "Rechner umbenennen",
+      "save": "Speichern",
+      "saving": "Wird gespeichert..."
+    },
+    "approve_dialog": {
+      "title": "{name} freigeben?",
+      "description": "Der Rechner meldet den Host {hostname} ({os}). Geben Sie ihn nur frei, wenn es Ihr eigener Computer ist: Er wird Ihre Coding-Jobs ausführen.",
+      "confirm": "Freigeben",
+      "confirming": "Wird freigegeben..."
+    },
+    "remove_dialog": {
+      "title": "{name} entfernen?",
+      "description": "Der Rechner wird endgültig entfernt: Sein Schlüssel funktioniert sofort nicht mehr und er erhält keine Jobs mehr. Um ihn wieder zu nutzen, fügen Sie ihn erneut hinzu.",
+      "confirm": "Entfernen",
+      "confirming": "Wird entfernt..."
+    },
+    "toasts": {
+      "added": "Rechner hinzugefügt",
+      "add_failed": "Der Rechner konnte nicht hinzugefügt werden",
+      "approved": "Rechner freigegeben",
+      "approve_failed": "Der Rechner konnte nicht freigegeben werden",
+      "renamed": "Rechner umbenannt",
+      "rename_failed": "Der Rechner konnte nicht umbenannt werden",
+      "removed": "Rechner entfernt",
+      "remove_failed": "Der Rechner konnte nicht entfernt werden",
+      "revoked": "Rechner widerrufen",
+      "revoke_failed": "Der Rechner konnte nicht widerrufen werden"
+    },
+    "admin": {
+      "label": "Rechner",
+      "title": "Rechner",
+      "description": "Alle Rechner, die Personen in diesem Workspace für ihre Coding-Jobs hinzugefügt haben. Ein Widerruf trennt den Rechner sofort: Sein Schlüssel funktioniert nicht mehr und er erhält keine Jobs.",
+      "empty": "In diesem Workspace hat noch niemand einen Rechner hinzugefügt.",
+      "owner": "Besitzer",
+      "name": "Rechner",
+      "state": "Zustand",
+      "status": "Status",
+      "last_seen": "Zuletzt gesehen",
+      "never": "Nie",
+      "revoke": "Widerrufen",
+      "revoke_dialog": {
+        "title": "{name} widerrufen?",
+        "description": "Dieser Rechner von {owner} funktioniert sofort nicht mehr und erhält keine Jobs mehr. Nur sein Besitzer kann ihn entfernen.",
+        "confirm": "Widerrufen",
+        "confirming": "Wird widerrufen..."
+      }
+    }
+  }
+}

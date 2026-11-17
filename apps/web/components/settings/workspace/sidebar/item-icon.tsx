@@ -11,6 +11,7 @@ import {
   ExportOutline,
   KeyOutline,
   MembersOutline,
+  MonitorOutline,
   WebhooksOutline,
 } from "@makeplane/propel/icons";
 // plane imports
@@ -24,4 +25,5 @@ export const WORKSPACE_SETTINGS_ICONS: Record<TWorkspaceSettingsTabs, IconGlyph 
   "billing-and-plans": BillingsOutline,
   webhooks: WebhooksOutline,
   "ai-providers": KeyOutline,
+  "coding-machines": MonitorOutline,
 };

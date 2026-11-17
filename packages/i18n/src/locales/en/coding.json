@@ -1,0 +1,233 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Fix bug",
+      "write_test": "Write test",
+      "write_and_run_test": "Write & run test"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Coding job"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "A coding agent tries to fix this bug and opens a pull request. When it is fixed, the work item moves to In review.",
+        "write_test": "A coding agent writes a test for this work item and opens a pull request. The test is not run. The work item then moves to Ready.",
+        "write_and_run_test": "A coding agent writes a test and runs it. If it passes, the work item moves to Ready; if it fails because the code is buggy, it moves to Failed."
+      },
+      "agent": "Agent",
+      "machine": "Machine",
+      "machine_auto": "Auto",
+      "machine_hint": "Your own approved machines that are online. Auto picks one of them.",
+      "start": "Start job",
+      "starting": "Starting..."
+    },
+    "toasts": {
+      "started": "Coding job started",
+      "start_failed": "Couldn't start the coding job",
+      "cancelled": "Coding job cancelled",
+      "cancel_failed": "Couldn't cancel the coding job",
+      "retried": "Coding job started again",
+      "retry_failed": "Couldn't retry the coding job"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Coding jobs are not set up for this project. A project admin must turn them on and set the repository.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Coding jobs can't run on drafts, archived work items or work items waiting in intake.",
+      "JOB_ACTIVE": "This work item already has a job of this kind in progress.",
+      "JOB_NOT_ACTIVE": "This job has already ended, so it can't be cancelled.",
+      "JOB_NOT_RETRYABLE": "Only a cancelled job or one that did not finish can be retried.",
+      "MACHINE_NOT_AVAILABLE": "That machine is no longer one of your approved machines. Pick another one or Auto.",
+      "MACHINE_LIMIT": "You have the most machines allowed in this workspace. Remove one first.",
+      "MACHINE_NOT_JOINED": "This machine hasn't joined yet, so there is nothing to approve.",
+      "MACHINE_REVOKED": "This machine was revoked by a workspace admin.",
+      "forbidden": "You don't have permission to do this.",
+      "generic": "Something went wrong. Please try again."
+    },
+    "panel": {
+      "title": "Coding jobs",
+      "refresh": "Refresh coding jobs",
+      "empty": "No coding jobs yet.",
+      "load_failed": "Couldn't load the coding jobs.",
+      "requested_by": "Started by {name}",
+      "unknown_user": "Unknown member",
+      "finished": "Finished {time}",
+      "error_reason": "Reason",
+      "pr": "Pull request",
+      "cancel": "Cancel",
+      "retry": "Retry",
+      "waiting_for_machine": "Waiting for a machine",
+      "ran_on": "Ran on {name}",
+      "started": "Started {time}",
+      "progress": "Progress",
+      "progress_loading": "Loading progress...",
+      "progress_empty": "No progress yet.",
+      "progress_load_failed": "Couldn't load the progress."
+    },
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "needs_input": "Needs input",
+      "finished": "Finished",
+      "cancelled": "Cancelled"
+    },
+    "outcome": {
+      "fixed": "Fixed",
+      "could_not_fix": "Could not fix",
+      "test_written": "Test written",
+      "test_passed": "Test passed",
+      "bug_found": "Bug found",
+      "job_error": "Did not finish"
+    },
+    "event_kind": {
+      "status": "Status",
+      "message": "Message",
+      "tool": "Tool",
+      "plan": "Plan"
+    },
+    "settings": {
+      "label": "Coding jobs",
+      "title": "Coding jobs",
+      "description": "Let coding agents fix bugs and write tests from this project's work items.",
+      "enabled": "Coding jobs",
+      "enabled_description": "Members can start Fix bug, Write test and Write & run test on work items.",
+      "repo_url": "Repository URL",
+      "repo_url_hint": "The https address of the repository the agents work in. No credentials.",
+      "default_branch": "Default branch",
+      "columns_title": "Outcome columns",
+      "columns_description": "The state each outcome moves the work item to.",
+      "column": {
+        "ready": "Ready",
+        "failed": "Failed",
+        "in_review": "In review"
+      },
+      "column_hint": {
+        "ready": "After a test is written, or written and passing.",
+        "failed": "When a test fails because the product code is buggy.",
+        "in_review": "After a bug is fixed and its pull request is open."
+      },
+      "match_by_name": "Match by name (\"{name}\")",
+      "resolves_to": "Now: {state}",
+      "resolves_to_by_name": "Now: {state} (matched by name)",
+      "resolves_none": "Now: no matching state, so the work item stays where it is.",
+      "create_failed": "Create Failed column",
+      "creating_failed": "Creating...",
+      "failed_created": "Failed column created",
+      "create_failed_error": "Couldn't create the Failed column",
+      "save": "Save changes",
+      "saving": "Saving...",
+      "saved": "Coding settings saved",
+      "save_failed": "Couldn't save the coding settings",
+      "read_only": "Only project admins can change these settings.",
+      "not_configured": "Coding jobs are off for this project. Turn them on and set the repository so members can start jobs."
+    }
+  },
+  "coding_machines": {
+    "label": "Machines",
+    "title": "Machines",
+    "description": "Your own computers that run your coding jobs in {workspace}. Each one uses its own Codex and Claude sign-ins and only connects out to the CRM.",
+    "no_workspace": "Machines belong to a workspace. Join or create a workspace to add one.",
+    "guest": "Machines are not available to guests.",
+    "empty": "No machines yet. Add your computer to run your coding jobs on it.",
+    "load_failed": "Couldn't load the machines.",
+    "add": "Add machine",
+    "state": {
+      "pending": "Waiting to join",
+      "awaiting_approval": "Awaiting approval",
+      "active": "Active",
+      "revoked": "Revoked"
+    },
+    "online": "Online",
+    "offline": "Offline",
+    "last_seen": "last seen {time}",
+    "never_seen": "never connected",
+    "host": "Host",
+    "agents": "Agents",
+    "no_agents": "None found",
+    "agent_signed_in": "signed in",
+    "agent_not_signed_in": "not signed in",
+    "agent_not_installed": "not installed",
+    "docker": "Docker",
+    "docker_available": "Available",
+    "docker_unavailable": "Not available",
+    "slots": "Free slots",
+    "slots_value": "{free} of {total}",
+    "unknown": "unknown",
+    "pending_hint": "Waiting for the machine to join with its code. The code is valid until {time}.",
+    "pending_expired": "The join code expired before the machine used it. Remove this machine and add it again.",
+    "awaiting_hint": "The machine joined as {hostname}. If that is your computer, approve it so it can run your jobs.",
+    "revoked_hint": "A workspace admin revoked this machine: it can't connect or get jobs. You can remove it.",
+    "actions": {
+      "approve": "Approve",
+      "rename": "Rename",
+      "remove": "Remove"
+    },
+    "add_dialog": {
+      "title": "Add machine",
+      "description": "Give the computer a name. Next you get a join code to use on it.",
+      "name": "Name",
+      "name_placeholder": "e.g. Work laptop",
+      "create": "Add machine",
+      "creating": "Adding...",
+      "code_title": "Connect {name}",
+      "code_description": "Run these commands on the machine. The join code works once and is shown only now: once you close this dialog, it is gone.",
+      "step_join": "1. Join with the code",
+      "step_start": "2. Start the machine service",
+      "copy": "Copy",
+      "copied": "Copied to clipboard",
+      "expires": "The code expires {time}.",
+      "after": "When the machine shows as Awaiting approval, check its hostname and approve it.",
+      "done": "Done"
+    },
+    "rename_dialog": {
+      "title": "Rename machine",
+      "save": "Save",
+      "saving": "Saving..."
+    },
+    "approve_dialog": {
+      "title": "Approve {name}?",
+      "description": "The machine reports host {hostname} ({os}). Approve it only if this is your own computer: it will run your coding jobs.",
+      "confirm": "Approve",
+      "confirming": "Approving..."
+    },
+    "remove_dialog": {
+      "title": "Remove {name}?",
+      "description": "The machine is removed for good: its key stops working at once and it gets no more jobs. To use it again, add it again.",
+      "confirm": "Remove",
+      "confirming": "Removing..."
+    },
+    "toasts": {
+      "added": "Machine added",
+      "add_failed": "Couldn't add the machine",
+      "approved": "Machine approved",
+      "approve_failed": "Couldn't approve the machine",
+      "renamed": "Machine renamed",
+      "rename_failed": "Couldn't rename the machine",
+      "removed": "Machine removed",
+      "remove_failed": "Couldn't remove the machine",
+      "revoked": "Machine revoked",
+      "revoke_failed": "Couldn't revoke the machine"
+    },
+    "admin": {
+      "label": "Machines",
+      "title": "Machines",
+      "description": "Every machine people in this workspace have added to run their coding jobs. Revoking one cuts it off at once: its key stops working and it gets no jobs.",
+      "empty": "No one in this workspace has added a machine yet.",
+      "owner": "Owner",
+      "name": "Machine",
+      "state": "State",
+      "status": "Status",
+      "last_seen": "Last seen",
+      "never": "Never",
+      "revoke": "Revoke",
+      "revoke_dialog": {
+        "title": "Revoke {name}?",
+        "description": "This machine of {owner} stops working at once and gets no more jobs. Only its owner can remove it.",
+        "confirm": "Revoke",
+        "confirming": "Revoking..."
+      }
+    }
+  }
+}

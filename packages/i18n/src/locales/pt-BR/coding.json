@@ -1,0 +1,233 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Corrigir bug",
+      "write_test": "Escrever teste",
+      "write_and_run_test": "Escrever e executar teste"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Tarefa de programação"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Um agente de programação tenta corrigir este bug e abre um pull request. Quando o bug é corrigido, o item de trabalho passa para \"In review\".",
+        "write_test": "Um agente de programação escreve um teste para este item de trabalho e abre um pull request. O teste não é executado. Em seguida, o item de trabalho passa para \"Ready\".",
+        "write_and_run_test": "Um agente de programação escreve um teste e o executa. Se o teste for aprovado, o item de trabalho passa para \"Ready\"; se falhar porque o código tem bugs, passa para \"Failed\"."
+      },
+      "agent": "Agente",
+      "machine": "Máquina",
+      "machine_auto": "Automática",
+      "machine_hint": "Suas próprias máquinas aprovadas que estão online. Automática escolhe uma delas.",
+      "start": "Iniciar tarefa",
+      "starting": "Iniciando..."
+    },
+    "toasts": {
+      "started": "Tarefa de programação iniciada",
+      "start_failed": "Não foi possível iniciar a tarefa de programação",
+      "cancelled": "Tarefa de programação cancelada",
+      "cancel_failed": "Não foi possível cancelar a tarefa de programação",
+      "retried": "Tarefa de programação iniciada novamente",
+      "retry_failed": "Não foi possível tentar novamente a tarefa de programação"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "As tarefas de programação não estão configuradas para este projeto. Um administrador do projeto precisa ativá-las e definir o repositório.",
+      "WORK_ITEM_NOT_ELIGIBLE": "As tarefas de programação não podem ser executadas em rascunhos, itens de trabalho arquivados ou itens de trabalho aguardando na Admissão.",
+      "JOB_ACTIVE": "Este item de trabalho já tem uma tarefa desse tipo em andamento.",
+      "JOB_NOT_ACTIVE": "Esta tarefa já terminou, então não pode ser cancelada.",
+      "JOB_NOT_RETRYABLE": "Só é possível tentar novamente uma tarefa cancelada ou que não terminou.",
+      "MACHINE_NOT_AVAILABLE": "Essa máquina não é mais uma das suas máquinas aprovadas. Escolha outra ou Automática.",
+      "MACHINE_LIMIT": "Você já tem o máximo de máquinas permitido neste espaço de trabalho. Remova uma primeiro.",
+      "MACHINE_NOT_JOINED": "Esta máquina ainda não entrou, então não há nada para aprovar.",
+      "MACHINE_REVOKED": "Esta máquina foi revogada por um administrador do espaço de trabalho.",
+      "forbidden": "Você não tem permissão para fazer isso.",
+      "generic": "Algo deu errado. Tente novamente."
+    },
+    "panel": {
+      "title": "Tarefas de programação",
+      "refresh": "Atualizar tarefas de programação",
+      "empty": "Nenhuma tarefa de programação ainda.",
+      "load_failed": "Não foi possível carregar as tarefas de programação.",
+      "requested_by": "Iniciada por {name}",
+      "unknown_user": "Membro desconhecido",
+      "finished": "Concluída {time}",
+      "error_reason": "Motivo",
+      "pr": "Pull request",
+      "cancel": "Cancelar",
+      "retry": "Tentar novamente",
+      "waiting_for_machine": "Aguardando uma máquina",
+      "ran_on": "Executado em {name}",
+      "started": "Iniciado {time}",
+      "progress": "Progresso",
+      "progress_loading": "Carregando o progresso...",
+      "progress_empty": "Ainda não há progresso.",
+      "progress_load_failed": "Não foi possível carregar o progresso."
+    },
+    "status": {
+      "queued": "Na fila",
+      "running": "Em execução",
+      "needs_input": "Aguardando informações",
+      "finished": "Concluída",
+      "cancelled": "Cancelada"
+    },
+    "outcome": {
+      "fixed": "Corrigido",
+      "could_not_fix": "Não foi possível corrigir",
+      "test_written": "Teste escrito",
+      "test_passed": "Teste aprovado",
+      "bug_found": "Bug encontrado",
+      "job_error": "Não terminou"
+    },
+    "event_kind": {
+      "status": "Status",
+      "message": "Mensagem",
+      "tool": "Ferramenta",
+      "plan": "Plano"
+    },
+    "settings": {
+      "label": "Tarefas de programação",
+      "title": "Tarefas de programação",
+      "description": "Permita que agentes de programação corrijam bugs e escrevam testes a partir dos itens de trabalho deste projeto.",
+      "enabled": "Tarefas de programação",
+      "enabled_description": "Os membros podem iniciar \"Corrigir bug\", \"Escrever teste\" e \"Escrever e executar teste\" nos itens de trabalho.",
+      "repo_url": "URL do repositório",
+      "repo_url_hint": "O endereço https do repositório em que os agentes trabalham. Sem credenciais.",
+      "default_branch": "Branch padrão",
+      "columns_title": "Colunas de resultado",
+      "columns_description": "O estado para o qual cada resultado move o item de trabalho.",
+      "column": {
+        "ready": "Pronto",
+        "failed": "Falhou",
+        "in_review": "Em revisão"
+      },
+      "column_hint": {
+        "ready": "Depois que um teste é escrito, ou escrito e aprovado.",
+        "failed": "Quando um teste falha porque o código do produto tem bugs.",
+        "in_review": "Depois que um bug é corrigido e seu pull request está aberto."
+      },
+      "match_by_name": "Corresponder pelo nome (\"{name}\")",
+      "resolves_to": "Agora: {state}",
+      "resolves_to_by_name": "Agora: {state} (correspondência pelo nome)",
+      "resolves_none": "Agora: nenhum estado correspondente, então o item de trabalho fica onde está.",
+      "create_failed": "Criar coluna Failed",
+      "creating_failed": "Criando...",
+      "failed_created": "Coluna Failed criada",
+      "create_failed_error": "Não foi possível criar a coluna Failed",
+      "save": "Salvar alterações",
+      "saving": "Salvando...",
+      "saved": "Configurações de programação salvas",
+      "save_failed": "Não foi possível salvar as configurações de programação",
+      "read_only": "Somente administradores do projeto podem alterar essas configurações.",
+      "not_configured": "As tarefas de programação estão desativadas para este projeto. Ative-as e defina o repositório para que os membros possam iniciar tarefas."
+    }
+  },
+  "coding_machines": {
+    "label": "Máquinas",
+    "title": "Máquinas",
+    "description": "Seus próprios computadores que executam suas tarefas de programação em {workspace}. Cada um usa seus próprios logins do Codex e do Claude e só faz conexões de saída para o CRM.",
+    "no_workspace": "Máquinas pertencem a um espaço de trabalho. Entre em um espaço de trabalho ou crie um para adicionar uma.",
+    "guest": "Máquinas não estão disponíveis para convidados.",
+    "empty": "Nenhuma máquina ainda. Adicione seu computador para executar nele suas tarefas de programação.",
+    "load_failed": "Não foi possível carregar as máquinas.",
+    "add": "Adicionar máquina",
+    "state": {
+      "pending": "Aguardando entrada",
+      "awaiting_approval": "Aguardando aprovação",
+      "active": "Ativa",
+      "revoked": "Revogada"
+    },
+    "online": "Online",
+    "offline": "Offline",
+    "last_seen": "vista {time}",
+    "never_seen": "nunca conectada",
+    "host": "Host",
+    "agents": "Agentes",
+    "no_agents": "Nenhum encontrado",
+    "agent_signed_in": "conectado",
+    "agent_not_signed_in": "não conectado",
+    "agent_not_installed": "não instalado",
+    "docker": "Docker",
+    "docker_available": "Disponível",
+    "docker_unavailable": "Indisponível",
+    "slots": "Vagas livres",
+    "slots_value": "{free} de {total}",
+    "unknown": "desconhecido",
+    "pending_hint": "Aguardando a máquina entrar com o código. O código é válido até {time}.",
+    "pending_expired": "O código de entrada expirou antes de a máquina usá-lo. Remova esta máquina e adicione-a novamente.",
+    "awaiting_hint": "A máquina entrou como {hostname}. Se for o seu computador, aprove-a para que ela possa executar suas tarefas.",
+    "revoked_hint": "Um administrador do espaço de trabalho revogou esta máquina: ela não pode se conectar nem receber tarefas. Você pode removê-la.",
+    "actions": {
+      "approve": "Aprovar",
+      "rename": "Renomear",
+      "remove": "Remover"
+    },
+    "add_dialog": {
+      "title": "Adicionar máquina",
+      "description": "Dê um nome ao computador. Em seguida, você recebe um código de entrada para usar nele.",
+      "name": "Nome",
+      "name_placeholder": "ex.: Notebook do trabalho",
+      "create": "Adicionar máquina",
+      "creating": "Adicionando...",
+      "code_title": "Conectar {name}",
+      "code_description": "Execute estes comandos na máquina. O código de entrada funciona uma vez e só é exibido agora: ao fechar esta janela, ele some.",
+      "step_join": "1. Entrar com o código",
+      "step_start": "2. Iniciar o serviço da máquina",
+      "copy": "Copiar",
+      "copied": "Copiado para a área de transferência",
+      "expires": "O código expira em {time}.",
+      "after": "Quando a máquina aparecer como Aguardando aprovação, confira o nome do host e aprove-a.",
+      "done": "Concluído"
+    },
+    "rename_dialog": {
+      "title": "Renomear máquina",
+      "save": "Salvar",
+      "saving": "Salvando..."
+    },
+    "approve_dialog": {
+      "title": "Aprovar {name}?",
+      "description": "A máquina informa o host {hostname} ({os}). Aprove-a apenas se for o seu próprio computador: ela executará suas tarefas de programação.",
+      "confirm": "Aprovar",
+      "confirming": "Aprovando..."
+    },
+    "remove_dialog": {
+      "title": "Remover {name}?",
+      "description": "A máquina é removida definitivamente: a chave dela para de funcionar na hora e ela não recebe mais tarefas. Para usá-la de novo, adicione-a novamente.",
+      "confirm": "Remover",
+      "confirming": "Removendo..."
+    },
+    "toasts": {
+      "added": "Máquina adicionada",
+      "add_failed": "Não foi possível adicionar a máquina",
+      "approved": "Máquina aprovada",
+      "approve_failed": "Não foi possível aprovar a máquina",
+      "renamed": "Máquina renomeada",
+      "rename_failed": "Não foi possível renomear a máquina",
+      "removed": "Máquina removida",
+      "remove_failed": "Não foi possível remover a máquina",
+      "revoked": "Máquina revogada",
+      "revoke_failed": "Não foi possível revogar a máquina"
+    },
+    "admin": {
+      "label": "Máquinas",
+      "title": "Máquinas",
+      "description": "Todas as máquinas que as pessoas deste espaço de trabalho adicionaram para suas tarefas de programação. Revogar uma a desliga na hora: a chave para de funcionar e ela não recebe tarefas.",
+      "empty": "Ninguém neste espaço de trabalho adicionou uma máquina ainda.",
+      "owner": "Proprietário",
+      "name": "Máquina",
+      "state": "Estado",
+      "status": "Conexão",
+      "last_seen": "Visto por último",
+      "never": "Nunca",
+      "revoke": "Revogar",
+      "revoke_dialog": {
+        "title": "Revogar {name}?",
+        "description": "Esta máquina de {owner} para de funcionar na hora e não recebe mais tarefas. Somente o proprietário pode removê-la.",
+        "confirm": "Revogar",
+        "confirming": "Revogando..."
+      }
+    }
+  }
+}

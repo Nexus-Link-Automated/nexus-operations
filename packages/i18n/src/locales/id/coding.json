@@ -1,0 +1,233 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Perbaiki bug",
+      "write_test": "Tulis tes",
+      "write_and_run_test": "Tulis & jalankan tes"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Tugas coding"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Agen coding mencoba memperbaiki bug ini dan membuka pull request. Setelah diperbaiki, item kerja dipindahkan ke In review.",
+        "write_test": "Agen coding menulis tes untuk item kerja ini dan membuka pull request. Tes tidak dijalankan. Setelah itu item kerja dipindahkan ke Ready.",
+        "write_and_run_test": "Agen coding menulis tes dan menjalankannya. Jika lulus, item kerja dipindahkan ke Ready; jika gagal karena kodenya mengandung bug, item kerja dipindahkan ke Failed."
+      },
+      "agent": "Agen",
+      "machine": "Mesin",
+      "machine_auto": "Otomatis",
+      "machine_hint": "Mesin Anda sendiri yang sudah disetujui dan sedang online. Otomatis memilih salah satunya.",
+      "start": "Mulai tugas",
+      "starting": "Memulai..."
+    },
+    "toasts": {
+      "started": "Tugas coding dimulai",
+      "start_failed": "Tidak dapat memulai tugas coding",
+      "cancelled": "Tugas coding dibatalkan",
+      "cancel_failed": "Tidak dapat membatalkan tugas coding",
+      "retried": "Tugas coding dimulai lagi",
+      "retry_failed": "Tidak dapat mencoba ulang tugas coding"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Tugas coding belum disiapkan untuk proyek ini. Admin proyek harus mengaktifkannya dan mengatur repositori.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Tugas coding tidak dapat dijalankan pada draf, item kerja yang diarsipkan, atau item kerja yang menunggu di Penerimaan.",
+      "JOB_ACTIVE": "Item kerja ini sudah memiliki tugas jenis ini yang sedang berjalan.",
+      "JOB_NOT_ACTIVE": "Tugas ini sudah berakhir, sehingga tidak dapat dibatalkan.",
+      "JOB_NOT_RETRYABLE": "Hanya tugas yang dibatalkan atau yang tidak selesai yang dapat dicoba ulang.",
+      "MACHINE_NOT_AVAILABLE": "Mesin itu bukan lagi salah satu mesin Anda yang disetujui. Pilih mesin lain atau Otomatis.",
+      "MACHINE_LIMIT": "Anda sudah memiliki jumlah mesin maksimum di ruang kerja ini. Hapus satu terlebih dahulu.",
+      "MACHINE_NOT_JOINED": "Mesin ini belum bergabung, jadi belum ada yang perlu disetujui.",
+      "MACHINE_REVOKED": "Mesin ini dicabut oleh admin ruang kerja.",
+      "forbidden": "Anda tidak memiliki izin untuk melakukan ini.",
+      "generic": "Terjadi kesalahan. Silakan coba lagi."
+    },
+    "panel": {
+      "title": "Tugas coding",
+      "refresh": "Segarkan tugas coding",
+      "empty": "Belum ada tugas coding.",
+      "load_failed": "Tidak dapat memuat tugas coding.",
+      "requested_by": "Dimulai oleh {name}",
+      "unknown_user": "Anggota tidak dikenal",
+      "finished": "Selesai {time}",
+      "error_reason": "Alasan",
+      "pr": "Pull request",
+      "cancel": "Batal",
+      "retry": "Coba lagi",
+      "waiting_for_machine": "Menunggu mesin",
+      "ran_on": "Dijalankan di {name}",
+      "started": "Dimulai {time}",
+      "progress": "Progres",
+      "progress_loading": "Memuat progres...",
+      "progress_empty": "Belum ada progres.",
+      "progress_load_failed": "Tidak dapat memuat progres."
+    },
+    "status": {
+      "queued": "Dalam antrean",
+      "running": "Berjalan",
+      "needs_input": "Perlu masukan",
+      "finished": "Selesai",
+      "cancelled": "Dibatalkan"
+    },
+    "outcome": {
+      "fixed": "Diperbaiki",
+      "could_not_fix": "Tidak dapat diperbaiki",
+      "test_written": "Tes ditulis",
+      "test_passed": "Tes lulus",
+      "bug_found": "Bug ditemukan",
+      "job_error": "Tidak selesai"
+    },
+    "event_kind": {
+      "status": "Status",
+      "message": "Pesan",
+      "tool": "Alat",
+      "plan": "Rencana"
+    },
+    "settings": {
+      "label": "Tugas coding",
+      "title": "Tugas coding",
+      "description": "Izinkan agen coding memperbaiki bug dan menulis tes dari item kerja proyek ini.",
+      "enabled": "Tugas coding",
+      "enabled_description": "Anggota dapat memulai Perbaiki bug, Tulis tes, dan Tulis & jalankan tes pada item kerja.",
+      "repo_url": "URL repositori",
+      "repo_url_hint": "Alamat https repositori tempat agen bekerja. Tanpa kredensial.",
+      "default_branch": "Cabang default",
+      "columns_title": "Kolom hasil",
+      "columns_description": "Status tujuan item kerja untuk setiap hasil.",
+      "column": {
+        "ready": "Siap",
+        "failed": "Gagal",
+        "in_review": "Dalam peninjauan"
+      },
+      "column_hint": {
+        "ready": "Setelah tes ditulis, atau ditulis dan lulus.",
+        "failed": "Saat tes gagal karena kode produk mengandung bug.",
+        "in_review": "Setelah bug diperbaiki dan pull request-nya dibuka."
+      },
+      "match_by_name": "Cocokkan berdasarkan nama (\"{name}\")",
+      "resolves_to": "Saat ini: {state}",
+      "resolves_to_by_name": "Saat ini: {state} (cocok berdasarkan nama)",
+      "resolves_none": "Saat ini: tidak ada status yang cocok, jadi item kerja tetap di tempatnya.",
+      "create_failed": "Buat kolom Failed",
+      "creating_failed": "Membuat...",
+      "failed_created": "Kolom Failed dibuat",
+      "create_failed_error": "Tidak dapat membuat kolom Failed",
+      "save": "Simpan perubahan",
+      "saving": "Menyimpan...",
+      "saved": "Pengaturan coding disimpan",
+      "save_failed": "Tidak dapat menyimpan pengaturan coding",
+      "read_only": "Hanya admin proyek yang dapat mengubah pengaturan ini.",
+      "not_configured": "Tugas coding nonaktif untuk proyek ini. Aktifkan dan atur repositori agar anggota dapat memulai tugas."
+    }
+  },
+  "coding_machines": {
+    "label": "Mesin",
+    "title": "Mesin",
+    "description": "Komputer Anda sendiri yang menjalankan tugas coding Anda di {workspace}. Setiap mesin memakai login Codex dan Claude miliknya sendiri dan hanya terhubung keluar ke CRM.",
+    "no_workspace": "Mesin dimiliki oleh sebuah ruang kerja. Bergabunglah atau buat ruang kerja untuk menambahkan mesin.",
+    "guest": "Mesin tidak tersedia untuk tamu.",
+    "empty": "Belum ada mesin. Tambahkan komputer Anda untuk menjalankan tugas coding Anda di sana.",
+    "load_failed": "Tidak dapat memuat mesin.",
+    "add": "Tambah mesin",
+    "state": {
+      "pending": "Menunggu bergabung",
+      "awaiting_approval": "Menunggu persetujuan",
+      "active": "Aktif",
+      "revoked": "Dicabut"
+    },
+    "online": "Online",
+    "offline": "Offline",
+    "last_seen": "terakhir terlihat {time}",
+    "never_seen": "belum pernah terhubung",
+    "host": "Host",
+    "agents": "Agen",
+    "no_agents": "Tidak ditemukan",
+    "agent_signed_in": "sudah masuk",
+    "agent_not_signed_in": "belum masuk",
+    "agent_not_installed": "belum terpasang",
+    "docker": "Docker",
+    "docker_available": "Tersedia",
+    "docker_unavailable": "Tidak tersedia",
+    "slots": "Slot kosong",
+    "slots_value": "{free} dari {total}",
+    "unknown": "tidak diketahui",
+    "pending_hint": "Menunggu mesin bergabung dengan kodenya. Kode berlaku hingga {time}.",
+    "pending_expired": "Kode bergabung kedaluwarsa sebelum mesin menggunakannya. Hapus mesin ini lalu tambahkan lagi.",
+    "awaiting_hint": "Mesin bergabung sebagai {hostname}. Jika itu komputer Anda, setujui agar dapat menjalankan tugas Anda.",
+    "revoked_hint": "Admin ruang kerja telah mencabut mesin ini: mesin tidak dapat terhubung atau menerima tugas. Anda dapat menghapusnya.",
+    "actions": {
+      "approve": "Setujui",
+      "rename": "Ganti nama",
+      "remove": "Hapus"
+    },
+    "add_dialog": {
+      "title": "Tambah mesin",
+      "description": "Beri nama komputer. Selanjutnya Anda mendapat kode bergabung untuk dipakai di sana.",
+      "name": "Nama",
+      "name_placeholder": "mis. Laptop kantor",
+      "create": "Tambah mesin",
+      "creating": "Menambahkan...",
+      "code_title": "Hubungkan {name}",
+      "code_description": "Jalankan perintah ini di mesin. Kode bergabung hanya berlaku sekali dan hanya ditampilkan sekarang: setelah dialog ini ditutup, kode akan hilang.",
+      "step_join": "1. Bergabung dengan kode",
+      "step_start": "2. Jalankan layanan mesin",
+      "copy": "Salin",
+      "copied": "Disalin ke papan klip",
+      "expires": "Kode kedaluwarsa pada {time}.",
+      "after": "Saat mesin tampil sebagai Menunggu persetujuan, periksa nama host-nya lalu setujui.",
+      "done": "Selesai"
+    },
+    "rename_dialog": {
+      "title": "Ganti nama mesin",
+      "save": "Simpan",
+      "saving": "Menyimpan..."
+    },
+    "approve_dialog": {
+      "title": "Setujui {name}?",
+      "description": "Mesin melaporkan host {hostname} ({os}). Setujui hanya jika ini komputer Anda sendiri: mesin ini akan menjalankan tugas coding Anda.",
+      "confirm": "Setujui",
+      "confirming": "Menyetujui..."
+    },
+    "remove_dialog": {
+      "title": "Hapus {name}?",
+      "description": "Mesin dihapus permanen: kuncinya langsung berhenti berfungsi dan tidak menerima tugas lagi. Untuk memakainya lagi, tambahkan kembali.",
+      "confirm": "Hapus",
+      "confirming": "Menghapus..."
+    },
+    "toasts": {
+      "added": "Mesin ditambahkan",
+      "add_failed": "Tidak dapat menambahkan mesin",
+      "approved": "Mesin disetujui",
+      "approve_failed": "Tidak dapat menyetujui mesin",
+      "renamed": "Nama mesin diganti",
+      "rename_failed": "Tidak dapat mengganti nama mesin",
+      "removed": "Mesin dihapus",
+      "remove_failed": "Tidak dapat menghapus mesin",
+      "revoked": "Mesin dicabut",
+      "revoke_failed": "Tidak dapat mencabut mesin"
+    },
+    "admin": {
+      "label": "Mesin",
+      "title": "Mesin",
+      "description": "Semua mesin yang ditambahkan orang-orang di ruang kerja ini untuk tugas coding mereka. Mencabut mesin langsung memutusnya: kuncinya berhenti berfungsi dan tidak menerima tugas.",
+      "empty": "Belum ada yang menambahkan mesin di ruang kerja ini.",
+      "owner": "Pemilik",
+      "name": "Mesin",
+      "state": "Keadaan",
+      "status": "Koneksi",
+      "last_seen": "Terakhir terlihat",
+      "never": "Tidak pernah",
+      "revoke": "Cabut",
+      "revoke_dialog": {
+        "title": "Cabut {name}?",
+        "description": "Mesin milik {owner} ini langsung berhenti berfungsi dan tidak menerima tugas lagi. Hanya pemiliknya yang dapat menghapusnya.",
+        "confirm": "Cabut",
+        "confirming": "Mencabut..."
+      }
+    }
+  }
+}

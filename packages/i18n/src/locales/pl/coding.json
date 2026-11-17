@@ -1,0 +1,233 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Napraw błąd",
+      "write_test": "Napisz test",
+      "write_and_run_test": "Napisz i uruchom test"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Zadanie programistyczne"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Agent programistyczny próbuje naprawić ten błąd i otwiera pull request. Po naprawie element pracy zostaje przeniesiony do „In review”.",
+        "write_test": "Agent programistyczny pisze test dla tego elementu pracy i otwiera pull request. Test nie jest uruchamiany. Następnie element pracy zostaje przeniesiony do „Ready”.",
+        "write_and_run_test": "Agent programistyczny pisze test i go uruchamia. Jeśli test przejdzie, element pracy zostaje przeniesiony do „Ready”; jeśli nie przejdzie z powodu błędu w kodzie, zostaje przeniesiony do „Failed”."
+      },
+      "agent": "Agent",
+      "machine": "Maszyna",
+      "machine_auto": "Automatycznie",
+      "machine_hint": "Twoje własne zatwierdzone maszyny, które są online. Automatycznie wybiera jedną z nich.",
+      "start": "Uruchom zadanie",
+      "starting": "Uruchamianie..."
+    },
+    "toasts": {
+      "started": "Uruchomiono zadanie programistyczne",
+      "start_failed": "Nie udało się uruchomić zadania programistycznego",
+      "cancelled": "Anulowano zadanie programistyczne",
+      "cancel_failed": "Nie udało się anulować zadania programistycznego",
+      "retried": "Ponownie uruchomiono zadanie programistyczne",
+      "retry_failed": "Nie udało się ponowić zadania programistycznego"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Zadania programistyczne nie są skonfigurowane dla tego projektu. Administrator projektu musi je włączyć i ustawić repozytorium.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Zadań programistycznych nie można uruchamiać dla szkiców, zarchiwizowanych elementów pracy ani elementów pracy oczekujących w Zgłoszeniach.",
+      "JOB_ACTIVE": "Dla tego elementu pracy trwa już zadanie tego rodzaju.",
+      "JOB_NOT_ACTIVE": "To zadanie już się zakończyło, więc nie można go anulować.",
+      "JOB_NOT_RETRYABLE": "Ponowić można tylko anulowane zadanie lub takie, które się nie zakończyło.",
+      "MACHINE_NOT_AVAILABLE": "Ta maszyna nie jest już jedną z Twoich zatwierdzonych maszyn. Wybierz inną lub Automatycznie.",
+      "MACHINE_LIMIT": "Masz już maksymalną liczbę maszyn w tej przestrzeni roboczej. Najpierw usuń jedną.",
+      "MACHINE_NOT_JOINED": "Ta maszyna jeszcze nie dołączyła, więc nie ma czego zatwierdzać.",
+      "MACHINE_REVOKED": "Tę maszynę odwołał administrator przestrzeni roboczej.",
+      "forbidden": "Brak uprawnień do wykonania tej czynności.",
+      "generic": "Coś poszło nie tak. Spróbuj ponownie."
+    },
+    "panel": {
+      "title": "Zadania programistyczne",
+      "refresh": "Odśwież zadania programistyczne",
+      "empty": "Brak zadań programistycznych.",
+      "load_failed": "Nie udało się wczytać zadań programistycznych.",
+      "requested_by": "Uruchomione przez: {name}",
+      "unknown_user": "Nieznany członek",
+      "finished": "Zakończone {time}",
+      "error_reason": "Powód",
+      "pr": "Pull request",
+      "cancel": "Anuluj",
+      "retry": "Ponów",
+      "waiting_for_machine": "Czeka na maszynę",
+      "ran_on": "Uruchomiono na {name}",
+      "started": "Rozpoczęto {time}",
+      "progress": "Postęp",
+      "progress_loading": "Ładowanie postępu...",
+      "progress_empty": "Brak postępu.",
+      "progress_load_failed": "Nie udało się wczytać postępu."
+    },
+    "status": {
+      "queued": "W kolejce",
+      "running": "W toku",
+      "needs_input": "Wymaga danych",
+      "finished": "Zakończone",
+      "cancelled": "Anulowane"
+    },
+    "outcome": {
+      "fixed": "Naprawiono",
+      "could_not_fix": "Nie udało się naprawić",
+      "test_written": "Napisano test",
+      "test_passed": "Test zaliczony",
+      "bug_found": "Znaleziono błąd",
+      "job_error": "Nie zakończono"
+    },
+    "event_kind": {
+      "status": "Status",
+      "message": "Wiadomość",
+      "tool": "Narzędzie",
+      "plan": "Plan"
+    },
+    "settings": {
+      "label": "Zadania programistyczne",
+      "title": "Zadania programistyczne",
+      "description": "Pozwól agentom programistycznym naprawiać błędy i pisać testy na podstawie elementów pracy tego projektu.",
+      "enabled": "Zadania programistyczne",
+      "enabled_description": "Członkowie mogą uruchamiać „Napraw błąd”, „Napisz test” oraz „Napisz i uruchom test” dla elementów pracy.",
+      "repo_url": "URL repozytorium",
+      "repo_url_hint": "Adres https repozytorium, w którym pracują agenci. Bez danych uwierzytelniających.",
+      "default_branch": "Domyślna gałąź",
+      "columns_title": "Kolumny wyników",
+      "columns_description": "Stan, do którego każdy wynik przenosi element pracy.",
+      "column": {
+        "ready": "Gotowe",
+        "failed": "Nieudane",
+        "in_review": "W przeglądzie"
+      },
+      "column_hint": {
+        "ready": "Po napisaniu testu lub gdy test jest napisany i zaliczony.",
+        "failed": "Gdy test nie przechodzi, ponieważ kod produktu zawiera błąd.",
+        "in_review": "Po naprawieniu błędu i otwarciu jego pull requesta."
+      },
+      "match_by_name": "Dopasuj po nazwie („{name}”)",
+      "resolves_to": "Obecnie: {state}",
+      "resolves_to_by_name": "Obecnie: {state} (dopasowano po nazwie)",
+      "resolves_none": "Obecnie: brak pasującego stanu, więc element pracy pozostaje na miejscu.",
+      "create_failed": "Utwórz kolumnę Failed",
+      "creating_failed": "Tworzenie...",
+      "failed_created": "Utworzono kolumnę Failed",
+      "create_failed_error": "Nie udało się utworzyć kolumny Failed",
+      "save": "Zapisz zmiany",
+      "saving": "Zapisywanie...",
+      "saved": "Zapisano ustawienia zadań programistycznych",
+      "save_failed": "Nie udało się zapisać ustawień zadań programistycznych",
+      "read_only": "Tylko administratorzy projektu mogą zmieniać te ustawienia.",
+      "not_configured": "Zadania programistyczne są wyłączone dla tego projektu. Włącz je i ustaw repozytorium, aby członkowie mogli uruchamiać zadania."
+    }
+  },
+  "coding_machines": {
+    "label": "Maszyny",
+    "title": "Maszyny",
+    "description": "Twoje własne komputery, które wykonują Twoje zadania programistyczne w {workspace}. Każdy używa własnych logowań do Codex i Claude i łączy się z CRM wyłącznie na zewnątrz.",
+    "no_workspace": "Maszyny należą do przestrzeni roboczej. Dołącz do przestrzeni roboczej lub ją utwórz, aby dodać maszynę.",
+    "guest": "Maszyny nie są dostępne dla gości.",
+    "empty": "Brak maszyn. Dodaj swój komputer, aby uruchamiać na nim swoje zadania programistyczne.",
+    "load_failed": "Nie udało się wczytać maszyn.",
+    "add": "Dodaj maszynę",
+    "state": {
+      "pending": "Oczekuje na dołączenie",
+      "awaiting_approval": "Oczekuje na zatwierdzenie",
+      "active": "Aktywna",
+      "revoked": "Odwołana"
+    },
+    "online": "Online",
+    "offline": "Offline",
+    "last_seen": "ostatnio {time}",
+    "never_seen": "nigdy nie połączona",
+    "host": "Host",
+    "agents": "Agenci",
+    "no_agents": "Nie znaleziono",
+    "agent_signed_in": "zalogowany",
+    "agent_not_signed_in": "niezalogowany",
+    "agent_not_installed": "niezainstalowany",
+    "docker": "Docker",
+    "docker_available": "Dostępny",
+    "docker_unavailable": "Niedostępny",
+    "slots": "Wolne sloty",
+    "slots_value": "{free} z {total}",
+    "unknown": "nieznany",
+    "pending_hint": "Oczekiwanie, aż maszyna dołączy za pomocą swojego kodu. Kod jest ważny do {time}.",
+    "pending_expired": "Kod dołączenia wygasł, zanim maszyna go użyła. Usuń tę maszynę i dodaj ją ponownie.",
+    "awaiting_hint": "Maszyna dołączyła jako {hostname}. Jeśli to Twój komputer, zatwierdź ją, aby mogła wykonywać Twoje zadania.",
+    "revoked_hint": "Administrator przestrzeni roboczej odwołał tę maszynę: nie może się łączyć ani otrzymywać zadań. Możesz ją usunąć.",
+    "actions": {
+      "approve": "Zatwierdź",
+      "rename": "Zmień nazwę",
+      "remove": "Usuń"
+    },
+    "add_dialog": {
+      "title": "Dodaj maszynę",
+      "description": "Nadaj komputerowi nazwę. Następnie otrzymasz kod dołączenia do użycia na nim.",
+      "name": "Nazwa",
+      "name_placeholder": "np. Laptop służbowy",
+      "create": "Dodaj maszynę",
+      "creating": "Dodawanie...",
+      "code_title": "Połącz {name}",
+      "code_description": "Uruchom te polecenia na maszynie. Kod dołączenia działa raz i jest pokazywany tylko teraz: po zamknięciu tego okna zniknie.",
+      "step_join": "1. Dołącz za pomocą kodu",
+      "step_start": "2. Uruchom usługę maszyny",
+      "copy": "Kopiuj",
+      "copied": "Skopiowano do schowka",
+      "expires": "Kod wygasa {time}.",
+      "after": "Gdy maszyna pojawi się jako Oczekuje na zatwierdzenie, sprawdź jej nazwę hosta i ją zatwierdź.",
+      "done": "Gotowe"
+    },
+    "rename_dialog": {
+      "title": "Zmień nazwę maszyny",
+      "save": "Zapisz",
+      "saving": "Zapisywanie..."
+    },
+    "approve_dialog": {
+      "title": "Zatwierdzić {name}?",
+      "description": "Maszyna zgłasza host {hostname} ({os}). Zatwierdź ją tylko wtedy, gdy to Twój własny komputer: będzie wykonywać Twoje zadania programistyczne.",
+      "confirm": "Zatwierdź",
+      "confirming": "Zatwierdzanie..."
+    },
+    "remove_dialog": {
+      "title": "Usunąć {name}?",
+      "description": "Maszyna zostanie usunięta na stałe: jej klucz od razu przestanie działać i nie dostanie więcej zadań. Aby znów jej używać, dodaj ją ponownie.",
+      "confirm": "Usuń",
+      "confirming": "Usuwanie..."
+    },
+    "toasts": {
+      "added": "Dodano maszynę",
+      "add_failed": "Nie udało się dodać maszyny",
+      "approved": "Zatwierdzono maszynę",
+      "approve_failed": "Nie udało się zatwierdzić maszyny",
+      "renamed": "Zmieniono nazwę maszyny",
+      "rename_failed": "Nie udało się zmienić nazwy maszyny",
+      "removed": "Usunięto maszynę",
+      "remove_failed": "Nie udało się usunąć maszyny",
+      "revoked": "Odwołano maszynę",
+      "revoke_failed": "Nie udało się odwołać maszyny"
+    },
+    "admin": {
+      "label": "Maszyny",
+      "title": "Maszyny",
+      "description": "Wszystkie maszyny, które osoby w tej przestrzeni roboczej dodały do swoich zadań programistycznych. Odwołanie maszyny natychmiast ją odcina: jej klucz przestaje działać i nie dostaje zadań.",
+      "empty": "Nikt w tej przestrzeni roboczej nie dodał jeszcze maszyny.",
+      "owner": "Właściciel",
+      "name": "Maszyna",
+      "state": "Stan",
+      "status": "Połączenie",
+      "last_seen": "Ostatnio widziana",
+      "never": "Nigdy",
+      "revoke": "Odwołaj",
+      "revoke_dialog": {
+        "title": "Odwołać {name}?",
+        "description": "Ta maszyna użytkownika {owner} od razu przestanie działać i nie dostanie więcej zadań. Tylko jej właściciel może ją usunąć.",
+        "confirm": "Odwołaj",
+        "confirming": "Odwoływanie..."
+      }
+    }
+  }
+}

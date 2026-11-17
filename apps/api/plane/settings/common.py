@@ -111,6 +111,7 @@ INSTALLED_APPS = [
     "plane.authentication",
     "plane.nexus",
     "plane.chat",
+    "plane.coding",
     # Third-party things
     "rest_framework",
     "corsheaders",
@@ -492,9 +493,14 @@ CELERY_IMPORTS = (
     "plane.chat.retention",
     # chat exports from God mode
     "plane.chat.export",
+    # coding jobs whose machine went quiet or ran out of time
+    "plane.coding.tasks",
 )
 
 FILE_SIZE_LIMIT = int(os.environ.get("FILE_SIZE_LIMIT", 5242880))
+
+# How long a coding job may run on a machine before it is stopped (plane.coding.dispatch).
+CODING_JOB_TIMEOUT_MINUTES = os.environ.get("CODING_JOB_TIMEOUT_MINUTES", "60")
 
 # Unsplash Access key
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY")

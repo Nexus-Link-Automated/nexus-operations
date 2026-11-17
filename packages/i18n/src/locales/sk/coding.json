@@ -1,0 +1,233 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Opraviť chybu",
+      "write_test": "Napísať test",
+      "write_and_run_test": "Napísať a spustiť test"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Programovacia úloha"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Programovací agent sa pokúsi túto chybu opraviť a otvorí pull request. Po oprave sa pracovná položka presunie do stavu In review.",
+        "write_test": "Programovací agent napíše test pre túto pracovnú položku a otvorí pull request. Test sa nespúšťa. Pracovná položka sa potom presunie do stavu Ready.",
+        "write_and_run_test": "Programovací agent napíše test a spustí ho. Ak test prejde, pracovná položka sa presunie do stavu Ready; ak zlyhá kvôli chybe v kóde, presunie sa do stavu Failed."
+      },
+      "agent": "Agent",
+      "machine": "Stroj",
+      "machine_auto": "Automaticky",
+      "machine_hint": "Vaše vlastné schválené stroje, ktoré sú online. Automaticky vyberie jeden z nich.",
+      "start": "Spustiť úlohu",
+      "starting": "Spúšťanie..."
+    },
+    "toasts": {
+      "started": "Programovacia úloha bola spustená",
+      "start_failed": "Programovaciu úlohu sa nepodarilo spustiť",
+      "cancelled": "Programovacia úloha bola zrušená",
+      "cancel_failed": "Programovaciu úlohu sa nepodarilo zrušiť",
+      "retried": "Programovacia úloha bola znova spustená",
+      "retry_failed": "Programovaciu úlohu sa nepodarilo zopakovať"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Programovacie úlohy nie sú pre tento projekt nastavené. Správca projektu ich musí zapnúť a nastaviť repozitár.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Programovacie úlohy nemožno spúšťať na konceptoch, archivovaných pracovných položkách ani na pracovných položkách čakajúcich v príjme.",
+      "JOB_ACTIVE": "Táto pracovná položka už má rozpracovanú úlohu tohto typu.",
+      "JOB_NOT_ACTIVE": "Táto úloha už skončila, preto ju nemožno zrušiť.",
+      "JOB_NOT_RETRYABLE": "Zopakovať možno iba zrušenú úlohu alebo úlohu, ktorá nebola dokončená.",
+      "MACHINE_NOT_AVAILABLE": "Tento stroj už nepatrí medzi vaše schválené stroje. Vyberte iný alebo Automaticky.",
+      "MACHINE_LIMIT": "V tomto pracovnom priestore už máte maximálny povolený počet strojov. Najprv jeden odstráňte.",
+      "MACHINE_NOT_JOINED": "Tento stroj sa ešte nepripojil, takže nie je čo schváliť.",
+      "MACHINE_REVOKED": "Tento stroj odvolal správca pracovného priestoru.",
+      "forbidden": "Nemáte povolenie na túto akciu.",
+      "generic": "Niečo sa pokazilo. Skúste to prosím znova."
+    },
+    "panel": {
+      "title": "Programovacie úlohy",
+      "refresh": "Obnoviť programovacie úlohy",
+      "empty": "Zatiaľ žiadne programovacie úlohy.",
+      "load_failed": "Programovacie úlohy sa nepodarilo načítať.",
+      "requested_by": "Spustil(a) {name}",
+      "unknown_user": "Neznámy člen",
+      "finished": "Dokončené {time}",
+      "error_reason": "Dôvod",
+      "pr": "Pull request",
+      "cancel": "Zrušiť",
+      "retry": "Skúsiť znova",
+      "waiting_for_machine": "Čaká na počítač",
+      "ran_on": "Bežalo na {name}",
+      "started": "Spustené {time}",
+      "progress": "Priebeh",
+      "progress_loading": "Načítava sa priebeh...",
+      "progress_empty": "Zatiaľ žiadny priebeh.",
+      "progress_load_failed": "Priebeh sa nepodarilo načítať."
+    },
+    "status": {
+      "queued": "V poradí",
+      "running": "Prebieha",
+      "needs_input": "Vyžaduje vstup",
+      "finished": "Dokončené",
+      "cancelled": "Zrušené"
+    },
+    "outcome": {
+      "fixed": "Opravené",
+      "could_not_fix": "Nepodarilo sa opraviť",
+      "test_written": "Test napísaný",
+      "test_passed": "Test prešiel",
+      "bug_found": "Nájdená chyba",
+      "job_error": "Nedokončené"
+    },
+    "event_kind": {
+      "status": "Stav",
+      "message": "Správa",
+      "tool": "Nástroj",
+      "plan": "Plán"
+    },
+    "settings": {
+      "label": "Programovacie úlohy",
+      "title": "Programovacie úlohy",
+      "description": "Umožnite programovacím agentom opravovať chyby a písať testy z pracovných položiek tohto projektu.",
+      "enabled": "Programovacie úlohy",
+      "enabled_description": "Členovia môžu pri pracovných položkách spúšťať akcie Opraviť chybu, Napísať test a Napísať a spustiť test.",
+      "repo_url": "URL repozitára",
+      "repo_url_hint": "Adresa https repozitára, v ktorom agenti pracujú. Bez prihlasovacích údajov.",
+      "default_branch": "Predvolená vetva",
+      "columns_title": "Stĺpce výsledkov",
+      "columns_description": "Stav, do ktorého jednotlivé výsledky presunú pracovnú položku.",
+      "column": {
+        "ready": "Pripravené",
+        "failed": "Zlyhalo",
+        "in_review": "V revízii"
+      },
+      "column_hint": {
+        "ready": "Po napísaní testu, alebo po jeho napísaní a úspešnom prechode.",
+        "failed": "Keď test zlyhá kvôli chybe v kóde produktu.",
+        "in_review": "Po oprave chyby a otvorení jej pull requestu."
+      },
+      "match_by_name": "Zhoda podľa názvu („{name}“)",
+      "resolves_to": "Teraz: {state}",
+      "resolves_to_by_name": "Teraz: {state} (zhoda podľa názvu)",
+      "resolves_none": "Teraz: žiadny zodpovedajúci stav, pracovná položka teda zostane, kde je.",
+      "create_failed": "Vytvoriť stĺpec Failed",
+      "creating_failed": "Vytváranie...",
+      "failed_created": "Stĺpec Failed bol vytvorený",
+      "create_failed_error": "Stĺpec Failed sa nepodarilo vytvoriť",
+      "save": "Uložiť zmeny",
+      "saving": "Ukladanie...",
+      "saved": "Nastavenia programovania boli uložené",
+      "save_failed": "Nastavenia programovania sa nepodarilo uložiť",
+      "read_only": "Tieto nastavenia môžu meniť iba správcovia projektu.",
+      "not_configured": "Programovacie úlohy sú pre tento projekt vypnuté. Zapnite ich a nastavte repozitár, aby členovia mohli spúšťať úlohy."
+    }
+  },
+  "coding_machines": {
+    "label": "Stroje",
+    "title": "Stroje",
+    "description": "Vaše vlastné počítače, ktoré spúšťajú vaše programovacie úlohy v {workspace}. Každý používa vlastné prihlásenie do Codexu a Claude a k CRM sa pripája iba smerom von.",
+    "no_workspace": "Stroje patria k pracovnému priestoru. Pripojte sa k pracovnému priestoru alebo ho vytvorte, aby ste mohli pridať stroj.",
+    "guest": "Stroje nie sú dostupné pre hostí.",
+    "empty": "Zatiaľ žiadne stroje. Pridajte svoj počítač, aby ste na ňom spúšťali svoje programovacie úlohy.",
+    "load_failed": "Stroje sa nepodarilo načítať.",
+    "add": "Pridať stroj",
+    "state": {
+      "pending": "Čaká na pripojenie",
+      "awaiting_approval": "Čaká na schválenie",
+      "active": "Aktívny",
+      "revoked": "Odvolaný"
+    },
+    "online": "Online",
+    "offline": "Offline",
+    "last_seen": "naposledy {time}",
+    "never_seen": "nikdy nepripojený",
+    "host": "Hostiteľ",
+    "agents": "Agenti",
+    "no_agents": "Žiadni nenájdení",
+    "agent_signed_in": "prihlásený",
+    "agent_not_signed_in": "neprihlásený",
+    "agent_not_installed": "nenainštalovaný",
+    "docker": "Docker",
+    "docker_available": "Dostupný",
+    "docker_unavailable": "Nedostupný",
+    "slots": "Voľné sloty",
+    "slots_value": "{free} z {total}",
+    "unknown": "neznámy",
+    "pending_hint": "Čaká sa, kým sa stroj pripojí pomocou svojho kódu. Kód platí do {time}.",
+    "pending_expired": "Platnosť pripájacieho kódu vypršala skôr, ako ho stroj použil. Odstráňte tento stroj a pridajte ho znova.",
+    "awaiting_hint": "Stroj sa pripojil ako {hostname}. Ak je to váš počítač, schváľte ho, aby mohol spúšťať vaše úlohy.",
+    "revoked_hint": "Správca pracovného priestoru tento stroj odvolal: nemôže sa pripojiť ani dostávať úlohy. Môžete ho odstrániť.",
+    "actions": {
+      "approve": "Schváliť",
+      "rename": "Premenovať",
+      "remove": "Odstrániť"
+    },
+    "add_dialog": {
+      "title": "Pridať stroj",
+      "description": "Pomenujte počítač. Potom dostanete pripájací kód, ktorý na ňom použijete.",
+      "name": "Názov",
+      "name_placeholder": "napr. Pracovný notebook",
+      "create": "Pridať stroj",
+      "creating": "Pridáva sa...",
+      "code_title": "Pripojiť {name}",
+      "code_description": "Spustite tieto príkazy na stroji. Pripájací kód funguje raz a zobrazí sa iba teraz: keď toto okno zatvoríte, zmizne.",
+      "step_join": "1. Pripojiť sa pomocou kódu",
+      "step_start": "2. Spustiť službu stroja",
+      "copy": "Kopírovať",
+      "copied": "Skopírované do schránky",
+      "expires": "Kód vyprší {time}.",
+      "after": "Keď sa stroj zobrazí ako Čaká na schválenie, skontrolujte jeho názov hostiteľa a schváľte ho.",
+      "done": "Hotovo"
+    },
+    "rename_dialog": {
+      "title": "Premenovať stroj",
+      "save": "Uložiť",
+      "saving": "Ukladá sa..."
+    },
+    "approve_dialog": {
+      "title": "Schváliť {name}?",
+      "description": "Stroj hlási hostiteľa {hostname} ({os}). Schváľte ho, iba ak je to váš vlastný počítač: bude spúšťať vaše programovacie úlohy.",
+      "confirm": "Schváliť",
+      "confirming": "Schvaľuje sa..."
+    },
+    "remove_dialog": {
+      "title": "Odstrániť {name}?",
+      "description": "Stroj sa odstráni natrvalo: jeho kľúč okamžite prestane fungovať a nebude dostávať ďalšie úlohy. Ak ho chcete znova používať, pridajte ho znova.",
+      "confirm": "Odstrániť",
+      "confirming": "Odstraňuje sa..."
+    },
+    "toasts": {
+      "added": "Stroj pridaný",
+      "add_failed": "Stroj sa nepodarilo pridať",
+      "approved": "Stroj schválený",
+      "approve_failed": "Stroj sa nepodarilo schváliť",
+      "renamed": "Stroj premenovaný",
+      "rename_failed": "Stroj sa nepodarilo premenovať",
+      "removed": "Stroj odstránený",
+      "remove_failed": "Stroj sa nepodarilo odstrániť",
+      "revoked": "Stroj odvolaný",
+      "revoke_failed": "Stroj sa nepodarilo odvolať"
+    },
+    "admin": {
+      "label": "Stroje",
+      "title": "Stroje",
+      "description": "Všetky stroje, ktoré ľudia v tomto pracovnom priestore pridali pre svoje programovacie úlohy. Odvolanie stroj okamžite odpojí: jeho kľúč prestane fungovať a nedostane žiadne úlohy.",
+      "empty": "V tomto pracovnom priestore zatiaľ nikto nepridal stroj.",
+      "owner": "Vlastník",
+      "name": "Stroj",
+      "state": "Stav",
+      "status": "Pripojenie",
+      "last_seen": "Naposledy videný",
+      "never": "Nikdy",
+      "revoke": "Odvolať",
+      "revoke_dialog": {
+        "title": "Odvolať {name}?",
+        "description": "Tento stroj používateľa {owner} okamžite prestane fungovať a nebude dostávať ďalšie úlohy. Odstrániť ho môže iba jeho vlastník.",
+        "confirm": "Odvolať",
+        "confirming": "Odvoláva sa..."
+      }
+    }
+  }
+}

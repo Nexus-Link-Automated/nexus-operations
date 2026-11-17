@@ -17,6 +17,8 @@ from __future__ import annotations
 from types import ModuleType
 
 from plane_mcp.tools import (
+    coding_job,
+    coding_machine,
     collection,
     customer,
     customer_property,
@@ -80,6 +82,8 @@ RESOURCES: tuple[ModuleType, ...] = (
     workspace,
     template,
     collection,
+    coding_job,
+    coding_machine,
 )
 
 
