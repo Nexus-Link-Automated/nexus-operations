@@ -25,6 +25,8 @@ export type Ask = (jobId: string, question: string, signal: AbortSignal) => Prom
 
 const POLL_MS = 5_000;
 const RETRY_MS = 15_000;
+/** The longest a job waits for an answer, whatever the CRM says. */
+const MAX_WAIT_MS = 2 * 60 * 60_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -43,13 +45,19 @@ export function notAsked(reason: string): string {
 export function a2aAsker(
   client: A2AClient,
   key: string,
-  options: { pollMs?: number; retryMs?: number; sleep?: (ms: number, signal: AbortSignal) => Promise<void> } = {}
+  options: {
+    pollMs?: number;
+    retryMs?: number;
+    maxWaitMs?: number;
+    sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+  } = {}
 ): Ask {
   const sleep = options.sleep ?? ((ms, signal) => wait(ms, undefined, { signal }).catch(() => undefined));
   let requestId = 0;
   const call = async (method: string, params: Record<string, unknown>, signal: AbortSignal) => {
-    // Retries while the CRM cannot be reached; a JSON-RPC answer (result or error) ends it.
-    while (!signal.aborted) {
+    // Retries while the CRM cannot be reached (at most an hour); a JSON-RPC answer (result or error) ends it.
+    const until = Date.now() + 60 * 60_000;
+    while (!signal.aborted && Date.now() < until) {
       const answer = await client.a2a(key, { jsonrpc: "2.0", id: ++requestId, method, params }, signal);
       if (answer.kind === "ok") return answer.value;
       if (answer.kind === "http" && answer.status !== 429 && answer.status < 500) {
@@ -80,10 +88,14 @@ export function a2aAsker(
     );
     if (!sent) return undefined;
     if (isRecord(sent.error)) return notAsked(String(sent.error.message ?? "the CRM refused it"));
+    const giveUpAt = Date.now() + (options.maxWaitMs ?? MAX_WAIT_MS);
     while (!signal.aborted) {
       await sleep(options.pollMs ?? POLL_MS, signal);
       if (signal.aborted) break;
+      // The CRM ends an unanswered question itself (30 minutes); this is only a backstop.
+      if (Date.now() > giveUpAt) return notAsked("no answer came");
       const got = await call("tasks/get", { id: jobId }, signal);
+      if (got && isRecord(got.error)) return notAsked(String(got.error.message ?? "the CRM could not say"));
       const task = got && isRecord(got.result) ? got.result : undefined;
       if (!task) continue;
       const history = Array.isArray(task.history) ? task.history : [];

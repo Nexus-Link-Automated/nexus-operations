@@ -333,9 +333,11 @@ To remove it: `systemctl --user disable --now nexus-machine`, then delete the fi
    wrote as its next prompt in the same session. The job's time limit stops while it waits. At most
    3 questions per job; a question written next to a result is not asked.
 7. The agent writes its result to `/job/out/result.json` (`NEXUS_RESULT_FILE`). Inside the
-   container, the machine lists what changed since the starting commit (`git diff --name-status`,
-   so commits the agent made count too) and writes the changes as a patch (`git diff --binary`);
-   then the container is removed, and only then is anything it wrote read: as a regular file only
+   container, the machine lists what changed since the starting commit (`git diff --raw`, so
+   commits the agent made count too; nested repositories are left out) and writes the changes as a
+   patch (`git diff --binary`); then the container is removed (and checked to be gone: if it is
+   not, nothing it wrote is read and the job ends as a job error), and only then is anything it
+   wrote read: as a regular file only
    (never through a link, never a FIFO), with a size limit. The machine keeps only the fields the
    outcome allows (never `pr_url` or a branch), cuts them to the CRM's limits, adds
    `changed_files`, and sends it. No result, a broken one, a crash, a failed clone, a missing
@@ -343,8 +345,9 @@ To remove it: `systemctl --user disable --now nexus-machine`, then delete the fi
 8. With an outcome that has code (`fixed`, `test_written`, `test_passed`, `bug_found`), the
    machine also sends the changed files: the starting commit and each file's new content and mode
    (or that it was deleted), read on your computer from the clone after the container is gone.
-   Each path is checked (inside the repository, nothing under `.git`), no folder on the way may be
-   a symlink, and a file is never read through a link; a symlink is sent as a symlink. At most 200
+   Each path is checked (inside the repository, nothing under `.git`), the clone's folder and every
+   folder on the way must be real folders under the clone (no symlinks), and a file is opened
+   without following links and must turn out to be under the clone; a symlink is sent as a symlink. At most 200
    files and 3 MB in all; past that, or when a file cannot be read, the machine sends the outcome
    without the files and says why. **The CRM, not the machine, pushes them**: to the job's own
    branch (`nexus/<action>/<job>`) with its GitHub App, and opens the pull request. No token that
@@ -369,16 +372,22 @@ jobs left and the egress proxy before it exits.
 ### Network
 
 Job containers sit on an internal Docker network of this machine's (`nexus-jobs-<machine>`, made
-with `--internal`: no route anywhere). Their only way out is the **egress proxy**, a container from
-the job image (`machine/job-image/egress-proxy.mjs`, as `nobody`, read-only, no capabilities) that
-is on that network as `nexus-egress` and on Docker's default one. Job containers get `HTTP_PROXY`,
-`HTTPS_PROXY` (and `NODE_USE_ENV_PROXY=1`), which git, curl, npm, pip, Codex and Claude follow. The
-proxy forwards HTTPS (`CONNECT`) and plain HTTP only to **public addresses** on ports **80 and
-443**: it resolves the name itself, refuses private, loopback, link-local (cloud metadata),
-carrier-grade NAT, multicast and other special ranges (IPv4 and IPv6, IPv4-mapped included), and
+with `--internal` and an isolated gateway: no route anywhere, and no address on this computer's
+side, so not even this computer is reachable). It needs **Docker 28 or later**; on an older Docker
+no job runs until it is upgraded (or egress is opened, below). Their only way out is the **egress
+proxy**, a container from the job image (`machine/job-image/egress-proxy.mjs`, as `nobody`,
+read-only, no capabilities, restarted with Docker, log capped at 20 MB) that is on that network as
+`nexus-egress` and on Docker's default one. Each job checks the proxy before it starts. Job
+containers get `HTTP_PROXY`, `HTTPS_PROXY` (and `NODE_USE_ENV_PROXY=1`), which git, curl, npm, pip,
+Codex and Claude follow; tools that ignore them cannot connect at all. The proxy forwards HTTPS
+(`CONNECT`) and plain HTTP only to **public IPv4 addresses** on ports **80 and 443**: it resolves
+the name itself (IPv4 only), refuses private, loopback, link-local (cloud metadata), carrier-grade
+NAT, multicast and other special ranges (IP literals in IPv6 form are judged the same way), and
 connects to the address it checked. So a job reaches the agents' APIs, package registries and the
-repository, but not your LAN, this computer or a cloud VM's metadata endpoint. Refusals are logged
-by the proxy (`docker logs nexus-egress-<machine>`).
+repository, but not your LAN or a cloud VM's metadata endpoint. One thing it does not know: if this
+computer has a public IPv4 address of its own, services on it that listen on ports 80 or 443 are
+reachable like any public address. Refusals are logged by the proxy (`docker logs
+nexus-egress-<machine>`), at most one line a second.
 
 - `NEXUS_MACHINE_EGRESS_PORTS=22,8443` (in the env file) allows more ports besides 80 and 443,
   still to public addresses only. Tools that ignore proxy settings cannot connect at all.

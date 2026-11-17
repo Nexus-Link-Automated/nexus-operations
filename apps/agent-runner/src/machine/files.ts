@@ -12,6 +12,7 @@ import {
   lstatSync,
   openSync,
   readdirSync,
+  readlinkSync,
   readSync,
   rmSync,
 } from "node:fs";
@@ -27,7 +28,9 @@ import path from "node:path";
 /** The file's bytes when it is a regular file of at most `maxBytes`; otherwise why not. */
 export function readRegularBytes(
   file: string,
-  maxBytes: number
+  maxBytes: number,
+  /** When set, the opened file must be inside this (real) folder, whatever links were on the way. */
+  within?: string
 ):
   | { readonly ok: true; readonly bytes: Buffer; readonly executable: boolean }
   | { readonly ok: false; readonly missing: boolean; readonly error: string } {
@@ -42,6 +45,9 @@ export function readRegularBytes(
   try {
     const stat = fstatSync(fd);
     if (!stat.isFile()) return { ok: false, missing: false, error: "not a regular file" };
+    if (within !== undefined && !openedWithin(fd, within)) {
+      return { ok: false, missing: false, error: "outside the job's folder" };
+    }
     if (stat.size > maxBytes) return { ok: false, missing: false, error: "too large" };
     const buffer = Buffer.alloc(Math.min(stat.size, maxBytes));
     let read = 0;
@@ -56,6 +62,17 @@ export function readRegularBytes(
   } finally {
     closeSync(fd);
   }
+}
+
+/** Where an open file really is (Linux `/proc/self/fd`); without `/proc` the caller's other checks stand alone. */
+function openedWithin(fd: number, folder: string): boolean {
+  let real: string;
+  try {
+    real = readlinkSync(`/proc/self/fd/${fd}`);
+  } catch {
+    return true;
+  }
+  return real.startsWith(folder.endsWith(path.sep) ? folder : `${folder}${path.sep}`);
 }
 
 /** The file's text when it is a regular file of at most `maxBytes`; otherwise why not. */

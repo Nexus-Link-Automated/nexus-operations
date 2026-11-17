@@ -58,6 +58,7 @@ class ProcessSandboxes implements SandboxProvider {
   created: { order: JobOrder; dirs: JobDirs; destroyed: boolean; env?: AgentEnv; token?: string | undefined }[] = [];
   agentMode = "fixed";
   cloneError: string | undefined;
+  destroyFails = false;
 
   status() {
     return { ready: this.ready };
@@ -110,9 +111,15 @@ class ProcessSandboxes implements SandboxProvider {
         expect(base).toBe(BASE_COMMIT);
         const files = readdirSync(repo).filter((name) => name !== "README.md");
         if (files.length) writeFileSync(path.join(dirs.out, "changes.patch"), `+${files.join("\n+")}\n`);
-        return files.map((file) => ({ status: "A" as const, path: file }));
+        const zero = "0".repeat(40);
+        const raw = files.map((file) => `:000000 100644 ${zero} ${"1".repeat(40)} A\0${file}\0`).join("");
+        writeFileSync(path.join(dirs.out, "changes.list"), raw);
       },
       destroy: async () => {
+        if (this.destroyFails) {
+          const { SandboxError } = await import("../src/machine/sandbox.ts");
+          throw new SandboxError("Could not remove the job's container, so nothing it wrote was read.");
+        }
         record.destroyed = true;
         for (const child of children) child.kill("SIGKILL");
       },
@@ -234,6 +241,16 @@ describe("running one job", () => {
       new AbortController().signal
     );
     expect(resultOf(end).reason).toMatch(/^Claude is not signed in on this machine/);
+  });
+
+  it("reads nothing the container wrote when the container could not be removed", async () => {
+    sandboxes.destroyFails = true;
+    const end = await run(order());
+    expect(resultOf(end)).toEqual({
+      outcome: "job_error",
+      reason: "Could not remove the job's container, so nothing it wrote was read.",
+    });
+    expect((end as Extract<JobEnd, { kind: "result" }>).changes).toBeUndefined();
   });
 
   it("stopped by the CRM: the agent is cancelled, the container removed, and nothing is reported", async () => {

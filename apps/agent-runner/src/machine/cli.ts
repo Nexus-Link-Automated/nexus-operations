@@ -79,13 +79,17 @@ export function jobImageDir(env: NodeJS.ProcessEnv): string {
   return path.join(path.dirname(fileURLToPath(import.meta.url)), "job-image");
 }
 
-function dockerSandbox(deps: CliDeps, machineId: string, log: Logger): SandboxProvider {
+function dockerSandbox(deps: CliDeps, machineId: string, log: Logger, forceEgress?: "open"): SandboxProvider {
   if (deps.sandbox) return deps.sandbox(machineId, log);
   const memory = deps.env.NEXUS_MACHINE_JOB_MEMORY?.trim();
   const cpus = deps.env.NEXUS_MACHINE_JOB_CPUS?.trim();
-  const egress = deps.env.NEXUS_MACHINE_JOB_EGRESS?.trim() === "open" ? "open" : "proxy";
-  if (egress === "open") log.warn("machine-service: NEXUS_MACHINE_JOB_EGRESS=open: jobs reach your LAN and the host");
-  const egressPorts = deps.env.NEXUS_MACHINE_EGRESS_PORTS?.trim();
+  const egress = forceEgress ?? (deps.env.NEXUS_MACHINE_JOB_EGRESS?.trim() === "open" ? "open" : "proxy");
+  if (egress === "open" && !forceEgress)
+    log.warn("machine-service: NEXUS_MACHINE_JOB_EGRESS=open: jobs reach your LAN and the host");
+  const egressPorts = deps.env.NEXUS_MACHINE_EGRESS_PORTS?.replaceAll(" ", "").trim();
+  if (egressPorts && !/^\d{1,5}(,\d{1,5})*$/.test(egressPorts)) {
+    log.warn("machine-service: NEXUS_MACHINE_EGRESS_PORTS is not a comma-separated list of ports; ignored");
+  }
   return new DockerSandboxProvider({
     egress,
     ...(egressPorts ? { egressPorts } : {}),
@@ -328,7 +332,8 @@ async function prepare(deps: CliDeps): Promise<number> {
   const log = deps.log ?? createMachineLogger({ debug: deps.env.NEXUS_MACHINE_DEBUG === "1" });
   const loaded = loadMachineConfig(configPath(deps.env));
   const machineId = loaded.ok ? loaded.config.machineId : "unjoined";
-  const prepared = await dockerSandbox(deps, machineId, log).prepare(deps.signal);
+  // Builds the image only: the jobs' network and proxy belong to a running service, which makes and removes them.
+  const prepared = await dockerSandbox(deps, machineId, log, "open").prepare(deps.signal);
   if (prepared.ready) {
     deps.out("The job image is ready.");
     return EXIT_OK;

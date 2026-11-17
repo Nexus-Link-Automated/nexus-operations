@@ -18,8 +18,15 @@ import { readRegularFile, removeAll } from "../src/machine/files.ts";
 import { makeJobDirs, pruneJobDirs } from "../src/machine/job.ts";
 import { parseOrder } from "../src/machine/orders.ts";
 import { ProgressCondenser } from "../src/machine/progress.ts";
-import { isRepoPath, parseNameStatus, readChanges } from "../src/machine/changes.ts";
-import { cloneAccess, containerArgs, DockerSandboxProvider, egressNames, imageTag } from "../src/machine/sandbox.ts";
+import { isRepoPath, parseRawDiff, readChanges } from "../src/machine/changes.ts";
+import {
+  cloneAccess,
+  containerArgs,
+  DockerSandboxProvider,
+  egressNames,
+  imageTag,
+  NETWORK_FORMAT,
+} from "../src/machine/sandbox.ts";
 import type { CommandRunner } from "../src/machine/system.ts";
 import { stageSignIn } from "../src/machine/signins.ts";
 import { fakeRunner, memoryLogger } from "./machine-helpers.ts";
@@ -158,14 +165,23 @@ describe("the job container", () => {
     expect(run.calls).toContain("docker rm --force abc def");
   });
 
-  it("lists changed files from git diff --name-status", () => {
-    expect(parseNameStatus("M\0app/auth.py\0A\0tests/new.py\0D\0old.py\0T\0link\0U\0conflict\0")).toEqual([
-      { status: "M", path: "app/auth.py" },
-      { status: "A", path: "tests/new.py" },
-      { status: "D", path: "old.py" },
-      { status: "T", path: "link" },
-    ]);
-    expect(parseNameStatus("")).toEqual([]);
+  it("lists changed files from git diff --raw, leaving nested repositories out", () => {
+    const z = "0".repeat(40);
+    const o = "1".repeat(40);
+    const raw =
+      `:100644 100644 ${o} ${o} M\0app/auth.py\0:000000 100644 ${z} ${o} A\0tests/new.py\0` +
+      `:100644 000000 ${o} ${z} D\0old.py\0:100644 120000 ${o} ${o} T\0link\0` +
+      `:000000 160000 ${z} ${o} A\0vendor/lib\0:100644 100644 ${o} ${o} U\0conflict\0`;
+    expect(parseRawDiff(raw)).toEqual({
+      entries: [
+        { status: "M", path: "app/auth.py" },
+        { status: "A", path: "tests/new.py" },
+        { status: "D", path: "old.py" },
+        { status: "T", path: "link" },
+      ],
+      nested: 1,
+    });
+    expect(parseRawDiff("")).toEqual({ entries: [], nested: 0 });
   });
 
   it("clones a private repository with the token passed by name, for the repository's host only", async () => {
@@ -220,9 +236,10 @@ describe("the jobs' egress", () => {
     const run = fakeRunner({
       "docker version --format {{.Server.Version}}": { stdout: "28.1.1" },
       [`docker image inspect --format {{.Id}} ${image}`]: { stdout: "sha256:x" },
-      [`docker network create --internal --label nexus-machine.machine=m-1 ${names.network}`]: {},
+      [`docker network create --internal --opt com.docker.network.bridge.gateway_mode_ipv4=isolated --opt com.docker.network.bridge.gateway_mode_ipv6=isolated --label nexus-machine.machine=m-1 ${names.network}`]:
+        {},
       [`docker rm --force ${names.proxy}`]: {},
-      [`docker run --detach --name ${names.proxy} --label nexus-machine.machine=m-1 --label nexus-machine.egress=true --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges --read-only --pids-limit 256 --memory 256m ${image} node /opt/nexus/egress-proxy.mjs`]:
+      [`docker run --detach --name ${names.proxy} --label nexus-machine.machine=m-1 --label nexus-machine.egress=true --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges --read-only --pids-limit 256 --memory 256m --restart unless-stopped --log-opt max-size=10m --log-opt max-file=2 ${image} node /opt/nexus/egress-proxy.mjs`]:
         { stdout: "c1" },
       [`docker network connect --alias nexus-egress ${names.network} ${names.proxy}`]: {},
       [`docker network rm ${names.network}`]: {},
@@ -269,7 +286,7 @@ describe("the jobs' egress", () => {
       log: memoryLogger(),
       run: fakeRunner(base),
     });
-    expect((await failing.prepare(new AbortController().signal)).reason).toMatch(/internal Docker network/);
+    expect((await failing.prepare(new AbortController().signal)).reason).toMatch(/isolated Docker network/);
     const open = new DockerSandboxProvider({
       machineId: "m-1",
       contextDir: context,
@@ -277,10 +294,11 @@ describe("the jobs' egress", () => {
       log: memoryLogger(),
       run: fakeRunner({
         ...base,
-        [`docker network inspect --format {{.Internal}} ${names.network}`]: { stdout: "false" },
+        // Internal, but with a gateway on the host's side: jobs could reach this computer.
+        [`docker network inspect --format ${NETWORK_FORMAT} ${names.network}`]: { stdout: "true <no value>" },
       }),
     });
-    expect((await open.prepare(new AbortController().signal)).reason).toMatch(/not internal/);
+    expect((await open.prepare(new AbortController().signal)).reason).toMatch(/not internal and isolated/);
   });
 });
 
@@ -336,6 +354,17 @@ describe("the changes sent for a pull request", () => {
     expect(big.ok === false && big.note).toMatch(/larger than 3 MB/);
     expect(readChanges(repo, "HEAD", [{ status: "D", path: "x" }]).ok).toBe(false);
     expect(readChanges(repo, BASE, [])).toEqual({ ok: false, note: "the job changed no files" });
+    // A clone swapped for a link to somewhere else (the owner's home) is never read.
+    const swapped = path.join(dir, "swapped");
+    symlinkSync(path.join(dir, "secret"), swapped);
+    expect(readChanges(swapped, BASE, [{ status: "A", path: "key" }])).toEqual({
+      ok: false,
+      note: "the job's clone is not a folder",
+    });
+    // A note stays within what the CRM takes, however long the path.
+    const long = `${"d/".repeat(240)}f`;
+    const noted = readChanges(repo, BASE, [{ status: "A", path: long }]);
+    expect(noted.ok === false && noted.note.length).toBeLessThanOrEqual(300);
   });
 });
 

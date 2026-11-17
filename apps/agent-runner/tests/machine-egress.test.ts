@@ -43,6 +43,8 @@ describe("which addresses a job may reach", () => {
     ["2002:a9fe:a9fe::1", true],
     ["not-an-ip", true],
     ["1:2:3:4:5:6:7:8::9", true],
+    ["::ffff:0:10.0.0.1", true],
+    ["fec0::1", true],
     ["140.82.112.3", false],
     ["8.8.8.8", false],
     ["2606:4700::1111", false],

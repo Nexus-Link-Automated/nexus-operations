@@ -15,6 +15,7 @@ import net from "node:net";
 import { pathToFileURL } from "node:url";
 
 export const DEFAULT_PORTS = [80, 443];
+const IDLE_MS = 10 * 60_000;
 
 const V4_BLOCKED = [
   ["0.0.0.0", 8], // "this" network
@@ -74,9 +75,14 @@ export function isBlockedAddress(address) {
     if (words[5] === 0xffff || words[6] !== 0 || words[7] > 1) return isBlockedAddress(v4);
     return true; // :: and ::1
   }
+  // IPv4-translated (::ffff:0:a.b.c.d): judged as IPv4 too.
+  if (words.slice(0, 4).every((word) => word === 0) && words[4] === 0xffff && words[5] === 0) {
+    return isBlockedAddress(`${words[6] >> 8}.${words[6] & 255}.${words[7] >> 8}.${words[7] & 255}`);
+  }
   const first = words[0];
   if ((first & 0xfe00) === 0xfc00) return true; // unique local fc00::/7
   if ((first & 0xffc0) === 0xfe80) return true; // link-local fe80::/10
+  if ((first & 0xffc0) === 0xfec0) return true; // site-local fec0::/10 (deprecated, still private)
   if ((first & 0xff00) === 0xff00) return true; // multicast
   if (first === 0x64 && words[1] === 0xff9b) return true; // NAT64 64:ff9b::/96 (reaches IPv4 behind it)
   if (first === 0x2001 && words[1] === 0x0db8) return true; // documentation
@@ -100,7 +106,8 @@ export function parseTarget(authority) {
  */
 export function createEgressProxy({
   ports = DEFAULT_PORTS,
-  resolve = async (host) => (await lookup(host, { all: true, verbatim: true })).map((entry) => entry.address),
+  // IPv4 only: a LAN's devices often have global IPv6 addresses, which "public" cannot tell from the internet's.
+  resolve = async (host) => (await lookup(host, { all: true, family: 4 })).map((entry) => entry.address),
   connect = (port, address) => net.connect({ port, host: address }),
   log = (line) => process.stderr.write(`${line}\n`),
 } = {}) {
@@ -120,7 +127,19 @@ export function createEgressProxy({
     return { address };
   }
 
-  const refuse = (target, reason) => log(`egress: refused ${target}: ${reason}`);
+  // At most one log line a second, with a count of the refusals in between, so a job cannot flood the log.
+  let lastLog = 0;
+  let quiet = 0;
+  const refuse = (target, reason) => {
+    const now = Date.now();
+    if (now - lastLog < 1000) {
+      quiet += 1;
+      return;
+    }
+    lastLog = now;
+    log(`egress: refused ${target}: ${reason}${quiet ? ` (and ${quiet} more refusals)` : ""}`);
+    quiet = 0;
+  };
 
   const server = http.createServer(async (request, response) => {
     // A plain-HTTP request through the proxy: an absolute URL.
@@ -166,6 +185,12 @@ export function createEgressProxy({
 
   server.on("connect", async (request, client, head) => {
     client.on("error", () => client.destroy());
+    // An idle tunnel ends after 10 minutes; one the client left while its name was looked up never opens.
+    let closed = false;
+    client.on("close", () => {
+      closed = true;
+    });
+    client.setTimeout(IDLE_MS, () => client.destroy());
     const target = parseTarget(request.url ?? "");
     if (!target) {
       client.end("HTTP/1.1 400 Bad Request\r\n\r\n");
@@ -177,7 +202,9 @@ export function createEgressProxy({
       client.end(`HTTP/1.1 403 Forbidden\r\n\r\nRefused by the job's egress proxy: ${picked.error}.\n`);
       return;
     }
+    if (closed) return;
     const upstream = connect(target.port, picked.address);
+    upstream.setTimeout(IDLE_MS, () => upstream.destroy());
     upstream.on("error", () => {
       if (client.writable) client.end("HTTP/1.1 502 Bad Gateway\r\n\r\n");
     });

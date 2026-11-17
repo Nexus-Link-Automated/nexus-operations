@@ -233,7 +233,10 @@ export class JobManager {
       const answer = await this.#options.client.result(this.#options.key, id, body);
       if (answer.kind === "ok") return;
       // INVALID_RESULT is about the agent's result; any other 400 with changes is about the changed files.
-      if (answer.kind === "http" && answer.status === 400 && body.changes && answer.code !== "INVALID_RESULT") {
+      const refusedChanges =
+        (answer.kind === "http" && answer.status === 400 && answer.code !== "INVALID_RESULT") ||
+        (answer.kind === "http" && answer.status === 413);
+      if (refusedChanges && body.changes) {
         // The CRM refused the changed files (a path or a size it does not take): the outcome still counts.
         this.#options.log.warn("machine-service: the CRM refused the job's changed files", {
           job: id,

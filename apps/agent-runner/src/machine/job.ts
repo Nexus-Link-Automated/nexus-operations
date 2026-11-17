@@ -9,13 +9,14 @@ import path from "node:path";
 
 import type { Logger } from "../logger.ts";
 import { runAgentSession } from "./acp-session.ts";
-import { readChanges, type JobChanges } from "./changes.ts";
+import { readChangeList, readChanges, type JobChanges } from "./changes.ts";
 import type { JobEvent } from "./client.ts";
 import type { JobAction, JobOrder } from "./orders.ts";
 import { ProgressCondenser } from "./progress.ts";
 import type { Ask } from "./questions.ts";
 import { readRegularFile, removeAll, withoutNul } from "./files.ts";
 import {
+  CONTAINER_CHANGES_LIST,
   CONTAINER_PATCH_FILE,
   CONTAINER_QUESTION_FILE,
   CONTAINER_REPO,
@@ -355,9 +356,12 @@ export async function runJob(order: JobOrder, deps: JobDeps, stop: AbortSignal):
       };
     }
 
-    // Changes are listed inside the container; then it goes, before anything it wrote is read.
-    const entries = await sandbox.collectChanges(baseCommit);
+    // Changes are listed inside the container; then it goes (for sure: `destroy` throws otherwise) before anything it
+    // wrote is read.
+    await sandbox.collectChanges(baseCommit);
     await sandbox.destroy();
+    const list = readChangeList(path.join(dirs.out, path.basename(CONTAINER_CHANGES_LIST)));
+    const entries = "error" in list ? [] : list.entries;
     const files = entries.map((entry) => entry.path).slice(0, 200);
     const raw = readResult(dirs);
     let result: Record<string, unknown>;
@@ -370,7 +374,9 @@ export async function runJob(order: JobOrder, deps: JobDeps, stop: AbortSignal):
     }
     let changes: JobChanges | undefined;
     let changesNote: string | undefined;
-    if (CODE_OUTCOMES.has(result.outcome as string) && files.length) {
+    if (CODE_OUTCOMES.has(result.outcome as string) && "error" in list) {
+      changesNote = list.error;
+    } else if (CODE_OUTCOMES.has(result.outcome as string) && files.length) {
       result.changed_files = files;
       // The CRM pushes these and opens the pull request; the files are read now, with the container gone.
       const read = readChanges(

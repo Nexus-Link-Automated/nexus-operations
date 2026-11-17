@@ -12,7 +12,7 @@ import path from "node:path";
 import type { Logger } from "../logger.ts";
 import type { JobOrder } from "./orders.ts";
 import type { AgentId } from "./report.ts";
-import { parseNameStatus, isCommit, type ChangeEntry } from "./changes.ts";
+import { isCommit } from "./changes.ts";
 import { defaultCommandRunner, type CommandRunner } from "./system.ts";
 import { MACHINE_VERSION } from "./version.ts";
 
@@ -42,6 +42,8 @@ export const CONTAINER_RESULT_FILE = "/job/out/result.json";
 export const CONTAINER_QUESTION_FILE = "/job/out/question.json";
 /** Where `collectChanges` writes the job's changes as a patch (`git diff --binary`). */
 export const CONTAINER_PATCH_FILE = "/job/out/changes.patch";
+/** Where `collectChanges` lists the changed files (`git diff --raw -z --no-renames`). */
+export const CONTAINER_CHANGES_LIST = "/job/out/changes.list";
 /** Where the job image keeps the adapters (`machine/job-image/Dockerfile`). */
 export const ADAPTER_BIN: Record<AgentId, string> = {
   codex: "/opt/nexus/acp/dist/bin/codex.mjs",
@@ -52,6 +54,11 @@ export const IMAGE_REPOSITORY = "nexus-machine-job";
 export const EGRESS_PROXY_SCRIPT = "/opt/nexus/egress-proxy.mjs";
 export const EGRESS_ALIAS = "nexus-egress";
 export const EGRESS_PORT = 3128;
+/** `docker network inspect` → "true isolated" for the jobs' network as it must be. */
+export const NETWORK_FORMAT = '{{.Internal}} {{index .Options "com.docker.network.bridge.gateway_mode_ipv4"}}';
+/** `docker inspect` of the proxy → "<running> <image> <network> <network> ... " */
+export const PROXY_FORMAT =
+  "{{.State.Running}} {{.Config.Image}} {{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}";
 export const LABEL_MACHINE = "nexus-machine.machine";
 export const LABEL_JOB = "nexus-machine.job";
 export const LABEL_EGRESS = "nexus-machine.egress";
@@ -59,7 +66,6 @@ export const LABEL_EGRESS = "nexus-machine.egress";
 const CLONE_TIMEOUT_MS = 10 * 60_000;
 const SHORT_TIMEOUT_MS = 60_000;
 const BUILD_TIMEOUT_MS = 45 * 60_000;
-const MAX_CHANGED_FILES = 200;
 
 export interface JobDirs {
   readonly root: string;
@@ -93,12 +99,16 @@ export interface JobSandbox {
   clone(repoUrl: string, branch: string, signal: AbortSignal, token?: string): Promise<string>;
   startAgent(agent: AgentId, env: AgentEnv): AgentProcess;
   /**
-   * What the job added, changed or removed since `baseCommit` (commits the agent made included);
-   * also writes the changes as a patch to `CONTAINER_PATCH_FILE`. Git runs inside the container,
-   * never on the host: the agent could have written the repository's git config and hooks.
+   * Lists what the job added, changed or removed since `baseCommit` (commits the agent made
+   * included) into `CONTAINER_CHANGES_LIST` (`git diff --raw -z`), and writes the changes as a
+   * patch to `CONTAINER_PATCH_FILE`. Both are read only after `destroy`. Git runs inside the
+   * container, never on the host: the agent could have written the repository's git config and hooks.
    */
-  collectChanges(baseCommit: string): Promise<ChangeEntry[]>;
-  /** Stops everything the job started. Idempotent. */
+  collectChanges(baseCommit: string): Promise<void>;
+  /**
+   * Stops everything the job started and removes its container. Throws a `SandboxError` when the
+   * container is still there afterwards: nothing it wrote may be read then. Idempotent once it worked.
+   */
   destroy(): Promise<void>;
 }
 
@@ -331,15 +341,35 @@ export class DockerSandboxProvider implements SandboxProvider {
   async #startEgress(image: string): Promise<string | undefined> {
     const { network, proxy } = egressNames(this.#options.machineId);
     const label = `${LABEL_MACHINE}=${this.#options.machineId}`;
-    const exists = await this.#docker(["network", "inspect", "--format", "{{.Internal}}", network]);
+    const exists = await this.#docker(["network", "inspect", "--format", NETWORK_FORMAT, network]);
     if (exists.code !== 0) {
-      const made = await this.#docker(["network", "create", "--internal", "--label", label, network]);
-      if (made.code !== 0) return "the jobs' internal Docker network could not be created";
-    } else if (exists.stdout.trim() !== "true") {
-      return `the Docker network ${network} exists but is not internal; remove it and restart`;
+      // Internal (no route out) and with an isolated gateway (no address on the host's side), so a job reaches neither
+      // the internet nor this computer except through the proxy. The isolated gateway needs Docker 28 or later.
+      const made = await this.#docker([
+        "network",
+        "create",
+        "--internal",
+        "--opt",
+        "com.docker.network.bridge.gateway_mode_ipv4=isolated",
+        "--opt",
+        "com.docker.network.bridge.gateway_mode_ipv6=isolated",
+        "--label",
+        label,
+        network,
+      ]);
+      if (made.code !== 0) {
+        return "the jobs' isolated Docker network could not be created (it needs Docker 28 or later)";
+      }
+    } else if (exists.stdout.trim() !== "true isolated") {
+      return `the Docker network ${network} exists but is not internal and isolated; remove it and restart`;
     }
-    const running = await this.#docker(["inspect", "--format", "{{.State.Running}} {{.Config.Image}}", proxy]);
-    if (running.code === 0 && running.stdout.trim() === `true ${image}`) return undefined;
+    const running = await this.#docker(["inspect", "--format", PROXY_FORMAT, proxy]);
+    if (running.code === 0 && running.stdout.trim().startsWith(`true ${image} `)) {
+      if (running.stdout.includes(` ${network} `)) return undefined;
+      // Running, but not on the jobs' network (a connect that failed earlier): connect it now.
+      const joined = await this.#docker(["network", "connect", "--alias", EGRESS_ALIAS, network, proxy]);
+      return joined.code === 0 ? undefined : "the jobs' egress proxy could not join their network";
+    }
     await this.#docker(["rm", "--force", proxy]);
     const started = await this.#docker([
       "run",
@@ -361,6 +391,13 @@ export class DockerSandboxProvider implements SandboxProvider {
       "256",
       "--memory",
       "256m",
+      // Back after a Docker restart; its log (one line per refusal) cannot fill the disk.
+      "--restart",
+      "unless-stopped",
+      "--log-opt",
+      "max-size=10m",
+      "--log-opt",
+      "max-file=2",
       ...(this.#options.egressPorts && /^\d{1,5}(,\d{1,5})*$/.test(this.#options.egressPorts)
         ? ["--env", `NEXUS_EGRESS_PORTS=${this.#options.egressPorts}`]
         : []),
@@ -401,7 +438,10 @@ export class DockerSandboxProvider implements SandboxProvider {
 
   create(order: JobOrder, dirs: JobDirs): JobSandbox {
     if (!this.#image) throw new SandboxError("The job image is not ready.");
-    return new DockerSandbox(this.#options, this.#run, this.#image, order, dirs);
+    const image = this.#image;
+    // Each job checks its way out first: the proxy may have stopped (a Docker restart) since `prepare`.
+    const ensureEgress = async () => (this.#egress === "proxy" ? this.#startEgress(image) : undefined);
+    return new DockerSandbox(this.#options, this.#run, image, order, dirs, ensureEgress);
   }
 }
 
@@ -415,7 +455,17 @@ class DockerSandbox implements JobSandbox {
   #destroyed = false;
   readonly #children = new Set<ChildProcess>();
 
-  constructor(options: DockerOptions, run: CommandRunner, image: string, order: JobOrder, dirs: JobDirs) {
+  readonly #ensureEgress: () => Promise<string | undefined>;
+
+  constructor(
+    options: DockerOptions,
+    run: CommandRunner,
+    image: string,
+    order: JobOrder,
+    dirs: JobDirs,
+    ensureEgress: () => Promise<string | undefined>
+  ) {
+    this.#ensureEgress = ensureEgress;
     this.#options = options;
     this.#run = run;
     this.#image = image;
@@ -429,6 +479,8 @@ class DockerSandbox implements JobSandbox {
   }
 
   async start(): Promise<void> {
+    const egress = await this.#ensureEgress();
+    if (egress) throw new SandboxError(`The job cannot reach the network: ${egress}.`);
     const args = containerArgs({
       name: this.#name,
       image: this.#image,
@@ -526,43 +578,35 @@ class DockerSandbox implements JobSandbox {
     return { stdin: child.stdin!, stdout: child.stdout!, exited, stderrTail: () => lines.join("\n") };
   }
 
-  async collectChanges(baseCommit: string): Promise<ChangeEntry[]> {
-    if (!isCommit(baseCommit)) return [];
+  async collectChanges(baseCommit: string): Promise<void> {
+    if (!isCommit(baseCommit)) return;
     // A fixed script; the only value in it is the commit the machine itself read after the clone. Untracked files are
-    // added as intent-to-add so the diff shows them; the diff is against that commit, so commits the agent made count.
+    // added as intent-to-add so the diff shows them (a lock the agent left would stop that, so it goes); the diff is
+    // against that commit, so commits the agent made count. Both go to files, read once the container is gone.
     const git = "git -c core.fsmonitor=false -c core.hooksPath=/dev/null";
     await this.#docker([
       "exec",
       this.#name,
       "sh",
       "-c",
-      `cd ${CONTAINER_REPO} && rm -f ${CONTAINER_PATCH_FILE} && ${git} add --all --intent-to-add . >/dev/null 2>&1; ` +
+      `cd ${CONTAINER_REPO} && rm -f ${CONTAINER_PATCH_FILE} ${CONTAINER_CHANGES_LIST} .git/index.lock && ` +
+        `${git} add --all --intent-to-add . >/dev/null 2>&1; ` +
+        `${git} diff --raw -z --no-renames --no-abbrev --no-ext-diff ${baseCommit} > ${CONTAINER_CHANGES_LIST}; ` +
         `${git} diff --binary --no-ext-diff --no-textconv --no-color ${baseCommit} > ${CONTAINER_PATCH_FILE}`,
     ]);
-    const result = await this.#docker([
-      "exec",
-      this.#name,
-      "git",
-      "-c",
-      "core.fsmonitor=false",
-      "-C",
-      CONTAINER_REPO,
-      "diff",
-      "--name-status",
-      "-z",
-      "--no-renames",
-      "--no-ext-diff",
-      baseCommit,
-    ]);
-    return result.code === 0 ? parseNameStatus(result.stdout).slice(0, MAX_CHANGED_FILES + 1) : [];
   }
 
   async destroy(): Promise<void> {
     if (this.#destroyed) return;
-    this.#destroyed = true;
     // Removing the container ends everything in it, the agent included; the `docker exec` clients then exit.
     await this.#docker(["rm", "--force", this.#name]);
     for (const child of this.#children) child.kill("SIGKILL");
+    // Only a container that is really gone lets the service read what it wrote.
+    const still = await this.#docker(["inspect", "--format", "{{.Id}}", this.#name]);
+    if (still.code === 0) {
+      throw new SandboxError("Could not remove the job's container, so nothing it wrote was read.");
+    }
+    this.#destroyed = true;
   }
 }
 
