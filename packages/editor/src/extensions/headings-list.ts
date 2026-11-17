@@ -5,6 +5,7 @@
  */
 
 import { Extension } from "@tiptap/core";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 // constants
 import { CORE_EXTENSIONS } from "@/constants/extension";
@@ -31,29 +32,41 @@ export const HeadingListExtension = Extension.create<unknown, HeadingExtensionSt
   },
 
   addProseMirrorPlugins() {
+    const updateHeadings = (doc: ProseMirrorNode) => {
+      const headings: IMarking[] = [];
+      let h1Sequence = 0;
+      let h2Sequence = 0;
+      let h3Sequence = 0;
+
+      doc.descendants((node) => {
+        if (node.type.name === "heading") {
+          const level = node.attrs.level;
+          const text = node.textContent;
+
+          headings.push({
+            type: "heading",
+            level: level,
+            text: text,
+            sequence: level === 1 ? ++h1Sequence : level === 2 ? ++h2Sequence : ++h3Sequence,
+          });
+        }
+      });
+
+      this.storage.headings = headings;
+    };
+
     const plugin = new Plugin({
       key: new PluginKey("heading-list"),
-      appendTransaction: (_, __, newState) => {
-        const headings: IMarking[] = [];
-        let h1Sequence = 0;
-        let h2Sequence = 0;
-        let h3Sequence = 0;
+      // Initial content is set without a transaction, so read it once when the view is created.
+      view: (editorView) => {
+        updateHeadings(editorView.state.doc);
+        return {};
+      },
+      appendTransaction: (transactions, __, newState) => {
+        // Selection-only transactions (cursor moves, clicks) cannot change the headings.
+        if (!transactions.some((tr) => tr.docChanged)) return null;
 
-        newState.doc.descendants((node) => {
-          if (node.type.name === "heading") {
-            const level = node.attrs.level;
-            const text = node.textContent;
-
-            headings.push({
-              type: "heading",
-              level: level,
-              text: text,
-              sequence: level === 1 ? ++h1Sequence : level === 2 ? ++h2Sequence : ++h3Sequence,
-            });
-          }
-        });
-
-        this.storage.headings = headings;
+        updateHeadings(newState.doc);
 
         this.editor.emit("update", {
           editor: this.editor,

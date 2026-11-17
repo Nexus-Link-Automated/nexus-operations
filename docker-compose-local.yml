@@ -10,7 +10,7 @@ services:
       - "6379:6379"
 
   plane-mq:
-    image: rabbitmq:3.13.6-management-alpine
+    image: rabbitmq:3.13.7-management-alpine
     restart: unless-stopped
     networks:
       - dev_env
@@ -49,7 +49,7 @@ services:
       - "9090:9090"
 
   plane-db:
-    image: postgres:15.7-alpine
+    image: postgres:15.20-alpine
     restart: unless-stopped
     networks:
       - dev_env

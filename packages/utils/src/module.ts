@@ -20,6 +20,45 @@ const collator = new Intl.Collator("en-US", { numeric: true, sensitivity: "base"
  * @returns {number} - comparison result (-1, 0, or 1)
  */
 const naturalSort = (a: string, b: string): number => collator.compare(a, b);
+
+export type TModuleProgress = {
+  /** completed work items (or points), capped at the scope */
+  completed: number;
+  /** work items (or points) that count towards progress: everything except cancelled */
+  scope: number;
+  /** completed / scope as a whole percentage, rounded down so 100 means nothing is left */
+  percentage: number;
+};
+
+/**
+ * @description progress of a module. Cancelled work items are left out of the scope rather than
+ * counted as done, the same rule cycles use, so every module view shows the same numbers.
+ * @param {IModule} module
+ * @param {"issues" | "points"} type - count work items or estimate points
+ * @returns {TModuleProgress}
+ */
+export const getModuleProgress = (
+  module: Pick<
+    IModule,
+    | "total_issues"
+    | "completed_issues"
+    | "cancelled_issues"
+    | "total_estimate_points"
+    | "completed_estimate_points"
+    | "cancelled_estimate_points"
+  >,
+  type: "issues" | "points" = "issues"
+): TModuleProgress => {
+  const total = (type === "points" ? module.total_estimate_points : module.total_issues) || 0;
+  const completed = (type === "points" ? module.completed_estimate_points : module.completed_issues) || 0;
+  const cancelled = (type === "points" ? module.cancelled_estimate_points : module.cancelled_issues) || 0;
+
+  const scope = Math.max(total - cancelled, 0);
+  const cappedCompleted = Math.min(Math.max(completed, 0), scope);
+  const percentage = scope > 0 ? Math.floor((cappedCompleted * 100) / scope) : 0;
+
+  return { completed: cappedCompleted, scope, percentage };
+};
 /**
  * @description orders modules based on their status
  * @param {IModule[]} modules
@@ -35,8 +74,8 @@ export const orderModules = (modules: IModule[], orderByKey: TModuleOrderByOptio
   if (["progress", "-progress"].includes(orderByKey))
     orderedModules = sortBy(modules, [
       (m) => {
-        let progress = (m.completed_issues + m.cancelled_issues) / m.total_issues;
-        if (isNaN(progress)) progress = 0;
+        const { completed, scope } = getModuleProgress(m);
+        const progress = scope > 0 ? completed / scope : 0;
         return orderByKey === "progress" ? progress : -progress;
       },
     ]);

@@ -162,6 +162,8 @@
   "something_went_wrong": "問題が発生しました",
   "failed_to_reorder_favorite": "お気に入りの並び替えに失敗しました",
   "favorite_removed_successfully": "お気に入りが正常に削除されました",
+  "remove_favorite_folder_title": "フォルダーをお気に入りから削除しますか？",
+  "remove_favorite_folder_description": "「{name}」を削除すると、中にある{count, plural, other {# 件のお気に入り}}も削除されます。項目自体は削除されません。",
   "failed_to_create_favorite": "お気に入りの作成に失敗しました",
   "failed_to_rename_favorite": "お気に入りの名前変更に失敗しました",
   "project_link_copied_to_clipboard": "プロジェクトリンクがクリップボードにコピーされました",

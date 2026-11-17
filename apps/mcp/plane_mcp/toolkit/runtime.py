@@ -15,6 +15,11 @@ from collections.abc import Sequence
 from html import escape
 from typing import Any
 
+# A parameter taking one id or several. Typed as either so a client may send an
+# array without failing schema validation; `coerce_list` normalises both, and a
+# string may still be one id, comma-separated ids or a JSON-encoded list.
+IdList = str | list[str]
+
 
 def missing(action: str, *names: str) -> str:
     return f"Error: action '{action}' requires: {', '.join(names)}."

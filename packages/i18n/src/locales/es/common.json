@@ -162,6 +162,8 @@
   "something_went_wrong": "Algo salió mal",
   "failed_to_reorder_favorite": "Error al reordenar favorito",
   "favorite_removed_successfully": "Favorito eliminado exitosamente",
+  "remove_favorite_folder_title": "¿Eliminar la carpeta de favoritos?",
+  "remove_favorite_folder_description": "Al eliminar \"{name}\" {count, plural, one {también se elimina el # favorito que contiene} other {también se eliminan los # favoritos que contiene}}. Los elementos en sí no se borran.",
   "failed_to_create_favorite": "Error al crear favorito",
   "failed_to_rename_favorite": "Error al renombrar favorito",
   "project_link_copied_to_clipboard": "Enlace del proyecto copiado al portapapeles",

@@ -90,10 +90,12 @@ function ImagePickerPopoverComponent<TFieldValues extends FieldValues = FieldVal
 
   const enabledTabs = useMemo(() => tabOptions.filter((tab) => tab.isEnabled), [tabOptions]);
 
+  // Only query Unsplash once the picker is open; forms that render it closed must not call the API.
   const { data: unsplashImages, error: unsplashError } = useSWR(
-    `UNSPLASH_IMAGES_${searchParams}`,
+    isOpen && hasUnsplashConfigured ? `UNSPLASH_IMAGES_${searchParams}` : null,
     () => fileService.getUnsplashImages(searchParams),
     {
+      revalidateIfStale: false,
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
     }

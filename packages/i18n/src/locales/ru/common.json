@@ -162,6 +162,8 @@
   "something_went_wrong": "Что-то пошло не так",
   "failed_to_reorder_favorite": "Ошибка изменения порядка избранного",
   "favorite_removed_successfully": "Избранное успешно удалено",
+  "remove_favorite_folder_title": "Удалить папку из избранного?",
+  "remove_favorite_folder_description": "Вместе с «{name}» из избранного будет удалено вложенных элементов: {count}. Сами элементы не удаляются.",
   "failed_to_create_favorite": "Ошибка создания избранного",
   "failed_to_rename_favorite": "Ошибка переименования избранного",
   "project_link_copied_to_clipboard": "Ссылка на проект скопирована в буфер обмена",

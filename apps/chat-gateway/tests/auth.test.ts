@@ -39,11 +39,26 @@ describe("admission", () => {
     await (await harness.open()).next("ready");
     expect(harness.api.requests.map((r) => `${r.method} ${r.path}`).toSorted()).toEqual([
       `GET /api/users/me/`,
-      `GET /api/workspaces/${WORKSPACE_SLUG}/chat/channels/?archived=false`,
-      `GET /api/workspaces/${WORKSPACE_SLUG}/chat/channels/?archived=true`,
+      `GET /api/workspaces/${WORKSPACE_SLUG}/chat/channels/access/`,
       `GET /api/workspaces/${WORKSPACE_SLUG}/chat/me/`,
     ]);
     expect(harness.api.requests.every((r) => r.cookie === USER_COOKIE)).toBe(true);
+  });
+
+  it("reads the full channel lists from an API that predates the channel access route", async () => {
+    harness = await startHarness({ config: { accessTtlMs: 50 } });
+    const access = `/api/workspaces/${WORKSPACE_SLUG}/chat/channels/access/`;
+    harness.api.failPaths.set(access, 404);
+    const live = harness.api.addChannel({ members: [USER_ID] });
+    const archived = harness.api.addChannel({ kind: "private", members: [USER_ID], archived: true });
+    harness.api.addChannel();
+
+    const ready = await (await harness.open()).next("ready");
+    expect(new Set(ready.channels as string[])).toEqual(new Set([live, archived]));
+    // Asked once, then left alone until the retry period ends, however often the channels are re-read.
+    const lists = `/api/workspaces/${WORKSPACE_SLUG}/chat/channels/?archived=`;
+    await waitUntil(() => harness!.api.requestsTo(lists).length >= 6);
+    expect(harness.api.requestsTo(access)).toHaveLength(1);
   });
 
   it("refuses a connection without a cookie, without calling the API", async () => {

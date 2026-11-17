@@ -39,6 +39,7 @@ from pydantic import ValidationError
 from plane_mcp.client import get_plane_client_context
 from plane_mcp.toolkit import (
     Action,
+    IdList,
     build_annotations,
     build_description,
     coerce_list,
@@ -364,8 +365,8 @@ def register(mcp: FastMCP) -> None:
         display_format: str = "",
         value: str | bool | int | float | list[str] = "",
         description_html: str = "",
-        attach_ids: str = "",
-        detach_ids: str = "",
+        attach_ids: IdList = "",
+        detach_ids: IdList = "",
         is_required: bool | None = None,
         is_multi: bool | None = None,
         is_active: bool | None = None,

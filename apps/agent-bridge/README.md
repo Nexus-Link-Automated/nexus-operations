@@ -208,6 +208,7 @@ Workspace settings → AI providers uses these to connect a member's own ChatGPT
 | 4410 | The agent-session token expired; reconnect and `session/load` |
 | 4429 | Too many open chats (per user) or the bridge is at capacity   |
 | 4502 | The agent runner is unavailable, or the agent went away       |
+| 4503 | The agent runner is at its agent limit; try again later       |
 | 1011 | The API is unavailable or the bridge is misconfigured         |
 
 A cross-origin upgrade is refused with HTTP 403 before any API call.

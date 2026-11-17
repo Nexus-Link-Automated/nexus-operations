@@ -63,7 +63,7 @@ describe("events that arrive while a socket is still being set up", () => {
     const room = h.api.addChannel({ kind: "private", members: [BEN.id] });
     h.api.delayPaths.set(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`, 250);
     const ada = h.connect({ cookie: ADA.cookie });
-    await waitUntil(() => h!.api.requestsTo(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`).length === 2);
+    await waitUntil(() => h!.api.requestsTo(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`).length === 1);
 
     // Ada is being put in `room` and someone writes in `home`, both while her channels are being read.
     const added = chatEvent("member.added", { channel_id: room, user_id: ADA.id });
@@ -84,7 +84,7 @@ describe("events that arrive while a socket is still being set up", () => {
     const home = h.api.addChannel({ members: [ADA.id] });
     h.api.delayPaths.set(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`, 400);
     const ada = h.connect({ cookie: ADA.cookie });
-    await waitUntil(() => h!.api.requestsTo(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`).length === 2);
+    await waitUntil(() => h!.api.requestsTo(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`).length === 1);
     await Promise.all(Array.from({ length: 1100 }, () => h!.publish(message(home))));
     expect(await ada.closed()).toBe(CloseCode.tryAgainLater);
     expect(ada.of("ready")).toEqual([]);
@@ -95,7 +95,7 @@ describe("events that arrive while a socket is still being set up", () => {
     h.api.addChannel({ members: [ADA.id] });
     h.api.delayPaths.set(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`, 150);
     const ada = h.connect({ cookie: ADA.cookie });
-    await waitUntil(() => h!.api.requestsTo(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`).length === 2);
+    await waitUntil(() => h!.api.requestsTo(`/api/workspaces/${WORKSPACE_SLUG}/chat/channels/`).length === 1);
     ada.socket.terminate();
     await waitUntil(() => h!.gateway.connectionCount === 0);
     await settle(250);

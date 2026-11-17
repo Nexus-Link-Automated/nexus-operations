@@ -139,6 +139,7 @@
         "session_expired": "Sesja czatu wygasła.",
         "too_many_chats": "Otwartych jest zbyt wiele czatów. Proszę zamknąć jeden z nich w innej karcie i spróbować ponownie.",
         "agent_unavailable": "Agent jest obecnie niedostępny. Proszę spróbować ponownie za chwilę.",
+        "agent_busy": "Usługa agentów jest obecnie przeciążona. Proszę spróbować ponownie za kilka minut.",
         "unknown": "Połączenie z czatem zostało nieoczekiwanie zamknięte."
       }
     },

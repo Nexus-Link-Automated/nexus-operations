@@ -47,7 +47,7 @@ def register(mcp):                                # 5. dispatch
 | Use `needs()` for multi-parameter guards | It names only what is absent. `if not a or not b` blames both, so a caller that supplied `a` is told to send it again |
 | An action accepting `cursor` must return `envelope(response)` | Returning `response.results` lets a caller page in but never page on |
 | Match the SDK's `params` type: `page_params` vs `as_params` | Some endpoints take a `Mapping`, others a Pydantic model they call `.model_dump()` on. The wrong one raises at call time |
-| Declare the type you mean | `CoerceArguments` repairs `'["uuid"]'` before validation, so type a list as a list. `coerce_list` is for parameters genuinely declared `str`, where a comma separates |
+| Declare the type you mean | `CoerceArguments` repairs `'["uuid"]'` before validation, so type a list as a list. A parameter taking one id or several is `IdList` (a string or an array) and is read with `coerce_list`; an id list typed `str` refuses an array |
 | `@plan_gated("<feature>")` on a plan-gated resource | Turns a 402 into a message naming the feature. The argument is a fallback — where the refusal names the feature, that wins |
 | The surface spells it `workitem`; `plane-sdk` spells it `work_item` | Tool names, actions and parameters use `workitem`; SDK namespaces, kwargs and PQL fields keep `work_item`. `test_vocabulary.py` pins both directions |
 

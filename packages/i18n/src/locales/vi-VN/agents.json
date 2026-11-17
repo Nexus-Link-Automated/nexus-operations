@@ -139,6 +139,7 @@
         "session_expired": "Phiên trò chuyện đã hết hạn.",
         "too_many_chats": "Bạn đang mở quá nhiều cuộc trò chuyện. Hãy đóng một cuộc trò chuyện ở tab khác rồi thử lại.",
         "agent_unavailable": "Tác nhân hiện không khả dụng. Vui lòng thử lại sau ít phút.",
+        "agent_busy": "Dịch vụ tác nhân hiện đang bận. Vui lòng thử lại sau vài phút.",
         "unknown": "Kết nối trò chuyện bị đóng bất ngờ."
       }
     },
