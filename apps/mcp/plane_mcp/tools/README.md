@@ -91,7 +91,7 @@ Where the workspace owns a resource outright, both directions of wrong-scope wri
 
 | Tool | Actions |
 |---|---|
-| `coding_job` | `list` · `get` · `start` · `cancel` · `retry` · `settings_get` · `settings_update` |
+| `coding_job` | `list` · `get` · `events` · `start` · `cancel` · `retry` · `settings_get` · `settings_update` |
 | `coding_machine` | `list` · `list_all` · `get` · `add` · `rename` · `approve` · `remove` · `revoke` |
 | `collection` | `list` · `retrieve` · `create` · `update` · `delete` · `list_pages` · `search_pages` · `add_pages` · `remove_page` · `list_members` · `add_member` · `update_member` · `remove_member` |
 | `customer` | `list` · `retrieve` · `create` · `update` · `delete` · `list_workitems` · `manage_workitems` |

@@ -427,6 +427,11 @@ async def scenario(c: Client) -> None:
     await s("coding_job", {"action": "list", **W}, check=lambda d: same(first(d), V["job"], "listed job"))
     await paged("coding_job", {"action": "list", **W})
     await s("coding_job", {"action": "get", **W, "job_id": "$job"})
+    await s(
+        "coding_job",
+        {"action": "events", **W, "job_id": "$job", "after": 0},
+        check=lambda d: same((d["results"], d["has_more"]), ([], False), "events of a queued job"),
+    )
     await s("coding_job", {"action": "retry", **W, "job_id": "$job"}, expect_error="JOB_NOT_RETRYABLE")
     await s(
         "coding_job",

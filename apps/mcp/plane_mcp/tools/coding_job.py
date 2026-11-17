@@ -22,6 +22,7 @@ STATUSES = ("queued", "running", "needs_input", "finished", "cancelled")
 ACTIONS = (
     Action("list", ("project_id", "workitem_id"), ("status", "job_action", "cursor", "per_page"), read=True),
     Action("get", ("project_id", "workitem_id", "job_id"), read=True),
+    Action("events", ("project_id", "workitem_id", "job_id"), ("after",), read=True, note="progress lines after seq"),
     Action("start", ("project_id", "workitem_id", "job_action", "agent"), ("machine",)),
     Action("cancel", ("project_id", "workitem_id", "job_id"), note="the person who started it or a project admin"),
     Action(
@@ -71,6 +72,11 @@ class CodingJobs(BaseResource):
 
     def create(self, workspace_slug: str, project_id: str, work_item_id: str, data: Mapping[str, Any]) -> Any:
         return self._post(self._jobs(workspace_slug, project_id, work_item_id), data)
+
+    def events(
+        self, workspace_slug: str, project_id: str, work_item_id: str, job_id: str, params: Mapping[str, Any]
+    ) -> Any:
+        return self._get(f"{self._jobs(workspace_slug, project_id, work_item_id)}/{job_id}/events", params=params)
 
     def cancel(self, workspace_slug: str, project_id: str, work_item_id: str, job_id: str) -> Any:
         return self._post(f"{self._jobs(workspace_slug, project_id, work_item_id)}/{job_id}/cancel")
@@ -124,7 +130,7 @@ def register(mcp: FastMCP) -> None:
         annotations=build_annotations(TITLE, ACTIONS),
     )
     def coding_job(
-        action: Literal["list", "get", "start", "cancel", "retry", "settings_get", "settings_update"],
+        action: Literal["list", "get", "events", "start", "cancel", "retry", "settings_get", "settings_update"],
         project_id: str = "",
         workitem_id: str = "",
         job_id: str = "",
@@ -141,6 +147,7 @@ def register(mcp: FastMCP) -> None:
         in_review_state_id: str = "",
         cursor: str = "",
         per_page: int = 0,
+        after: int = 0,
     ) -> dict[str, Any] | str:
         if error := (
             one_of("job_action", job_action, JOB_ACTIONS)
@@ -189,6 +196,9 @@ def register(mcp: FastMCP) -> None:
                 return error
             if action == "get":
                 return api.retrieve(workspace_slug, project_id, workitem_id, job_id)
+            if action == "events":
+                params = {"after": after} if after > 0 else {}
+                return api.events(workspace_slug, project_id, workitem_id, job_id, params)
             if action == "cancel":
                 return api.cancel(workspace_slug, project_id, workitem_id, job_id)
             data = {"agent": agent} if agent else {}

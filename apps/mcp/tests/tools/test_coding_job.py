@@ -96,3 +96,10 @@ def test_a_machine_that_is_not_yours_reads_as_the_api_refusal(registered, spy):
     spy.returns["coding_jobs.create"] = HttpError("HTTP 400", 400, body)
     result = registered["coding_job"].fn(action="start", **W, job_action="fix_bug", agent="codex", machine="m-9")
     assert result == f"Error: {body['error']} (MACHINE_NOT_AVAILABLE)"
+
+
+def test_events_reads_progress_after_a_seq(registered, spy):
+    registered["coding_job"].fn(action="events", **W, job_id="j")
+    registered["coding_job"].fn(action="events", **W, job_id="j", after=12)
+    assert [call.method for call in spy.recorder.calls] == ["coding_jobs.events", "coding_jobs.events"]
+    assert [call.kwargs["params"] for call in spy.recorder.calls] == [{}, {"after": 12}]
