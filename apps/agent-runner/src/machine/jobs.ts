@@ -92,7 +92,7 @@ export class JobManager {
         this.#options.log.warn("machine-service: refused a job from the CRM", { error: parsed.error });
         if (parsed.id && !this.#jobs.has(parsed.id)) {
           const result = jobError(`The machine could not read the job: ${parsed.error}.`);
-          this.#track(parsed.id, undefined, Promise.resolve({ kind: "result", result }));
+          this.#track(parsed.id, undefined, async () => ({ kind: "result", result }));
         }
         continue;
       }
@@ -110,11 +110,12 @@ export class JobManager {
       });
       const stop = new AbortController();
       const emit = (event: JobEvent) => this.#buffer(order.id, event);
-      this.#track(order.id, order, this.#options.run(order, emit, stop.signal), stop);
+      this.#track(order.id, order, () => this.#options.run(order, emit, stop.signal), stop);
     }
   }
 
-  #track(id: string, order: JobOrder | undefined, ending: Promise<JobEnd>, stop = new AbortController()): void {
+  /** Registers the job first, then starts it, so its first progress line already has somewhere to go. */
+  #track(id: string, order: JobOrder | undefined, start: () => Promise<JobEnd>, stop = new AbortController()): void {
     const entry: Running = {
       order,
       stop,
@@ -126,7 +127,7 @@ export class JobManager {
     entry.done = (async () => {
       let end: JobEnd;
       try {
-        end = await ending;
+        end = await start();
       } catch (error) {
         end = { kind: "result", result: jobError(`The machine could not run the job (${(error as Error).message}).`) };
       }

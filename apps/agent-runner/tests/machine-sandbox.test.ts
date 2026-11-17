@@ -185,6 +185,13 @@ describe("job folders", () => {
     expect(statSync(dirs.home).mode & 0o777).toBe(0o700);
     expect(() => makeJobDirs(path.join(dir, "a,b"), "x")).toThrow(/comma/);
 
+    // A job the service was killed in the middle of: its sign-in copy goes, its work stays.
+    const killed = makeJobDirs(root, "killed");
+    writeFileSync(path.join(killed.home, "auth.json"), "{}");
+    pruneJobDirs(root, new Set());
+    expect(() => statSync(killed.home)).toThrow();
+    expect(statSync(killed.work).isDirectory()).toBe(true);
+
     makeJobDirs(root, "old");
     pruneJobDirs(root, new Set(["a"]), Date.now() + 8 * 24 * 60 * 60_000);
     expect(() => statSync(path.join(root, "old"))).toThrow();

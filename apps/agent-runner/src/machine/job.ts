@@ -126,7 +126,11 @@ export function makeJobDirs(root: string, jobId: string): JobDirs {
   return dirs;
 }
 
-/** Removes kept job folders past `KEEP_JOBS` or older than `KEEP_JOB_MS`, never one in `running`. */
+/**
+ * Removes kept job folders past `KEEP_JOBS` or older than `KEEP_JOB_MS`, never one in `running`. Of
+ * the others only `work/` ever stays: a job the service could not finish (it was killed) may have
+ * left its sign-in copy in `home/`.
+ */
 export function pruneJobDirs(root: string, running: ReadonlySet<string>, now = Date.now()): void {
   let entries: { name: string; mtime: number }[];
   try {
@@ -138,8 +142,12 @@ export function pruneJobDirs(root: string, running: ReadonlySet<string>, now = D
   }
   entries.sort((a, b) => b.mtime - a.mtime);
   entries.forEach((entry, index) => {
+    const dir = path.join(root, entry.name);
     if (index >= KEEP_JOBS || now - entry.mtime > KEEP_JOB_MS) {
-      rmSync(path.join(root, entry.name), { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    } else {
+      rmSync(path.join(dir, "home"), { recursive: true, force: true });
+      rmSync(path.join(dir, "out"), { recursive: true, force: true });
     }
   });
 }

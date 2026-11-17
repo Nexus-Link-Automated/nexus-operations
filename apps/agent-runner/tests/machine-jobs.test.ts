@@ -304,6 +304,8 @@ describe("the job manager", () => {
       (r.body as { jobs: { id: string; events: { text: string }[] }[] }).jobs.flatMap((j) => j.events)
     );
     expect(lines.map((e) => e.text)).toContain("Looking at the bug. Found it.");
+    // The very first line, written before the job's first await, is not lost.
+    expect(lines[0]!.text).toBe("Starting the job's container.");
     // Every progress line went out before the result.
     const lastEvents = crm.requests.findLastIndex((r) => r.url.endsWith("/jobs/events/"));
     expect(lastEvents).toBeLessThan(crm.requests.indexOf(results[0]!));
