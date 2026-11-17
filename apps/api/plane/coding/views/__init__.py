@@ -25,7 +25,7 @@ from .machine import (
     MachineJobResultEndpoint,
     MachineJoinEndpoint,
 )
-from .project_settings import ProjectCodingSettingsMixin
+from .project_settings import ProjectCodingRepositoryMixin, ProjectCodingSettingsMixin
 
 __all__ = [
     "MachineHeartbeatEndpoint",
@@ -76,6 +76,14 @@ class CodingJobRetryAppEndpoint(CodingJobRetryMixin, AppBaseAPIView):
 
 
 class CodingJobEventsAppEndpoint(CodingJobEventsMixin, AppBaseAPIView):
+    pass
+
+
+class ProjectCodingRepositoryAPIEndpoint(ProjectCodingRepositoryMixin, PublicBaseAPIView):
+    pass
+
+
+class ProjectCodingRepositoryAppEndpoint(ProjectCodingRepositoryMixin, AppBaseAPIView):
     pass
 
 

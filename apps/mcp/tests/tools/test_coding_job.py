@@ -103,3 +103,9 @@ def test_events_reads_progress_after_a_seq(registered, spy):
     registered["coding_job"].fn(action="events", **W, job_id="j", after=12)
     assert [call.method for call in spy.recorder.calls] == ["coding_jobs.events", "coding_jobs.events"]
     assert [call.kwargs["params"] for call in spy.recorder.calls] == [{}, {"after": 12}]
+
+
+def test_repository_reads_the_pull_request_access(registered, spy):
+    registered["coding_job"].fn(action="repository", project_id="p")
+    call = spy.recorder.only()
+    assert call.method == "coding_jobs.repository"

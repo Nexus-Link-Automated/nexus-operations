@@ -36,6 +36,7 @@ from plane.coding.models import (
     EVENT_TEXT_MAX,
     MAX_EVENTS_PER_JOB,
     CodingJob,
+    CodingJobChanges,
     CodingJobEvent,
     CodingMachine,
     JobOutcome,
@@ -43,7 +44,9 @@ from plane.coding.models import (
     MachineState,
     ProjectCodingSettings,
 )
-from plane.coding.outcomes import apply_result
+from plane.coding import github
+from plane.coding.outcomes import CODE_OUTCOMES, CRM_FIELDS, Applied, apply_result, reported_part, validate_result
+from plane.coding.publish import no_pr_reason
 from plane.db.models import Issue, ProjectMember, WorkspaceMember
 from plane.utils.host import base_host
 
@@ -52,6 +55,7 @@ logger = logging.getLogger("plane.coding")
 __all__ = [
     "ACK_WINDOW",
     "DEADLINE_GRACE",
+    "PUBLISH_WINDOW",
     "SILENT_WINDOW",
     "Handout",
     "apply_machine_result",
@@ -72,6 +76,8 @@ ACK_WINDOW = timedelta(seconds=60)
 SILENT_WINDOW = timedelta(minutes=3)
 # The machine stops a job at its deadline and reports it; the CRM ends it itself this long after, if it has not.
 DEADLINE_GRACE = timedelta(minutes=2)
+# A job whose result arrived with changes is ended as a job error when its pull request is not open after this long.
+PUBLISH_WINDOW = timedelta(minutes=15)
 PROGRESS_MAX = 500
 
 
@@ -188,8 +194,12 @@ def heartbeat_jobs(machine: CodingMachine, running) -> Handout:
             .select_related("issue", "issue__project", "workspace")
             .filter(ran_on=machine, status=JobStatus.RUNNING)
         )
+        # A job whose result arrived is the CRM's now (it is opening the pull request): the machine is done with it,
+        # whether or not it still lists it.
+        publishing = {str(job.id) for job in mine if job.result_received_at is not None}
+        mine = [job for job in mine if job.result_received_at is None]
         mine_ids = {str(job.id) for job in mine}
-        handout.cancel = sorted(running - mine_ids)
+        handout.cancel = sorted(running - mine_ids - publishing)
         still_running = 0
         for job in mine:
             if str(job.id) in running:
@@ -260,7 +270,20 @@ def heartbeat_jobs(machine: CodingMachine, running) -> Handout:
     # Outside the handout's transaction, so one job's outcome cannot undo the handout.
     for job, reason in ended:
         _end(job, reason)
+    _add_clone_access(handout.jobs)
     return handout
+
+
+def _add_clone_access(orders: list) -> None:
+    """A read-only token for each order whose repository is a private GitHub repository the App is installed on.
+    Asked for outside the handout's transaction: GitHub is not called while rows are locked."""
+    tokens = {}
+    for order in orders:
+        url = order["repo_url"]
+        if url not in tokens:
+            tokens[url] = github.clone_token(url)
+        if tokens[url] is not None:
+            order["clone_token"] = tokens[url].token
 
 
 def end_queued_for(machine: CodingMachine, reason: str) -> int:
@@ -314,10 +337,61 @@ def record_events(machine: CodingMachine, batches: list[dict]) -> list[str]:
     return ended
 
 
-def apply_machine_result(machine: CodingMachine, job_id, result):
-    """Apply the machine's result for a job it ran. Applying the same result again changes nothing."""
+def apply_machine_result(
+    machine: CodingMachine, job_id, result, changes: dict | None = None, *, changes_note: str = ""
+) -> Applied:
+    """Take the machine's result for a job it ran. Sending the same result again changes nothing.
+
+    An outcome with code and `changes` is applied once the CRM has pushed the changes and opened the pull request
+    (`plane.coding.publish`, in a task); until then the job stays running. Without changes, or when the project
+    cannot have pull requests, the outcome is applied now, and its comment says why there is no pull request.
+    """
     job = _machine_job(machine, job_id)
-    return apply_result(job, result)
+    if isinstance(result, dict):
+        crm_only = [key for key in CRM_FIELDS if key in result]
+        if crm_only:
+            raise InvalidResult({key: ["Set by the CRM, never reported by a machine."] for key in crm_only})
+    data = validate_result(job.action, result)
+    if JobOutcome(data["outcome"]) not in CODE_OUTCOMES:
+        return apply_result(job, data)
+    if not changes:
+        if changes_note:
+            reason = changes_note
+        elif data.get("changed_files"):
+            reason = "the machine did not send the changed files to the CRM"
+        else:
+            reason = "the job changed no files"
+        return apply_result(job, data, no_pr_reason=reason)
+    reason = no_pr_reason(job.project_id)
+    if reason:
+        return apply_result(job, data, no_pr_reason=reason)
+
+    from plane.coding.tasks import publish_coding_job
+
+    with transaction.atomic():
+        job = CodingJob.all_objects.select_for_update(of=("self",)).get(pk=job.pk)
+        if job.outcome is not None:
+            if reported_part(job.result) == data:
+                return Applied(job, changed=False)
+            raise Conflict("This job already has a different result.", code="RESULT_ALREADY_APPLIED")
+        if not job.is_active:
+            raise Conflict("This job has ended.", code="JOB_NOT_ACTIVE")
+        if job.result_received_at is not None:
+            pending = CodingJobChanges.objects.filter(job=job).values_list("result", flat=True).first()
+            if pending == data:
+                return Applied(job, changed=False)
+            raise Conflict("This job already has a different result.", code="RESULT_ALREADY_APPLIED")
+        CodingJobChanges.objects.create(
+            job=job, base_commit=changes["base_commit"], files=changes["files"], result=data
+        )
+        now = timezone.now()
+        job.result_received_at = now
+        job.progress = "Opening a pull request."
+        job.progress_at = now
+        job.save(update_fields=["result_received_at", "progress", "progress_at", "updated_at"])
+        job_id = str(job.id)
+        transaction.on_commit(lambda: publish_coding_job.delay(job_id))
+    return Applied(job, changed=True)
 
 
 def expire_jobs(now=None) -> int:
@@ -326,17 +400,27 @@ def expire_jobs(now=None) -> int:
     candidates = (
         CodingJob.all_objects.filter(status=JobStatus.RUNNING)
         .filter(
-            Q(ran_on__isnull=True)
-            | Q(ran_on__last_seen_at__lt=now - SILENT_WINDOW)
-            | Q(ran_on__state=MachineState.REVOKED)
-            | Q(deadline_at__lt=now - DEADLINE_GRACE)
+            (
+                Q(result_received_at__isnull=True)
+                & (
+                    Q(ran_on__isnull=True)
+                    | Q(ran_on__last_seen_at__lt=now - SILENT_WINDOW)
+                    | Q(ran_on__state=MachineState.REVOKED)
+                    | Q(deadline_at__lt=now - DEADLINE_GRACE)
+                )
+            )
+            # The machine is done with a job whose result arrived; only the pull request can be late.
+            | Q(result_received_at__lt=now - PUBLISH_WINDOW)
         )
         .select_related("ran_on")
     )
     count = 0
     for job in candidates:
         name = job.ran_on_name or "running it"
-        if job.deadline_at and job.deadline_at < now - DEADLINE_GRACE:
+        if job.result_received_at is not None:
+            where = f" on {job.ran_on_name}" if job.ran_on_name else " on the machine"
+            reason = f"Could not open the pull request: it took too long. The changes stay in the job's folder{where}."
+        elif job.deadline_at and job.deadline_at < now - DEADLINE_GRACE:
             minutes = int((job.deadline_at - job.started_at).total_seconds() // 60) if job.started_at else None
             reason = f"The job ran out of time ({minutes} minutes)." if minutes else "The job ran out of time."
         elif job.ran_on is None:
@@ -350,4 +434,6 @@ def expire_jobs(now=None) -> int:
             count += 1
         except CodingError:  # pragma: no cover - logged, the next run tries again
             logger.exception("coding: could not end job %s", job.id)
+    # Changes of jobs that ended while they waited for their pull request (cancelled, timed out) are not kept.
+    CodingJobChanges.objects.filter(job__outcome__isnull=False).delete(soft=False)
     return count

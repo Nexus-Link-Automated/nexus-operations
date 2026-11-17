@@ -46,9 +46,15 @@ const ORDER = {
  * folder with one file and the agent is `fixtures/fake-coding-agent.ts`. Container paths in the
  * agent's env are mapped to the job's folders, as the container's mounts would.
  */
+const BASE_COMMIT = "c".repeat(40);
+const FIX_CHANGES = {
+  base_commit: BASE_COMMIT,
+  files: [{ path: "fix.txt", mode: "100644", content: Buffer.from("fixed\n").toString("base64") }],
+};
+
 class ProcessSandboxes implements SandboxProvider {
   ready = true;
-  created: { order: JobOrder; dirs: JobDirs; destroyed: boolean; env?: AgentEnv }[] = [];
+  created: { order: JobOrder; dirs: JobDirs; destroyed: boolean; env?: AgentEnv; token?: string | undefined }[] = [];
   agentMode = "fixed";
   cloneError: string | undefined;
 
@@ -73,13 +79,15 @@ class ProcessSandboxes implements SandboxProvider {
       value.replace(/^\/job\/(work|home|out)/, (_m, part: "work" | "home" | "out") => dirs[part]);
     return {
       start: async () => undefined,
-      clone: async () => {
+      clone: async (_url, _branch, _signal, token) => {
+        record.token = token;
         if (this.cloneError) {
           const { SandboxError } = await import("../src/machine/sandbox.ts");
           throw new SandboxError(this.cloneError);
         }
         mkdirSync(repo, { recursive: true });
         writeFileSync(path.join(repo, "README.md"), "app\n");
+        return BASE_COMMIT;
       },
       startAgent: (_agent, env): AgentProcess => {
         record.env = env;
@@ -97,10 +105,11 @@ class ProcessSandboxes implements SandboxProvider {
         const exited = new Promise<number | null>((resolve) => child.once("exit", (code) => resolve(code)));
         return { stdin: child.stdin, stdout: child.stdout, exited, stderrTail: () => stderr.slice(-500) };
       },
-      collectChanges: async () => {
+      collectChanges: async (base) => {
+        expect(base).toBe(BASE_COMMIT);
         const files = readdirSync(repo).filter((name) => name !== "README.md");
         if (files.length) writeFileSync(path.join(dirs.out, "changes.patch"), `+${files.join("\n+")}\n`);
-        return files;
+        return files.map((file) => ({ status: "A" as const, path: file }));
       },
       destroy: async () => {
         record.destroyed = true;
@@ -162,6 +171,8 @@ describe("running one job", () => {
     const events: { kind: string; text: string }[] = [];
     const end = await run(order(), undefined, events);
     expect(resultOf(end)).toEqual({ outcome: "fixed", summary: "Added a null check.", changed_files: ["fix.txt"] });
+    // The changed files go to the CRM, which pushes them and opens the pull request.
+    expect((end as Extract<JobEnd, { kind: "result" }>).changes).toEqual(FIX_CHANGES);
     const texts = events.map((e) => `${e.kind}: ${e.text}`);
     expect(texts).toContain("message: Looking at the bug. Found it.");
     expect(texts).toContain("tool: Run the tests");
@@ -304,6 +315,7 @@ describe("the job manager", () => {
     expect(results[0]!.headers.authorization).toBe(`Bearer ${KEY}`);
     expect(results[0]!.body).toEqual({
       result: { outcome: "fixed", summary: "Added a null check.", changed_files: ["fix.txt"] },
+      changes: FIX_CHANGES,
     });
     const lines = posted(crm.requests, "/jobs/events/").flatMap((r) =>
       (r.body as { jobs: { id: string; events: { text: string }[] }[] }).jobs.flatMap((j) => j.events)
@@ -413,6 +425,34 @@ describe("the job manager", () => {
     await jobs.idle();
     const bodies = posted(crm.requests, "/result/").map((r) => (r.body as { result: { outcome: string } }).result);
     expect(bodies.map((b) => b.outcome)).toEqual(["fixed", "job_error"]);
+  });
+
+  it("sends the outcome without the changed files when the CRM refuses them", async () => {
+    const answers = [
+      { status: 400, body: { code: "INVALID", errors: { changes: ["bad"] } } },
+      { status: 200, body: { status: "finished", outcome: "fixed", changed: true } },
+    ];
+    crm.respond = (request) =>
+      request.url.endsWith("/result/") ? (answers.shift() ?? { status: 409 }) : { status: 200, body: { ended: [] } };
+    const jobs = manager();
+    jobs.accept([ORDER]);
+    await jobs.idle();
+    const bodies = posted(crm.requests, "/result/").map((r) => r.body as Record<string, unknown>);
+    expect(bodies[0]!.changes).toEqual(FIX_CHANGES);
+    expect(bodies[1]).toEqual({
+      result: { outcome: "fixed", summary: "Added a null check.", changed_files: ["fix.txt"] },
+      changes_note: "the CRM did not accept the changed files",
+    });
+  });
+
+  it("clones with the order's read token, and refuses an order with a malformed one", async () => {
+    const withToken = parseOrder({ ...ORDER, clone_token: "ghs_readonly123" });
+    if (!withToken.ok) throw new Error(withToken.error);
+    await run(withToken.order);
+    expect(sandboxes.created[0]!.token).toBe("ghs_readonly123");
+    expect(parseOrder({ ...ORDER, clone_token: "bad token\n" }).ok).toBe(false);
+    await run(order());
+    expect(sandboxes.created[1]!.token).toBeUndefined();
   });
 
   it("refuses a job it cannot read with a job error, and takes none while the job image is not ready", async () => {

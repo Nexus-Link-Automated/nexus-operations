@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
+from .changes import CodingJobChanges
 from .event import EVENT_TEXT_MAX, MAX_EVENTS_PER_JOB, CodingJobEvent, EventKind
 from .job import ACTIVE_STATUSES, CodingAction, CodingAgent, CodingJob, JobOutcome, JobStatus
 from .machine import HEARTBEAT_SECONDS, ONLINE_WINDOW, CodingMachine, MachineState
@@ -12,6 +13,7 @@ __all__ = [
     "CodingAction",
     "CodingAgent",
     "CodingJob",
+    "CodingJobChanges",
     "CodingJobEvent",
     "EVENT_TEXT_MAX",
     "EventKind",

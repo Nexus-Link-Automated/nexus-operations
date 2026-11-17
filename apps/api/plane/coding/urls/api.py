@@ -18,6 +18,7 @@ urlpatterns = routes(
         "retry": views.CodingJobRetryAPIEndpoint,
         "events": views.CodingJobEventsAPIEndpoint,
         "settings": views.ProjectCodingSettingsAPIEndpoint,
+        "repository": views.ProjectCodingRepositoryAPIEndpoint,
         "machines": views.CodingMachineListAPIEndpoint,
         "machines_all": views.CodingMachineAllAPIEndpoint,
         "machine": views.CodingMachineDetailAPIEndpoint,

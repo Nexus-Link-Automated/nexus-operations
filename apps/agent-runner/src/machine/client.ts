@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import type { JobChanges } from "./changes.ts";
 import type { About, Capabilities } from "./report.ts";
 import { MACHINE_VERSION } from "./version.ts";
 
@@ -62,6 +63,14 @@ export interface JobEventBatch {
 export interface EventsAnswer {
   /** Jobs that are no longer running on this machine: stop them. */
   readonly ended: readonly string[];
+}
+
+/** What the machine sends when a job ends: its result, and the files it changed for the pull request. */
+export interface ResultBody {
+  readonly result: Record<string, unknown>;
+  readonly changes?: JobChanges;
+  /** Why changed files are not sent (too large, ...): the CRM says it on the work item. */
+  readonly changes_note?: string;
 }
 
 export interface ResultAnswer {
@@ -160,8 +169,8 @@ export class CrmClient {
     return { kind: "ok", value: { ended: strings(result.value.ended) } };
   }
 
-  async result(key: string, jobId: string, body: unknown, signal?: AbortSignal): Promise<CrmResult<ResultAnswer>> {
-    const result = await this.#post(resultPath(jobId), { result: body }, key, signal);
+  async result(key: string, jobId: string, body: ResultBody, signal?: AbortSignal): Promise<CrmResult<ResultAnswer>> {
+    const result = await this.#post(resultPath(jobId), body, key, signal);
     if (result.kind !== "ok") return result;
     const answer = result.value;
     return {

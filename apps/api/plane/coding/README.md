@@ -16,6 +16,9 @@ It also holds the registry of each person's own machines and hands queued jobs t
 | `machines.py` | Add, join, heartbeat, approve, revoke, remove; which machine a job may ask for |
 | `dispatch.py` | Handing queued jobs to machines in heartbeats, progress lines, results from machines, ending jobs whose machine went quiet |
 | `instructions.py` | The prompt the CRM writes for a job, with the work item's text fenced as data |
+| `github.py` | The CRM's GitHub App: short-lived installation tokens for one repository |
+| `publish.py` | Pushing a job's changes to its own branch and opening the pull request |
+| `models/changes.py` | `CodingJobChanges`: a finished job's changed files while the CRM pushes them |
 | `models/event.py` | `CodingJobEvent`: a progress line a machine reported |
 | `tasks.py` | `expire_coding_jobs`, every minute from Celery beat |
 | `models/project_settings.py` | `ProjectCodingSettings`: enabled, repo URL, default branch, the Ready / Failed / In review states |
@@ -39,10 +42,9 @@ It also holds the registry of each person's own machines and hands queued jobs t
 
 Failed means only that the product code is buggy. Cancelling a job ends it as a `job_error` with status `cancelled`.
 
-The result schema per outcome is in `outcomes.py` (`_Fixed`, `_BugFound`, ...). Unknown fields are refused; `pr_url`
-must be an https URL. Until jobs can push and open pull requests (Step 5 of the build plan), `pr_url` is optional: a job
-that changed code reports `changed_files` instead (added by the machine, not the agent), and the comment says the
-changes stay in the job's folder on the machine. Every agent-written string is escaped into the comment and output goes in code blocks; the
+The result schema per outcome is in `outcomes.py` (`_Fixed`, `_BugFound`, ...). Unknown fields are refused, `pr_url`
+and the branch included: the CRM opens the pull request itself and adds its link (see "Pull requests"). A job that
+changed code also reports `changed_files` (added by the machine, not the agent). Every agent-written string is escaped into the comment and output goes in code blocks; the
 comment then goes through the same sanitiser and serializer as a public-API comment. The state change goes through the
 public API's work item serializer and `issue_activity`, so it shows in the activity feed and the project's chat feed.
 Both are attributed to the bot. Applying the same result twice changes nothing; a different result for a finished job
@@ -54,6 +56,48 @@ A work item archived (or turned back into a draft or intake item) while its job 
 recorded and commented, and the comment says it was not moved. A work item deleted mid-job gets no comment; the job
 still ends with its outcome. A queued job whose work item was archived or deleted, whose project turned coding jobs
 off, or whose requester can no longer run jobs in the project ends as a job error when a machine would have taken it.
+
+## Pull requests
+
+The CRM, never the machine, pushes a job's changes and opens its pull request, with its own GitHub App
+(`github.py`). The App's id and private key are server settings only:
+
+| Setting | Meaning |
+|---|---|
+| `GITHUB_APP_ID` | The App's id |
+| `GITHUB_APP_PRIVATE_KEY` or `GITHUB_APP_PRIVATE_KEY_PATH` | Its private key (PEM; `\n` in the variable is read as a newline) |
+| `GITHUB_APP_SLUG` | Its name in its URL, for the install link the settings show |
+| `GITHUB_API_URL`, `GITHUB_WEB_URL` | `https://api.github.com` and `https://github.com` unless GitHub Enterprise |
+
+The App needs these repository permissions: **Contents: read and write**, **Pull requests: read and write**
+(Metadata: read comes with them). Install it on the repositories whose projects run coding jobs. The project's
+`repo_url` must be `https://github.com/<owner>/<repo>`.
+
+For each job the CRM asks GitHub for an installation token limited to the project's one repository and to exactly
+the permissions needed; GitHub ends it after an hour, and the CRM never stores it:
+
+- **Push** (contents: write, pull requests: write), used by the CRM only. The machine sends the files the job changed
+  with its result (`changes`). The CRM keeps them (`CodingJobChanges`) while a task (`publish_coding_job`) makes a
+  commit of them on the job's starting commit (GitHub's Git Data API: no git on the server), creates the branch
+  `nexus/<action>/<first 8 hex of the job id>` (created, never updated, so an existing branch, the default branch
+  included, is never moved; a name that is the default branch is refused before anything is sent), and opens a pull
+  request into the project's default branch. A `bug_found` pull request carries the failing test and is a draft. Its
+  title is the work item's key and title; everything a coding agent wrote goes in a fenced code block. Then the
+  outcome is applied with `pr_url` and `pr_branch`, and the changes are deleted.
+- **Clone** (contents: read), only for a private repository: in the job's order as `clone_token`.
+
+Until the pull request is open the job stays `running` with `result_received_at` set: the machine is done with it,
+it frees the machine's slot, and a silent machine does not end it. A push or pull request that fails (or is not
+open after 15 minutes) ends the job as a `job_error` with the reason, never Failed; the changes stay in the job's
+folder on the machine. A job whose project's repository is not on GitHub, or whose CRM has no App or no installation
+on the repository, has its outcome applied at once, and the comment says why there is no pull request.
+
+`GET .../coding-settings/repository/` (members and admins) says whether the project's jobs can open pull requests:
+
+```json
+{"repo_url", "provider": "github" | null, "app_configured", "install_url", "installed", "private",
+ "repo_default_branch", "pull_requests", "reason"}
+```
 
 ## Endpoints
 
@@ -154,7 +198,7 @@ The machine's own endpoints are on the public API only and take no personal toke
 | POST | `/api/v1/coding-machines/join/` | the join code in the body | `{"code", "hostname"?, "os"?, "version"?}` | 201 `{"machine_id", "key", "name", "workspace_slug", "state", "heartbeat_seconds"}` |
 | POST | `/api/v1/coding-machines/heartbeat/` | `Authorization: Bearer <key>` | `{"hostname"?, "os"?, "version"?, "capabilities"?, "running"?}` | 200 `{"machine_id", "name", "state", "heartbeat_seconds", "jobs", "cancel"}` |
 | POST | `/api/v1/coding-machines/jobs/events/` | the key | `{"jobs": [{"id", "events": [{"kind", "text"}]}]}` | 200 `{"ended": [job ids]}` |
-| POST | `/api/v1/coding-machines/jobs/<job_id>/result/` | the key | `{"result": {...}}` | 200 `{"job_id", "status", "outcome", "changed"}` |
+| POST | `/api/v1/coding-machines/jobs/<job_id>/result/` | the key | `{"result": {...}, "changes"?, "changes_note"?}` | 200 `{"job_id", "status", "outcome", "changed"}` |
 
 `capabilities` (every field required when sent; unknown fields refused):
 
@@ -201,6 +245,12 @@ Each entry in `jobs`:
 {"id", "action", "agent", "repo_url", "branch", "work_item": {"id", "identifier", "name", "url"},
  "instructions", "timeout_seconds"}
 ```
+
+A private GitHub repository's order also has `clone_token` (see "Pull requests").
+
+`changes` on a result is `{"base_commit": "<40 hex>", "files": [{"path", "mode": "100644" | "100755" | "120000",
+"content": "<base64>"} | {"path", "deleted": true}]}`: at most 200 files and 3 MB of content, paths inside the
+repository and not under `.git`. `changes_note` (at most 300 characters) says why a job with changed files sends none.
 
 `instructions` is the whole prompt (`instructions.py`): the task for the action, the rules (work only in the clone, no
 commits, pushes or questions), the work item's title, description and latest 10 human comments between two lines of a

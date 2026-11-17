@@ -24,6 +24,11 @@ def routes(views: dict, prefix: str) -> list:
             views["settings"].as_view(http_method_names=["get", "patch"]),
             name=f"{prefix}-coding-settings",
         ),
+        path(
+            PROJECT + "coding-settings/repository/",
+            views["repository"].as_view(http_method_names=["get"]),
+            name=f"{prefix}-coding-settings-repository",
+        ),
         path(MACHINES, views["machines"].as_view(http_method_names=["get", "post"]), name=f"{prefix}-coding-machines"),
         path(
             MACHINES + "all/",

@@ -75,30 +75,6 @@ def other_member(make_user, workspace, project):
     return make_user(MEMBER, workspace=workspace, project=project, name="Otto Other")
 
 
-@pytest.fixture
-def make_machine(workspace):
-    """An approved machine of `owner` and its key."""
-
-    def make(owner, name="Laptop", state=MachineState.ACTIVE):
-        machine, code = machines.add_machine(workspace, owner, name)
-        machine, key = machines.join(code, hostname=name.lower())
-        if state == MachineState.ACTIVE:
-            machine = machines.approve(machine)
-        return machine, key
-
-    return make
-
-
-@pytest.fixture
-def start(issue, coding_settings):
-    def start_job(user, action="fix_bug", agent="codex", machine=None, item=None):
-        return CodingJob.objects.create(
-            issue=item or issue, action=action, agent=agent, requested_by=user, machine=machine
-        )
-
-    return start_job
-
-
 def handed(res):
     assert res.status_code == 200, res.data
     return [job["id"] for job in res.json()["jobs"]]

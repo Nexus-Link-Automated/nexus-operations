@@ -287,12 +287,16 @@ class MachineJobResultEndpoint(_MachineEndpoint):
     throttle_classes = [_JobResultThrottle]
 
     def post(self, request, job_id):
-        """The job's result. The same result again changes nothing; a job that has ended otherwise is 409."""
+        """The job's result, with the files it changed. The same result again changes nothing; a job that has ended
+        otherwise is 409. With changes, the job stays `running` until the CRM has opened its pull request."""
         machine = machines.authenticate_key(_bearer(request))
         serializer = JobResultSerializer(data=request.data)
         if not serializer.is_valid():
             return self.invalid(serializer.errors)
-        applied = dispatch.apply_machine_result(machine, job_id, serializer.validated_data["result"])
+        data = serializer.validated_data
+        applied = dispatch.apply_machine_result(
+            machine, job_id, data["result"], data.get("changes"), changes_note=data.get("changes_note", "")
+        )
         job = applied.job
         return Response(
             {"job_id": str(job.id), "status": job.status, "outcome": job.outcome, "changed": applied.changed}

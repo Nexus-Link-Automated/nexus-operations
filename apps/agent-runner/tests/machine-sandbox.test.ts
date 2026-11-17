@@ -18,7 +18,9 @@ import { readRegularFile, removeAll } from "../src/machine/files.ts";
 import { makeJobDirs, pruneJobDirs } from "../src/machine/job.ts";
 import { parseOrder } from "../src/machine/orders.ts";
 import { ProgressCondenser } from "../src/machine/progress.ts";
-import { containerArgs, DockerSandboxProvider, imageTag, parsePorcelain } from "../src/machine/sandbox.ts";
+import { isRepoPath, parseNameStatus, readChanges } from "../src/machine/changes.ts";
+import { cloneAccess, containerArgs, DockerSandboxProvider, imageTag } from "../src/machine/sandbox.ts";
+import type { CommandRunner } from "../src/machine/system.ts";
 import { stageSignIn } from "../src/machine/signins.ts";
 import { fakeRunner, memoryLogger } from "./machine-helpers.ts";
 
@@ -152,14 +154,110 @@ describe("the job container", () => {
     expect(run.calls).toContain("docker rm --force abc def");
   });
 
-  it("reads changed files from git status", () => {
-    expect(parsePorcelain(" M app/auth.py\0?? tests/new.py\0R  new.py\0old.py\0")).toEqual([
-      "app/auth.py",
-      "tests/new.py",
-      "new.py",
+  it("lists changed files from git diff --name-status", () => {
+    expect(parseNameStatus("M\0app/auth.py\0A\0tests/new.py\0D\0old.py\0T\0link\0U\0conflict\0")).toEqual([
+      { status: "M", path: "app/auth.py" },
+      { status: "A", path: "tests/new.py" },
+      { status: "D", path: "old.py" },
+      { status: "T", path: "link" },
     ]);
-    expect(parsePorcelain("")).toEqual([]);
-    expect(parsePorcelain(`?? ${"d/".repeat(300)}f\0`)[0]).toHaveLength(500);
+    expect(parseNameStatus("")).toEqual([]);
+  });
+
+  it("clones a private repository with the token passed by name, for the repository's host only", async () => {
+    const calls: { args: readonly string[]; env: NodeJS.ProcessEnv | undefined }[] = [];
+    const run: CommandRunner = async (_file, args, options) => {
+      calls.push({ args, env: options.env });
+      if (args.includes("rev-parse")) return { code: 0, stdout: `${"b".repeat(40)}\n`, stderr: "" };
+      if (args[0] === "version") return { code: 0, stdout: "28.1.1", stderr: "" };
+      return { code: 0, stdout: "", stderr: "" };
+    };
+    const context = path.join(dir, "job-image");
+    mkdirSync(context);
+    writeFileSync(path.join(context, "Dockerfile"), "FROM scratch\n");
+    const provider = new DockerSandboxProvider({
+      machineId: "m-1",
+      contextDir: context,
+      env: {},
+      log: memoryLogger(),
+      run,
+    });
+    await provider.prepare(new AbortController().signal);
+    const sandbox = provider.create(parsedOrder(), DIRS);
+    const base = await sandbox.clone("https://github.com/example/app", "main", new AbortController().signal, "ghs_abc");
+    expect(base).toBe("b".repeat(40));
+    const clone = calls.find((call) => call.args.includes("clone"))!;
+    expect(clone.args.join(" ")).not.toContain("ghs_abc");
+    expect(clone.args).toContain("GIT_CONFIG_VALUE_0");
+    expect(clone.env!.GIT_CONFIG_KEY_0).toBe("http.https://github.com/.extraHeader");
+    expect(Buffer.from(clone.env!.GIT_CONFIG_VALUE_0!.split(" ").at(-1)!, "base64").toString()).toBe(
+      "x-access-token:ghs_abc"
+    );
+    // The next command (reading the commit) gets no token.
+    const head = calls.find((call) => call.args.includes("rev-parse"))!;
+    expect(head.env?.GIT_CONFIG_VALUE_0).toBeUndefined();
+    // Without a token, nothing extra.
+    calls.length = 0;
+    await sandbox.clone("https://github.com/example/app", "main", new AbortController().signal);
+    expect(calls[0]!.args).not.toContain("GIT_CONFIG_VALUE_0");
+    expect(cloneAccess("https://git.example.com/a/b", "t").GIT_CONFIG_KEY_0).toBe(
+      "http.https://git.example.com/.extraHeader"
+    );
+  });
+});
+
+describe("the changes sent for a pull request", () => {
+  const BASE = "a".repeat(40);
+
+  it("reads each changed file's content and mode, and lists deletions", () => {
+    const repo = path.join(dir, "repo");
+    mkdirSync(path.join(repo, "app"), { recursive: true });
+    writeFileSync(path.join(repo, "app", "auth.py"), "fixed\n");
+    writeFileSync(path.join(repo, "run.sh"), "#!/bin/sh\n");
+    chmodSync(path.join(repo, "run.sh"), 0o755);
+    writeFileSync(path.join(repo, "bin.dat"), Buffer.from([0, 255, 1]));
+    symlinkSync("app/auth.py", path.join(repo, "link"));
+    const read = readChanges(repo, BASE, [
+      { status: "M", path: "app/auth.py" },
+      { status: "A", path: "run.sh" },
+      { status: "A", path: "bin.dat" },
+      { status: "T", path: "link" },
+      { status: "D", path: "old.txt" },
+    ]);
+    expect(read).toEqual({
+      ok: true,
+      changes: {
+        base_commit: BASE,
+        files: [
+          { path: "app/auth.py", mode: "100644", content: Buffer.from("fixed\n").toString("base64") },
+          { path: "run.sh", mode: "100755", content: Buffer.from("#!/bin/sh\n").toString("base64") },
+          { path: "bin.dat", mode: "100644", content: "AP8B" },
+          { path: "link", mode: "120000", content: Buffer.from("app/auth.py").toString("base64") },
+          { path: "old.txt", deleted: true },
+        ],
+      },
+    });
+  });
+
+  it("never reads through a linked folder, outside the clone, or past the size limit", () => {
+    const repo = path.join(dir, "repo");
+    mkdirSync(repo);
+    mkdirSync(path.join(dir, "secret"));
+    writeFileSync(path.join(dir, "secret", "key"), "private");
+    symlinkSync(path.join(dir, "secret"), path.join(repo, "linked"));
+    expect(readChanges(repo, BASE, [{ status: "A", path: "linked/key" }])).toEqual({
+      ok: false,
+      note: "the changed file linked/key is behind a symbolic link",
+    });
+    for (const bad of ["../secret/key", ".git/config", "/etc/passwd", "a/./b"]) {
+      expect(isRepoPath(bad)).toBe(false);
+      expect(readChanges(repo, BASE, [{ status: "A", path: bad }]).ok).toBe(false);
+    }
+    writeFileSync(path.join(repo, "big"), Buffer.alloc(3 * 1024 * 1024 + 1));
+    const big = readChanges(repo, BASE, [{ status: "A", path: "big" }]);
+    expect(big.ok === false && big.note).toMatch(/larger than 3 MB/);
+    expect(readChanges(repo, "HEAD", [{ status: "D", path: "x" }]).ok).toBe(false);
+    expect(readChanges(repo, BASE, [])).toEqual({ ok: false, note: "the job changed no files" });
   });
 });
 

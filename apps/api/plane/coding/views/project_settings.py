@@ -8,6 +8,7 @@ from django.db import transaction
 from rest_framework.response import Response
 
 from plane.coding.models import ProjectCodingSettings
+from plane.coding.publish import repository_access
 from plane.coding.serializers import ProjectCodingSettingsUpdateSerializer, settings_payload
 
 from .base import CodingEndpointMixin
@@ -34,3 +35,11 @@ class ProjectCodingSettingsMixin(CodingEndpointMixin):
                 setattr(coding_settings, field, value)
             coding_settings.save()
         return Response(settings_payload(project, coding_settings))
+
+
+class ProjectCodingRepositoryMixin(CodingEndpointMixin):
+    def get(self, request, slug, project_id):
+        """Whether the project's jobs can open pull requests: the repository, the CRM's GitHub App and its
+        installation. Members and admins; asks GitHub, so it is not part of the settings themselves."""
+        self.access.require_reader_of_settings()
+        return Response(repository_access(self.access.project.id))

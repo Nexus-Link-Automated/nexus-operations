@@ -32,6 +32,7 @@ ACTIONS = (
         note="only a cancelled or job_error job; starts a new job",
     ),
     Action("settings_get", ("project_id",), read=True),
+    Action("repository", ("project_id",), read=True, note="can jobs open pull requests (GitHub App installed?)"),
     Action(
         "settings_update",
         ("project_id",),
@@ -46,6 +47,7 @@ FOOTER = (
     "job's machine if still allowed. "
     "The CRM moves the work item and comments when one ends: fixed -> In review, test_written or test_passed -> "
     "Ready, bug_found -> Failed; could_not_fix and job_error leave it. One active job per work item and job_action. "
+    "Jobs with changes get a pull request from branch nexus/<action>/<job> when the CRM's GitHub App is installed. "
     'A state id set to "none" goes back to matching the column by name; repo_url "none" clears it.'
 )
 
@@ -92,6 +94,9 @@ class CodingJobs(BaseResource):
     def update_settings(self, workspace_slug: str, project_id: str, data: Mapping[str, Any]) -> Any:
         return self._patch(f"{workspace_slug}/projects/{project_id}/coding-settings", data)
 
+    def repository(self, workspace_slug: str, project_id: str) -> Any:
+        return self._get(f"{workspace_slug}/projects/{project_id}/coding-settings/repository")
+
 
 def coding_jobs(client: Any) -> CodingJobs:
     return CodingJobs(client.config)
@@ -130,7 +135,9 @@ def register(mcp: FastMCP) -> None:
         annotations=build_annotations(TITLE, ACTIONS),
     )
     def coding_job(
-        action: Literal["list", "get", "events", "start", "cancel", "retry", "settings_get", "settings_update"],
+        action: Literal[
+            "list", "get", "events", "start", "cancel", "retry", "settings_get", "settings_update", "repository"
+        ],
         project_id: str = "",
         workitem_id: str = "",
         job_id: str = "",
@@ -162,6 +169,8 @@ def register(mcp: FastMCP) -> None:
         try:
             if action == "settings_get":
                 return api.get_settings(workspace_slug, project_id)
+            if action == "repository":
+                return api.repository(workspace_slug, project_id)
             if action == "settings_update":
                 data: dict[str, Any] = {}
                 if enabled is not None:

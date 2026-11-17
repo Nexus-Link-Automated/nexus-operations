@@ -67,6 +67,11 @@ class CodingJob(BaseModel):
     # The validated result the outcome was applied from (`plane.coding.outcomes.validate_result`).
     result = models.JSONField(default=dict, blank=True)
     pr_url = models.URLField(max_length=2000, blank=True, default="")
+    # The branch the CRM pushed the job's changes to (`plane.coding.publish`); never the default branch.
+    pr_branch = models.CharField(max_length=255, blank=True, default="")
+    # When the machine's result arrived with changes the CRM is still pushing; the job stays running until the pull
+    # request is open (or could not be), and the machine no longer lists it.
+    result_received_at = models.DateTimeField(null=True, blank=True)
     error_reason = models.TextField(blank=True, default="")
     retry_of = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True, related_name="retries")
     # The requester's machine the job asked for; null means Auto (any of the requester's machines).

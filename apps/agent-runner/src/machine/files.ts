@@ -24,12 +24,12 @@ import path from "node:path";
  * never block, never read past a limit and never throw.
  */
 
-/** The file's text when it is a regular file of at most `maxBytes`; otherwise why not. */
-export function readRegularFile(
+/** The file's bytes when it is a regular file of at most `maxBytes`; otherwise why not. */
+export function readRegularBytes(
   file: string,
   maxBytes: number
 ):
-  | { readonly ok: true; readonly text: string }
+  | { readonly ok: true; readonly bytes: Buffer; readonly executable: boolean }
   | { readonly ok: false; readonly missing: boolean; readonly error: string } {
   let fd: number;
   try {
@@ -50,12 +50,23 @@ export function readRegularFile(
       if (count === 0) break;
       read += count;
     }
-    return { ok: true, text: buffer.subarray(0, read).toString("utf8") };
+    return { ok: true, bytes: buffer.subarray(0, read), executable: (stat.mode & 0o111) !== 0 };
   } catch {
     return { ok: false, missing: false, error: "unreadable" };
   } finally {
     closeSync(fd);
   }
+}
+
+/** The file's text when it is a regular file of at most `maxBytes`; otherwise why not. */
+export function readRegularFile(
+  file: string,
+  maxBytes: number
+):
+  | { readonly ok: true; readonly text: string }
+  | { readonly ok: false; readonly missing: boolean; readonly error: string } {
+  const read = readRegularBytes(file, maxBytes);
+  return read.ok ? { ok: true, text: read.bytes.toString("utf8") } : read;
 }
 
 /** Makes every folder under `dir` writable by its owner (never through a symlink), so it can be removed. */

@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
+import base64
+import binascii
+
 from rest_framework import serializers
 
 from plane.coding.models import EVENT_TEXT_MAX, CodingAgent, CodingMachine, EventKind
@@ -123,6 +126,66 @@ class JobEventsSerializer(StrictSerializer):
     jobs = _JobEvents(many=True, max_length=MAX_EVENT_JOBS)
 
 
+# The files a job changed, sent with its result for the CRM to push (`plane.coding.publish`).
+MAX_CHANGED_FILES = 200
+MAX_CHANGES_BYTES = 3 * 1024 * 1024
+FILE_MODES = ("100644", "100755", "120000")
+
+
+def _check_path(path: str) -> str:
+    """A path inside the repository: relative, no `.`/`..` parts, nothing under `.git`."""
+    if not path or "\0" in path or "\\" in path or path.startswith("/") or path.endswith("/"):
+        raise serializers.ValidationError("Not a path inside the repository.")
+    parts = path.split("/")
+    if any(part in ("", ".", "..") or part.lower() == ".git" for part in parts):
+        raise serializers.ValidationError("Not a path inside the repository.")
+    return path
+
+
+class _ChangedFile(StrictSerializer):
+    path = serializers.CharField(max_length=500, trim_whitespace=False)
+    mode = serializers.ChoiceField(choices=FILE_MODES, required=False)
+    # Base64 of the file's new content (a symbolic link's: its target).
+    content = serializers.CharField(
+        max_length=MAX_CHANGES_BYTES * 4 // 3 + 4, allow_blank=True, trim_whitespace=False, required=False
+    )
+    deleted = serializers.BooleanField(required=False)
+
+    def validate_path(self, value):
+        return _check_path(value)
+
+    def validate(self, attrs):
+        if attrs.get("deleted"):
+            if "content" in attrs or "mode" in attrs:
+                raise serializers.ValidationError("A deleted file has no mode or content.")
+            return {"path": attrs["path"], "deleted": True}
+        if "content" not in attrs or "mode" not in attrs:
+            raise serializers.ValidationError("A changed file needs its mode and content.")
+        try:
+            size = len(base64.b64decode(attrs["content"], validate=True))
+        except (binascii.Error, ValueError):
+            raise serializers.ValidationError({"content": ["Not base64."]})
+        return {"path": attrs["path"], "mode": attrs["mode"], "content": attrs["content"], "size": size}
+
+
+class _Changes(StrictSerializer):
+    base_commit = serializers.RegexField(r"^[0-9a-f]{40}$")
+    files = _ChangedFile(many=True, min_length=1, max_length=MAX_CHANGED_FILES)
+
+    def validate(self, attrs):
+        paths = [file["path"] for file in attrs["files"]]
+        if len(set(paths)) != len(paths):
+            raise serializers.ValidationError({"files": ["A path is listed twice."]})
+        total = sum(file.pop("size", 0) for file in attrs["files"])
+        if total > MAX_CHANGES_BYTES:
+            raise serializers.ValidationError({"files": [f"The changes are larger than {MAX_CHANGES_BYTES} bytes."]})
+        return attrs
+
+
 class JobResultSerializer(StrictSerializer):
     # Validated against the job's action by `plane.coding.outcomes.validate_result`.
     result = serializers.DictField()
+    # The files the job changed, when its outcome is one with code (`fixed`, `test_written`, ...).
+    changes = _Changes(required=False)
+    # Why a job with changed files sends none (too large, ...); said in the comment.
+    changes_note = serializers.CharField(max_length=300, required=False)

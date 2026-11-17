@@ -37,14 +37,14 @@ def _tags(html: str) -> list:
 
 PR = "https://github.com/example/app/pull/7"
 
-FIXED = {"outcome": "fixed", "summary": "Null check on the session token.", "pr_url": PR}
+FIXED = {"outcome": "fixed", "summary": "Null check on the session token."}
 COULD_NOT_FIX = {
     "outcome": "could_not_fix",
     "attempted": "Reproduced the crash and traced it to the auth client.",
     "reason": "The fix needs a schema change the job may not make.",
 }
-TEST_WRITTEN = {"outcome": "test_written", "pr_url": PR, "test_name": "test_login_with_expired_token"}
-TEST_PASSED = {"outcome": "test_passed", "pr_url": PR, "test_name": "test_login_with_expired_token"}
+TEST_WRITTEN = {"outcome": "test_written", "test_name": "test_login_with_expired_token"}
+TEST_PASSED = {"outcome": "test_passed", "test_name": "test_login_with_expired_token"}
 BUG_FOUND = {
     "outcome": "bug_found",
     "test_name": "test_login_with_expired_token",
@@ -53,7 +53,6 @@ BUG_FOUND = {
     "output": "Traceback (most recent call last):\n  File \"auth.py\", line 42\nKeyError: 'exp'",
     "diagnosis": {"likely_cause": "The token's expiry is read without a default.", "file": "auth.py", "line": 42},
     "reproduce": "pytest tests/test_auth.py -k expired",
-    "pr_url": PR,
 }
 JOB_ERROR = {"outcome": "job_error", "reason": "The machine went offline."}
 
@@ -82,7 +81,7 @@ class TestOutcomeRows:
         create_user.display_name = "Ada"
         create_user.save()
         job = make_job("fix_bug")
-        applied = apply(tasks, job, FIXED)
+        applied = apply(tasks, job, FIXED, pr_url=PR)
         assert applied.changed
         issue.refresh_from_db()
         assert issue.state == states["in review"]
@@ -92,7 +91,7 @@ class TestOutcomeRows:
         assert "Fix bug</strong> with Codex, requested by Ada." in html
         job.refresh_from_db()
         assert (job.status, job.outcome, job.pr_url) == (JobStatus.FINISHED, JobOutcome.FIXED, PR)
-        assert job.finished_at is not None and job.result == FIXED
+        assert job.finished_at is not None and job.result == {**FIXED, "pr_url": PR}
 
     def test_fix_bug_could_not_fix_stays_put(self, tasks, make_job, issue, states):
         job = make_job("fix_bug")
@@ -107,7 +106,7 @@ class TestOutcomeRows:
 
     def test_write_test_written_moves_to_ready(self, tasks, make_job, issue, states):
         job = make_job("write_test")
-        apply(tasks, job, TEST_WRITTEN)
+        apply(tasks, job, TEST_WRITTEN, pr_url=PR)
         issue.refresh_from_db()
         assert issue.state == states["ready"]
         html = comment_of(job)
@@ -115,7 +114,7 @@ class TestOutcomeRows:
 
     def test_write_and_run_test_passed_moves_to_ready(self, tasks, make_job, issue, states):
         job = make_job("write_and_run_test")
-        apply(tasks, job, TEST_PASSED)
+        apply(tasks, job, TEST_PASSED, pr_url=PR)
         issue.refresh_from_db()
         assert issue.state == states["ready"]
         html = comment_of(job)
@@ -123,7 +122,7 @@ class TestOutcomeRows:
 
     def test_write_and_run_test_bug_found_moves_to_failed(self, tasks, make_job, issue, states):
         job = make_job("write_and_run_test", agent="claude")
-        apply(tasks, job, BUG_FOUND)
+        apply(tasks, job, BUG_FOUND, pr_url=PR)
         issue.refresh_from_db()
         assert issue.state == states["failed"]
         html = comment_of(job)
@@ -266,7 +265,8 @@ class TestValidation:
             ("write_test", FIXED, "outcome"),
             ("write_test", BUG_FOUND, "outcome"),
             ("write_and_run_test", {"outcome": "nope"}, "outcome"),
-            ("fix_bug", {"outcome": "fixed", "pr_url": PR}, "summary"),
+            ("fix_bug", {"outcome": "fixed"}, "summary"),
+            ("fix_bug", {**FIXED, "pr_url": PR}, "pr_url"),
             ("fix_bug", {**FIXED, "pr_url": "http://github.com/x/y/pull/1"}, "pr_url"),
             ("fix_bug", {**FIXED, "pr_url": "javascript:alert(1)"}, "pr_url"),
             ("fix_bug", {**FIXED, "extra": "x"}, "extra"),
@@ -307,7 +307,7 @@ class TestEscaping:
             "reproduce": hostile,
         }
         job = make_job("write_and_run_test")
-        apply(tasks, job, result)
+        apply(tasks, job, result, pr_url=PR)
         html = comment_of(job)
         tags = _tags(html)
         assert {tag for tag, _ in tags} <= {"p", "strong", "code", "pre", "br", "a"}

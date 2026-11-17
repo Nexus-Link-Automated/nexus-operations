@@ -24,6 +24,8 @@ export interface JobOrder {
   readonly workItem: { readonly id: string; readonly identifier: string; readonly name: string };
   readonly instructions: string;
   readonly timeoutSeconds: number;
+  /** A read-only token for a private repository, used for the clone only. */
+  readonly cloneToken?: string;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -33,6 +35,8 @@ const BRANCH = /^[A-Za-z0-9._/-]{1,255}$/;
 const MIN_TIMEOUT_SECONDS = 60;
 const MAX_TIMEOUT_SECONDS = 24 * 60 * 60;
 const MAX_INSTRUCTIONS = 200_000;
+// A GitHub installation token: it reaches git as a header value, so nothing but these characters.
+const TOKEN = /^[A-Za-z0-9_.-]{1,255}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -67,6 +71,9 @@ export function parseOrder(raw: unknown): { ok: true; order: JobOrder } | { ok: 
   if (typeof raw.instructions !== "string" || !raw.instructions.trim()) return fail("the job has no instructions");
   const item = isRecord(raw.work_item) ? raw.work_item : {};
   const timeout = typeof raw.timeout_seconds === "number" ? Math.trunc(raw.timeout_seconds) : 3600;
+  if (raw.clone_token !== undefined && (typeof raw.clone_token !== "string" || !TOKEN.test(raw.clone_token))) {
+    return fail("the repository access token is not valid");
+  }
   return {
     ok: true,
     order: {
@@ -82,6 +89,7 @@ export function parseOrder(raw: unknown): { ok: true; order: JobOrder } | { ok: 
       },
       instructions: raw.instructions.slice(0, MAX_INSTRUCTIONS),
       timeoutSeconds: Math.min(MAX_TIMEOUT_SECONDS, Math.max(MIN_TIMEOUT_SECONDS, timeout)),
+      ...(typeof raw.clone_token === "string" ? { cloneToken: raw.clone_token } : {}),
     },
   };
 }

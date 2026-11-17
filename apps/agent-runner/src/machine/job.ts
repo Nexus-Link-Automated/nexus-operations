@@ -9,6 +9,7 @@ import path from "node:path";
 
 import type { Logger } from "../logger.ts";
 import { runAgentSession } from "./acp-session.ts";
+import { readChanges, type JobChanges } from "./changes.ts";
 import type { JobEvent } from "./client.ts";
 import type { JobAction, JobOrder } from "./orders.ts";
 import { ProgressCondenser } from "./progress.ts";
@@ -16,6 +17,7 @@ import { readRegularFile, removeAll, withoutNul } from "./files.ts";
 import {
   CONTAINER_PATCH_FILE,
   CONTAINER_REPO,
+  CONTAINER_WORK,
   CONTAINER_RESULT_FILE,
   SandboxError,
   type JobDirs,
@@ -34,7 +36,14 @@ import { homeOf } from "./system.ts";
 
 /** What the job came to. `stopped`: the CRM ended it (cancel, timeout on its side); nothing to report. */
 export type JobEnd =
-  | { readonly kind: "result"; readonly result: Record<string, unknown> }
+  | {
+      readonly kind: "result";
+      readonly result: Record<string, unknown>;
+      /** The files the job changed, for the CRM to push and open the pull request with. */
+      readonly changes?: JobChanges;
+      /** Why a job with changed files sends none (too large, ...); the CRM says it on the work item. */
+      readonly changesNote?: string;
+    }
   | { readonly kind: "stopped" };
 
 /** The CRM's limits (`apps/api/plane/coding/outcomes.py`). */
@@ -208,7 +217,7 @@ export async function runJob(order: JobOrder, deps: JobDeps, stop: AbortSignal):
     sandbox = deps.sandboxes.create(order, dirs);
     await sandbox.start();
     progress.status(`Cloning ${order.repoUrl} (${order.branch}).`);
-    await sandbox.clone(order.repoUrl, order.branch, ended);
+    const baseCommit = await sandbox.clone(order.repoUrl, order.branch, ended, order.cloneToken);
     if (stop.aborted) return { kind: "stopped" };
     if (timeout.aborted) return { kind: "result", result: timedOut() };
 
@@ -251,9 +260,10 @@ export async function runJob(order: JobOrder, deps: JobDeps, stop: AbortSignal):
       };
     }
 
-    // Changes are collected inside the container; then it goes, before anything it wrote is read.
-    const files = await sandbox.collectChanges();
+    // Changes are listed inside the container; then it goes, before anything it wrote is read.
+    const entries = await sandbox.collectChanges(baseCommit);
     await sandbox.destroy();
+    const files = entries.map((entry) => entry.path).slice(0, 200);
     const raw = readResult(dirs);
     let result: Record<string, unknown>;
     if (raw === undefined) {
@@ -263,10 +273,21 @@ export async function runJob(order: JobOrder, deps: JobDeps, stop: AbortSignal):
     } else {
       result = shapeResult(order.action, raw);
     }
+    let changes: JobChanges | undefined;
+    let changesNote: string | undefined;
     if (CODE_OUTCOMES.has(result.outcome as string) && files.length) {
       result.changed_files = files;
-      // No pull request yet: the changes stay on this machine as a patch for a while. Only the patch: the clone's
-      // git config and hooks were written by the agent, and git must never run them on the host.
+      // The CRM pushes these and opens the pull request; the files are read now, with the container gone.
+      const read = readChanges(
+        path.join(dirs.work, path.relative(CONTAINER_WORK, CONTAINER_REPO)),
+        baseCommit,
+        entries
+      );
+      if (read.ok) changes = read.changes;
+      else changesNote = read.note;
+      // The changes also stay on this machine as a patch for a while, in case the pull request cannot be opened.
+      // Only the patch: the clone's git config and hooks were written by the agent, and git must never run them on
+      // the host.
       const patch = readRegularFile(path.join(dirs.out, path.basename(CONTAINER_PATCH_FILE)), MAX_PATCH_BYTES);
       if (patch.ok) {
         writeFileSync(path.join(dirs.root, PATCH_FILE), patch.text, { mode: 0o600 });
@@ -274,7 +295,12 @@ export async function runJob(order: JobOrder, deps: JobDeps, stop: AbortSignal):
       }
     }
     progress.status(`Finished: ${String(result.outcome)}.`);
-    return { kind: "result", result };
+    return {
+      kind: "result",
+      result,
+      ...(changes ? { changes } : {}),
+      ...(changesNote ? { changesNote } : {}),
+    };
   } catch (error) {
     if (stop.aborted) return { kind: "stopped" };
     if (timeout.aborted) return { kind: "result", result: timedOut() };

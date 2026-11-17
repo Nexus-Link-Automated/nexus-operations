@@ -8,7 +8,7 @@
 import { setTimeout as wait } from "node:timers/promises";
 
 import type { Logger } from "../logger.ts";
-import type { CrmResult, EventsAnswer, JobEvent, JobEventBatch, ResultAnswer } from "./client.ts";
+import type { CrmResult, EventsAnswer, JobEvent, JobEventBatch, ResultAnswer, ResultBody } from "./client.ts";
 import { jobError, type JobEnd } from "./job.ts";
 import { parseOrder, type JobOrder } from "./orders.ts";
 
@@ -25,7 +25,7 @@ const defaultSleep: Sleep = (ms, signal) => wait(ms, undefined, { signal }).catc
 
 export interface JobsClient {
   events(key: string, jobs: readonly JobEventBatch[], signal?: AbortSignal): Promise<CrmResult<EventsAnswer>>;
-  result(key: string, jobId: string, body: unknown, signal?: AbortSignal): Promise<CrmResult<ResultAnswer>>;
+  result(key: string, jobId: string, body: ResultBody, signal?: AbortSignal): Promise<CrmResult<ResultAnswer>>;
 }
 
 export type JobRunner = (order: JobOrder, emit: (event: JobEvent) => void, stop: AbortSignal) => Promise<JobEnd>;
@@ -92,7 +92,7 @@ export class JobManager {
         this.#options.log.warn("machine-service: refused a job from the CRM", { error: parsed.error });
         if (parsed.id && !this.#jobs.has(parsed.id)) {
           const result = jobError(`The machine could not read the job: ${parsed.error}.`);
-          this.#track(parsed.id, undefined, async () => ({ kind: "result", result }));
+          this.#track(parsed.id, undefined, async () => ({ kind: "result" as const, result }));
         }
         continue;
       }
@@ -133,7 +133,15 @@ export class JobManager {
       }
       if (end.kind === "result") {
         await this.#flushJob(id);
-        await this.#deliver(id, end.result, stop.signal);
+        await this.#deliver(
+          id,
+          {
+            result: end.result,
+            ...(end.changes ? { changes: end.changes } : {}),
+            ...(end.changesNote ? { changes_note: end.changesNote } : {}),
+          },
+          stop.signal
+        );
         this.#options.log.info("machine-service: job finished", { job: id, outcome: end.result.outcome ?? null });
       } else if (!this.#stopping) {
         this.#options.log.info("machine-service: job stopped by the CRM", { job: id });
@@ -216,21 +224,31 @@ export class JobManager {
   }
 
   /** Delivers a result, retrying while the CRM cannot be reached. Gives up on a definite answer. */
-  async #deliver(id: string, result: Record<string, unknown>, stop: AbortSignal): Promise<void> {
+  async #deliver(id: string, first: ResultBody, stop: AbortSignal): Promise<void> {
     const attempts = this.#options.resultAttempts ?? DEFAULT_RESULT_ATTEMPTS;
-    let body = result;
+    let body = first;
     for (let attempt = 1; attempt <= attempts; attempt++) {
       // A job the CRM ended while the result was on its way needs no result.
       if (stop.aborted) return;
       const answer = await this.#options.client.result(this.#options.key, id, body);
       if (answer.kind === "ok") return;
-      if (answer.kind === "http" && answer.status === 400 && body.outcome !== "job_error") {
+      // INVALID_RESULT is about the agent's result; any other 400 with changes is about the changed files.
+      if (answer.kind === "http" && answer.status === 400 && body.changes && answer.code !== "INVALID_RESULT") {
+        // The CRM refused the changed files (a path or a size it does not take): the outcome still counts.
+        this.#options.log.warn("machine-service: the CRM refused the job's changed files", {
+          job: id,
+          errors: answer.errors ?? null,
+        });
+        body = { result: body.result, changes_note: "the CRM did not accept the changed files" };
+        continue;
+      }
+      if (answer.kind === "http" && answer.status === 400 && body.result.outcome !== "job_error") {
         // The CRM refused the agent's result: report that instead, so the job does not hang.
         this.#options.log.warn("machine-service: the CRM refused the job's result", {
           job: id,
           errors: answer.errors ?? null,
         });
-        body = jobError(`The agent's result was not accepted by the CRM: ${summarize(answer.errors)}`);
+        body = { result: jobError(`The agent's result was not accepted by the CRM: ${summarize(answer.errors)}`) };
         continue;
       }
       if (answer.kind === "http" && answer.status !== 429 && answer.status < 500) {
@@ -270,7 +288,9 @@ export class JobManager {
         // Long enough for the agent's grace period and the container's removal (systemd waits 30 s).
         await Promise.race([job.done, new Promise((resolve) => setTimeout(resolve, 22_000).unref())]);
         const timeout = AbortSignal.timeout(5_000);
-        await this.#options.client.result(this.#options.key, id, jobError(reason), timeout).catch(() => undefined);
+        await this.#options.client
+          .result(this.#options.key, id, { result: jobError(reason) }, timeout)
+          .catch(() => undefined);
       })
     );
   }

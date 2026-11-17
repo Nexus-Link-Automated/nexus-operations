@@ -49,7 +49,16 @@ from plane.db.models import Issue, IssueComment
 from plane.utils.content_validator import validate_html_content
 from plane.utils.host import base_host
 
-__all__ = ["ALLOWED_OUTCOMES", "OUTCOME_COLUMN", "Applied", "apply_result", "validate_result"]
+__all__ = [
+    "ALLOWED_OUTCOMES",
+    "CODE_OUTCOMES",
+    "CRM_FIELDS",
+    "OUTCOME_COLUMN",
+    "Applied",
+    "apply_result",
+    "reported_part",
+    "validate_result",
+]
 
 ALLOWED_OUTCOMES = {
     CodingAction.FIX_BUG: (JobOutcome.FIXED, JobOutcome.COULD_NOT_FIX, JobOutcome.JOB_ERROR),
@@ -72,18 +81,12 @@ LONG = 20000
 # --------------------------------------------------------------------------- validation
 
 
-class _HttpsUrlField(serializers.CharField):
-    """An absolute https URL: the comment links to it, so no other scheme."""
-
-    def __init__(self, **kwargs):
-        super().__init__(max_length=SHORT, validators=[URLValidator(schemes=["https"])], **kwargs)
-
-
-# Until jobs can push and open pull requests (Step 5 of the build plan adds repository access), a job that changed
-# code reports no `pr_url`; the changes stay in the job's folder on the machine, and the machine lists the changed
-# files. `pr_url` is therefore optional everywhere for now.
-_PR_URL = {"required": False}
+# `pr_url` is never part of what a machine (or an agent) reports: the CRM opens the pull request itself
+# (`plane.coding.publish`) and adds its link, and the branch, when it applies the outcome. A job that changed code
+# also reports `changed_files` (listed by the machine, not the agent).
 CHANGED_FILES_MAX = 200
+# Added by the CRM after validation; never accepted in a reported result.
+CRM_FIELDS = ("pr_url", "pr_branch", "no_pr_reason")
 
 
 def _changed_files():
@@ -104,7 +107,6 @@ class _Result(StrictSerializer):
 
 class _Fixed(_Result):
     summary = serializers.CharField(max_length=LONG)
-    pr_url = _HttpsUrlField(**_PR_URL)
     changed_files = _changed_files()
 
 
@@ -114,7 +116,6 @@ class _CouldNotFix(_Result):
 
 
 class _TestWritten(_Result):
-    pr_url = _HttpsUrlField(**_PR_URL)
     changed_files = _changed_files()
     test_name = serializers.CharField(max_length=SHORT, required=False, allow_blank=True)
     summary = serializers.CharField(max_length=LONG, required=False, allow_blank=True)
@@ -131,7 +132,6 @@ class _BugFound(_Result):
     output = serializers.CharField(max_length=LONG, trim_whitespace=False)
     diagnosis = _Diagnosis()
     reproduce = serializers.CharField(max_length=SHORT, trim_whitespace=False)
-    pr_url = _HttpsUrlField(**_PR_URL)
     changed_files = _changed_files()
 
 
@@ -274,11 +274,14 @@ def build_comment(job: CodingJob, data: dict, column: Column | None, state, move
         parts.append(_p(_text(data["summary"])))
     if data.get("pr_url"):
         parts.append(_p("<strong>Pull request:</strong> ", _link(data["pr_url"])))
+        if data.get("pr_branch"):
+            parts.append(_p("<strong>Branch:</strong> ", _code(data["pr_branch"])))
     elif outcome in CODE_OUTCOMES:
         where_kept = f" on {html.escape(job.ran_on_name)}" if job.ran_on_name else " on the machine"
+        reason = data.get("no_pr_reason") or "the job reported no changed files"
         parts.append(
             _p(
-                "No pull request: jobs cannot push to the repository yet, so the changes stay in the job's folder",
+                f"No pull request: {html.escape(reason)}. Any changes stay in the job's folder",
                 f"{where_kept} (job {_code(str(job.id))}).",
             )
         )
@@ -388,14 +391,40 @@ def _comment(issue: Issue, comment_html: str, bot, slug: str):
     return comment, queue
 
 
-def apply_result(job: CodingJob, result, *, status: str = JobStatus.FINISHED) -> Applied:
+def reported_part(data: dict) -> dict:
+    """A stored result without what the CRM added to it: what the machine reported."""
+    return {key: value for key, value in (data or {}).items() if key not in CRM_FIELDS}
+
+
+def apply_result(
+    job: CodingJob,
+    result,
+    *,
+    status: str = JobStatus.FINISHED,
+    pr_url: str = "",
+    pr_branch: str = "",
+    no_pr_reason: str = "",
+) -> Applied:
     """Validate `result`, move the work item per the outcomes table, comment on it, and finish the job.
 
     Idempotent: applying the result a job already has changes nothing and returns `changed=False`. A different
     result for a job that already has one raises `Conflict` (`RESULT_ALREADY_APPLIED`), as does a result for a job
     that ended without one. `status` is `cancelled` only for `plane.coding.services.cancel_job`.
+
+    `pr_url` and `pr_branch` come from the CRM's own push (`plane.coding.publish`), `no_pr_reason` says why a job
+    with changes has no pull request; none of them can come from a reported result.
     """
     data = validate_result(job.action, result)
+    outcome_with_code = JobOutcome(data["outcome"]) in CODE_OUTCOMES
+    if pr_url:
+        URLValidator(schemes=["https"])(pr_url)
+        if not outcome_with_code:
+            raise ValueError("Only an outcome with code has a pull request.")
+        data["pr_url"] = pr_url
+        if pr_branch:
+            data["pr_branch"] = pr_branch
+    elif no_pr_reason and outcome_with_code:
+        data["no_pr_reason"] = no_pr_reason[:SHORT]
     with transaction.atomic():
         job = (
             # `all_objects`: deleting a work item soft-deletes its jobs, which still end with their outcome.
@@ -404,7 +433,7 @@ def apply_result(job: CodingJob, result, *, status: str = JobStatus.FINISHED) ->
             .get(pk=job.pk)
         )
         if job.outcome is not None:
-            if job.result == data:
+            if reported_part(job.result) == reported_part(data):
                 return Applied(job, changed=False)
             raise Conflict("This job already has a different result.", code="RESULT_ALREADY_APPLIED")
         if not job.is_active:
@@ -443,6 +472,7 @@ def apply_result(job: CodingJob, result, *, status: str = JobStatus.FINISHED) ->
             job.outcome = outcome
             job.result = data
             job.pr_url = data.get("pr_url", "")
+            job.pr_branch = data.get("pr_branch", "")
             job.error_reason = data["reason"] if outcome == JobOutcome.JOB_ERROR else ""
             job.status = status
             job.finished_at = timezone.now()

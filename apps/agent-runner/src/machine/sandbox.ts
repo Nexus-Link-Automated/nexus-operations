@@ -12,7 +12,7 @@ import path from "node:path";
 import type { Logger } from "../logger.ts";
 import type { JobOrder } from "./orders.ts";
 import type { AgentId } from "./report.ts";
-import { withoutNul } from "./files.ts";
+import { parseNameStatus, isCommit, type ChangeEntry } from "./changes.ts";
 import { defaultCommandRunner, type CommandRunner } from "./system.ts";
 import { MACHINE_VERSION } from "./version.ts";
 
@@ -79,14 +79,18 @@ export interface AgentProcess {
 
 export interface JobSandbox {
   start(): Promise<void>;
-  clone(repoUrl: string, branch: string, signal: AbortSignal): Promise<void>;
+  /**
+   * Clones the repository and returns the commit it starts from, read before the agent runs. A
+   * `token` (a read-only one, for a private repository) reaches git only by name, for that clone.
+   */
+  clone(repoUrl: string, branch: string, signal: AbortSignal, token?: string): Promise<string>;
   startAgent(agent: AgentId, env: AgentEnv): AgentProcess;
   /**
-   * Paths (relative to the repository) the job added, changed or removed; also writes the changes
-   * as a patch to `CONTAINER_PATCH_FILE`. Git runs inside the container, never on the host: the
-   * agent could have written the repository's git config and hooks.
+   * What the job added, changed or removed since `baseCommit` (commits the agent made included);
+   * also writes the changes as a patch to `CONTAINER_PATCH_FILE`. Git runs inside the container,
+   * never on the host: the agent could have written the repository's git config and hooks.
    */
-  collectChanges(): Promise<string[]>;
+  collectChanges(baseCommit: string): Promise<ChangeEntry[]>;
   /** Stops everything the job started. Idempotent. */
   destroy(): Promise<void>;
 }
@@ -318,11 +322,16 @@ class DockerSandbox implements JobSandbox {
     }
   }
 
-  async clone(repoUrl: string, branch: string, signal: AbortSignal): Promise<void> {
+  async clone(repoUrl: string, branch: string, signal: AbortSignal, token?: string): Promise<string> {
     if (signal.aborted) throw new SandboxError("Stopped before the repository was cloned.");
-    const result = await this.#docker(
+    // A token goes to git as an extra header for the repository's own host only, through variables passed by name:
+    // never on a command line, never in the clone's git config.
+    const access = token ? cloneAccess(repoUrl, token) : undefined;
+    const result = await this.#run(
+      "docker",
       [
         "exec",
+        ...(access ? Object.keys(access).flatMap((name) => ["--env", name]) : []),
         this.#name,
         "git",
         // https only, whatever the repository's submodules or redirects ask for.
@@ -340,15 +349,29 @@ class DockerSandbox implements JobSandbox {
         repoUrl,
         CONTAINER_REPO,
       ],
-      CLONE_TIMEOUT_MS,
-      signal
+      { timeoutMs: CLONE_TIMEOUT_MS, env: { ...this.#options.env, ...access }, signal }
     );
     if (result.code !== 0) {
-      throw new SandboxError(
-        `Could not clone the repository (${firstLine(result.stderr) || "git failed"}). A private repository needs ` +
-          "repository access, which jobs do not have yet."
-      );
+      const hint = token
+        ? ""
+        : " A private repository needs the CRM's GitHub App installed on it, so the job gets read access.";
+      throw new SandboxError(`Could not clone the repository (${firstLine(result.stderr) || "git failed"}).${hint}`);
     }
+    const head = await this.#docker([
+      "exec",
+      this.#name,
+      "git",
+      "-c",
+      "core.fsmonitor=false",
+      "-C",
+      CONTAINER_REPO,
+      "rev-parse",
+      "--verify",
+      "HEAD^{commit}",
+    ]);
+    const base = head.stdout.trim();
+    if (head.code !== 0 || !isCommit(base)) throw new SandboxError("Could not read the cloned repository's commit.");
+    return base;
   }
 
   startAgent(agent: AgentId, env: AgentEnv): AgentProcess {
@@ -376,15 +399,18 @@ class DockerSandbox implements JobSandbox {
     return { stdin: child.stdin!, stdout: child.stdout!, exited, stderrTail: () => lines.join("\n") };
   }
 
-  async collectChanges(): Promise<string[]> {
-    // A fixed script, nothing from the job in it. Untracked files are added as intent-to-add so the diff shows them.
+  async collectChanges(baseCommit: string): Promise<ChangeEntry[]> {
+    if (!isCommit(baseCommit)) return [];
+    // A fixed script; the only value in it is the commit the machine itself read after the clone. Untracked files are
+    // added as intent-to-add so the diff shows them; the diff is against that commit, so commits the agent made count.
+    const git = "git -c core.fsmonitor=false -c core.hooksPath=/dev/null";
     await this.#docker([
       "exec",
       this.#name,
       "sh",
       "-c",
-      `cd ${CONTAINER_REPO} && rm -f ${CONTAINER_PATCH_FILE} && git add --all --intent-to-add . >/dev/null 2>&1; ` +
-        `git -c core.fsmonitor=false diff --binary --no-ext-diff --no-color HEAD > ${CONTAINER_PATCH_FILE}`,
+      `cd ${CONTAINER_REPO} && rm -f ${CONTAINER_PATCH_FILE} && ${git} add --all --intent-to-add . >/dev/null 2>&1; ` +
+        `${git} diff --binary --no-ext-diff --no-textconv --no-color ${baseCommit} > ${CONTAINER_PATCH_FILE}`,
     ]);
     const result = await this.#docker([
       "exec",
@@ -394,12 +420,14 @@ class DockerSandbox implements JobSandbox {
       "core.fsmonitor=false",
       "-C",
       CONTAINER_REPO,
-      "status",
-      "--porcelain=v1",
+      "diff",
+      "--name-status",
       "-z",
-      "--untracked-files=all",
+      "--no-renames",
+      "--no-ext-diff",
+      baseCommit,
     ]);
-    return result.code === 0 ? parsePorcelain(result.stdout) : [];
+    return result.code === 0 ? parseNameStatus(result.stdout).slice(0, MAX_CHANGED_FILES + 1) : [];
   }
 
   async destroy(): Promise<void> {
@@ -415,19 +443,13 @@ function firstLine(text: string): string {
   return (text.split("\n").find((line) => line.trim()) ?? "").trim().slice(0, 300);
 }
 
-/** `git status --porcelain=v1 -z` → paths; a rename lists its new path. */
-export function parsePorcelain(output: string): string[] {
-  const files: string[] = [];
-  const entries = output.split("\0");
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i] as string;
-    if (entry.length < 4) continue;
-    // The CRM takes paths of up to 500 characters.
-    const name = withoutNul(entry.slice(3)).slice(0, 500);
-    if (name.trim()) files.push(name);
-    // Renames and copies are followed by the old path.
-    if (/[RC]/.test(entry.slice(0, 2))) i++;
-    if (files.length >= MAX_CHANGED_FILES) break;
-  }
-  return files;
+/** The variables that give git a read token for `repoUrl`'s host, for one command. */
+export function cloneAccess(repoUrl: string, token: string): Record<string, string> {
+  const origin = new URL(repoUrl).origin;
+  const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
+  return {
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: `http.${origin}/.extraHeader`,
+    GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}`,
+  };
 }

@@ -315,27 +315,42 @@ To remove it: `systemctl --user disable --now nexus-machine`, then delete the fi
    - Keys reach the agent by name through `docker exec --env NAME`, never on a command line. The
      agent can read its own sign-in inside the container; nothing else of yours is there.
 4. `git clone --depth 50 --single-branch --branch <branch>` of the https repository into
-   `/job/work/repo` (https only, no credentials: a private repository fails until jobs get
-   repository access).
+   `/job/work/repo` (https only). For a private GitHub repository the order carries a read-only
+   token from the CRM's GitHub App (`clone_token`, contents: read, that repository only, ended by
+   GitHub after an hour): it reaches git as an extra header for the repository's host, through
+   `GIT_CONFIG_*` variables passed by name to that one `git clone`, never on a command line and
+   never in the clone's git config. Right after the clone, before the agent starts, the machine
+   reads the commit it starts from.
 5. `node /opt/nexus/acp/dist/bin/<agent>.mjs` via `docker exec -i`, driven over ACP: a session in
    the repository in `yolo` mode (nobody approves steps during a job; the container is the
    boundary) and one prompt with the CRM's instructions. Progress (messages, tools run, failures,
    the plan) goes to the CRM in batches every 3 s.
 6. The agent writes its result to `/job/out/result.json` (`NEXUS_RESULT_FILE`). Inside the
-   container, the machine writes the changes as a patch (`git diff --binary`) and lists the
-   changed files; then the container is removed, and only then is anything it wrote read: as a
-   regular file only (never through a link, never a FIFO), with a size limit. The machine keeps
-   only the fields the outcome allows (never `pr_url`), cuts them to the CRM's limits, adds
+   container, the machine lists what changed since the starting commit (`git diff --name-status`,
+   so commits the agent made count too) and writes the changes as a patch (`git diff --binary`);
+   then the container is removed, and only then is anything it wrote read: as a regular file only
+   (never through a link, never a FIFO), with a size limit. The machine keeps only the fields the
+   outcome allows (never `pr_url` or a branch), cuts them to the CRM's limits, adds
    `changed_files`, and sends it. No result, a broken one, a crash, a failed clone, a missing
    sign-in or the time limit become a `job_error` with the reason.
-7. The job's folder is removed. A job that changed code keeps only
-   `jobs/<job id>/changes.patch` (there is no pull request yet; apply it in your own clone with
-   `git apply`), for 7 days and at most 20 jobs. The clone itself never stays: its git config and
-   hooks were written by the agent, and git on your computer would run them.
+7. With an outcome that has code (`fixed`, `test_written`, `test_passed`, `bug_found`), the
+   machine also sends the changed files: the starting commit and each file's new content and mode
+   (or that it was deleted), read on your computer from the clone after the container is gone.
+   Each path is checked (inside the repository, nothing under `.git`), no folder on the way may be
+   a symlink, and a file is never read through a link; a symlink is sent as a symlink. At most 200
+   files and 3 MB in all; past that, or when a file cannot be read, the machine sends the outcome
+   without the files and says why. **The CRM, not the machine, pushes them**: to the job's own
+   branch (`nexus/<action>/<job>`) with its GitHub App, and opens the pull request. No token that
+   can write to the repository ever reaches the machine.
+8. The job's folder is removed. A job that changed code keeps only
+   `jobs/<job id>/changes.patch` for 7 days and at most 20 jobs (apply it in your own clone with
+   `git apply` when the pull request could not be opened). The clone itself never stays: its git
+   config and hooks were written by the agent, and git on your computer would run them.
 
 A job stays in `running` until its result is delivered; while the CRM cannot be reached the job
 keeps running, progress is kept (up to 500 lines per job) and the result is retried. Progress lines
-the CRM refuses (400) are dropped rather than sent again. When the CRM
+the CRM refuses (400) are dropped rather than sent again; changed files it refuses are dropped and
+the outcome is sent again without them. When the CRM
 ends a job, the agent gets `session/cancel` and 10 s, then its container is removed and no result is
 sent. A restarted service removes containers a previous run left (they cannot be reattached), and
 everything but `changes.patch` from their folders; the CRM ends those jobs as job errors. Folders a

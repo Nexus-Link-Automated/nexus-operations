@@ -15,7 +15,8 @@ import pytest
 from django.core.cache import cache
 from rest_framework.test import APIClient
 
-from plane.coding.models import CodingJob, ProjectCodingSettings
+from plane.coding import machines
+from plane.coding.models import CodingJob, MachineState, ProjectCodingSettings
 from plane.db.models import Issue, Project, ProjectMember, State, User, Workspace, WorkspaceMember
 from plane.db.models.api import APIToken
 
@@ -155,3 +156,27 @@ def tasks(django_capture_on_commit_callbacks):
         mock.patch("plane.coding.outcomes.model_activity", recorded.model_activity),
     ):
         yield recorded
+
+
+@pytest.fixture
+def make_machine(workspace):
+    """An approved machine of `owner` and its key."""
+
+    def make(owner, name="Laptop", state=MachineState.ACTIVE):
+        machine, code = machines.add_machine(workspace, owner, name)
+        machine, key = machines.join(code, hostname=name.lower())
+        if state == MachineState.ACTIVE:
+            machine = machines.approve(machine)
+        return machine, key
+
+    return make
+
+
+@pytest.fixture
+def start(issue, coding_settings):
+    def start_job(user, action="fix_bug", agent="codex", machine=None, item=None):
+        return CodingJob.objects.create(
+            issue=item or issue, action=action, agent=agent, requested_by=user, machine=machine
+        )
+
+    return start_job
