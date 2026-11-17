@@ -268,6 +268,18 @@ def repo_info(repo: Repo, token: RepoToken) -> dict:
     return {"private": bool(body.get("private", True)), "default_branch": str(body.get("default_branch") or "")}
 
 
+def _private_without_token(repo: Repo) -> bool | None:
+    """False for a public repository, True when GitHub does not show it without a token, None when GitHub did not say
+    (a rate limit, an outage)."""
+    with client() as http:
+        response = request(http, "GET", repo.path)
+    if response.status_code == 200:
+        return bool(response.json().get("private", False))
+    if response.status_code == 404:
+        return True
+    return None
+
+
 def clone_token(repo_url: str) -> RepoToken | None:
     """A read-only token to clone the project's repository, only when it is a private GitHub repository the App is
     installed on. None otherwise, and when GitHub cannot be asked (the clone then reports what went wrong)."""
@@ -277,6 +289,11 @@ def clone_token(repo_url: str) -> RepoToken | None:
     try:
         visibility_key = f"coding:github:private:{repo.full_name.lower()}"
         private = cache.get(visibility_key)
+        if private is None:
+            # Asked without a token first, so a public repository never costs one.
+            private = _private_without_token(repo)
+            if private is not None:
+                cache.set(visibility_key, private, LOOKUP_CACHE_SECONDS)
         if private is False:
             return None
         token = repo_token(repo, CLONE_PERMISSIONS)

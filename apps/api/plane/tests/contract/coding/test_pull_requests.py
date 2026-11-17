@@ -402,6 +402,8 @@ class TestCloneAccess:
         _, key = make_machine(member[0])
         order = run_on(key, start(member[0]))
         assert "clone_token" not in order
+        # Its visibility was asked without a token: none was made.
+        assert not fake.calls("POST", r"/access_tokens$")
 
     def test_without_an_app_there_is_none(self, settings, member, make_machine, start, coding_settings):
         settings.GITHUB_APP_ID = ""

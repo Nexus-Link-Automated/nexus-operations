@@ -143,6 +143,8 @@ class FakeGitHub:
             return httpx.Response(404, json={"message": "Not Found"})
 
         if rest == "" and request.method == "GET":
+            if not self._auth(request) and not repo.private:
+                return httpx.Response(200, json={"private": False, "default_branch": repo.default_branch})
             if not self._token_for(request, repo, "contents", "read"):
                 return httpx.Response(404, json={"message": "Not Found"})
             return httpx.Response(200, json={"private": repo.private, "default_branch": repo.default_branch})
