@@ -4,12 +4,14 @@
  * See the LICENSE file for details.
  */
 
-import { action, makeObservable, observable, runInAction } from "mobx";
+import { action, makeObservable, observable, reaction, runInAction } from "mobx";
 import { CodingJobService, CodingJobServiceError } from "@plane/services";
 import type {
   TCodingAction,
   TCodingAgent,
   TCodingJob,
+  TCodingJobEvent,
+  TCodingJobStatus,
   TProjectCodingSettings,
   TProjectCodingSettingsUpdate,
 } from "@plane/types";
@@ -17,8 +19,21 @@ import type {
 /** The REST calls the store makes. `CodingJobService` in the app; a fake in tests. */
 export type TCodingJobStoreService = Pick<
   CodingJobService,
-  "list" | "start" | "cancel" | "retry" | "getSettings" | "updateSettings"
+  "list" | "start" | "cancel" | "retry" | "getSettings" | "updateSettings" | "listEvents"
 >;
+
+/** How often a shown work item's jobs, and an open job's progress, reload while a job is queued or running. */
+export const CODING_JOB_POLL_MS = 5_000;
+
+const ACTIVE_STATUSES = new Set<TCodingJobStatus>(["queued", "running", "needs_input"]);
+
+/** Queued, running or waiting for input: the job can still change. */
+export const isCodingJobActive = (job: Pick<TCodingJob, "status">) => ACTIVE_STATUSES.has(job.status);
+
+// The API keeps a job's latest 500 events and answers 200 at a time; this caps one load at 1000 regardless.
+const MAX_EVENT_PAGES = 5;
+
+const isDocumentHidden = () => typeof document !== "undefined" && document.hidden;
 
 /** Refusals that mean the job list on screen is out of date, so the store reloads it. */
 const STALE_JOB_CODES = new Set(["JOB_ACTIVE", "JOB_NOT_ACTIVE", "JOB_NOT_RETRYABLE"]);
@@ -37,8 +52,11 @@ export interface ICodingJobStore {
   settingsMap: Record<string, TProjectCodingSettings>;
   /** Work item id → its jobs, newest first, once loaded. */
   jobsMap: Record<string, TCodingJob[]>;
+  /** Job id → its events loaded so far, oldest first. */
+  eventsMap: Record<string, TCodingJobEvent[]>;
   getSettings: (projectId: string | null | undefined) => TProjectCodingSettings | undefined;
   getJobs: (workItemId: string | null | undefined) => TCodingJob[] | undefined;
+  getEvents: (jobId: string | null | undefined) => TCodingJobEvent[] | undefined;
   /** Loads the project's settings. Members and admins only: a guest's 403 is thrown. */
   fetchSettings: (workspaceSlug: string, projectId: string) => Promise<TProjectCodingSettings>;
   /** Project admins only. */
@@ -59,6 +77,24 @@ export interface ICodingJobStore {
   ) => Promise<TCodingJob>;
   cancelJob: (workspaceSlug: string, projectId: string, workItemId: string, jobId: string) => Promise<TCodingJob>;
   retryJob: (workspaceSlug: string, projectId: string, workItemId: string, jobId: string) => Promise<TCodingJob>;
+  /** Loads the job's events after the last one loaded (all of them the first time). One request per job at a time. */
+  fetchEvents: (
+    workspaceSlug: string,
+    projectId: string,
+    workItemId: string,
+    jobId: string
+  ) => Promise<TCodingJobEvent[]>;
+  /**
+   * Reloads the work item's jobs every `CODING_JOB_POLL_MS` while one of them is active, until the returned function
+   * is called. Ticks while the tab is hidden are skipped. Several watchers of one work item share one timer.
+   */
+  watchJobs: (workspaceSlug: string, projectId: string, workItemId: string) => () => void;
+  /**
+   * Loads the job's new events every `CODING_JOB_POLL_MS` while it is active (as the work item's loaded jobs show it),
+   * and once more when it ends, until the returned function is called. Does not load them at first: call
+   * `fetchEvents` for that.
+   */
+  watchEvents: (workspaceSlug: string, projectId: string, workItemId: string, jobId: string) => () => void;
 }
 
 /**
@@ -69,6 +105,7 @@ export interface ICodingJobStore {
 export class CodingJobStore implements ICodingJobStore {
   settingsMap: Record<string, TProjectCodingSettings> = {};
   jobsMap: Record<string, TCodingJob[]> = {};
+  eventsMap: Record<string, TCodingJobEvent[]> = {};
 
   private service: TCodingJobStoreService;
   // Bumped on every change this store makes to a work item's jobs, so a list request that was already in flight
@@ -79,11 +116,15 @@ export class CodingJobStore implements ICodingJobStore {
   // One settings request per project at a time; bumped by every save so a read that started before it is dropped.
   private settingsInFlight: Record<string, Promise<TProjectCodingSettings>> = {};
   private settingsVersion: Record<string, number> = {};
+  private eventsInFlight: Record<string, Promise<TCodingJobEvent[]>> = {};
+  // Polling key → how many watchers share it and how to stop it.
+  private watchers: Record<string, { count: number; stop: () => void }> = {};
 
   constructor(options: { service?: TCodingJobStoreService } = {}) {
-    makeObservable<CodingJobStore, "upsertJob" | "setJobs">(this, {
+    makeObservable<CodingJobStore, "upsertJob" | "setJobs" | "appendEvents">(this, {
       settingsMap: observable,
       jobsMap: observable,
+      eventsMap: observable,
       fetchSettings: action,
       updateSettings: action,
       fetchJobs: action,
@@ -92,6 +133,7 @@ export class CodingJobStore implements ICodingJobStore {
       retryJob: action,
       upsertJob: action,
       setJobs: action,
+      appendEvents: action,
     });
     this.service = options.service ?? new CodingJobService();
   }
@@ -99,6 +141,8 @@ export class CodingJobStore implements ICodingJobStore {
   getSettings = (projectId: string | null | undefined) => (projectId ? this.settingsMap[projectId] : undefined);
 
   getJobs = (workItemId: string | null | undefined) => (workItemId ? this.jobsMap[workItemId] : undefined);
+
+  getEvents = (jobId: string | null | undefined) => (jobId ? this.eventsMap[jobId] : undefined);
 
   fetchSettings = (workspaceSlug: string, projectId: string) => {
     const inFlight = this.settingsInFlight[projectId];
@@ -179,6 +223,105 @@ export class CodingJobStore implements ICodingJobStore {
       throw error;
     }
   };
+
+  fetchEvents = (workspaceSlug: string, projectId: string, workItemId: string, jobId: string) => {
+    const inFlight = this.eventsInFlight[jobId];
+    if (inFlight) return inFlight;
+    const request = this.loadNewEvents(workspaceSlug, projectId, workItemId, jobId).finally(() => {
+      if (this.eventsInFlight[jobId] === request) delete this.eventsInFlight[jobId];
+    });
+    this.eventsInFlight[jobId] = request;
+    return request;
+  };
+
+  watchJobs = (workspaceSlug: string, projectId: string, workItemId: string) =>
+    this.watch(
+      `jobs:${workItemId}`,
+      () => (this.jobsMap[workItemId] ?? []).some(isCodingJobActive),
+      () => this.fetchJobs(workspaceSlug, projectId, workItemId),
+      false
+    );
+
+  watchEvents = (workspaceSlug: string, projectId: string, workItemId: string, jobId: string) =>
+    this.watch(
+      `events:${jobId}`,
+      () => !!this.jobsMap[workItemId]?.some((job) => job.id === jobId && isCodingJobActive(job)),
+      () => this.fetchEvents(workspaceSlug, projectId, workItemId, jobId),
+      true
+    );
+
+  private async loadNewEvents(workspaceSlug: string, projectId: string, workItemId: string, jobId: string) {
+    for (let page = 0; page < MAX_EVENT_PAGES; page += 1) {
+      const loaded = this.eventsMap[jobId];
+      const after = loaded?.length ? loaded[loaded.length - 1].seq : undefined;
+      // oxlint-disable-next-line no-await-in-loop -- each page starts after the last one, so they are sequential
+      const { results, has_more } = await this.service.listEvents(workspaceSlug, projectId, workItemId, jobId, after);
+      this.appendEvents(jobId, results);
+      if (!has_more || results.length === 0) break;
+    }
+    return this.eventsMap[jobId] ?? [];
+  }
+
+  private appendEvents(jobId: string, events: TCodingJobEvent[]) {
+    const loaded = this.eventsMap[jobId] ?? [];
+    const last = loaded.length ? loaded[loaded.length - 1].seq : 0;
+    this.eventsMap[jobId] = [...loaded, ...events.filter((event) => event.seq > last)];
+  }
+
+  /** Shares one poller per key between its watchers; the returned function releases this watcher (once). */
+  private watch(key: string, isActive: () => boolean, reload: () => Promise<unknown>, reloadOnEnd: boolean) {
+    const existing = this.watchers[key];
+    if (existing) existing.count += 1;
+    else this.watchers[key] = { count: 1, stop: this.poll(isActive, reload, reloadOnEnd) };
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const watcher = this.watchers[key];
+      if (!watcher) return;
+      watcher.count -= 1;
+      if (watcher.count > 0) return;
+      watcher.stop();
+      delete this.watchers[key];
+    };
+  }
+
+  /**
+   * Calls `reload` every `CODING_JOB_POLL_MS` while `isActive` (observed) is true, counting from the end of the last
+   * reload; skips the call while the tab is hidden. With `reloadOnEnd`, reloads once more when it turns false.
+   */
+  private poll(isActive: () => boolean, reload: () => Promise<unknown>, reloadOnEnd: boolean) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => void tick(), CODING_JOB_POLL_MS);
+    };
+    const tick = async () => {
+      timer = undefined;
+      if (!isDocumentHidden()) await this.reloadQuietly(reload);
+      if (!stopped && isActive()) schedule();
+    };
+    const disposeReaction = reaction(
+      isActive,
+      (active, wasActive) => {
+        if (active) {
+          if (!timer) schedule();
+          return;
+        }
+        clearTimeout(timer);
+        timer = undefined;
+        if (reloadOnEnd && wasActive) void this.reloadQuietly(reload);
+      },
+      { fireImmediately: true }
+    );
+    return () => {
+      stopped = true;
+      disposeReaction();
+      clearTimeout(timer);
+      timer = undefined;
+    };
+  }
 
   private setJobs(workItemId: string, jobs: TCodingJob[], merge: boolean) {
     if (!merge) {

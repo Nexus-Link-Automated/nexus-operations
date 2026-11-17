@@ -57,7 +57,14 @@
       "error_reason": "原因",
       "pr": "拉取请求",
       "cancel": "取消",
-      "retry": "重试"
+      "retry": "重试",
+      "waiting_for_machine": "等待机器",
+      "ran_on": "在 {name} 上运行",
+      "started": "开始于 {time}",
+      "progress": "进度",
+      "progress_loading": "正在加载进度...",
+      "progress_empty": "暂无进度。",
+      "progress_load_failed": "无法加载进度。"
     },
     "status": {
       "queued": "排队中",
@@ -73,6 +80,12 @@
       "test_passed": "测试通过",
       "bug_found": "发现缺陷",
       "job_error": "未完成"
+    },
+    "event_kind": {
+      "status": "状态",
+      "message": "消息",
+      "tool": "工具",
+      "plan": "计划"
     },
     "settings": {
       "label": "编码任务",

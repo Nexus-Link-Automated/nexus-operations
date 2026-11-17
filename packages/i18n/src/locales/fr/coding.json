@@ -57,7 +57,14 @@
       "error_reason": "Raison",
       "pr": "Pull request",
       "cancel": "Annuler",
-      "retry": "Réessayer"
+      "retry": "Réessayer",
+      "waiting_for_machine": "En attente d'une machine",
+      "ran_on": "Exécuté sur {name}",
+      "started": "Démarré {time}",
+      "progress": "Progression",
+      "progress_loading": "Chargement de la progression...",
+      "progress_empty": "Aucune progression pour l'instant.",
+      "progress_load_failed": "Impossible de charger la progression."
     },
     "status": {
       "queued": "En file d'attente",
@@ -73,6 +80,12 @@
       "test_passed": "Test réussi",
       "bug_found": "Bug trouvé",
       "job_error": "Non terminée"
+    },
+    "event_kind": {
+      "status": "Statut",
+      "message": "Message",
+      "tool": "Outil",
+      "plan": "Plan"
     },
     "settings": {
       "label": "Tâches de codage",

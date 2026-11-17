@@ -10,6 +10,7 @@ import type {
   TCodingAgent,
   TCodingErrorCode,
   TCodingJob,
+  TCodingJobEventsPage,
   TProjectCodingSettings,
   TProjectCodingSettingsUpdate,
 } from "@plane/types";
@@ -107,6 +108,30 @@ export class CodingJobService extends APIService {
   ): Promise<TCodingJob> {
     return this.post(`${this.jobsPath(workspaceSlug, projectId, workItemId)}${jobId}/retry/`, data)
       .then((response) => response?.data)
+      .catch((error) => {
+        throw toCodingError(error);
+      });
+  }
+
+  /**
+   * The job's progress lines, oldest first: up to 200 with `seq` above `after` (all from the start when left out).
+   * `has_more` means more are waiting after the last one. Anyone who can see the work item may read them.
+   */
+  async listEvents(
+    workspaceSlug: string,
+    projectId: string,
+    workItemId: string,
+    jobId: string,
+    after?: number
+  ): Promise<TCodingJobEventsPage> {
+    return this.get(
+      `${this.jobsPath(workspaceSlug, projectId, workItemId)}${jobId}/events/`,
+      after === undefined ? {} : { params: { after } }
+    )
+      .then((response) => {
+        const page = response?.data as Partial<TCodingJobEventsPage> | undefined;
+        return { results: page?.results ?? [], has_more: !!page?.has_more };
+      })
       .catch((error) => {
         throw toCodingError(error);
       });

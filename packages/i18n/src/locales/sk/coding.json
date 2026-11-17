@@ -57,7 +57,14 @@
       "error_reason": "Dôvod",
       "pr": "Pull request",
       "cancel": "Zrušiť",
-      "retry": "Skúsiť znova"
+      "retry": "Skúsiť znova",
+      "waiting_for_machine": "Čaká na počítač",
+      "ran_on": "Bežalo na {name}",
+      "started": "Spustené {time}",
+      "progress": "Priebeh",
+      "progress_loading": "Načítava sa priebeh...",
+      "progress_empty": "Zatiaľ žiadny priebeh.",
+      "progress_load_failed": "Priebeh sa nepodarilo načítať."
     },
     "status": {
       "queued": "V poradí",
@@ -73,6 +80,12 @@
       "test_passed": "Test prešiel",
       "bug_found": "Nájdená chyba",
       "job_error": "Nedokončené"
+    },
+    "event_kind": {
+      "status": "Stav",
+      "message": "Správa",
+      "tool": "Nástroj",
+      "plan": "Plán"
     },
     "settings": {
       "label": "Programovacie úlohy",

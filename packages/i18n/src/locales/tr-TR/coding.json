@@ -57,7 +57,14 @@
       "error_reason": "Neden",
       "pr": "Pull request",
       "cancel": "İptal et",
-      "retry": "Yeniden dene"
+      "retry": "Yeniden dene",
+      "waiting_for_machine": "Bir makine bekleniyor",
+      "ran_on": "{name} üzerinde çalıştı",
+      "started": "{time} başladı",
+      "progress": "İlerleme",
+      "progress_loading": "İlerleme yükleniyor...",
+      "progress_empty": "Henüz ilerleme yok.",
+      "progress_load_failed": "İlerleme yüklenemedi."
     },
     "status": {
       "queued": "Sırada",
@@ -73,6 +80,12 @@
       "test_passed": "Test geçti",
       "bug_found": "Hata bulundu",
       "job_error": "Tamamlanmadı"
+    },
+    "event_kind": {
+      "status": "Durum",
+      "message": "Mesaj",
+      "tool": "Araç",
+      "plan": "Plan"
     },
     "settings": {
       "label": "Kodlama görevleri",

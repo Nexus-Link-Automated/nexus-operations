@@ -57,7 +57,14 @@
       "error_reason": "Motivo",
       "pr": "Pull request",
       "cancel": "Annulla",
-      "retry": "Riprova"
+      "retry": "Riprova",
+      "waiting_for_machine": "In attesa di una macchina",
+      "ran_on": "Eseguito su {name}",
+      "started": "Avviato {time}",
+      "progress": "Avanzamento",
+      "progress_loading": "Caricamento dell'avanzamento...",
+      "progress_empty": "Nessun avanzamento per ora.",
+      "progress_load_failed": "Impossibile caricare l'avanzamento."
     },
     "status": {
       "queued": "In coda",
@@ -73,6 +80,12 @@
       "test_passed": "Test superato",
       "bug_found": "Bug trovato",
       "job_error": "Non completata"
+    },
+    "event_kind": {
+      "status": "Stato",
+      "message": "Messaggio",
+      "tool": "Strumento",
+      "plan": "Piano"
     },
     "settings": {
       "label": "Attività di coding",

@@ -57,7 +57,14 @@
       "error_reason": "Motivo",
       "pr": "Pull request",
       "cancel": "Cancelar",
-      "retry": "Reintentar"
+      "retry": "Reintentar",
+      "waiting_for_machine": "Esperando una máquina",
+      "ran_on": "Se ejecutó en {name}",
+      "started": "Iniciado {time}",
+      "progress": "Progreso",
+      "progress_loading": "Cargando el progreso...",
+      "progress_empty": "Aún no hay progreso.",
+      "progress_load_failed": "No se pudo cargar el progreso."
     },
     "status": {
       "queued": "En cola",
@@ -73,6 +80,12 @@
       "test_passed": "Prueba superada",
       "bug_found": "Error encontrado",
       "job_error": "No terminó"
+    },
+    "event_kind": {
+      "status": "Estado",
+      "message": "Mensaje",
+      "tool": "Herramienta",
+      "plan": "Plan"
     },
     "settings": {
       "label": "Tareas de programación",

@@ -57,7 +57,14 @@
       "error_reason": "Причина",
       "pr": "Pull request",
       "cancel": "Отменить",
-      "retry": "Повторить"
+      "retry": "Повторить",
+      "waiting_for_machine": "Ожидает машину",
+      "ran_on": "Выполнено на {name}",
+      "started": "Запущено {time}",
+      "progress": "Ход выполнения",
+      "progress_loading": "Загрузка хода выполнения...",
+      "progress_empty": "Пока нет данных о ходе выполнения.",
+      "progress_load_failed": "Не удалось загрузить ход выполнения."
     },
     "status": {
       "queued": "В очереди",
@@ -73,6 +80,12 @@
       "test_passed": "Тест пройден",
       "bug_found": "Найден баг",
       "job_error": "Не завершено"
+    },
+    "event_kind": {
+      "status": "Статус",
+      "message": "Сообщение",
+      "tool": "Инструмент",
+      "plan": "План"
     },
     "settings": {
       "label": "Задачи программирования",

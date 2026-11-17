@@ -57,7 +57,14 @@
       "error_reason": "Reason",
       "pr": "Pull request",
       "cancel": "Cancel",
-      "retry": "Retry"
+      "retry": "Retry",
+      "waiting_for_machine": "Waiting for a machine",
+      "ran_on": "Ran on {name}",
+      "started": "Started {time}",
+      "progress": "Progress",
+      "progress_loading": "Loading progress...",
+      "progress_empty": "No progress yet.",
+      "progress_load_failed": "Couldn't load the progress."
     },
     "status": {
       "queued": "Queued",
@@ -73,6 +80,12 @@
       "test_passed": "Test passed",
       "bug_found": "Bug found",
       "job_error": "Did not finish"
+    },
+    "event_kind": {
+      "status": "Status",
+      "message": "Message",
+      "tool": "Tool",
+      "plan": "Plan"
     },
     "settings": {
       "label": "Coding jobs",

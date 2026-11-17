@@ -57,7 +57,14 @@
       "error_reason": "理由",
       "pr": "プルリクエスト",
       "cancel": "キャンセル",
-      "retry": "再試行"
+      "retry": "再試行",
+      "waiting_for_machine": "マシンを待っています",
+      "ran_on": "{name} で実行",
+      "started": "{time} に開始",
+      "progress": "進捗",
+      "progress_loading": "進捗を読み込み中...",
+      "progress_empty": "まだ進捗はありません。",
+      "progress_load_failed": "進捗を読み込めませんでした。"
     },
     "status": {
       "queued": "待機中",
@@ -73,6 +80,12 @@
       "test_passed": "テスト合格",
       "bug_found": "バグを検出",
       "job_error": "完了しませんでした"
+    },
+    "event_kind": {
+      "status": "ステータス",
+      "message": "メッセージ",
+      "tool": "ツール",
+      "plan": "計画"
     },
     "settings": {
       "label": "コーディングジョブ",

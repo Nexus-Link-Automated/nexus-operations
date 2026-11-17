@@ -57,7 +57,14 @@
       "error_reason": "Důvod",
       "pr": "Pull request",
       "cancel": "Zrušit",
-      "retry": "Zkusit znovu"
+      "retry": "Zkusit znovu",
+      "waiting_for_machine": "Čeká na počítač",
+      "ran_on": "Běželo na {name}",
+      "started": "Spuštěno {time}",
+      "progress": "Průběh",
+      "progress_loading": "Načítání průběhu...",
+      "progress_empty": "Zatím žádný průběh.",
+      "progress_load_failed": "Průběh se nepodařilo načíst."
     },
     "status": {
       "queued": "Ve frontě",
@@ -73,6 +80,12 @@
       "test_passed": "Test prošel",
       "bug_found": "Nalezena chyba",
       "job_error": "Nedokončeno"
+    },
+    "event_kind": {
+      "status": "Stav",
+      "message": "Zpráva",
+      "tool": "Nástroj",
+      "plan": "Plán"
     },
     "settings": {
       "label": "Programovací úlohy",

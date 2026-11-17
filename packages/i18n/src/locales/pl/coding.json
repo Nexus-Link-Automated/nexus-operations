@@ -57,7 +57,14 @@
       "error_reason": "Powód",
       "pr": "Pull request",
       "cancel": "Anuluj",
-      "retry": "Ponów"
+      "retry": "Ponów",
+      "waiting_for_machine": "Czeka na maszynę",
+      "ran_on": "Uruchomiono na {name}",
+      "started": "Rozpoczęto {time}",
+      "progress": "Postęp",
+      "progress_loading": "Ładowanie postępu...",
+      "progress_empty": "Brak postępu.",
+      "progress_load_failed": "Nie udało się wczytać postępu."
     },
     "status": {
       "queued": "W kolejce",
@@ -73,6 +80,12 @@
       "test_passed": "Test zaliczony",
       "bug_found": "Znaleziono błąd",
       "job_error": "Nie zakończono"
+    },
+    "event_kind": {
+      "status": "Status",
+      "message": "Wiadomość",
+      "tool": "Narzędzie",
+      "plan": "Plan"
     },
     "settings": {
       "label": "Zadania programistyczne",

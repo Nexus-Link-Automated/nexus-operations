@@ -57,7 +57,14 @@
       "error_reason": "Alasan",
       "pr": "Pull request",
       "cancel": "Batal",
-      "retry": "Coba lagi"
+      "retry": "Coba lagi",
+      "waiting_for_machine": "Menunggu mesin",
+      "ran_on": "Dijalankan di {name}",
+      "started": "Dimulai {time}",
+      "progress": "Progres",
+      "progress_loading": "Memuat progres...",
+      "progress_empty": "Belum ada progres.",
+      "progress_load_failed": "Tidak dapat memuat progres."
     },
     "status": {
       "queued": "Dalam antrean",
@@ -73,6 +80,12 @@
       "test_passed": "Tes lulus",
       "bug_found": "Bug ditemukan",
       "job_error": "Tidak selesai"
+    },
+    "event_kind": {
+      "status": "Status",
+      "message": "Pesan",
+      "tool": "Alat",
+      "plan": "Rencana"
     },
     "settings": {
       "label": "Tugas coding",

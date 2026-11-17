@@ -51,6 +51,31 @@ describe("CodingJobService", () => {
     expect(patch).toHaveBeenCalledWith("/api/workspaces/acme/projects/p1/coding-settings/", { enabled: true });
   });
 
+  it("reads a job's events, after a seq when given", async () => {
+    const { coding, get } = service();
+    const event = { seq: 3, kind: "tool", text: "pytest -q", created_at: "2026-11-17T10:00:00Z" };
+    get.mockResolvedValue({ data: { results: [event], has_more: true } });
+
+    expect(await coding.listEvents("acme", "p1", "w1", "j1")).toEqual({ results: [event], has_more: true });
+    expect(get).toHaveBeenLastCalledWith("/api/workspaces/acme/projects/p1/work-items/w1/coding-jobs/j1/events/", {});
+
+    get.mockResolvedValue({ data: { results: [], has_more: false } });
+    expect(await coding.listEvents("acme", "p1", "w1", "j1", 3)).toEqual({ results: [], has_more: false });
+    expect(get).toHaveBeenLastCalledWith("/api/workspaces/acme/projects/p1/work-items/w1/coding-jobs/j1/events/", {
+      params: { after: 3 },
+    });
+  });
+
+  it("throws a failed events read as a CodingJobServiceError", async () => {
+    const { coding, get } = service();
+    get.mockRejectedValue({ response: { status: 404, data: { error: "Not found." } } });
+
+    const error = await coding.listEvents("acme", "p1", "w1", "j1").catch((e) => e);
+
+    expect(error).toBeInstanceOf(CodingJobServiceError);
+    expect(error.status).toBe(404);
+  });
+
   it("throws the API's refusal with its status, code and message", async () => {
     const { coding, post } = service();
     post.mockRejectedValue({

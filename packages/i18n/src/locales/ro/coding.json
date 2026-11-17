@@ -57,7 +57,14 @@
       "error_reason": "Motiv",
       "pr": "Pull request",
       "cancel": "Anulează",
-      "retry": "Reîncercați"
+      "retry": "Reîncercați",
+      "waiting_for_machine": "Se așteaptă o mașină",
+      "ran_on": "Rulat pe {name}",
+      "started": "Pornit {time}",
+      "progress": "Progres",
+      "progress_loading": "Se încarcă progresul...",
+      "progress_empty": "Încă nu există progres.",
+      "progress_load_failed": "Progresul nu a putut fi încărcat."
     },
     "status": {
       "queued": "În coadă",
@@ -73,6 +80,12 @@
       "test_passed": "Test trecut",
       "bug_found": "Bug găsit",
       "job_error": "Nu s-a finalizat"
+    },
+    "event_kind": {
+      "status": "Stare",
+      "message": "Mesaj",
+      "tool": "Instrument",
+      "plan": "Plan"
     },
     "settings": {
       "label": "Sarcini de programare",

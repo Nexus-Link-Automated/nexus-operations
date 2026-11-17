@@ -233,4 +233,119 @@ describe("CodingJobsPanel", () => {
     await waitFor(() => expect(service.list).toHaveBeenCalled());
     expect(screen.queryByText("coding_jobs.panel.title")).toBeNull();
   });
+
+  it("shows the machine a job ran on, and that a queued job is waiting for one", async () => {
+    await setup([
+      makeJob("j3", { created_at: "2026-11-14T12:00:00Z" }),
+      makeJob("j2", {
+        status: "running",
+        ran_on: "m1",
+        ran_on_name: "Laptop",
+        progress: "Running the tests",
+        started_at: "2026-11-14T11:01:00Z",
+        created_at: "2026-11-14T11:00:00Z",
+      }),
+      makeJob("j1", {
+        status: "finished",
+        outcome: "fixed",
+        is_active: false,
+        ran_on: null,
+        ran_on_name: "Old desktop",
+        progress: "Opened the pull request",
+      }),
+    ]);
+
+    expect(row(0).getByText("coding_jobs.panel.waiting_for_machine")).toBeTruthy();
+    expect(row(0).queryByText(/coding_jobs.panel.ran_on/)).toBeNull();
+    expect(row(0).queryByRole("button", { name: "coding_jobs.panel.progress" })).toBeNull();
+
+    expect(row(1).getByText(/coding_jobs.panel.ran_on .*Laptop/)).toBeTruthy();
+    expect(row(1).getByText(/coding_jobs.panel.started/)).toBeTruthy();
+    expect(row(1).getByTestId("coding-job-progress-line").textContent).toBe("Running the tests");
+    expect(row(1).queryByText("coding_jobs.panel.waiting_for_machine")).toBeNull();
+
+    expect(row(2).getByText(/coding_jobs.panel.ran_on .*Old desktop/)).toBeTruthy();
+    expect(row(2).queryByTestId("coding-job-progress-line")).toBeNull();
+  });
+
+  it("shows the latest progress line as text, never as markup", async () => {
+    await setup([makeJob("j1", { status: "running", ran_on_name: "Laptop", progress: "<b>Editing</b> app.py" })]);
+
+    expect(row().getByTestId("coding-job-progress-line").textContent).toBe("<b>Editing</b> app.py");
+    expect(row().getByTestId("coding-job-progress-line").querySelector("b")).toBeNull();
+  });
+
+  it("loads a job's progress lines when opened and shows them as plain text", async () => {
+    const service = await setup(
+      [makeJob("j1", { status: "running", ran_on_name: "Laptop", started_at: "2026-11-14T10:01:00Z" })],
+      {
+        listEvents: vi.fn().mockResolvedValue({
+          results: [
+            { seq: 1, kind: "status", text: "Started", created_at: "2026-11-14T10:01:00Z" },
+            {
+              seq: 2,
+              kind: "tool",
+              text: "<img src=x onerror=alert(1)>\npytest -q",
+              created_at: "2026-11-14T10:02:00Z",
+            },
+          ],
+          has_more: false,
+        }),
+      }
+    );
+    const toggle = row().getByRole("button", { name: "coding_jobs.panel.progress" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(service.listEvents).not.toHaveBeenCalled();
+
+    fireEvent.click(toggle);
+
+    const events = await row().findAllByTestId("coding-job-event");
+    expect(service.listEvents).toHaveBeenCalledWith("acme", "p1", "w1", "j1", undefined);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(events).toHaveLength(2);
+    expect(within(events[1]).getByText("coding_jobs.event_kind.tool")).toBeTruthy();
+    expect(events[1].textContent).toContain("<img src=x onerror=alert(1)>\npytest -q");
+    expect(events[1].querySelector("img")).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(row().queryAllByTestId("coding-job-event")).toHaveLength(0);
+  });
+
+  it("says so when a job has no progress lines, or they could not be loaded", async () => {
+    await setup(
+      [
+        makeJob("j2", { status: "cancelled", is_active: false, created_at: "2026-11-14T11:00:00Z" }),
+        makeJob("j1", { status: "finished", outcome: "job_error", is_active: false }),
+      ],
+      {
+        listEvents: vi
+          .fn()
+          .mockImplementation((_w, _p, _i, jobId: string) =>
+            jobId === "j2"
+              ? Promise.resolve({ results: [], has_more: false })
+              : Promise.reject(new CodingJobServiceError(500, {}))
+          ),
+      }
+    );
+
+    fireEvent.click(row(0).getByRole("button", { name: "coding_jobs.panel.progress" }));
+    fireEvent.click(row(1).getByRole("button", { name: "coding_jobs.panel.progress" }));
+
+    expect(await row(0).findByText("coding_jobs.panel.progress_empty")).toBeTruthy();
+    expect(await row(1).findByText("coding_jobs.panel.progress_load_failed")).toBeTruthy();
+  });
+
+  it("follows the work item's jobs while shown and stops when it goes away", async () => {
+    const store = new CodingJobStore({ service: fakeCodingService({ list: vi.fn().mockResolvedValue([]) }) });
+    const stop = vi.fn();
+    const watchJobs = vi.spyOn(store, "watchJobs").mockReturnValue(stop);
+    mocks.store = store;
+
+    const { unmount } = render(<CodingJobsPanel workspaceSlug="acme" projectId="p1" issueId="w1" />);
+    await waitFor(() => expect(watchJobs).toHaveBeenCalledWith("acme", "p1", "w1"));
+    expect(stop).not.toHaveBeenCalled();
+
+    unmount();
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
 });

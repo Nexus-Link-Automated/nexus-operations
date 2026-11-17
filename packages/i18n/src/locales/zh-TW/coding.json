@@ -57,7 +57,14 @@
       "error_reason": "原因",
       "pr": "拉取請求",
       "cancel": "取消",
-      "retry": "重試"
+      "retry": "重試",
+      "waiting_for_machine": "等待機器",
+      "ran_on": "在 {name} 上執行",
+      "started": "開始於 {time}",
+      "progress": "進度",
+      "progress_loading": "正在載入進度...",
+      "progress_empty": "尚無進度。",
+      "progress_load_failed": "無法載入進度。"
     },
     "status": {
       "queued": "排隊中",
@@ -73,6 +80,12 @@
       "test_passed": "測試通過",
       "bug_found": "發現錯誤",
       "job_error": "未完成"
+    },
+    "event_kind": {
+      "status": "狀態",
+      "message": "訊息",
+      "tool": "工具",
+      "plan": "計畫"
     },
     "settings": {
       "label": "編碼工作",

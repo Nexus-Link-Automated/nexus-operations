@@ -57,7 +57,14 @@
       "error_reason": "Причина",
       "pr": "Pull request",
       "cancel": "Отмени",
-      "retry": "Опитай отново"
+      "retry": "Опитай отново",
+      "waiting_for_machine": "Изчаква машина",
+      "ran_on": "Изпълнено на {name}",
+      "started": "Започнато {time}",
+      "progress": "Напредък",
+      "progress_loading": "Зареждане на напредъка...",
+      "progress_empty": "Все още няма напредък.",
+      "progress_load_failed": "Напредъкът не можа да се зареди."
     },
     "status": {
       "queued": "На опашка",
@@ -73,6 +80,12 @@
       "test_passed": "Тестът мина",
       "bug_found": "Открит бъг",
       "job_error": "Не завърши"
+    },
+    "event_kind": {
+      "status": "Статус",
+      "message": "Съобщение",
+      "tool": "Инструмент",
+      "plan": "План"
     },
     "settings": {
       "label": "Задачи за програмиране",

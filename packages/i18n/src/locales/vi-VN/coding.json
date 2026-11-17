@@ -57,7 +57,14 @@
       "error_reason": "Lý do",
       "pr": "Pull request",
       "cancel": "Hủy",
-      "retry": "Thử lại"
+      "retry": "Thử lại",
+      "waiting_for_machine": "Đang chờ máy",
+      "ran_on": "Đã chạy trên {name}",
+      "started": "Bắt đầu {time}",
+      "progress": "Tiến độ",
+      "progress_loading": "Đang tải tiến độ...",
+      "progress_empty": "Chưa có tiến độ.",
+      "progress_load_failed": "Không thể tải tiến độ."
     },
     "status": {
       "queued": "Đang chờ",
@@ -73,6 +80,12 @@
       "test_passed": "Kiểm thử đạt",
       "bug_found": "Phát hiện lỗi",
       "job_error": "Chưa hoàn tất"
+    },
+    "event_kind": {
+      "status": "Trạng thái",
+      "message": "Tin nhắn",
+      "tool": "Công cụ",
+      "plan": "Kế hoạch"
     },
     "settings": {
       "label": "Tác vụ lập trình",

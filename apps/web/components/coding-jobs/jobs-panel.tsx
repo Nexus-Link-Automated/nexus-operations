@@ -24,6 +24,7 @@ import { useProjectState } from "@/hooks/store/use-project-state";
 import { useUser } from "@/hooks/store/user";
 // local imports
 import { codingErrorMessage, isWorkItemEligibleForCoding } from "./helpers";
+import { CodingJobProgress } from "./job-progress";
 import { useCodingAccess } from "./use-coding-access";
 
 type Props = {
@@ -63,7 +64,9 @@ const isHttpsUrl = (value: string) => {
 };
 
 /**
- * The work item's coding jobs, newest first: status or outcome, PR link, error reason, who started it and when.
+ * The work item's coding jobs, newest first: status or outcome, the machine it ran on, the latest progress line while
+ * it runs and its progress lines on demand, PR link, error reason, who started it and when. While a job is queued or
+ * running, the store reloads the jobs every few seconds for as long as the panel is shown.
  * Cancel shows for an active job to the person who started it and to project admins; Retry for a job the API marks
  * `is_retryable`, to members and admins. Guests see the list only.
  */
@@ -72,7 +75,7 @@ export const CodingJobsPanel = observer(function CodingJobsPanel({ workspaceSlug
   const [loadFailed, setLoadFailed] = useState(false);
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
   // store hooks
-  const { getJobs, getSettings, fetchSettings, fetchJobs, cancelJob, retryJob } = useCodingJob();
+  const { getJobs, getSettings, fetchSettings, fetchJobs, watchJobs, cancelJob, retryJob } = useCodingJob();
   const { getUserDetails } = useMember();
   const { data: currentUser } = useUser();
   const {
@@ -103,6 +106,12 @@ export const CodingJobsPanel = observer(function CodingJobsPanel({ workspaceSlug
   useEffect(() => {
     if (workspaceSlug && projectId && issueId) load();
   }, [load, workspaceSlug, projectId, issueId]);
+
+  // Live updates while a job is active; stops on unmount.
+  useEffect(() => {
+    if (!workspaceSlug || !projectId || !issueId) return undefined;
+    return watchJobs(workspaceSlug, projectId, issueId);
+  }, [watchJobs, workspaceSlug, projectId, issueId]);
 
   // Nothing to show until there is a job, unless members could start one here.
   const hasJobs = !!jobs && jobs.length > 0;
@@ -180,6 +189,36 @@ export const CodingJobsPanel = observer(function CodingJobsPanel({ workspaceSlug
                     {calculateTimeAgo(job.created_at)}
                   </time>
                 </span>
+                {job.status === "queued" && (
+                  <span className="text-caption-sm-regular text-tertiary">
+                    {t("coding_jobs.panel.waiting_for_machine")}
+                  </span>
+                )}
+                {job.status !== "queued" && job.ran_on_name && (
+                  <span className="truncate text-caption-sm-regular text-tertiary">
+                    {t("coding_jobs.panel.ran_on", { name: job.ran_on_name })}
+                    {job.status === "running" && job.started_at && (
+                      <>
+                        {" · "}
+                        <time
+                          dateTime={job.started_at}
+                          title={renderFormattedDate(new Date(job.started_at), DATE_FORMAT)}
+                        >
+                          {t("coding_jobs.panel.started", { time: calculateTimeAgo(job.started_at) })}
+                        </time>
+                      </>
+                    )}
+                  </span>
+                )}
+                {job.status === "running" && job.progress && (
+                  <p
+                    data-testid="coding-job-progress-line"
+                    className="truncate text-caption-sm-regular text-secondary"
+                    title={job.progress}
+                  >
+                    {job.progress}
+                  </p>
+                )}
                 {job.finished_at && (
                   <span className="text-caption-sm-regular text-tertiary">
                     {t("coding_jobs.panel.finished", {
@@ -203,6 +242,14 @@ export const CodingJobsPanel = observer(function CodingJobsPanel({ workspaceSlug
                     <GitPullRequestOutline className="size-3.5 shrink-0" />
                     {t("coding_jobs.panel.pr")}
                   </a>
+                )}
+                {job.status !== "queued" && (
+                  <CodingJobProgress
+                    workspaceSlug={workspaceSlug}
+                    projectId={projectId}
+                    issueId={issueId}
+                    jobId={job.id}
+                  />
                 )}
                 {(canCancel || canRetry) && (
                   <div className="flex items-center gap-2 pt-1">

@@ -32,12 +32,38 @@ export type TCodingJob = {
   requested_by: string | null;
   /** The requester's machine the job was sent to; null is Auto. */
   machine: string | null;
+  /** The machine that took the job: null while queued, or after that machine was removed. */
+  ran_on: string | null;
+  /** That machine's name when it took the job ("" while queued); kept after the machine is removed. */
+  ran_on_name: string;
+  /** The machine's latest progress line (at most 500 characters). Written by a coding agent: plain text only. */
+  progress: string;
+  progress_at: string | null;
+  /** When the machine stops the job. */
+  deadline_at: string | null;
   is_active: boolean;
   is_retryable: boolean;
   started_at: string | null;
   finished_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type TCodingJobEventKind = "status" | "message" | "tool" | "plan";
+
+/** A progress line a machine reported while running a job. `text` is written by a coding agent: plain text only. */
+export type TCodingJobEvent = {
+  /** 1, 2, 3, ... per job, in the order the API received them. */
+  seq: number;
+  kind: TCodingJobEventKind;
+  text: string;
+  created_at: string;
+};
+
+/** Up to 200 of a job's events after a `seq`, oldest first. */
+export type TCodingJobEventsPage = {
+  results: TCodingJobEvent[];
+  has_more: boolean;
 };
 
 /** The outcome columns a project maps to its states. */

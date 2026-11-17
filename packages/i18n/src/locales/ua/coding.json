@@ -57,7 +57,14 @@
       "error_reason": "Причина",
       "pr": "Pull request",
       "cancel": "Скасувати",
-      "retry": "Повторити"
+      "retry": "Повторити",
+      "waiting_for_machine": "Очікує на машину",
+      "ran_on": "Виконано на {name}",
+      "started": "Запущено {time}",
+      "progress": "Перебіг виконання",
+      "progress_loading": "Завантаження перебігу виконання...",
+      "progress_empty": "Поки немає даних про перебіг виконання.",
+      "progress_load_failed": "Не вдалося завантажити перебіг виконання."
     },
     "status": {
       "queued": "У черзі",
@@ -73,6 +80,12 @@
       "test_passed": "Тест пройдено",
       "bug_found": "Знайдено баг",
       "job_error": "Не завершено"
+    },
+    "event_kind": {
+      "status": "Статус",
+      "message": "Повідомлення",
+      "tool": "Інструмент",
+      "plan": "План"
     },
     "settings": {
       "label": "Задачі програмування",

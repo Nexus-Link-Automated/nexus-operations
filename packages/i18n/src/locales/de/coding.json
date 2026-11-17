@@ -57,7 +57,14 @@
       "error_reason": "Grund",
       "pr": "Pull Request",
       "cancel": "Abbrechen",
-      "retry": "Erneut versuchen"
+      "retry": "Erneut versuchen",
+      "waiting_for_machine": "Wartet auf eine Maschine",
+      "ran_on": "Lief auf {name}",
+      "started": "Gestartet {time}",
+      "progress": "Fortschritt",
+      "progress_loading": "Fortschritt wird geladen...",
+      "progress_empty": "Noch kein Fortschritt.",
+      "progress_load_failed": "Der Fortschritt konnte nicht geladen werden."
     },
     "status": {
       "queued": "In Warteschlange",
@@ -73,6 +80,12 @@
       "test_passed": "Test bestanden",
       "bug_found": "Fehler gefunden",
       "job_error": "Nicht abgeschlossen"
+    },
+    "event_kind": {
+      "status": "Status",
+      "message": "Nachricht",
+      "tool": "Werkzeug",
+      "plan": "Plan"
     },
     "settings": {
       "label": "Coding-Jobs",

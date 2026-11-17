@@ -4,11 +4,11 @@
  * See the LICENSE file for details.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CodingJobServiceError } from "@plane/services";
-import type { TCodingJob, TProjectCodingSettings } from "@plane/types";
+import type { TCodingJob, TCodingJobEvent, TProjectCodingSettings } from "@plane/types";
 import type { TCodingJobStoreService } from "./coding-job.store";
-import { CodingJobStore } from "./coding-job.store";
+import { CODING_JOB_POLL_MS, CodingJobStore } from "./coding-job.store";
 
 const job = (id: string, overrides: Partial<TCodingJob> = {}): TCodingJob => ({
   id,
@@ -26,6 +26,11 @@ const job = (id: string, overrides: Partial<TCodingJob> = {}): TCodingJob => ({
   comment: null,
   requested_by: "u1",
   machine: null,
+  ran_on: null,
+  ran_on_name: "",
+  progress: "",
+  progress_at: null,
+  deadline_at: null,
   is_active: true,
   is_retryable: false,
   started_at: null,
@@ -57,9 +62,21 @@ function fakeService(overrides: Partial<TCodingJobStoreService> = {}) {
     retry: vi.fn(),
     getSettings: vi.fn().mockResolvedValue(settings()),
     updateSettings: vi.fn(),
+    listEvents: vi.fn().mockResolvedValue({ results: [], has_more: false }),
     ...overrides,
   } satisfies TCodingJobStoreService;
 }
+
+const event = (seq: number, text = `line ${seq}`): TCodingJobEvent => ({
+  seq,
+  kind: "message",
+  text,
+  created_at: "2026-11-17T10:00:00Z",
+});
+
+const running = (id = "j1") => job(id, { status: "running", ran_on: "m1", ran_on_name: "Laptop" });
+const finished = (id = "j1") =>
+  job(id, { status: "finished", outcome: "fixed", is_active: false, updated_at: "2026-11-14T10:30:00Z" });
 
 const refusal = (status: number, code: string, error = "Refused.") =>
   new CodingJobServiceError(status, { error, code });
@@ -259,5 +276,169 @@ describe("CodingJobStore", () => {
     await read;
 
     expect(store.getSettings("p1")?.repo_url).toBe("https://github.com/acme/new");
+  });
+
+  describe("live updates", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+
+    const tick = () => vi.advanceTimersByTimeAsync(CODING_JOB_POLL_MS);
+
+    it("reloads a shown work item's jobs every 5 s while one is active, and stops when none is", async () => {
+      const list = vi
+        .fn()
+        .mockResolvedValueOnce([job("j1")])
+        .mockResolvedValueOnce([running()])
+        .mockResolvedValue([finished()]);
+      const store = new CodingJobStore({ service: fakeService({ list }) });
+      await store.fetchJobs("acme", "p1", "w1");
+      const stop = store.watchJobs("acme", "p1", "w1");
+
+      await vi.advanceTimersByTimeAsync(CODING_JOB_POLL_MS - 1);
+      expect(list).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(list).toHaveBeenCalledTimes(2);
+      expect(store.getJobs("w1")?.[0].ran_on_name).toBe("Laptop");
+      await tick();
+      expect(list).toHaveBeenCalledTimes(3);
+      expect(store.getJobs("w1")?.[0].status).toBe("finished");
+      await tick();
+      await tick();
+      expect(list).toHaveBeenCalledTimes(3);
+      expect(vi.getTimerCount()).toBe(0);
+      stop();
+    });
+
+    it("waits while no job is active and starts when one is started", async () => {
+      const list = vi.fn().mockResolvedValue([finished("j1")]);
+      const start = vi.fn().mockResolvedValue(job("j2", { created_at: "2026-11-14T11:00:00Z" }));
+      const store = new CodingJobStore({ service: fakeService({ list, start }) });
+      await store.fetchJobs("acme", "p1", "w1");
+      const stop = store.watchJobs("acme", "p1", "w1");
+
+      await tick();
+      expect(list).toHaveBeenCalledTimes(1);
+
+      await store.startJob("acme", "p1", "w1", "fix_bug", "codex");
+      list.mockResolvedValue([job("j2", { created_at: "2026-11-14T11:00:00Z" }), finished("j1")]);
+      await tick();
+      expect(list).toHaveBeenCalledTimes(2);
+      stop();
+    });
+
+    it("stops when the panel goes away, sharing one timer between watchers", async () => {
+      const list = vi.fn().mockResolvedValue([running()]);
+      const store = new CodingJobStore({ service: fakeService({ list }) });
+      await store.fetchJobs("acme", "p1", "w1");
+      const stopFirst = store.watchJobs("acme", "p1", "w1");
+      const stopSecond = store.watchJobs("acme", "p1", "w1");
+
+      await tick();
+      expect(list).toHaveBeenCalledTimes(2);
+      stopFirst();
+      stopFirst();
+      await tick();
+      expect(list).toHaveBeenCalledTimes(3);
+      stopSecond();
+      expect(vi.getTimerCount()).toBe(0);
+      await tick();
+      expect(list).toHaveBeenCalledTimes(3);
+    });
+
+    it("skips ticks while the tab is hidden and keeps going after a failed reload", async () => {
+      const list = vi.fn().mockResolvedValue([running()]);
+      const store = new CodingJobStore({ service: fakeService({ list }) });
+      await store.fetchJobs("acme", "p1", "w1");
+      const stop = store.watchJobs("acme", "p1", "w1");
+
+      vi.stubGlobal("document", { hidden: true });
+      await tick();
+      await tick();
+      expect(list).toHaveBeenCalledTimes(1);
+
+      vi.stubGlobal("document", { hidden: false });
+      list.mockRejectedValueOnce(refusal(500, ""));
+      await tick();
+      await tick();
+      expect(list).toHaveBeenCalledTimes(3);
+      stop();
+    });
+
+    it("loads a job's events page by page, then only the new ones", async () => {
+      const listEvents = vi
+        .fn()
+        .mockResolvedValueOnce({ results: [event(1), event(2)], has_more: true })
+        .mockResolvedValueOnce({ results: [event(3)], has_more: false })
+        .mockResolvedValueOnce({ results: [event(3), event(4)], has_more: false });
+      const store = new CodingJobStore({ service: fakeService({ listEvents }) });
+
+      await store.fetchEvents("acme", "p1", "w1", "j1");
+      expect(listEvents.mock.calls).toEqual([
+        ["acme", "p1", "w1", "j1", undefined],
+        ["acme", "p1", "w1", "j1", 2],
+      ]);
+      expect(store.getEvents("j1")?.map((e) => e.seq)).toEqual([1, 2, 3]);
+
+      await store.fetchEvents("acme", "p1", "w1", "j1");
+      expect(listEvents).toHaveBeenLastCalledWith("acme", "p1", "w1", "j1", 3);
+      expect(store.getEvents("j1")?.map((e) => e.seq)).toEqual([1, 2, 3, 4]);
+    });
+
+    it("sends one events request at a time per job", async () => {
+      const service = fakeService();
+      const store = new CodingJobStore({ service });
+
+      await Promise.all([store.fetchEvents("acme", "p1", "w1", "j1"), store.fetchEvents("acme", "p1", "w1", "j1")]);
+
+      expect(service.listEvents).toHaveBeenCalledTimes(1);
+      expect(store.getEvents("j1")).toEqual([]);
+    });
+
+    it("follows a running job's events, once more when it ends, then stops", async () => {
+      const list = vi.fn().mockResolvedValue([running()]);
+      const listEvents = vi
+        .fn()
+        .mockResolvedValueOnce({ results: [event(1)], has_more: false })
+        .mockResolvedValueOnce({ results: [event(2)], has_more: false })
+        .mockResolvedValue({ results: [event(3, "Done.")], has_more: false });
+      const store = new CodingJobStore({ service: fakeService({ list, listEvents }) });
+      await store.fetchJobs("acme", "p1", "w1");
+      const stopJobs = store.watchJobs("acme", "p1", "w1");
+      await store.fetchEvents("acme", "p1", "w1", "j1");
+      const stopEvents = store.watchEvents("acme", "p1", "w1", "j1");
+
+      await tick();
+      expect(listEvents).toHaveBeenLastCalledWith("acme", "p1", "w1", "j1", 1);
+      expect(store.getEvents("j1")?.map((e) => e.seq)).toEqual([1, 2]);
+
+      list.mockResolvedValue([finished()]);
+      await tick();
+      expect(store.getJobs("w1")?.[0].status).toBe("finished");
+      await vi.waitFor(() => expect(store.getEvents("j1")?.map((e) => e.seq)).toEqual([1, 2, 3]));
+      const calls = listEvents.mock.calls.length;
+      await tick();
+      await tick();
+      expect(listEvents).toHaveBeenCalledTimes(calls);
+      expect(vi.getTimerCount()).toBe(0);
+      stopEvents();
+      stopJobs();
+    });
+
+    it("does not follow the events of a job that has ended", async () => {
+      const service = fakeService({ list: vi.fn().mockResolvedValue([finished()]) });
+      const store = new CodingJobStore({ service });
+      await store.fetchJobs("acme", "p1", "w1");
+
+      const stop = store.watchEvents("acme", "p1", "w1", "j1");
+      await tick();
+
+      expect(service.listEvents).not.toHaveBeenCalled();
+      stop();
+    });
   });
 });

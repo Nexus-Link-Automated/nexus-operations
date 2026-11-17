@@ -28,6 +28,11 @@ export const makeJob = (id: string, overrides: Partial<TCodingJob> = {}): TCodin
   comment: null,
   requested_by: "me",
   machine: null,
+  ran_on: null,
+  ran_on_name: "",
+  progress: "",
+  progress_at: null,
+  deadline_at: null,
   is_active: true,
   is_retryable: false,
   started_at: null,
@@ -66,6 +71,7 @@ export const fakeCodingService = (overrides: Partial<TCodingJobStoreService> = {
     retry: vi.fn(),
     getSettings: vi.fn().mockResolvedValue(makeSettings()),
     updateSettings: vi.fn(),
+    listEvents: vi.fn().mockResolvedValue({ results: [], has_more: false }),
     ...overrides,
   }) as TFakeCodingService;
 

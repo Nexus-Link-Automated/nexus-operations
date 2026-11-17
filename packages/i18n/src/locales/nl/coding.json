@@ -57,7 +57,14 @@
       "error_reason": "Reden",
       "pr": "Pull request",
       "cancel": "Annuleren",
-      "retry": "Opnieuw proberen"
+      "retry": "Opnieuw proberen",
+      "waiting_for_machine": "Wacht op een machine",
+      "ran_on": "Uitgevoerd op {name}",
+      "started": "Gestart {time}",
+      "progress": "Voortgang",
+      "progress_loading": "Voortgang laden...",
+      "progress_empty": "Nog geen voortgang.",
+      "progress_load_failed": "De voortgang kon niet worden geladen."
     },
     "status": {
       "queued": "In wachtrij",
@@ -73,6 +80,12 @@
       "test_passed": "Test geslaagd",
       "bug_found": "Bug gevonden",
       "job_error": "Niet voltooid"
+    },
+    "event_kind": {
+      "status": "Status",
+      "message": "Bericht",
+      "tool": "Tool",
+      "plan": "Plan"
     },
     "settings": {
       "label": "Codeertaken",

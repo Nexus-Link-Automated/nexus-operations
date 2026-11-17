@@ -57,7 +57,14 @@
       "error_reason": "მიზეზი",
       "pr": "Pull request",
       "cancel": "გაუქმება",
-      "retry": "ხელახლა ცდა"
+      "retry": "ხელახლა ცდა",
+      "waiting_for_machine": "მანქანის მოლოდინში",
+      "ran_on": "შესრულდა {name}-ზე",
+      "started": "დაიწყო {time}",
+      "progress": "პროგრესი",
+      "progress_loading": "პროგრესი იტვირთება...",
+      "progress_empty": "პროგრესი ჯერ არ არის.",
+      "progress_load_failed": "პროგრესის ჩატვირთვა ვერ მოხერხდა."
     },
     "status": {
       "queued": "რიგშია",
@@ -73,6 +80,12 @@
       "test_passed": "ტესტმა გაიარა",
       "bug_found": "ნაპოვნია ხარვეზი",
       "job_error": "არ დასრულდა"
+    },
+    "event_kind": {
+      "status": "სტატუსი",
+      "message": "შეტყობინება",
+      "tool": "ხელსაწყო",
+      "plan": "გეგმა"
     },
     "settings": {
       "label": "კოდირების დავალებები",
