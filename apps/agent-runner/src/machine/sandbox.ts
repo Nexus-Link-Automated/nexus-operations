@@ -48,8 +48,13 @@ export const ADAPTER_BIN: Record<AgentId, string> = {
   claude: "/opt/nexus/acp/dist/bin/claude.mjs",
 };
 export const IMAGE_REPOSITORY = "nexus-machine-job";
+/** The job image's egress proxy (`machine/job-image/egress-proxy.mjs`) and where job containers reach it. */
+export const EGRESS_PROXY_SCRIPT = "/opt/nexus/egress-proxy.mjs";
+export const EGRESS_ALIAS = "nexus-egress";
+export const EGRESS_PORT = 3128;
 export const LABEL_MACHINE = "nexus-machine.machine";
 export const LABEL_JOB = "nexus-machine.job";
+export const LABEL_EGRESS = "nexus-machine.egress";
 
 const CLONE_TIMEOUT_MS = 10 * 60_000;
 const SHORT_TIMEOUT_MS = 60_000;
@@ -111,6 +116,39 @@ export interface SandboxProvider {
   create(order: JobOrder, dirs: JobDirs): JobSandbox;
   /** Removes job containers a previous run of the service left behind. Returns how many. */
   removeLeftovers(): Promise<number>;
+  /** The service is stopping: removes what jobs left and the egress proxy. Never throws. */
+  shutdown?(): Promise<void>;
+}
+
+/**
+ * How job containers reach the network. `proxy` (the default): an internal Docker network of this machine's, whose
+ * only way out is the egress proxy (public addresses, ports 80 and 443): no LAN, no host, no cloud metadata. `open`
+ * (`NEXUS_MACHINE_JOB_EGRESS=open`): Docker's default network, as before.
+ */
+export type EgressMode = "proxy" | "open";
+
+export interface EgressNames {
+  readonly network: string;
+  readonly proxy: string;
+}
+
+export function egressNames(machineId: string): EgressNames {
+  const short = machineId.replace(/[^A-Za-z0-9]/g, "").slice(0, 12) || "machine";
+  return { network: `nexus-jobs-${short}`, proxy: `nexus-egress-${short}` };
+}
+
+/** What a job container gets so its tools use the proxy (curl, git, npm, pip, Codex, Claude, Node with the flag). */
+export function proxyEnv(): Record<string, string> {
+  const url = `http://${EGRESS_ALIAS}:${EGRESS_PORT}`;
+  return {
+    HTTP_PROXY: url,
+    HTTPS_PROXY: url,
+    http_proxy: url,
+    https_proxy: url,
+    NO_PROXY: "localhost,127.0.0.1,::1",
+    no_proxy: "localhost,127.0.0.1,::1",
+    NODE_USE_ENV_PROXY: "1",
+  };
 }
 
 export class SandboxError extends Error {}
@@ -158,6 +196,10 @@ export interface DockerOptions {
   /** `--memory` and `--cpus` for each job container (`NEXUS_MACHINE_JOB_MEMORY`, `NEXUS_MACHINE_JOB_CPUS`). */
   readonly memory?: string;
   readonly cpus?: string;
+  /** `proxy` unless `NEXUS_MACHINE_JOB_EGRESS=open`. */
+  readonly egress?: EgressMode;
+  /** More ports the proxy allows besides 80 and 443 (`NEXUS_MACHINE_EGRESS_PORTS`, e.g. `22,8443`). */
+  readonly egressPorts?: string;
 }
 
 /** The `docker run` arguments for a job's container. Exported for tests: it is where the isolation is. */
@@ -171,8 +213,17 @@ export function containerArgs(options: {
   readonly gid: number;
   readonly memory?: string;
   readonly cpus?: string;
+  /** The internal network to join (egress through the proxy only); left out, Docker's default network. */
+  readonly network?: string;
 }): string[] {
   const { dirs } = options;
+  const network = options.network
+    ? [
+        "--network",
+        options.network,
+        ...Object.entries(proxyEnv()).flatMap(([name, value]) => ["--env", `${name}=${value}`]),
+      ]
+    : [];
   return [
     "run",
     "--detach",
@@ -204,6 +255,7 @@ export function containerArgs(options: {
     `HOME=${CONTAINER_HOME}`,
     "--env",
     "GIT_TERMINAL_PROMPT=0",
+    ...network,
     "--workdir",
     CONTAINER_WORK,
     options.image,
@@ -260,8 +312,75 @@ export class DockerSandboxProvider implements SandboxProvider {
       log.info("machine-service: job image ready", { image });
     }
     this.#image = image;
+    if (this.#egress === "proxy") {
+      const reason = await this.#startEgress(image);
+      if (reason) {
+        this.#status = { ready: false, reason };
+        return this.#status;
+      }
+    }
     this.#status = { ready: true };
     return this.#status;
+  }
+
+  get #egress(): EgressMode {
+    return this.#options.egress ?? "proxy";
+  }
+
+  /** The machine's internal network and its egress proxy, (re)made when missing. A reason when it cannot. */
+  async #startEgress(image: string): Promise<string | undefined> {
+    const { network, proxy } = egressNames(this.#options.machineId);
+    const label = `${LABEL_MACHINE}=${this.#options.machineId}`;
+    const exists = await this.#docker(["network", "inspect", "--format", "{{.Internal}}", network]);
+    if (exists.code !== 0) {
+      const made = await this.#docker(["network", "create", "--internal", "--label", label, network]);
+      if (made.code !== 0) return "the jobs' internal Docker network could not be created";
+    } else if (exists.stdout.trim() !== "true") {
+      return `the Docker network ${network} exists but is not internal; remove it and restart`;
+    }
+    const running = await this.#docker(["inspect", "--format", "{{.State.Running}} {{.Config.Image}}", proxy]);
+    if (running.code === 0 && running.stdout.trim() === `true ${image}`) return undefined;
+    await this.#docker(["rm", "--force", proxy]);
+    const started = await this.#docker([
+      "run",
+      "--detach",
+      "--name",
+      proxy,
+      "--label",
+      label,
+      "--label",
+      `${LABEL_EGRESS}=true`,
+      "--user",
+      "65534:65534",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges",
+      "--read-only",
+      "--pids-limit",
+      "256",
+      "--memory",
+      "256m",
+      ...(this.#options.egressPorts && /^\d{1,5}(,\d{1,5})*$/.test(this.#options.egressPorts)
+        ? ["--env", `NEXUS_EGRESS_PORTS=${this.#options.egressPorts}`]
+        : []),
+      image,
+      "node",
+      EGRESS_PROXY_SCRIPT,
+    ]);
+    if (started.code !== 0) return "the jobs' egress proxy could not be started";
+    const joined = await this.#docker(["network", "connect", "--alias", EGRESS_ALIAS, network, proxy]);
+    if (joined.code !== 0) return "the jobs' egress proxy could not join their network";
+    this.#options.log.info("machine-service: job egress goes through the proxy (public addresses, ports 80 and 443)");
+    return undefined;
+  }
+
+  async shutdown(): Promise<void> {
+    await this.removeLeftovers().catch(() => 0);
+    if (this.#egress !== "proxy") return;
+    const { network, proxy } = egressNames(this.#options.machineId);
+    await this.#docker(["rm", "--force", proxy]).catch(() => undefined);
+    await this.#docker(["network", "rm", network]).catch(() => undefined);
   }
 
   async removeLeftovers(): Promise<number> {
@@ -271,6 +390,9 @@ export class DockerSandboxProvider implements SandboxProvider {
       "--quiet",
       "--filter",
       `label=${LABEL_MACHINE}=${this.#options.machineId}`,
+      // Job containers only: the egress proxy is kept, and remade by `prepare` when it is not right.
+      "--filter",
+      `label=${LABEL_JOB}`,
     ]);
     const ids = listed.code === 0 ? listed.stdout.split(/\s+/).filter(Boolean) : [];
     if (ids.length) await this.#docker(["rm", "--force", ...ids]);
@@ -317,6 +439,9 @@ class DockerSandbox implements JobSandbox {
       gid: this.#options.gid ?? process.getgid?.() ?? 1000,
       ...(this.#options.memory ? { memory: this.#options.memory } : {}),
       ...(this.#options.cpus ? { cpus: this.#options.cpus } : {}),
+      ...((this.#options.egress ?? "proxy") === "proxy"
+        ? { network: egressNames(this.#options.machineId).network }
+        : {}),
     });
     const result = await this.#docker(args);
     if (result.code !== 0) {

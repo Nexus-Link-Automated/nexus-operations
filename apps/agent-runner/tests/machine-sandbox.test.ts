@@ -19,7 +19,7 @@ import { makeJobDirs, pruneJobDirs } from "../src/machine/job.ts";
 import { parseOrder } from "../src/machine/orders.ts";
 import { ProgressCondenser } from "../src/machine/progress.ts";
 import { isRepoPath, parseNameStatus, readChanges } from "../src/machine/changes.ts";
-import { cloneAccess, containerArgs, DockerSandboxProvider, imageTag } from "../src/machine/sandbox.ts";
+import { cloneAccess, containerArgs, DockerSandboxProvider, egressNames, imageTag } from "../src/machine/sandbox.ts";
 import type { CommandRunner } from "../src/machine/system.ts";
 import { stageSignIn } from "../src/machine/signins.ts";
 import { fakeRunner, memoryLogger } from "./machine-helpers.ts";
@@ -91,6 +91,7 @@ describe("the job container", () => {
 
       const ready = new DockerSandboxProvider({
         machineId: "m-1",
+        egress: "open",
         contextDir: context,
         env: { PATH: "/usr/bin" },
         log: memoryLogger(),
@@ -129,6 +130,7 @@ describe("the job container", () => {
     });
     const provider = new DockerSandboxProvider({
       machineId: "m-1",
+      egress: "open",
       contextDir: context,
       env: {},
       log: memoryLogger(),
@@ -140,7 +142,9 @@ describe("the job container", () => {
 
   it("removes containers a previous run left behind, for this machine only", async () => {
     const run = fakeRunner({
-      "docker ps --all --quiet --filter label=nexus-machine.machine=m-1": { stdout: "abc\ndef\n" },
+      "docker ps --all --quiet --filter label=nexus-machine.machine=m-1 --filter label=nexus-machine.job": {
+        stdout: "abc\ndef\n",
+      },
       "docker rm --force abc def": {},
     });
     const provider = new DockerSandboxProvider({
@@ -203,6 +207,80 @@ describe("the job container", () => {
     expect(cloneAccess("https://git.example.com/a/b", "t").GIT_CONFIG_KEY_0).toBe(
       "http.https://git.example.com/.extraHeader"
     );
+  });
+});
+
+describe("the jobs' egress", () => {
+  it("puts job containers on the machine's internal network, with the proxy as their way out", async () => {
+    const context = path.join(dir, "job-image");
+    mkdirSync(context);
+    writeFileSync(path.join(context, "Dockerfile"), "FROM scratch\n");
+    const image = imageTag(context);
+    const names = egressNames("m-1");
+    const run = fakeRunner({
+      "docker version --format {{.Server.Version}}": { stdout: "28.1.1" },
+      [`docker image inspect --format {{.Id}} ${image}`]: { stdout: "sha256:x" },
+      [`docker network create --internal --label nexus-machine.machine=m-1 ${names.network}`]: {},
+      [`docker rm --force ${names.proxy}`]: {},
+      [`docker run --detach --name ${names.proxy} --label nexus-machine.machine=m-1 --label nexus-machine.egress=true --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges --read-only --pids-limit 256 --memory 256m ${image} node /opt/nexus/egress-proxy.mjs`]:
+        { stdout: "c1" },
+      [`docker network connect --alias nexus-egress ${names.network} ${names.proxy}`]: {},
+      [`docker network rm ${names.network}`]: {},
+    });
+    const provider = new DockerSandboxProvider({
+      machineId: "m-1",
+      contextDir: context,
+      env: {},
+      log: memoryLogger(),
+      run,
+    });
+    expect((await provider.prepare(new AbortController().signal)).ready).toBe(true);
+    const args = containerArgs({
+      name: "n",
+      image,
+      machineId: "m-1",
+      jobId: "j",
+      dirs: DIRS,
+      uid: 1000,
+      gid: 1000,
+      network: names.network,
+    }).join(" ");
+    expect(args).toContain(`--network ${names.network}`);
+    expect(args).toContain("--env HTTPS_PROXY=http://nexus-egress:3128");
+    // Gone when the service stops.
+    await provider.shutdown();
+    expect(run.calls).toContain(`docker rm --force ${names.proxy}`);
+    expect(run.calls).toContain(`docker network rm ${names.network}`);
+  });
+
+  it("is not ready when the network cannot be made, and refuses a network that is not internal", async () => {
+    const context = path.join(dir, "job-image");
+    mkdirSync(context);
+    writeFileSync(path.join(context, "Dockerfile"), "FROM scratch\n");
+    const names = egressNames("m-1");
+    const base = {
+      "docker version --format {{.Server.Version}}": { stdout: "28.1.1" },
+      [`docker image inspect --format {{.Id}} ${imageTag(context)}`]: { stdout: "sha256:x" },
+    };
+    const failing = new DockerSandboxProvider({
+      machineId: "m-1",
+      contextDir: context,
+      env: {},
+      log: memoryLogger(),
+      run: fakeRunner(base),
+    });
+    expect((await failing.prepare(new AbortController().signal)).reason).toMatch(/internal Docker network/);
+    const open = new DockerSandboxProvider({
+      machineId: "m-1",
+      contextDir: context,
+      env: {},
+      log: memoryLogger(),
+      run: fakeRunner({
+        ...base,
+        [`docker network inspect --format {{.Internal}} ${names.network}`]: { stdout: "false" },
+      }),
+    });
+    expect((await open.prepare(new AbortController().signal)).reason).toMatch(/not internal/);
   });
 });
 

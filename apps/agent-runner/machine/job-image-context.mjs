@@ -3,7 +3,7 @@
 // See the LICENSE file for details.
 //
 // Writes the job image's build context to dist/machine/job-image (part of `build:machine`): the
-// Dockerfile with the pinned Codex CLI version, the built ACP adapters, and a package.json naming
+// Dockerfile with the pinned Codex CLI version, the built ACP adapters, the egress proxy, and a package.json naming
 // their runtime dependencies at the versions installed in this monorepo. Needs
 // packages/acp-adapters to be built first.
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -41,4 +41,5 @@ writeFileSync(
   `${JSON.stringify({ name: "nexus-job-acp", private: true, type: "module", dependencies }, null, 2)}\n`
 );
 cpSync(path.join(adapters, "dist"), path.join(out, "dist"), { recursive: true });
+cpSync(path.join(here, "job-image/egress-proxy.mjs"), path.join(out, "egress-proxy.mjs"));
 console.log(`job-image: context written to ${path.relative(process.cwd(), out)} (codex ${codexVersion})`);

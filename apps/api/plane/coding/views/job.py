@@ -6,7 +6,9 @@
 
 from functools import cached_property
 
+from django.conf import settings
 from rest_framework import status
+from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.response import Response
 
 from plane.coding.exceptions import NotFound
@@ -41,7 +43,29 @@ class _WorkItemJobs(CodingEndpointMixin):
         return job
 
 
-class CodingJobListMixin(_WorkItemJobs):
+class _StartThrottle(SimpleRateThrottle):
+    """Starting and retrying jobs: `CODING_JOB_STARTS_PER_HOUR` (60) per person, besides the limit on active jobs."""
+
+    scope = "coding_job_start"
+
+    def get_rate(self):
+        return f"{getattr(settings, 'CODING_JOB_STARTS_PER_HOUR', 60)}/hour"
+
+    def allow_request(self, request, view):
+        if request.method != "POST":
+            return True
+        return super().allow_request(request, view)
+
+    def get_cache_key(self, request, view):
+        return f"{self.scope}:{request.user.pk}" if request.user and request.user.is_authenticated else None
+
+
+class _Starts:
+    def get_throttles(self):
+        return [*super().get_throttles(), _StartThrottle()]
+
+
+class CodingJobListMixin(_Starts, _WorkItemJobs):
     def get(self, request, slug, project_id, issue_id):
         """The work item's jobs, newest first. Filter with `status` and `action`."""
         queryset = CodingJob.objects.filter(issue=self.issue).prefetch_related("questions__answered_by")
@@ -94,7 +118,7 @@ class CodingJobCancelMixin(_WorkItemJobs):
         return Response(CodingJobSerializer(cancel_job(job, request.user)).data)
 
 
-class CodingJobRetryMixin(_WorkItemJobs):
+class CodingJobRetryMixin(_Starts, _WorkItemJobs):
     def post(self, request, slug, project_id, issue_id, job_id):
         """Start a new job like this one (`retry_of` points back), if it was cancelled or ended in a job error."""
         job = self.get_job()

@@ -20,7 +20,9 @@ ROLES = {"member": 15, "guest": 5}
 ACTIONS = (
     Action("list", read=True),
     Action("get", ("bot_id",), read=True),
-    Action("create", ("name",), ("role", "description"), note="returns token, shown once: hand it over, never store it"),
+    Action(
+        "create", ("name",), ("role", "description"), note="returns token, shown once: hand it over, never store it"
+    ),
     Action("update", ("bot_id",), ("name", "role", "description")),
     Action("new_token", ("bot_id",), note="ends its earlier tokens; returns token once"),
     Action("remove", ("bot_id",), destructive=True, note="off the workspace and its projects; tokens end"),

@@ -4,9 +4,11 @@
 
 """Starting, cancelling and retrying coding jobs. The views check who may; these enforce the job's own rules."""
 
+from django.conf import settings
 from django.db import IntegrityError, transaction
 
-from plane.coding.exceptions import CodingError, Conflict, NotConfigured
+from plane.coding.audit import record
+from plane.coding.exceptions import CodingError, Conflict, NotConfigured, TooMany
 from plane.coding.machines import available_machine
 from plane.coding.models import (
     ACTIVE_STATUSES,
@@ -19,6 +21,17 @@ from plane.coding.models import (
 )
 from plane.coding.outcomes import apply_result, user_name
 from plane.db.models import Issue, IssueSubscriber
+
+
+DEFAULT_MAX_ACTIVE_JOBS = 10
+
+
+def max_active_jobs() -> int:
+    """How many jobs one person (or bot) may have queued, running or waiting in a workspace at once."""
+    try:
+        return max(1, int(getattr(settings, "CODING_MAX_ACTIVE_JOBS_PER_USER", DEFAULT_MAX_ACTIVE_JOBS)))
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_ACTIVE_JOBS
 
 
 def require_configured(project) -> ProjectCodingSettings:
@@ -54,6 +67,16 @@ def start_job(issue, action: str, agent: str, user, retry_of: CodingJob | None =
     conflict = _active_conflict(issue, action)
     if conflict:
         raise conflict
+    limit = max_active_jobs()
+    active = CodingJob.objects.filter(
+        workspace_id=issue.workspace_id, requested_by=user, status__in=ACTIVE_STATUSES
+    ).count()
+    if active >= limit:
+        raise TooMany(
+            f"You have {active} coding jobs queued or running in this workspace; at most {limit} at a time. Wait for "
+            "one to finish, or cancel one.",
+            code="JOB_LIMIT",
+        )
     try:
         with transaction.atomic():
             job = CodingJob.objects.create(
@@ -64,6 +87,19 @@ def start_job(issue, action: str, agent: str, user, retry_of: CodingJob | None =
                 issue=issue,
                 subscriber=user,
                 defaults={"project_id": issue.project_id, "workspace_id": issue.workspace_id},
+            )
+            record(
+                issue.workspace_id,
+                "job.retried" if retry_of else "job.started",
+                "job",
+                job.id,
+                actor=user,
+                project_id=issue.project_id,
+                work_item=str(issue.id),
+                job_action=action,
+                agent=agent,
+                machine=str(machine.id) if machine else "auto",
+                retry_of=str(retry_of.id) if retry_of else None,
             )
             return job
     except IntegrityError:
@@ -95,6 +131,7 @@ def cancel_job(job: CodingJob, user) -> CodingJob:
     # Unchanged or refused: it ended between the check above and the lock (another cancel, or a result).
     if applied is None or not applied.changed:
         raise _not_active()
+    record(job.workspace_id, "job.cancelled", "job", job.id, actor=user, project_id=job.project_id)
     return applied.job
 
 

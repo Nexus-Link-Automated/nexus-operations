@@ -48,6 +48,11 @@ def routes(views: dict, prefix: str) -> list:
             views["machine_approve"].as_view(http_method_names=["post"]),
             name=f"{prefix}-coding-machine-approve",
         ),
+        path(
+            "workspaces/<str:slug>/coding-audit/",
+            views["audit"].as_view(http_method_names=["get"]),
+            name=f"{prefix}-coding-audit",
+        ),
         path(BOTS, views["bots"].as_view(http_method_names=["get", "post"]), name=f"{prefix}-bot-members"),
         path(BOT, views["bot"].as_view(http_method_names=["get", "patch", "delete"]), name=f"{prefix}-bot-member"),
         path(

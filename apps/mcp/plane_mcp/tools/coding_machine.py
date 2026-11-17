@@ -30,12 +30,13 @@ ACTIONS = (
     Action("approve", ("machine_id",), note="the owner, after it joins"),
     Action("remove", ("machine_id",), destructive=True, note="the owner; for good"),
     Action("revoke", ("machine_id",), destructive=True, note="workspace admins"),
+    Action("audit", (), ("filter", "before"), read=True, note="workspace admins; coding audit trail, newest first"),
 )
 
 # Kept short: the whole listing has a size budget (tests/tools/test_conformance.py).
 FOOTER = (
     "state: pending -> awaiting_approval (joined; check hostname, then approve) -> active; revoked is final. "
-    "At most 20 per person; guests have none."
+    "At most 20 per person; guests have none. audit filter: job, machine, bot, question, settings, or e.g. job.started."
 )
 
 LEGACY: dict[str, str] = {}
@@ -72,6 +73,9 @@ class CodingMachines(BaseResource):
     def revoke(self, workspace_slug: str, machine_id: str) -> Any:
         return self._post(f"{workspace_slug}/coding-machines/{machine_id}/revoke")
 
+    def audit(self, workspace_slug: str, params: dict[str, str]) -> Any:
+        return self._get(f"{workspace_slug}/coding-audit", params=params)
+
 
 def coding_machines(client: Any) -> CodingMachines:
     return CodingMachines(client.config)
@@ -84,17 +88,19 @@ def register(mcp: FastMCP) -> None:
         annotations=build_annotations(TITLE, ACTIONS),
     )
     def coding_machine(
-        action: Literal["list", "list_all", "get", "add", "rename", "approve", "remove", "revoke"],
+        action: Literal["list", "list_all", "get", "add", "rename", "approve", "remove", "revoke", "audit"],
         machine_id: str = "",
         name: str = "",
         owner: str = "",
+        filter: str = "",
+        before: str = "",
     ) -> dict[str, Any] | list[dict[str, Any]] | str | None:
         name = name.strip()
         if action == "add":
             error = needs(action, name=name)
         elif action == "rename":
             error = needs(action, machine_id=machine_id, name=name)
-        elif action not in ("list", "list_all"):
+        elif action not in ("list", "list_all", "audit"):
             error = needs(action, machine_id=machine_id)
         else:
             error = None
@@ -107,6 +113,11 @@ def register(mcp: FastMCP) -> None:
                 return api.list(workspace_slug)
             if action == "list_all":
                 return api.list_all(workspace_slug)
+            if action == "audit":
+                params = {"before": before} if before else {}
+                if filter:
+                    params["action"] = filter
+                return api.audit(workspace_slug, params)
             if action == "add":
                 return api.create(workspace_slug, name, owner) if owner else api.create(workspace_slug, name)
             if action == "get":

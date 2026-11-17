@@ -9,6 +9,7 @@ from rest_framework import status
 from rest_framework.response import Response
 
 from plane.coding import bot_members
+from plane.coding.audit import record
 from plane.coding.exceptions import Forbidden
 from plane.coding.models import BotMember
 from plane.coding.serializers.bot_member import BotCreateSerializer, BotUpdateSerializer, bot_payload
@@ -29,6 +30,9 @@ class _BotMembers(_WorkspaceMachines):
         if isinstance(token, str) and APIToken.objects.filter(token=token, label=AGENT_SESSION_TOKEN_LABEL).exists():
             raise Forbidden("An agent session cannot manage bot members.", code="AGENT_SESSION_NOT_ALLOWED")
 
+    def audit_bot(self, action: str, bot, **details) -> None:
+        record(self.workspace.id, action, "bot", bot.user_id, actor=self.request.user, **details)
+
     def get_bot(self):
         return bot_members.get_bot(self.workspace, self.kwargs["bot_id"])
 
@@ -48,6 +52,7 @@ class BotMemberListMixin(_BotMembers):
             return self.invalid(serializer.errors)
         data = serializer.validated_data
         bot, token = bot_members.create_bot(self.workspace, data["name"], data["role"], data["description"])
+        self.audit_bot("bot.created", bot, name=bot.user.first_name, role=data["role"])
         return Response(bot_payload(bot, token=token), status=status.HTTP_201_CREATED)
 
 
@@ -63,12 +68,15 @@ class BotMemberDetailMixin(_BotMembers):
         if not serializer.is_valid():
             return self.invalid(serializer.errors)
         bot = bot_members.update_bot(self.get_bot(), **serializer.validated_data)
+        self.audit_bot("bot.updated", bot, **serializer.validated_data)
         return Response(bot_payload(bot))
 
     def delete(self, request, slug, bot_id):
         """Remove it from the workspace and its projects, as removing any member does; its tokens stop working."""
         self.require_bot_admin()
-        bot_members.remove_bot(self.get_bot())
+        bot = self.get_bot()
+        bot_members.remove_bot(bot)
+        self.audit_bot("bot.removed", bot, name=bot.user.first_name)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -78,4 +86,5 @@ class BotMemberTokenMixin(_BotMembers):
         self.require_bot_admin()
         bot = self.get_bot()
         token = bot_members.rotate_token(bot)
+        self.audit_bot("bot.token_replaced", bot, name=bot.user.first_name)
         return Response(bot_payload(bot, token=token), status=status.HTTP_201_CREATED)

@@ -137,6 +137,18 @@ def join(code: str, *, hostname: str = "", os: str = "", version: str = "") -> t
         machine.save()
     if key is None:
         raise CodingError("This join code is not valid or has expired.", code="JOIN_CODE_INVALID")
+    from plane.coding.audit import record
+
+    record(
+        machine.workspace_id,
+        "machine.joined",
+        "machine",
+        machine.id,
+        actor_name=f"machine {machine.name}",
+        hostname=machine.hostname,
+        os=machine.os,
+        version=machine.version,
+    )
     return machine, key
 
 

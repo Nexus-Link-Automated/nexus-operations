@@ -26,6 +26,7 @@ from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.views import APIView
 
 from plane.coding import a2a, dispatch, machines
+from plane.coding.audit import record
 from plane.coding.exceptions import CodingError, Forbidden, NotFound
 from plane.coding.models import HEARTBEAT_SECONDS, CodingMachine
 from plane.coding.serializers import (
@@ -109,6 +110,9 @@ class _WorkspaceMachines(CodingEndpointMixin):
         self.require_member()
         return machine
 
+    def audit(self, action: str, machine, **details) -> None:
+        record(self.workspace.id, action, "machine", machine.id, actor=self.request.user, **details)
+
     @staticmethod
     def payload(machine, **extra) -> dict:
         return {**CodingMachineSerializer(machine).data, **extra}
@@ -139,6 +143,7 @@ class CodingMachineListMixin(_WorkspaceMachines):
         else:
             self.require_member()
         machine, code = machines.add_machine(self.workspace, owner, data["name"])
+        self.audit("machine.added", machine, name=machine.name, owner=str(owner.id))
         return Response(self.payload(machine, join_code=code), status=status.HTTP_201_CREATED)
 
 
@@ -161,6 +166,7 @@ class CodingMachineDetailMixin(_WorkspaceMachines):
             return self.invalid(serializer.errors)
         machine.name = serializer.validated_data["name"]
         machine.save(update_fields=["name", "updated_at"])
+        self.audit("machine.renamed", machine, name=machine.name)
         return Response(self.payload(machine))
 
     def delete(self, request, slug, machine_id):
@@ -170,6 +176,7 @@ class CodingMachineDetailMixin(_WorkspaceMachines):
             machine.owner_id != request.user.id and not (machine.owner.is_bot and self.is_admin)
         ):
             raise Forbidden("Only the machine's owner can remove it. Admins can revoke it.")
+        self.audit("machine.removed", machine, name=machine.name)
         machines.remove(machine)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -179,14 +186,18 @@ class CodingMachineApproveMixin(_WorkspaceMachines):
         """Approve a machine that has joined, so it can take jobs. The owner only."""
         machine = self.get_own_machine()
         self.refuse_agent_sessions()
-        return Response(self.payload(machines.approve(machine)))
+        machine = machines.approve(machine)
+        self.audit("machine.approved", machine, name=machine.name, hostname=machine.hostname)
+        return Response(self.payload(machine))
 
 
 class CodingMachineRevokeMixin(_WorkspaceMachines):
     def post(self, request, slug, machine_id):
         """Cut a machine off: its key stops working and it gets no jobs. Workspace admins only."""
         self.require_admin()
-        return Response(self.payload(machines.revoke(self.get_machine(), request.user)))
+        machine = machines.revoke(self.get_machine(), request.user)
+        self.audit("machine.revoked", machine, name=machine.name)
+        return Response(self.payload(machine))
 
 
 # The machine's own endpoints.

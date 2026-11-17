@@ -9,7 +9,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from plane.coding import machines
-from plane.coding.models import CodingJob, JobStatus, MachineState
+from plane.coding.models import CodingAuditEvent, CodingJob, JobStatus, MachineState
 from plane.db.models import APIToken, ProjectMember, User, WorkspaceMember
 from plane.db.models.api import AGENT_SESSION_TOKEN_LABEL
 from plane.middleware.logger import APITokenLogMiddleware
@@ -67,7 +67,9 @@ class TestCreating:
         assert [b["id"] for b in listed] == [body["id"]] and "token" not in listed[0]
 
     def test_the_token_is_not_kept_in_the_request_log(self):
-        logged = APITokenLogMiddleware(None)._redact_response("/api/v1/workspaces/w/bot-members/", '{"token": "plane_x"}')
+        logged = APITokenLogMiddleware(None)._redact_response(
+            "/api/v1/workspaces/w/bot-members/", '{"token": "plane_x"}'
+        )
         assert "plane_x" not in logged
 
     def test_who_may_create(self, member, make_bot, bots_url, admin, create_user, workspace):
@@ -167,6 +169,8 @@ class TestTheBotsMachines:
         assert member[1].post(self.machines_url(workspace, f"{machine.id}/approve/")).status_code == 404
         res = admin[1].post(self.machines_url(workspace, f"{machine.id}/approve/"))
         assert res.status_code == 200 and res.json()["state"] == MachineState.ACTIVE
+        approved = CodingAuditEvent.objects.get(action="machine.approved", target_id=machine.id)
+        assert approved.actor_id == admin[0].id
 
     def test_a_bot_cannot_add_machines(self, make_bot, workspace):
         bot = make_bot()

@@ -118,6 +118,10 @@ app.conf.beat_schedule = {
         "task": "plane.coding.tasks.expire_coding_jobs",
         "schedule": crontab(),  # Every minute
     },
+    "purge-old-coding-history": {
+        "task": "plane.coding.tasks.purge_coding_history",
+        "schedule": crontab(hour=4, minute=40),  # Daily at 04:40 UTC
+    },
 }
 
 

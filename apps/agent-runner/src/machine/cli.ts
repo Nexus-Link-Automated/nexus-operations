@@ -40,8 +40,9 @@ import { MACHINE_VERSION } from "./version.ts";
 export const USAGE = `Usage: nexus-machine <command>
 
 Commands:
-  join <crm-url> <join-code> [--slots N] [--force]
-                 Trade a one-time join code for this machine's key and save it.
+  join <crm-url> [<join-code>] [--slots N] [--force]
+                 Trade a one-time join code for this machine's key and save it. Leave the
+                 code out to read it from NEXUS_MACHINE_JOIN_CODE (kept out of shell history).
                  --slots: how many jobs may run at once (0-${LIMITS.slots}, default 1).
                  --force: replace an existing config (the old machine stays in the CRM).
   run            Stay connected to the CRM and run the coding jobs it hands out, each in
@@ -82,7 +83,12 @@ function dockerSandbox(deps: CliDeps, machineId: string, log: Logger): SandboxPr
   if (deps.sandbox) return deps.sandbox(machineId, log);
   const memory = deps.env.NEXUS_MACHINE_JOB_MEMORY?.trim();
   const cpus = deps.env.NEXUS_MACHINE_JOB_CPUS?.trim();
+  const egress = deps.env.NEXUS_MACHINE_JOB_EGRESS?.trim() === "open" ? "open" : "proxy";
+  if (egress === "open") log.warn("machine-service: NEXUS_MACHINE_JOB_EGRESS=open: jobs reach your LAN and the host");
+  const egressPorts = deps.env.NEXUS_MACHINE_EGRESS_PORTS?.trim();
   return new DockerSandboxProvider({
+    egress,
+    ...(egressPorts ? { egressPorts } : {}),
     machineId,
     contextDir: jobImageDir(deps.env),
     env: deps.env,
@@ -166,7 +172,9 @@ function about(deps: CliDeps): About {
 }
 
 async function join(parsed: Parsed, deps: CliDeps): Promise<number> {
-  const [rawUrl, rawCode, ...extra] = parsed.positional;
+  const [rawUrl, codeArg, ...extra] = parsed.positional;
+  // The code may come from NEXUS_MACHINE_JOIN_CODE instead, so it is not in the shell's history or the process list.
+  const rawCode = codeArg ?? deps.env.NEXUS_MACHINE_JOIN_CODE?.trim();
   if (!rawUrl || !rawCode || extra.length > 0) {
     deps.err(`nexus-machine: join takes <crm-url> <join-code>\n\n${USAGE}`);
     return EXIT_USAGE;
@@ -295,6 +303,8 @@ async function run(deps: CliDeps): Promise<number> {
   });
   done.abort();
   await preparing;
+  // Whatever jobs left, and the egress proxy, go now, also when the key stopped working (78).
+  await sandbox.shutdown?.().catch(() => undefined);
   return code;
 }
 

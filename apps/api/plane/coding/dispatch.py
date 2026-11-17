@@ -45,6 +45,7 @@ from plane.coding.models import (
     ProjectCodingSettings,
 )
 from plane.coding import github
+from plane.coding.audit import record
 from plane.coding.outcomes import CODE_OUTCOMES, CRM_FIELDS, Applied, apply_result, reported_part, validate_result
 from plane.coding.publish import no_pr_reason
 from plane.db.models import Issue, ProjectMember, WorkspaceMember
@@ -268,6 +269,15 @@ def heartbeat_jobs(machine: CodingMachine, running) -> Handout:
                     ]
                 )
                 handout.jobs.append(_order(job))
+                record(
+                    job.workspace_id,
+                    "job.handed_out",
+                    "job",
+                    job.id,
+                    actor_name=f"machine {machine.name}",
+                    project_id=job.project_id,
+                    machine=str(machine.id),
+                )
                 free -= 1
     # Outside the handout's transaction, so one job's outcome cannot undo the handout.
     for job, reason in ended:
@@ -396,9 +406,31 @@ def apply_machine_result(
     return Applied(job, changed=True)
 
 
+DEFAULT_QUEUE_TTL = timedelta(hours=24)
+
+
+def queue_ttl() -> timedelta:
+    hours = getattr(settings, "CODING_JOB_QUEUE_TTL_HOURS", None)
+    try:
+        return timedelta(hours=float(hours)) if hours else DEFAULT_QUEUE_TTL
+    except (TypeError, ValueError):
+        return DEFAULT_QUEUE_TTL
+
+
 def expire_jobs(now=None) -> int:
-    """End running jobs whose machine went silent or was removed, or whose deadline passed. Returns how many."""
+    """End running jobs whose machine went silent or was removed, or whose deadline passed, and queued jobs no machine
+    took in time (`CODING_JOB_QUEUE_TTL_HOURS`, 24). Returns how many."""
     now = now or timezone.now()
+    count = 0
+    ttl = queue_ttl()
+    for job in CodingJob.objects.filter(status=JobStatus.QUEUED, created_at__lt=now - ttl):
+        hours = round(ttl.total_seconds() / 3600)
+        _end(
+            job,
+            f"No machine took the job within {hours} hours. Check that a machine of the person who started it is "
+            "online and signed in to the agent, then retry.",
+        )
+        count += 1
     candidates = (
         CodingJob.all_objects.filter(status__in=ON_MACHINE)
         .filter(
@@ -417,7 +449,6 @@ def expire_jobs(now=None) -> int:
         )
         .select_related("ran_on")
     )
-    count = 0
     for job in candidates:
         name = job.ran_on_name or "running it"
         if job.result_received_at is not None:

@@ -501,6 +501,12 @@ FILE_SIZE_LIMIT = int(os.environ.get("FILE_SIZE_LIMIT", 5242880))
 
 # How long a coding job may run on a machine before it is stopped (plane.coding.dispatch).
 CODING_JOB_TIMEOUT_MINUTES = os.environ.get("CODING_JOB_TIMEOUT_MINUTES", "60")
+# Limits and retention for coding jobs (plane.coding.services, .dispatch, .retention).
+CODING_MAX_ACTIVE_JOBS_PER_USER = os.environ.get("CODING_MAX_ACTIVE_JOBS_PER_USER", "10")
+CODING_JOB_STARTS_PER_HOUR = os.environ.get("CODING_JOB_STARTS_PER_HOUR", "60")
+CODING_JOB_QUEUE_TTL_HOURS = os.environ.get("CODING_JOB_QUEUE_TTL_HOURS", "24")
+CODING_JOB_EVENT_RETENTION_DAYS = os.environ.get("CODING_JOB_EVENT_RETENTION_DAYS", "30")
+CODING_AUDIT_RETENTION_DAYS = os.environ.get("CODING_AUDIT_RETENTION_DAYS", "365")
 # How long a coding agent's question waits for an answer before the job goes on without one (plane.coding.questions).
 CODING_QUESTION_TIMEOUT_MINUTES = os.environ.get("CODING_QUESTION_TIMEOUT_MINUTES", "30")
 # The GitHub App coding jobs push branches and open pull requests with (plane.coding.github). Server-side only.

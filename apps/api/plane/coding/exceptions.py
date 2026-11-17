@@ -42,6 +42,10 @@ class Conflict(CodingError):
     http_status = status.HTTP_409_CONFLICT
 
 
+class TooMany(CodingError):
+    http_status = status.HTTP_429_TOO_MANY_REQUESTS
+
+
 class InvalidResult(CodingError):
     """A result that does not match the schema for the job's action. `errors` maps each field to what is wrong."""
 

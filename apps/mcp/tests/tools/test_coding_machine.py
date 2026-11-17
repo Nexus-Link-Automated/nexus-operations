@@ -100,3 +100,10 @@ def test_a_server_error_is_not_swallowed(registered, spy):
     spy.returns["coding_machines.list_all"] = HttpError("HTTP 500", 500, {"error": "boom"})
     with pytest.raises(HttpError):
         registered["coding_machine"].fn(action="list_all")
+
+
+def test_audit_passes_the_filter(registered, spy):
+    registered["coding_machine"].fn(action="audit", filter="job.started", before="2026-11-17T00:00:00Z")
+    call = spy.recorder.only()
+    assert call.method == "coding_machines.audit"
+    assert call.kwargs["params"] == {"before": "2026-11-17T00:00:00Z", "action": "job.started"}

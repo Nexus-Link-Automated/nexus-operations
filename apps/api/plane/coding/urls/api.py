@@ -26,6 +26,7 @@ urlpatterns = routes(
         "machine_approve": views.CodingMachineApproveAPIEndpoint,
         "machine_revoke": views.CodingMachineRevokeAPIEndpoint,
         "bots": views.BotMemberListAPIEndpoint,
+        "audit": views.CodingAuditAPIEndpoint,
         "bot": views.BotMemberDetailAPIEndpoint,
         "bot_token": views.BotMemberTokenAPIEndpoint,
     },

@@ -92,7 +92,9 @@ class CodingJobs(BaseResource):
     ) -> Any:
         return self._post(f"{self._jobs(workspace_slug, project_id, work_item_id)}/{job_id}/retry", data)
 
-    def answer(self, workspace_slug: str, project_id: str, work_item_id: str, job_id: str, data: Mapping[str, Any]) -> Any:
+    def answer(
+        self, workspace_slug: str, project_id: str, work_item_id: str, job_id: str, data: Mapping[str, Any]
+    ) -> Any:
         return self._post(f"{self._jobs(workspace_slug, project_id, work_item_id)}/{job_id}/answer", data)
 
     def get_settings(self, workspace_slug: str, project_id: str) -> Any:

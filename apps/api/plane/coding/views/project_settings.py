@@ -7,6 +7,7 @@
 from django.db import transaction
 from rest_framework.response import Response
 
+from plane.coding.audit import record
 from plane.coding.models import ProjectCodingSettings
 from plane.coding.publish import repository_access
 from plane.coding.serializers import ProjectCodingSettingsUpdateSerializer, settings_payload
@@ -34,6 +35,18 @@ class ProjectCodingSettingsMixin(CodingEndpointMixin):
             for field, value in serializer.validated_data.items():
                 setattr(coding_settings, field, value)
             coding_settings.save()
+        record(
+            project.workspace_id,
+            "settings.changed",
+            "project",
+            project.id,
+            actor=request.user,
+            project_id=project.id,
+            **{
+                field: str(value.id) if hasattr(value, "id") else value
+                for field, value in serializer.validated_data.items()
+            },
+        )
         return Response(settings_payload(project, coding_settings))
 
 

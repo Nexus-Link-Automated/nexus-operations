@@ -8,6 +8,7 @@ from celery import shared_task
 
 from plane.coding.dispatch import expire_jobs
 from plane.coding.publish import publish_job
+from plane.coding.retention import purge
 from plane.coding.questions import expire_questions, think
 
 
@@ -15,6 +16,12 @@ from plane.coding.questions import expire_questions, think
 def expire_coding_jobs():
     """End running jobs whose machine went silent or was removed, or that ran past their deadline (every minute)."""
     return expire_jobs() + expire_questions()
+
+
+@shared_task
+def purge_coding_history():
+    """Daily: progress lines of jobs that ended long ago, and old audit events (`plane.coding.retention`)."""
+    return purge()
 
 
 @shared_task

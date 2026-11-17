@@ -302,7 +302,8 @@ To remove it: `systemctl --user disable --now nexus-machine`, then delete the fi
 2. A fresh folder `~/.local/share/nexus-machine/jobs/<job id>/` (0700, `$XDG_DATA_HOME` honoured)
    with `work/`, `home/` and `out/`, and a container from the job image:
    - as your uid, `--cap-drop ALL`, `no-new-privileges`, a pids limit (`NEXUS_MACHINE_JOB_MEMORY`
-     and `NEXUS_MACHINE_JOB_CPUS` add `--memory` and `--cpus`), on Docker's default network;
+     and `NEXUS_MACHINE_JOB_CPUS` add `--memory` and `--cpus`), on the machine's internal Docker
+     network (see "Network" below);
    - only those three folders mounted (`/job/work`, `/job/home` as `HOME`, `/job/out`): never your
      home, SSH keys, other sign-ins, the docker socket or the machine's key.
 3. The agent's sign-in, and nothing else:
@@ -362,9 +363,27 @@ sent. A restarted service removes containers a previous run left (they cannot be
 everything but `changes.patch` from their folders; the CRM ends those jobs as job errors. Folders a
 job made read-only are made writable and removed; one that still cannot be removed is logged.
 
-The container is on Docker's default bridge network: it reaches the internet (the agents' APIs,
-package registries, the repository) and also whatever that network reaches, such as your LAN and,
-on a cloud VM, its metadata endpoint. Limiting that is part of hardening (Step 8).
+A service that stops, also because its key no longer works (exit 78), removes the containers its
+jobs left and the egress proxy before it exits.
+
+### Network
+
+Job containers sit on an internal Docker network of this machine's (`nexus-jobs-<machine>`, made
+with `--internal`: no route anywhere). Their only way out is the **egress proxy**, a container from
+the job image (`machine/job-image/egress-proxy.mjs`, as `nobody`, read-only, no capabilities) that
+is on that network as `nexus-egress` and on Docker's default one. Job containers get `HTTP_PROXY`,
+`HTTPS_PROXY` (and `NODE_USE_ENV_PROXY=1`), which git, curl, npm, pip, Codex and Claude follow. The
+proxy forwards HTTPS (`CONNECT`) and plain HTTP only to **public addresses** on ports **80 and
+443**: it resolves the name itself, refuses private, loopback, link-local (cloud metadata),
+carrier-grade NAT, multicast and other special ranges (IPv4 and IPv6, IPv4-mapped included), and
+connects to the address it checked. So a job reaches the agents' APIs, package registries and the
+repository, but not your LAN, this computer or a cloud VM's metadata endpoint. Refusals are logged
+by the proxy (`docker logs nexus-egress-<machine>`).
+
+- `NEXUS_MACHINE_EGRESS_PORTS=22,8443` (in the env file) allows more ports besides 80 and 443,
+  still to public addresses only. Tools that ignore proxy settings cannot connect at all.
+- `NEXUS_MACHINE_JOB_EGRESS=open` puts job containers back on Docker's default network, where they
+  also reach your LAN and the host. Only for a machine that has nothing else on its network.
 
 ### What it reports
 

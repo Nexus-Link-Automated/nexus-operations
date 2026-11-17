@@ -40,6 +40,7 @@ from rest_framework import serializers
 from plane.api.serializers import IssueCommentCreateSerializer, IssueCommentSerializer, IssueSerializer
 from plane.bgtasks.issue_activities_task import issue_activity
 from plane.bgtasks.webhook_task import model_activity
+from plane.coding.audit import record
 from plane.coding.bot import coding_bot
 from plane.coding.columns import Column, resolve_column
 from plane.coding.exceptions import Conflict, InvalidResult
@@ -478,6 +479,19 @@ def apply_result(
             job.finished_at = timezone.now()
             job.comment = comment
             job.save()
+        record(
+            job.workspace_id,
+            "job.finished",
+            "job",
+            job.id,
+            actor_name=f"machine {job.ran_on_name}" if job.ran_on_name else "CRM",
+            project_id=job.project_id,
+            outcome=outcome.value,
+            status=status,
+            pr_url=job.pr_url or None,
+            pr_branch=job.pr_branch or None,
+            reason=job.error_reason or None,
+        )
         for queue in queued:
             transaction.on_commit(queue)
     return Applied(job, changed=True)

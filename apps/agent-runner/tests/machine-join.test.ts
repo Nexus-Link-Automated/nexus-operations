@@ -97,6 +97,18 @@ describe("nexus-machine join", () => {
     expect(printed).not.toContain(KEY);
   });
 
+  it("reads the code from NEXUS_MACHINE_JOIN_CODE when it is left out", async () => {
+    crm.respond = () => ({
+      status: 201,
+      body: { machine_id: "m-1", key: KEY, name: "Laptop", workspace_slug: "acme", state: "awaiting_approval" },
+    });
+    const base = deps();
+    const code = await main(["join", crm.url], { ...base, env: { ...base.env, NEXUS_MACHINE_JOIN_CODE: ` ${CODE} ` } });
+    expect(code).toBe(EXIT_OK);
+    expect(crm.requests[0]?.body).toMatchObject({ code: CODE });
+    expect(await main(["join", crm.url], deps({}))).toBe(EXIT_USAGE);
+  });
+
   it("uses ~/.config when XDG_CONFIG_HOME is unset or relative", () => {
     expect(configPath({ HOME: "/home/dev" })).toBe("/home/dev/.config/nexus-machine/config.json");
     expect(configPath({ HOME: "/home/dev", XDG_CONFIG_HOME: "rel" })).toBe(

@@ -21,6 +21,8 @@ It also holds the registry of each person's own machines and hands queued jobs t
 | `questions.py` | Who answers a coding agent's question: the CRM agent from the work item, else a person |
 | `models/question.py` | `CodingJobQuestion`: a question, its answer and who gave it |
 | `bot_members.py`, `models/bot_member.py` | EmployAI agents as bot members: create, role, token, removal |
+| `audit.py`, `models/audit.py`, `views/audit.py` | The coding audit trail |
+| `retention.py` | How long progress lines and audit events are kept |
 | `publish.py` | Pushing a job's changes to its own branch and opening the pull request |
 | `models/changes.py` | `CodingJobChanges`: a finished job's changed files while the CRM pushes them |
 | `models/event.py` | `CodingJobEvent`: a progress line a machine reported |
@@ -165,6 +167,34 @@ not a guest), runs the machine service on the computer meant for it with that jo
 and removing it are an admin's too. The bot itself cannot add, approve, rename or remove machines
 (`BOT_NOT_ALLOWED`). Its jobs then go to its machines exactly as a person's go to theirs. Machines read with
 `owner_is_bot`.
+
+## Limits, audit and retention
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `CODING_MAX_ACTIVE_JOBS_PER_USER` | 10 | jobs one person (or bot) may have queued, running or waiting in a workspace; more is 429 `JOB_LIMIT` |
+| `CODING_JOB_STARTS_PER_HOUR` | 60 | starts and retries per person per hour (429) |
+| `CODING_JOB_QUEUE_TTL_HOURS` | 24 | a job no machine took in this long ends as a job error saying so |
+| `CODING_JOB_TIMEOUT_MINUTES` | 60 | how long a job runs (not counting time waiting for an answer) |
+| `CODING_QUESTION_TIMEOUT_MINUTES` | 30 | how long a question waits for an answer |
+| `CODING_JOB_EVENT_RETENTION_DAYS` | 30 | progress lines of a job are deleted this long after it ended |
+| `CODING_AUDIT_RETENTION_DAYS` | 365 | audit events are deleted after this long |
+
+A machine runs at most its slots (1 to 32) at once. `purge_coding_history` runs daily (04:40 UTC); jobs, results,
+questions and answers stay with the work item.
+
+The **audit trail** records, with who did it (a person, a bot member, `machine <name>`, the CRM agent or the CRM):
+`job.started`, `job.retried`, `job.cancelled`, `job.handed_out`, `job.finished` (outcome, pull request or reason),
+`question.asked`, `question.answered`, `question.unanswered`, `machine.added`, `machine.joined`, `machine.approved`,
+`machine.renamed`, `machine.removed`, `machine.revoked`, `settings.changed`, `bot.created`, `bot.updated`,
+`bot.token_replaced`, `bot.removed`. Workspace admins read it with `GET /api/v1/workspaces/<slug>/coding-audit/`
+(`?action=job` or `job.started`, `?actor=`, `?project=`, `?target=`, `?before=` from `next_before`; 100 per page,
+newest first) or MCP `coding_machine` `audit`.
+
+Planted instructions in work-item text are handled in layers: the CRM writes every prompt and fences work-item text
+(and answers) as data; agents run in a container with only the job's folders and no credentials but their own
+sign-in; they reach only public addresses on ports 80 and 443; they cannot push, and the CRM pushes only to the job's
+own branch; nothing they report is trusted (results are validated and escaped, `pr_url` and branches are the CRM's).
 
 ## Endpoints
 

@@ -445,6 +445,16 @@ async def scenario(c: Client) -> None:
         check=lambda d: same((d["retry_of"], d["agent"]), (V["job"], "claude"), "retry"),
     )
     await s("coding_job", {"action": "cancel", **W, "job_id": "$job2"}, label="the retry")
+    await s(
+        "coding_job",
+        {"action": "answer", **W, "job_id": "$job2", "text": "The mobile login."},
+        expect_error="NO_OPEN_QUESTION",
+    )
+    await s(
+        "coding_job",
+        {"action": "repository", "project_id": P},
+        check=lambda d: same((d["provider"], d["repo_url"]), ("github", "https://github.com/example/app"), "repo"),
+    )
 
     # Coding machines. Joining is the machine service's call, not an MCP action: done over HTTP below.
     ids = lambda d: [m["id"] for m in rows(d)]  # noqa: E731
@@ -511,6 +521,39 @@ async def scenario(c: Client) -> None:
     )
     await s("coding_machine", {"action": "remove", "machine_id": "$machine"})
     await s("coding_machine", {"action": "get", "machine_id": "$machine"}, expect_error="not found", label="removed")
+    # Bot members, and a machine of the bot's that an admin adds.
+    await s(
+        "bot_member",
+        {"action": "create", "name": f"E2E bot {SUFFIX}", "role": "member", "description": "e2e"},
+        {"bot": "id"},
+        check=lambda d: same((d["role"], bool(d["token"])), (15, True), "new bot"),
+    )
+    await s("bot_member", {"action": "list"}, check=lambda d: same(V["bot"] in [b["id"] for b in d], True, "listed"))
+    await s("bot_member", {"action": "get", "bot_id": "$bot"}, check=lambda d: same(d["is_active"], True, "active"))
+    await s(
+        "bot_member",
+        {"action": "update", "bot_id": "$bot", "description": "e2e, renamed"},
+        check=lambda d: same(d["description"], "e2e, renamed", "description"),
+    )
+    await s(
+        "coding_machine",
+        {"action": "add", "name": f"E2E bot box {SUFFIX}", "owner": "$bot"},
+        {"bot_machine": "id"},
+        check=lambda d: same((d["owner"], d["owner_is_bot"]), (V["bot"], True), "bot machine"),
+        label="for a bot",
+    )
+    await s("coding_machine", {"action": "remove", "machine_id": "$bot_machine"}, label="the bot's machine")
+    await s(
+        "bot_member",
+        {"action": "new_token", "bot_id": "$bot"},
+        check=lambda d: same(bool(d["token"]), True, "new token"),
+    )
+    await s("bot_member", {"action": "remove", "bot_id": "$bot"})
+    await s(
+        "coding_machine",
+        {"action": "audit", "filter": "bot"},
+        check=lambda d: same("bot.removed" in [e["action"] for e in d["results"]], True, "audited"),
+    )
     await s("coding_job", {"action": "settings_update", "project_id": P, "enabled": False}, label="off again")
 
     # Cycles

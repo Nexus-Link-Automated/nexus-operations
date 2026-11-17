@@ -31,6 +31,7 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from plane.coding.audit import record
 from plane.coding.bot import coding_bot
 from plane.coding.exceptions import Conflict, Forbidden, NotFound
 from plane.coding.instructions import work_item_data
@@ -122,6 +123,15 @@ def ask(machine: CodingMachine, job_id, message_id: str, text: str) -> CodingJob
         job.progress_at = now
         job.save(update_fields=["status", "progress", "progress_at", "updated_at"])
         question_id = str(question.id)
+        record(
+            job.workspace_id,
+            "question.asked",
+            "job",
+            job.id,
+            actor_name=f"machine {machine.name}",
+            project_id=job.project_id,
+            question=text,
+        )
         transaction.on_commit(lambda: think_about_question.delay(question_id))
     return question
 
@@ -276,6 +286,16 @@ def _resolve(
             job.progress = _line(f"Answered by {who}." if status == QuestionStatus.ANSWERED else "No answer came.")
             job.progress_at = now
             job.save(update_fields=["status", "deadline_at", "progress", "progress_at", "updated_at"])
+        record(
+            job.workspace_id,
+            "question.answered" if status == QuestionStatus.ANSWERED else "question.unanswered",
+            "job",
+            job.id,
+            actor=user,
+            actor_name=AGENT_NAME if by_agent else "CRM",
+            project_id=job.project_id,
+            answer=text or None,
+        )
     if job.is_active:
         _post_answer(question, from_chat=from_chat)
     return question

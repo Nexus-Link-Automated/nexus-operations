@@ -7,6 +7,7 @@
 from plane.api.views.base import BaseAPIView as PublicBaseAPIView
 from plane.app.views.base import BaseAPIView as AppBaseAPIView
 
+from .audit import CodingAuditMixin
 from .bot_member import BotMemberDetailMixin, BotMemberListMixin, BotMemberTokenMixin
 from .job import (
     CodingJobAnswerMixin,
@@ -166,4 +167,12 @@ class BotMemberDetailAppEndpoint(BotMemberDetailMixin, AppBaseAPIView):
 
 
 class BotMemberTokenAppEndpoint(BotMemberTokenMixin, AppBaseAPIView):
+    pass
+
+
+class CodingAuditAPIEndpoint(CodingAuditMixin, PublicBaseAPIView):
+    pass
+
+
+class CodingAuditAppEndpoint(CodingAuditMixin, AppBaseAPIView):
     pass

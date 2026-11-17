@@ -7,8 +7,9 @@
 # Built on the machine itself, on first start or with `nexus-machine prepare`, from the folder next to
 # the bundle. It holds Node, git and a small toolbox, the Codex CLI and the ACP adapters; never a
 # credential (the job's sign-in copy is mounted per job). Containers run as the owner's uid, without
-# capabilities, with only the job's own folders mounted.
-FROM node:24-bookworm-slim
+# capabilities, with only the job's own folders mounted, on an internal network whose only way out is the egress
+# proxy below (also run from this image). The base is pinned by digest (node:24-bookworm-slim, 2026-11-17).
+FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -24,6 +25,8 @@ WORKDIR /opt/nexus/acp
 COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY dist ./dist
+# The proxy that is the job containers' only way out (public addresses, ports 80 and 443).
+COPY egress-proxy.mjs /opt/nexus/egress-proxy.mjs
 # Jobs run as the owner's uid: everything here is readable, nothing writable. pnpm and yarn via corepack.
 RUN chmod -R a+rX,go-w /opt/nexus && corepack enable
 
