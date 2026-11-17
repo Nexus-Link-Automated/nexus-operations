@@ -4,5 +4,6 @@
  * See the LICENSE file for details.
  */
 
+export * from "./bot-member.service";
 export * from "./coding-job.service";
 export * from "./coding-machine.service";

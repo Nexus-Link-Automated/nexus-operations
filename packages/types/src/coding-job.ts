@@ -26,6 +26,12 @@ export type TCodingJob = {
   /** The validated result the outcome was applied from; its fields depend on the outcome. */
   result: Record<string, unknown>;
   pr_url: string;
+  /** The branch the CRM pushed the agent's work to, e.g. `nexus/fix-bug/1a2b3c4d`; "" when there is none. */
+  pr_branch: string;
+  /** Set while the CRM is opening the pull request (the job is still `running`). */
+  result_received_at: string | null;
+  /** The questions the agent asked, oldest first (at most 3). Status `needs_input` means one is open. */
+  questions: TCodingJobQuestion[];
   error_reason: string;
   retry_of: string | null;
   comment: string | null;
@@ -47,6 +53,26 @@ export type TCodingJob = {
   finished_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+/**
+ * `thinking`: the CRM agent is working out an answer; `waiting`: a person can answer it; `answered`; `unanswered`:
+ * no answer came in time.
+ */
+export type TCodingJobQuestionStatus = "thinking" | "waiting" | "answered" | "unanswered";
+
+/** A question a coding agent asked while running a job. `question` and `answer` are plain text only. */
+export type TCodingJobQuestion = {
+  seq: number;
+  question: string;
+  status: TCodingJobQuestionStatus;
+  answer: string;
+  /** The person who answered; null when the CRM agent answered, or no one did. */
+  answered_by: string | null;
+  answered_by_agent: boolean;
+  answered_by_name: string | null;
+  asked_at: string;
+  answered_at: string | null;
 };
 
 export type TCodingJobEventKind = "status" | "message" | "tool" | "plan";
@@ -93,6 +119,23 @@ export type TProjectCodingSettingsUpdate = Partial<
   >
 >;
 
+/** Whether the CRM can open pull requests on the project's repository (it asks GitHub). */
+export type TCodingRepositoryAccess = {
+  repo_url: string;
+  provider: "github" | null;
+  /** The CRM has a GitHub App set up. */
+  app_configured: boolean;
+  /** Where to install the GitHub App on the repository, when that would help. */
+  install_url: string | null;
+  installed: boolean | null;
+  private: boolean | null;
+  repo_default_branch: string | null;
+  /** Pull requests can be opened. */
+  pull_requests: boolean;
+  /** Why pull requests can't be opened, in plain words; null when they can. */
+  reason: string | null;
+};
+
 /** The codes the coding endpoints refuse with (`{"error", "code"}`). */
 export type TCodingErrorCode =
   | "CODING_NOT_CONFIGURED"
@@ -100,4 +143,7 @@ export type TCodingErrorCode =
   | "WORK_ITEM_NOT_ELIGIBLE"
   | "JOB_ACTIVE"
   | "JOB_NOT_ACTIVE"
-  | "JOB_NOT_RETRYABLE";
+  | "JOB_NOT_RETRYABLE"
+  | "JOB_LIMIT"
+  | "NO_OPEN_QUESTION"
+  | "ANSWER_EMPTY";

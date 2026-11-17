@@ -22,6 +22,7 @@ import { useCodingJob } from "@/hooks/store/use-coding-job";
 import { useProjectState } from "@/hooks/store/use-project-state";
 // local imports
 import { codingErrorMessage, codingFieldErrors } from "./helpers";
+import { CodingRepositoryStatus } from "./repository-status";
 import { useCodingAccess } from "./use-coding-access";
 
 type Props = {
@@ -57,7 +58,8 @@ const toForm = (settings: TProjectCodingSettings): TForm => ({
 
 /**
  * A project's coding job settings: on or off, the repository and default branch, and which state each outcome
- * column (Ready, Failed, In review) means. Project admins change them; members only read them.
+ * column (Ready, Failed, In review) means, and whether pull requests can be opened on the repository. Project admins
+ * change them; members only read them.
  */
 export const CodingJobsSettings = observer(function CodingJobsSettings({ workspaceSlug, projectId }: Props) {
   const { t } = useTranslation();
@@ -233,6 +235,8 @@ export const CodingJobsSettings = observer(function CodingJobsSettings({ workspa
           {...(fieldErrors.default_branch ? { error: fieldErrors.default_branch } : {})}
           onChange={(event) => set("default_branch", event.target.value)}
         />
+
+        <CodingRepositoryStatus workspaceSlug={workspaceSlug} projectId={projectId} repoUrl={settings.repo_url} />
 
         <div className="flex flex-col gap-1">
           <h4 className="text-body-md-medium text-primary">{t("coding_jobs.settings.columns_title")}</h4>

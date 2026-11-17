@@ -114,6 +114,12 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         role = serializer.validated_data["role"]
+        # A bot member (EmployAI agent) is a member or a guest, never an admin (plane.coding.bot_members).
+        if workspace_member.member.is_bot and role == ROLE.ADMIN.value:
+            return Response(
+                {"error": "A bot member can be a member or a guest, not an admin."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # A guest can't hold any other project role, so demoting downgrades every project membership.
         is_guest = role == ROLE.GUEST.value

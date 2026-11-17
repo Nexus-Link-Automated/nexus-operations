@@ -5,7 +5,14 @@
  */
 
 import { CodingJobServiceError } from "@plane/services";
-import type { TCodingAction, TCodingAgent, TCodingErrorCode, TCodingMachineErrorCode, TIssue } from "@plane/types";
+import type {
+  TBotMemberErrorCode,
+  TCodingAction,
+  TCodingAgent,
+  TCodingErrorCode,
+  TCodingMachineErrorCode,
+  TIssue,
+} from "@plane/types";
 
 export const CODING_ACTIONS: TCodingAction[] = ["fix_bug", "write_test", "write_and_run_test"];
 
@@ -21,7 +28,15 @@ const REFUSAL_CODES = new Set<string>([
   "MACHINE_LIMIT",
   "MACHINE_NOT_JOINED",
   "MACHINE_REVOKED",
-] satisfies (TCodingErrorCode | TCodingMachineErrorCode)[]);
+  "NO_OPEN_QUESTION",
+  "ANSWER_EMPTY",
+  "BOT_NOT_ALLOWED",
+  "BOT_NOT_FOUND",
+  "BOT_LIMIT",
+  "BOT_ROLE_NOT_ALLOWED",
+  "BOT_REMOVED",
+  // JOB_LIMIT is left out on purpose: the API's own message says which limit was reached.
+] satisfies (TCodingErrorCode | TCodingMachineErrorCode | TBotMemberErrorCode)[]);
 
 /**
  * Whether a job may start on this work item, as the API decides it (`Issue.issue_objects`, else 400

@@ -11,6 +11,7 @@ import type {
   TCodingErrorCode,
   TCodingJob,
   TCodingJobEventsPage,
+  TCodingRepositoryAccess,
   TProjectCodingSettings,
   TProjectCodingSettingsUpdate,
 } from "@plane/types";
@@ -114,6 +115,24 @@ export class CodingJobService extends APIService {
   }
 
   /**
+   * Answers the job's open question (status `needs_input`); the API answers with the updated job. `text` is at most
+   * 4000 characters. Project members and admins only.
+   */
+  async answer(
+    workspaceSlug: string,
+    projectId: string,
+    workItemId: string,
+    jobId: string,
+    text: string
+  ): Promise<TCodingJob> {
+    return this.post(`${this.jobsPath(workspaceSlug, projectId, workItemId)}${jobId}/answer/`, { text })
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw toCodingError(error);
+      });
+  }
+
+  /**
    * The job's progress lines, oldest first: up to 200 with `seq` above `after` (all from the start when left out).
    * `has_more` means more are waiting after the last one. Anyone who can see the work item may read them.
    */
@@ -140,6 +159,18 @@ export class CodingJobService extends APIService {
   /** Members and admins only; guests get 403. */
   async getSettings(workspaceSlug: string, projectId: string): Promise<TProjectCodingSettings> {
     return this.get(`${this.projectPath(workspaceSlug, projectId)}/coding-settings/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw toCodingError(error);
+      });
+  }
+
+  /**
+   * Whether pull requests can be opened on the project's repository. The API asks GitHub, so this can be slow.
+   * Members and admins only; guests get 403.
+   */
+  async getRepository(workspaceSlug: string, projectId: string): Promise<TCodingRepositoryAccess> {
+    return this.get(`${this.projectPath(workspaceSlug, projectId)}/coding-settings/repository/`)
       .then((response) => response?.data)
       .catch((error) => {
         throw toCodingError(error);

@@ -31,7 +31,9 @@
       "cancelled": "Anulowano zadanie programistyczne",
       "cancel_failed": "Nie udało się anulować zadania programistycznego",
       "retried": "Ponownie uruchomiono zadanie programistyczne",
-      "retry_failed": "Nie udało się ponowić zadania programistycznego"
+      "retry_failed": "Nie udało się ponowić zadania programistycznego",
+      "answered": "Wysłano odpowiedź",
+      "answer_failed": "Nie udało się wysłać odpowiedzi"
     },
     "errors": {
       "CODING_NOT_CONFIGURED": "Zadania programistyczne nie są skonfigurowane dla tego projektu. Administrator projektu musi je włączyć i ustawić repozytorium.",
@@ -44,7 +46,14 @@
       "MACHINE_NOT_JOINED": "Ta maszyna jeszcze nie dołączyła, więc nie ma czego zatwierdzać.",
       "MACHINE_REVOKED": "Tę maszynę odwołał administrator przestrzeni roboczej.",
       "forbidden": "Brak uprawnień do wykonania tej czynności.",
-      "generic": "Coś poszło nie tak. Spróbuj ponownie."
+      "generic": "Coś poszło nie tak. Spróbuj ponownie.",
+      "NO_OPEN_QUESTION": "Agent nie ma teraz otwartego pytania. Ktoś mógł już na nie odpowiedzieć.",
+      "ANSWER_EMPTY": "Najpierw wpisz odpowiedź.",
+      "BOT_NOT_ALLOWED": "Członkowie-boty nie mogą zarządzać maszynami. Robi to za nich administrator przestrzeni roboczej.",
+      "BOT_NOT_FOUND": "Nie znaleziono tego członka-bota. Mógł zostać usunięty.",
+      "BOT_LIMIT": "Ta przestrzeń robocza ma już maksymalną liczbę członków-botów. Najpierw usuń jednego.",
+      "BOT_ROLE_NOT_ALLOWED": "Członek-bot może mieć tylko rolę członka lub gościa.",
+      "BOT_REMOVED": "Ten członek-bot został usunięty z przestrzeni roboczej."
     },
     "panel": {
       "title": "Zadania programistyczne",
@@ -64,7 +73,22 @@
       "progress": "Postęp",
       "progress_loading": "Ładowanie postępu...",
       "progress_empty": "Brak postępu.",
-      "progress_load_failed": "Nie udało się wczytać postępu."
+      "progress_load_failed": "Nie udało się wczytać postępu.",
+      "branch": "Gałąź",
+      "opening_pr": "Otwieranie pull requesta...",
+      "questions": "Pytania od agenta",
+      "open_question": "Agent ma pytanie",
+      "question_thinking": "Agent CRM przygotowuje odpowiedź. Możesz też odpowiedzieć sam.",
+      "question_waiting": "Oczekiwanie na odpowiedź.",
+      "answer_label": "Twoja odpowiedź",
+      "answer_placeholder": "Wpisz swoją odpowiedź",
+      "answer_hint": "Agent będzie kontynuować pracę z Twoją odpowiedzią.",
+      "answer": "Odpowiedz",
+      "answering": "Wysyłanie...",
+      "answered_by": "Odpowiedź: {name}",
+      "answered_by_agent": "Odpowiedź: agent CRM",
+      "answered_by_unknown": "Odpowiedziano",
+      "no_answer": "Brak odpowiedzi"
     },
     "status": {
       "queued": "W kolejce",
@@ -122,6 +146,17 @@
       "save_failed": "Nie udało się zapisać ustawień zadań programistycznych",
       "read_only": "Tylko administratorzy projektu mogą zmieniać te ustawienia.",
       "not_configured": "Zadania programistyczne są wyłączone dla tego projektu. Włącz je i ustaw repozytorium, aby członkowie mogli uruchamiać zadania."
+    },
+    "repository": {
+      "title": "Pull requesty",
+      "checking": "Sprawdzanie repozytorium...",
+      "check_failed": "Nie udało się sprawdzić repozytorium.",
+      "check_again": "Sprawdź ponownie",
+      "ready": "Włączone. CRM może otwierać pull requesty w tym repozytorium.",
+      "ready_private": "Włączone. CRM może otwierać pull requesty w tym prywatnym repozytorium.",
+      "ready_public": "Włączone. CRM może otwierać pull requesty w tym publicznym repozytorium.",
+      "off": "Wyłączone. CRM nie może jeszcze otwierać pull requestów w tym repozytorium.",
+      "install": "Zainstaluj GitHub App"
     }
   },
   "coding_machines": {
@@ -179,7 +214,11 @@
       "copied": "Skopiowano do schowka",
       "expires": "Kod wygasa {time}.",
       "after": "Gdy maszyna pojawi się jako Oczekuje na zatwierdzenie, sprawdź jej nazwę hosta i ją zatwierdź.",
-      "done": "Gotowe"
+      "done": "Gotowe",
+      "bot_title": "Dodaj maszynę dla bota",
+      "bot_description": "Wybierz bota i nazwij jego komputer. Następnie dostaniesz kod dołączenia do użycia na tym komputerze.",
+      "bot": "Bot",
+      "bot_placeholder": "Wybierz bota"
     },
     "rename_dialog": {
       "title": "Zmień nazwę maszyny",
@@ -227,7 +266,86 @@
         "description": "Ta maszyna użytkownika {owner} od razu przestanie działać i nie dostanie więcej zadań. Tylko jej właściciel może ją usunąć.",
         "confirm": "Odwołaj",
         "confirming": "Odwoływanie..."
-      }
+      },
+      "bot": "Bot",
+      "add_for_bot": "Dodaj maszynę dla bota",
+      "no_bots": "Aby dodać maszynę dla bota, najpierw dodaj członka-bota z rolą Członek.",
+      "approve_bot_description": "Maszyna zgłasza host {hostname} ({os}). Zatwierdź ją tylko wtedy, gdy to komputer przygotowany dla {owner}: będzie wykonywać zadania programistyczne tego bota."
+    }
+  },
+  "bot_members": {
+    "label": "Członkowie-boty",
+    "title": "Członkowie-boty",
+    "description": "Boty to agenci AI, którzy pracują w tej przestrzeni roboczej jak członkowie. Każdy loguje się własnym tokenem. Dodawaj je do projektów jak każdego członka.",
+    "add": "Dodaj członka-bota",
+    "empty": "Nie ma jeszcze członków-botów.",
+    "load_failed": "Nie udało się wczytać członków-botów.",
+    "badge": "Bot",
+    "columns": {
+      "name": "Nazwa",
+      "role": "Rola",
+      "status": "Status",
+      "token_last_used": "Ostatnie użycie tokenu"
+    },
+    "role": {
+      "member": "Członek",
+      "guest": "Gość"
+    },
+    "status": {
+      "active": "Aktywny",
+      "removed": "Usunięty"
+    },
+    "never_used": "Nigdy",
+    "no_token": "Brak tokenu",
+    "actions": {
+      "edit": "Edytuj",
+      "new_token": "Nowy token",
+      "remove": "Usuń"
+    },
+    "form": {
+      "create_title": "Dodaj członka-bota",
+      "edit_title": "Edytuj {name}",
+      "create_description": "Nadaj botowi nazwę i rolę. Następnie dostaniesz jego token.",
+      "name": "Nazwa",
+      "name_placeholder": "np. Bot do triażu",
+      "role": "Rola",
+      "role_hint": "Członkowie mogą pracować w projektach, do których zostali dodani. Goście mogą tylko przeglądać i komentować.",
+      "description": "Do czego służy",
+      "description_placeholder": "np. Sortuje nowe zgłoszenia błędów",
+      "create": "Dodaj członka-bota",
+      "creating": "Dodawanie...",
+      "save": "Zapisz",
+      "saving": "Zapisywanie..."
+    },
+    "token_dialog": {
+      "title": "Token dla {name}",
+      "description": "Bot używa tego tokenu do pracy w CRM. Skopiuj go teraz: po zamknięciu tego okna nie zobaczysz go ponownie.",
+      "label": "Token",
+      "copy": "Kopiuj token",
+      "copied": "Skopiowano token",
+      "done": "Gotowe"
+    },
+    "new_token_dialog": {
+      "title": "Nowy token dla {name}?",
+      "description": "Bot dostanie nowy token. Jego obecny token od razu przestanie działać.",
+      "confirm": "Utwórz nowy token",
+      "confirming": "Tworzenie..."
+    },
+    "remove_dialog": {
+      "title": "Usunąć {name}?",
+      "description": "Bot zostanie usunięty z tej przestrzeni roboczej i jej projektów. Jego token od razu przestanie działać.",
+      "confirm": "Usuń",
+      "confirming": "Usuwanie..."
+    },
+    "toasts": {
+      "created": "Dodano członka-bota",
+      "create_failed": "Nie udało się dodać członka-bota",
+      "updated": "Zapisano członka-bota",
+      "update_failed": "Nie udało się zapisać członka-bota",
+      "token_created": "Utworzono nowy token",
+      "token_failed": "Nie udało się utworzyć nowego tokenu",
+      "removed": "Usunięto członka-bota",
+      "remove_failed": "Nie udało się usunąć członka-bota"
     }
   }
 }

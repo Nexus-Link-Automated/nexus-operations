@@ -6,6 +6,7 @@
 
 import type { IconGlyph } from "@makeplane/propel/components/icon";
 import {
+  AgentOutline,
   BillingsOutline,
   BuildingOutline,
   ExportOutline,
@@ -26,4 +27,5 @@ export const WORKSPACE_SETTINGS_ICONS: Record<TWorkspaceSettingsTabs, IconGlyph 
   webhooks: WebhooksOutline,
   "ai-providers": KeyOutline,
   "coding-machines": MonitorOutline,
+  "bot-members": AgentOutline,
 };

@@ -31,7 +31,9 @@
       "cancelled": "編碼工作已取消",
       "cancel_failed": "無法取消編碼工作",
       "retried": "編碼工作已重新開始",
-      "retry_failed": "無法重試編碼工作"
+      "retry_failed": "無法重試編碼工作",
+      "answered": "回答已送出",
+      "answer_failed": "無法送出回答"
     },
     "errors": {
       "CODING_NOT_CONFIGURED": "此專案尚未設定編碼工作。專案管理員必須啟用此功能並設定儲存庫。",
@@ -44,7 +46,14 @@
       "MACHINE_NOT_JOINED": "此機器尚未加入，因此無需核准。",
       "MACHINE_REVOKED": "此機器已被工作區管理員撤銷。",
       "forbidden": "您沒有執行此操作的權限。",
-      "generic": "發生錯誤，請再試一次。"
+      "generic": "發生錯誤，請再試一次。",
+      "NO_OPEN_QUESTION": "代理目前沒有待回答的問題。可能已有人回答了。",
+      "ANSWER_EMPTY": "請先填寫回答。",
+      "BOT_NOT_ALLOWED": "機器人成員無法管理機器。由工作區管理員代為管理。",
+      "BOT_NOT_FOUND": "找不到該機器人成員。它可能已被移除。",
+      "BOT_LIMIT": "此工作區的機器人成員已達上限。請先移除一個。",
+      "BOT_ROLE_NOT_ALLOWED": "機器人成員只能是成員或訪客。",
+      "BOT_REMOVED": "此機器人成員已從工作區移除。"
     },
     "panel": {
       "title": "編碼工作",
@@ -64,7 +73,22 @@
       "progress": "進度",
       "progress_loading": "正在載入進度...",
       "progress_empty": "尚無進度。",
-      "progress_load_failed": "無法載入進度。"
+      "progress_load_failed": "無法載入進度。",
+      "branch": "分支",
+      "opening_pr": "正在建立拉取請求...",
+      "questions": "代理的問題",
+      "open_question": "代理有一個問題",
+      "question_thinking": "CRM 代理正在準備回答。你也可以自己回答。",
+      "question_waiting": "正在等待回答。",
+      "answer_label": "你的回答",
+      "answer_placeholder": "填寫你的回答",
+      "answer_hint": "代理會根據你的回答繼續工作。",
+      "answer": "回答",
+      "answering": "正在送出...",
+      "answered_by": "由 {name} 回答",
+      "answered_by_agent": "由 CRM 代理回答",
+      "answered_by_unknown": "已回答",
+      "no_answer": "沒有收到回答"
     },
     "status": {
       "queued": "排隊中",
@@ -122,6 +146,17 @@
       "save_failed": "無法儲存編碼設定",
       "read_only": "只有專案管理員可以變更這些設定。",
       "not_configured": "此專案的編碼工作已關閉。請啟用此功能並設定儲存庫，讓成員可以開始工作。"
+    },
+    "repository": {
+      "title": "拉取請求",
+      "checking": "正在檢查儲存庫...",
+      "check_failed": "無法檢查儲存庫。",
+      "check_again": "重新檢查",
+      "ready": "已開啟。CRM 可以在此儲存庫中建立拉取請求。",
+      "ready_private": "已開啟。CRM 可以在此私人儲存庫中建立拉取請求。",
+      "ready_public": "已開啟。CRM 可以在此公開儲存庫中建立拉取請求。",
+      "off": "已關閉。CRM 暫時無法在此儲存庫中建立拉取請求。",
+      "install": "安裝 GitHub App"
     }
   },
   "coding_machines": {
@@ -179,7 +214,11 @@
       "copied": "已複製到剪貼簿",
       "expires": "代碼將於 {time} 過期。",
       "after": "當機器顯示為「等待核准」時，請檢查其主機名稱並核准它。",
-      "done": "完成"
+      "done": "完成",
+      "bot_title": "為機器人新增機器",
+      "bot_description": "選擇機器人並為它的電腦命名。接下來你會獲得一個在該電腦上使用的加入代碼。",
+      "bot": "機器人",
+      "bot_placeholder": "選擇機器人"
     },
     "rename_dialog": {
       "title": "重新命名機器",
@@ -227,7 +266,86 @@
         "description": "{owner} 的這台機器將立即停止運作，不再接收工作。只有其擁有者可以移除它。",
         "confirm": "撤銷",
         "confirming": "正在撤銷..."
-      }
+      },
+      "bot": "機器人",
+      "add_for_bot": "為機器人新增機器",
+      "no_bots": "若要為機器人新增機器，請先新增一個角色為「成員」的機器人成員。",
+      "approve_bot_description": "該機器回報的主機為 {hostname}（{os}）。僅當這是你為 {owner} 設定的電腦時才核准：它將執行該機器人的編碼工作。"
+    }
+  },
+  "bot_members": {
+    "label": "機器人成員",
+    "title": "機器人成員",
+    "description": "機器人是像成員一樣在此工作區中工作的 AI 代理。每個機器人使用自己的權杖登入。可以像其他成員一樣將它們加入專案。",
+    "add": "新增機器人成員",
+    "empty": "還沒有機器人成員。",
+    "load_failed": "無法載入機器人成員。",
+    "badge": "機器人",
+    "columns": {
+      "name": "名稱",
+      "role": "角色",
+      "status": "狀態",
+      "token_last_used": "權杖上次使用"
+    },
+    "role": {
+      "member": "成員",
+      "guest": "訪客"
+    },
+    "status": {
+      "active": "使用中",
+      "removed": "已移除"
+    },
+    "never_used": "從未",
+    "no_token": "無權杖",
+    "actions": {
+      "edit": "編輯",
+      "new_token": "新權杖",
+      "remove": "移除"
+    },
+    "form": {
+      "create_title": "新增機器人成員",
+      "edit_title": "編輯 {name}",
+      "create_description": "為機器人設定名稱和角色。接下來你會獲得它的權杖。",
+      "name": "名稱",
+      "name_placeholder": "例如：分類機器人",
+      "role": "角色",
+      "role_hint": "成員可以在被加入的專案中工作。訪客只能檢視和留言。",
+      "description": "用途",
+      "description_placeholder": "例如：整理新的錯誤回報",
+      "create": "新增機器人成員",
+      "creating": "正在新增...",
+      "save": "儲存",
+      "saving": "正在儲存..."
+    },
+    "token_dialog": {
+      "title": "{name} 的權杖",
+      "description": "機器人使用此權杖在 CRM 中工作。請立即複製：關閉此對話框後將無法再次查看。",
+      "label": "權杖",
+      "copy": "複製權杖",
+      "copied": "權杖已複製",
+      "done": "完成"
+    },
+    "new_token_dialog": {
+      "title": "為 {name} 建立新權杖？",
+      "description": "機器人將獲得新權杖。目前的權杖會立即失效。",
+      "confirm": "建立新權杖",
+      "confirming": "正在建立..."
+    },
+    "remove_dialog": {
+      "title": "移除 {name}？",
+      "description": "機器人將從此工作區及其專案中移除。它的權杖會立即失效。",
+      "confirm": "移除",
+      "confirming": "正在移除..."
+    },
+    "toasts": {
+      "created": "機器人成員已新增",
+      "create_failed": "無法新增機器人成員",
+      "updated": "機器人成員已儲存",
+      "update_failed": "無法儲存機器人成員",
+      "token_created": "新權杖已建立",
+      "token_failed": "無法建立新權杖",
+      "removed": "機器人成員已移除",
+      "remove_failed": "無法移除機器人成員"
     }
   }
 }

@@ -31,7 +31,9 @@
       "cancelled": "Tarefa de programação cancelada",
       "cancel_failed": "Não foi possível cancelar a tarefa de programação",
       "retried": "Tarefa de programação iniciada novamente",
-      "retry_failed": "Não foi possível tentar novamente a tarefa de programação"
+      "retry_failed": "Não foi possível tentar novamente a tarefa de programação",
+      "answered": "Resposta enviada",
+      "answer_failed": "Não foi possível enviar a resposta"
     },
     "errors": {
       "CODING_NOT_CONFIGURED": "As tarefas de programação não estão configuradas para este projeto. Um administrador do projeto precisa ativá-las e definir o repositório.",
@@ -44,7 +46,14 @@
       "MACHINE_NOT_JOINED": "Esta máquina ainda não entrou, então não há nada para aprovar.",
       "MACHINE_REVOKED": "Esta máquina foi revogada por um administrador do espaço de trabalho.",
       "forbidden": "Você não tem permissão para fazer isso.",
-      "generic": "Algo deu errado. Tente novamente."
+      "generic": "Algo deu errado. Tente novamente.",
+      "NO_OPEN_QUESTION": "O agente não tem nenhuma pergunta em aberto agora. Talvez alguém já tenha respondido.",
+      "ANSWER_EMPTY": "Escreva uma resposta primeiro.",
+      "BOT_NOT_ALLOWED": "Membros bot não podem gerenciar máquinas. Um administrador do espaço de trabalho faz isso por eles.",
+      "BOT_NOT_FOUND": "Esse membro bot não foi encontrado. Talvez tenha sido removido.",
+      "BOT_LIMIT": "Este espaço de trabalho já tem o número máximo de membros bot. Remova um primeiro.",
+      "BOT_ROLE_NOT_ALLOWED": "Um membro bot só pode ser membro ou convidado.",
+      "BOT_REMOVED": "Este membro bot foi removido do espaço de trabalho."
     },
     "panel": {
       "title": "Tarefas de programação",
@@ -64,7 +73,22 @@
       "progress": "Progresso",
       "progress_loading": "Carregando o progresso...",
       "progress_empty": "Ainda não há progresso.",
-      "progress_load_failed": "Não foi possível carregar o progresso."
+      "progress_load_failed": "Não foi possível carregar o progresso.",
+      "branch": "Branch",
+      "opening_pr": "Abrindo um pull request...",
+      "questions": "Perguntas do agente",
+      "open_question": "O agente tem uma pergunta",
+      "question_thinking": "O agente do CRM está preparando uma resposta. Você também pode responder.",
+      "question_waiting": "Aguardando uma resposta.",
+      "answer_label": "Sua resposta",
+      "answer_placeholder": "Escreva sua resposta",
+      "answer_hint": "O agente continua com a sua resposta.",
+      "answer": "Responder",
+      "answering": "Enviando...",
+      "answered_by": "Respondido por {name}",
+      "answered_by_agent": "Respondido pelo agente do CRM",
+      "answered_by_unknown": "Respondido",
+      "no_answer": "Nenhuma resposta veio"
     },
     "status": {
       "queued": "Na fila",
@@ -122,6 +146,17 @@
       "save_failed": "Não foi possível salvar as configurações de programação",
       "read_only": "Somente administradores do projeto podem alterar essas configurações.",
       "not_configured": "As tarefas de programação estão desativadas para este projeto. Ative-as e defina o repositório para que os membros possam iniciar tarefas."
+    },
+    "repository": {
+      "title": "Pull requests",
+      "checking": "Verificando o repositório...",
+      "check_failed": "Não foi possível verificar o repositório.",
+      "check_again": "Verificar de novo",
+      "ready": "Ativado. O CRM pode abrir pull requests neste repositório.",
+      "ready_private": "Ativado. O CRM pode abrir pull requests neste repositório privado.",
+      "ready_public": "Ativado. O CRM pode abrir pull requests neste repositório público.",
+      "off": "Desativado. O CRM ainda não pode abrir pull requests neste repositório.",
+      "install": "Instalar o GitHub App"
     }
   },
   "coding_machines": {
@@ -179,7 +214,11 @@
       "copied": "Copiado para a área de transferência",
       "expires": "O código expira em {time}.",
       "after": "Quando a máquina aparecer como Aguardando aprovação, confira o nome do host e aprove-a.",
-      "done": "Concluído"
+      "done": "Concluído",
+      "bot_title": "Adicionar máquina para um bot",
+      "bot_description": "Escolha o bot e dê um nome ao computador dele. Em seguida, você recebe um código de entrada para usar nele.",
+      "bot": "Bot",
+      "bot_placeholder": "Escolha um bot"
     },
     "rename_dialog": {
       "title": "Renomear máquina",
@@ -227,7 +266,86 @@
         "description": "Esta máquina de {owner} para de funcionar na hora e não recebe mais tarefas. Somente o proprietário pode removê-la.",
         "confirm": "Revogar",
         "confirming": "Revogando..."
-      }
+      },
+      "bot": "Bot",
+      "add_for_bot": "Adicionar máquina para um bot",
+      "no_bots": "Para adicionar uma máquina para um bot, primeiro adicione um membro bot com o cargo Membro.",
+      "approve_bot_description": "A máquina informa o host {hostname} ({os}). Aprove-a apenas se for o computador que você configurou para {owner}: ela executará as tarefas de programação desse bot."
+    }
+  },
+  "bot_members": {
+    "label": "Membros bot",
+    "title": "Membros bot",
+    "description": "Bots são agentes de IA que trabalham neste espaço de trabalho como membros. Cada um entra com o próprio token. Adicione-os a projetos como qualquer membro.",
+    "add": "Adicionar membro bot",
+    "empty": "Ainda não há membros bot.",
+    "load_failed": "Não foi possível carregar os membros bot.",
+    "badge": "Bot",
+    "columns": {
+      "name": "Nome",
+      "role": "Cargo",
+      "status": "Status",
+      "token_last_used": "Último uso do token"
+    },
+    "role": {
+      "member": "Membro",
+      "guest": "Convidado"
+    },
+    "status": {
+      "active": "Ativo",
+      "removed": "Removido"
+    },
+    "never_used": "Nunca",
+    "no_token": "Sem token",
+    "actions": {
+      "edit": "Editar",
+      "new_token": "Novo token",
+      "remove": "Remover"
+    },
+    "form": {
+      "create_title": "Adicionar membro bot",
+      "edit_title": "Editar {name}",
+      "create_description": "Dê ao bot um nome e um cargo. Em seguida, você recebe o token dele.",
+      "name": "Nome",
+      "name_placeholder": "ex.: Bot de triagem",
+      "role": "Cargo",
+      "role_hint": "Membros podem trabalhar nos projetos aos quais foram adicionados. Convidados só podem ver e comentar.",
+      "description": "Para que serve",
+      "description_placeholder": "ex.: Organiza novos relatos de bugs",
+      "create": "Adicionar membro bot",
+      "creating": "Adicionando...",
+      "save": "Salvar",
+      "saving": "Salvando..."
+    },
+    "token_dialog": {
+      "title": "Token de {name}",
+      "description": "O bot usa este token para trabalhar no CRM. Copie agora: você não verá ele de novo depois de fechar esta janela.",
+      "label": "Token",
+      "copy": "Copiar token",
+      "copied": "Token copiado",
+      "done": "Concluído"
+    },
+    "new_token_dialog": {
+      "title": "Novo token para {name}?",
+      "description": "O bot recebe um novo token. O token atual para de funcionar na hora.",
+      "confirm": "Criar novo token",
+      "confirming": "Criando..."
+    },
+    "remove_dialog": {
+      "title": "Remover {name}?",
+      "description": "O bot é removido deste espaço de trabalho e dos projetos dele. O token para de funcionar na hora.",
+      "confirm": "Remover",
+      "confirming": "Removendo..."
+    },
+    "toasts": {
+      "created": "Membro bot adicionado",
+      "create_failed": "Não foi possível adicionar o membro bot",
+      "updated": "Membro bot salvo",
+      "update_failed": "Não foi possível salvar o membro bot",
+      "token_created": "Novo token criado",
+      "token_failed": "Não foi possível criar um novo token",
+      "removed": "Membro bot removido",
+      "remove_failed": "Não foi possível remover o membro bot"
     }
   }
 }

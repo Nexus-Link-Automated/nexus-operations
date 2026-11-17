@@ -8,7 +8,7 @@ import { set, sortBy } from "lodash-es";
 import { action, computed, makeObservable, observable, runInAction } from "mobx";
 import { computedFn } from "mobx-utils";
 // types
-import type { EUserPermissions } from "@plane/constants";
+import { EUserPermissions } from "@plane/constants";
 import type { IWorkspaceBulkInviteFormData, IWorkspaceMember, IWorkspaceMemberInvitation } from "@plane/types";
 // services
 import { WorkspaceService } from "@/services/workspace.service";
@@ -20,6 +20,11 @@ import type { IMemberRootStore } from "../index.ts";
 import type { IWorkspaceMemberFiltersStore } from "./workspace-member-filters.store";
 import { WorkspaceMemberFiltersStore } from "./workspace-member-filters.store";
 import type { RootStore } from "@/store/root.store";
+
+/** People, and bot members (EmployAI agents, `bot_type` EMPLOYAI); never Plane's own bot users. */
+export function isListedMember(user: { is_bot?: boolean; bot_type?: string | null } | undefined): boolean {
+  return !!user && (!user.is_bot || user.bot_type === "EMPLOYAI");
+}
 
 export interface IWorkspaceMembership {
   id: string;
@@ -132,8 +137,10 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       (m) => m.member !== this.userStore?.data?.id,
       (m) => this.memberRoot?.memberMap?.[m.member]?.display_name?.toLowerCase(),
     ]);
-    //filter out bots
-    const memberIds = members.filter((m) => !this.memberRoot?.memberMap?.[m.member]?.is_bot).map((m) => m.member);
+    // Filter out Plane's own bots; bot members (EmployAI agents) are members like people.
+    const memberIds = members
+      .filter((m) => isListedMember(this.memberRoot?.memberMap?.[m.member]))
+      .map((m) => m.member);
     return memberIds;
   });
 
@@ -143,8 +150,8 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
    */
   getFilteredWorkspaceMemberIds = computedFn((workspaceSlug: string) => {
     let members = Object.values(this.workspaceMemberMap?.[workspaceSlug] ?? {});
-    //filter out bots and inactive members
-    members = members.filter((m) => !this.memberRoot?.memberMap?.[m.member]?.is_bot);
+    // Filter out Plane's own bots; bot members (EmployAI agents) are members like people.
+    members = members.filter((m) => isListedMember(this.memberRoot?.memberMap?.[m.member]));
 
     // Use filters store to get filtered member ids
     const memberIds = this.filtersStore.getFilteredMemberIds(

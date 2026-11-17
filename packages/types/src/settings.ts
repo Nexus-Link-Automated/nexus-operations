@@ -17,7 +17,8 @@ export type TWorkspaceSettingsTabs =
   | "export"
   | "webhooks"
   | "ai-providers"
-  | "coding-machines";
+  | "coding-machines"
+  | "bot-members";
 export type TWorkspaceSettingsItem = {
   key: TWorkspaceSettingsTabs;
   i18n_label: string;

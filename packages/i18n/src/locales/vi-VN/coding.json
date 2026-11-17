@@ -31,7 +31,9 @@
       "cancelled": "Đã hủy tác vụ lập trình",
       "cancel_failed": "Không thể hủy tác vụ lập trình",
       "retried": "Đã bắt đầu lại tác vụ lập trình",
-      "retry_failed": "Không thể thử lại tác vụ lập trình"
+      "retry_failed": "Không thể thử lại tác vụ lập trình",
+      "answered": "Đã gửi câu trả lời",
+      "answer_failed": "Không thể gửi câu trả lời"
     },
     "errors": {
       "CODING_NOT_CONFIGURED": "Tác vụ lập trình chưa được thiết lập cho dự án này. Quản trị viên dự án cần bật tính năng và thiết lập kho lưu trữ.",
@@ -44,7 +46,14 @@
       "MACHINE_NOT_JOINED": "Máy này chưa tham gia nên chưa có gì để phê duyệt.",
       "MACHINE_REVOKED": "Máy này đã bị quản trị viên không gian làm việc thu hồi.",
       "forbidden": "Bạn không có quyền thực hiện thao tác này.",
-      "generic": "Đã xảy ra lỗi. Vui lòng thử lại."
+      "generic": "Đã xảy ra lỗi. Vui lòng thử lại.",
+      "NO_OPEN_QUESTION": "Hiện tác nhân không có câu hỏi nào đang mở. Có thể ai đó đã trả lời rồi.",
+      "ANSWER_EMPTY": "Hãy viết câu trả lời trước.",
+      "BOT_NOT_ALLOWED": "Thành viên bot không thể quản lý máy. Quản trị viên không gian làm việc sẽ làm việc này thay họ.",
+      "BOT_NOT_FOUND": "Không tìm thấy thành viên bot đó. Có thể nó đã bị xóa.",
+      "BOT_LIMIT": "Không gian làm việc này đã đạt số thành viên bot tối đa. Hãy xóa một thành viên bot trước.",
+      "BOT_ROLE_NOT_ALLOWED": "Thành viên bot chỉ có thể là thành viên hoặc khách.",
+      "BOT_REMOVED": "Thành viên bot này đã bị xóa khỏi không gian làm việc."
     },
     "panel": {
       "title": "Tác vụ lập trình",
@@ -64,7 +73,22 @@
       "progress": "Tiến độ",
       "progress_loading": "Đang tải tiến độ...",
       "progress_empty": "Chưa có tiến độ.",
-      "progress_load_failed": "Không thể tải tiến độ."
+      "progress_load_failed": "Không thể tải tiến độ.",
+      "branch": "Nhánh",
+      "opening_pr": "Đang mở pull request...",
+      "questions": "Câu hỏi từ tác nhân",
+      "open_question": "Tác nhân có một câu hỏi",
+      "question_thinking": "Tác nhân CRM đang soạn câu trả lời. Bạn có thể tự trả lời.",
+      "question_waiting": "Đang chờ câu trả lời.",
+      "answer_label": "Câu trả lời của bạn",
+      "answer_placeholder": "Viết câu trả lời của bạn",
+      "answer_hint": "Tác nhân sẽ tiếp tục với câu trả lời của bạn.",
+      "answer": "Trả lời",
+      "answering": "Đang gửi...",
+      "answered_by": "{name} đã trả lời",
+      "answered_by_agent": "Tác nhân CRM đã trả lời",
+      "answered_by_unknown": "Đã trả lời",
+      "no_answer": "Không có câu trả lời"
     },
     "status": {
       "queued": "Đang chờ",
@@ -122,6 +146,17 @@
       "save_failed": "Không thể lưu cài đặt lập trình",
       "read_only": "Chỉ quản trị viên dự án mới có thể thay đổi các cài đặt này.",
       "not_configured": "Tác vụ lập trình đang tắt cho dự án này. Hãy bật tính năng và thiết lập kho lưu trữ để thành viên có thể bắt đầu tác vụ."
+    },
+    "repository": {
+      "title": "Pull request",
+      "checking": "Đang kiểm tra kho lưu trữ...",
+      "check_failed": "Không thể kiểm tra kho lưu trữ.",
+      "check_again": "Kiểm tra lại",
+      "ready": "Đang bật. CRM có thể mở pull request trên kho lưu trữ này.",
+      "ready_private": "Đang bật. CRM có thể mở pull request trên kho lưu trữ riêng tư này.",
+      "ready_public": "Đang bật. CRM có thể mở pull request trên kho lưu trữ công khai này.",
+      "off": "Đang tắt. CRM chưa thể mở pull request trên kho lưu trữ này.",
+      "install": "Cài đặt GitHub App"
     }
   },
   "coding_machines": {
@@ -179,7 +214,11 @@
       "copied": "Đã sao chép vào bộ nhớ tạm",
       "expires": "Mã hết hạn lúc {time}.",
       "after": "Khi máy hiển thị là Đang chờ phê duyệt, hãy kiểm tra tên máy chủ của nó và phê duyệt.",
-      "done": "Xong"
+      "done": "Xong",
+      "bot_title": "Thêm máy cho bot",
+      "bot_description": "Chọn bot và đặt tên cho máy tính của nó. Tiếp theo bạn sẽ nhận được mã tham gia để dùng trên máy đó.",
+      "bot": "Bot",
+      "bot_placeholder": "Chọn một bot"
     },
     "rename_dialog": {
       "title": "Đổi tên máy",
@@ -227,7 +266,86 @@
         "description": "Máy này của {owner} sẽ ngừng hoạt động ngay lập tức và không nhận thêm tác vụ. Chỉ chủ sở hữu mới có thể xóa nó.",
         "confirm": "Thu hồi",
         "confirming": "Đang thu hồi..."
-      }
+      },
+      "bot": "Bot",
+      "add_for_bot": "Thêm máy cho bot",
+      "no_bots": "Để thêm máy cho bot, trước tiên hãy thêm một thành viên bot với vai trò Thành viên.",
+      "approve_bot_description": "Máy báo cáo host {hostname} ({os}). Chỉ phê duyệt nếu đây là máy tính bạn đã thiết lập cho {owner}: máy sẽ chạy tác vụ lập trình của bot đó."
+    }
+  },
+  "bot_members": {
+    "label": "Thành viên bot",
+    "title": "Thành viên bot",
+    "description": "Bot là các tác nhân AI làm việc trong không gian làm việc này giống như thành viên. Mỗi bot đăng nhập bằng token riêng. Thêm chúng vào dự án như mọi thành viên khác.",
+    "add": "Thêm thành viên bot",
+    "empty": "Chưa có thành viên bot nào.",
+    "load_failed": "Không thể tải thành viên bot.",
+    "badge": "Bot",
+    "columns": {
+      "name": "Tên",
+      "role": "Vai trò",
+      "status": "Trạng thái",
+      "token_last_used": "Token dùng lần cuối"
+    },
+    "role": {
+      "member": "Thành viên",
+      "guest": "Khách"
+    },
+    "status": {
+      "active": "Đang hoạt động",
+      "removed": "Đã xóa"
+    },
+    "never_used": "Chưa bao giờ",
+    "no_token": "Không có token",
+    "actions": {
+      "edit": "Chỉnh sửa",
+      "new_token": "Token mới",
+      "remove": "Xóa"
+    },
+    "form": {
+      "create_title": "Thêm thành viên bot",
+      "edit_title": "Chỉnh sửa {name}",
+      "create_description": "Đặt tên và vai trò cho bot. Tiếp theo bạn sẽ nhận được token của nó.",
+      "name": "Tên",
+      "name_placeholder": "vd: Bot phân loại",
+      "role": "Vai trò",
+      "role_hint": "Thành viên có thể làm việc trong các dự án mà họ được thêm vào. Khách chỉ có thể xem và bình luận.",
+      "description": "Dùng để làm gì",
+      "description_placeholder": "vd: Phân loại báo cáo lỗi mới",
+      "create": "Thêm thành viên bot",
+      "creating": "Đang thêm...",
+      "save": "Lưu",
+      "saving": "Đang lưu..."
+    },
+    "token_dialog": {
+      "title": "Token cho {name}",
+      "description": "Bot dùng token này để làm việc trong CRM. Hãy sao chép ngay: bạn sẽ không thấy lại sau khi đóng hộp thoại này.",
+      "label": "Token",
+      "copy": "Sao chép token",
+      "copied": "Đã sao chép token",
+      "done": "Xong"
+    },
+    "new_token_dialog": {
+      "title": "Tạo token mới cho {name}?",
+      "description": "Bot sẽ nhận token mới. Token hiện tại sẽ ngừng hoạt động ngay lập tức.",
+      "confirm": "Tạo token mới",
+      "confirming": "Đang tạo..."
+    },
+    "remove_dialog": {
+      "title": "Xóa {name}?",
+      "description": "Bot sẽ bị xóa khỏi không gian làm việc này và các dự án của nó. Token của bot sẽ ngừng hoạt động ngay lập tức.",
+      "confirm": "Xóa",
+      "confirming": "Đang xóa..."
+    },
+    "toasts": {
+      "created": "Đã thêm thành viên bot",
+      "create_failed": "Không thể thêm thành viên bot",
+      "updated": "Đã lưu thành viên bot",
+      "update_failed": "Không thể lưu thành viên bot",
+      "token_created": "Đã tạo token mới",
+      "token_failed": "Không thể tạo token mới",
+      "removed": "Đã xóa thành viên bot",
+      "remove_failed": "Không thể xóa thành viên bot"
     }
   }
 }

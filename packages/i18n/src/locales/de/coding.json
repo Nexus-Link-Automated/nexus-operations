@@ -31,7 +31,9 @@
       "cancelled": "Coding-Job abgebrochen",
       "cancel_failed": "Der Coding-Job konnte nicht abgebrochen werden",
       "retried": "Coding-Job erneut gestartet",
-      "retry_failed": "Der Coding-Job konnte nicht erneut gestartet werden"
+      "retry_failed": "Der Coding-Job konnte nicht erneut gestartet werden",
+      "answered": "Antwort gesendet",
+      "answer_failed": "Die Antwort konnte nicht gesendet werden"
     },
     "errors": {
       "CODING_NOT_CONFIGURED": "Coding-Jobs sind für dieses Projekt nicht eingerichtet. Ein Projektadministrator muss sie aktivieren und das Repository festlegen.",
@@ -44,7 +46,14 @@
       "MACHINE_NOT_JOINED": "Dieser Rechner ist noch nicht beigetreten, daher gibt es nichts freizugeben.",
       "MACHINE_REVOKED": "Dieser Rechner wurde von einem Workspace-Administrator widerrufen.",
       "forbidden": "Sie haben keine Berechtigung, dies zu tun.",
-      "generic": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut."
+      "generic": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
+      "NO_OPEN_QUESTION": "Der Agent hat gerade keine offene Frage. Vielleicht hat schon jemand geantwortet.",
+      "ANSWER_EMPTY": "Schreiben Sie zuerst eine Antwort.",
+      "BOT_NOT_ALLOWED": "Bot-Mitglieder können keine Rechner verwalten. Das übernimmt ein Workspace-Administrator für sie.",
+      "BOT_NOT_FOUND": "Dieses Bot-Mitglied wurde nicht gefunden. Möglicherweise wurde es entfernt.",
+      "BOT_LIMIT": "Dieser Workspace hat bereits die maximale Anzahl an Bot-Mitgliedern. Entfernen Sie zuerst eines.",
+      "BOT_ROLE_NOT_ALLOWED": "Ein Bot-Mitglied kann nur Mitglied oder Gast sein.",
+      "BOT_REMOVED": "Dieses Bot-Mitglied wurde aus dem Workspace entfernt."
     },
     "panel": {
       "title": "Coding-Jobs",
@@ -64,7 +73,22 @@
       "progress": "Fortschritt",
       "progress_loading": "Fortschritt wird geladen...",
       "progress_empty": "Noch kein Fortschritt.",
-      "progress_load_failed": "Der Fortschritt konnte nicht geladen werden."
+      "progress_load_failed": "Der Fortschritt konnte nicht geladen werden.",
+      "branch": "Branch",
+      "opening_pr": "Pull Request wird geöffnet...",
+      "questions": "Fragen vom Agent",
+      "open_question": "Der Agent hat eine Frage",
+      "question_thinking": "Der CRM-Agent arbeitet an einer Antwort. Sie können auch selbst antworten.",
+      "question_waiting": "Warten auf eine Antwort.",
+      "answer_label": "Ihre Antwort",
+      "answer_placeholder": "Schreiben Sie Ihre Antwort",
+      "answer_hint": "Der Agent macht mit Ihrer Antwort weiter.",
+      "answer": "Antworten",
+      "answering": "Wird gesendet...",
+      "answered_by": "Beantwortet von {name}",
+      "answered_by_agent": "Beantwortet vom CRM-Agent",
+      "answered_by_unknown": "Beantwortet",
+      "no_answer": "Keine Antwort erhalten"
     },
     "status": {
       "queued": "In Warteschlange",
@@ -122,6 +146,17 @@
       "save_failed": "Die Coding-Einstellungen konnten nicht gespeichert werden",
       "read_only": "Nur Projektadministratoren können diese Einstellungen ändern.",
       "not_configured": "Coding-Jobs sind für dieses Projekt deaktiviert. Aktivieren Sie sie und legen Sie das Repository fest, damit Mitglieder Jobs starten können."
+    },
+    "repository": {
+      "title": "Pull Requests",
+      "checking": "Repository wird geprüft...",
+      "check_failed": "Das Repository konnte nicht geprüft werden.",
+      "check_again": "Erneut prüfen",
+      "ready": "An. Das CRM kann in diesem Repository Pull Requests öffnen.",
+      "ready_private": "An. Das CRM kann in diesem privaten Repository Pull Requests öffnen.",
+      "ready_public": "An. Das CRM kann in diesem öffentlichen Repository Pull Requests öffnen.",
+      "off": "Aus. Das CRM kann in diesem Repository noch keine Pull Requests öffnen.",
+      "install": "GitHub App installieren"
     }
   },
   "coding_machines": {
@@ -179,7 +214,11 @@
       "copied": "In die Zwischenablage kopiert",
       "expires": "Der Code läuft ab: {time}.",
       "after": "Sobald der Rechner als „Wartet auf Freigabe“ angezeigt wird, prüfen Sie seinen Hostnamen und geben Sie ihn frei.",
-      "done": "Fertig"
+      "done": "Fertig",
+      "bot_title": "Rechner für einen Bot hinzufügen",
+      "bot_description": "Wählen Sie den Bot und benennen Sie seinen Computer. Danach erhalten Sie einen Beitrittscode, den Sie dort verwenden.",
+      "bot": "Bot",
+      "bot_placeholder": "Bot auswählen"
     },
     "rename_dialog": {
       "title": "Rechner umbenennen",
@@ -227,7 +266,86 @@
         "description": "Dieser Rechner von {owner} funktioniert sofort nicht mehr und erhält keine Jobs mehr. Nur sein Besitzer kann ihn entfernen.",
         "confirm": "Widerrufen",
         "confirming": "Wird widerrufen..."
-      }
+      },
+      "bot": "Bot",
+      "add_for_bot": "Rechner für einen Bot hinzufügen",
+      "no_bots": "Um einen Rechner für einen Bot hinzuzufügen, fügen Sie zuerst ein Bot-Mitglied mit der Rolle Mitglied hinzu.",
+      "approve_bot_description": "Der Rechner meldet den Host {hostname} ({os}). Geben Sie ihn nur frei, wenn es der Computer ist, den Sie für {owner} eingerichtet haben: Er führt die Coding-Jobs dieses Bots aus."
+    }
+  },
+  "bot_members": {
+    "label": "Bot-Mitglieder",
+    "title": "Bot-Mitglieder",
+    "description": "Bots sind KI-Agents, die in diesem Workspace wie Mitglieder arbeiten. Jeder meldet sich mit seinem eigenen Token an. Fügen Sie sie wie jedes Mitglied zu Projekten hinzu.",
+    "add": "Bot-Mitglied hinzufügen",
+    "empty": "Noch keine Bot-Mitglieder.",
+    "load_failed": "Die Bot-Mitglieder konnten nicht geladen werden.",
+    "badge": "Bot",
+    "columns": {
+      "name": "Name",
+      "role": "Rolle",
+      "status": "Status",
+      "token_last_used": "Token zuletzt verwendet"
+    },
+    "role": {
+      "member": "Mitglied",
+      "guest": "Gast"
+    },
+    "status": {
+      "active": "Aktiv",
+      "removed": "Entfernt"
+    },
+    "never_used": "Nie",
+    "no_token": "Kein Token",
+    "actions": {
+      "edit": "Bearbeiten",
+      "new_token": "Neues Token",
+      "remove": "Entfernen"
+    },
+    "form": {
+      "create_title": "Bot-Mitglied hinzufügen",
+      "edit_title": "{name} bearbeiten",
+      "create_description": "Geben Sie dem Bot einen Namen und eine Rolle. Danach erhalten Sie sein Token.",
+      "name": "Name",
+      "name_placeholder": "z. B. Triage-Bot",
+      "role": "Rolle",
+      "role_hint": "Mitglieder können in den Projekten arbeiten, zu denen sie hinzugefügt wurden. Gäste können nur ansehen und kommentieren.",
+      "description": "Wofür er da ist",
+      "description_placeholder": "z. B. Sortiert neue Fehlermeldungen",
+      "create": "Bot-Mitglied hinzufügen",
+      "creating": "Wird hinzugefügt...",
+      "save": "Speichern",
+      "saving": "Wird gespeichert..."
+    },
+    "token_dialog": {
+      "title": "Token für {name}",
+      "description": "Mit diesem Token arbeitet der Bot im CRM. Kopieren Sie es jetzt: Nach dem Schließen dieses Dialogs sehen Sie es nicht mehr.",
+      "label": "Token",
+      "copy": "Token kopieren",
+      "copied": "Token kopiert",
+      "done": "Fertig"
+    },
+    "new_token_dialog": {
+      "title": "Neues Token für {name}?",
+      "description": "Der Bot erhält ein neues Token. Sein aktuelles Token funktioniert sofort nicht mehr.",
+      "confirm": "Neues Token erstellen",
+      "confirming": "Wird erstellt..."
+    },
+    "remove_dialog": {
+      "title": "{name} entfernen?",
+      "description": "Der Bot wird aus diesem Workspace und seinen Projekten entfernt. Sein Token funktioniert sofort nicht mehr.",
+      "confirm": "Entfernen",
+      "confirming": "Wird entfernt..."
+    },
+    "toasts": {
+      "created": "Bot-Mitglied hinzugefügt",
+      "create_failed": "Das Bot-Mitglied konnte nicht hinzugefügt werden",
+      "updated": "Bot-Mitglied gespeichert",
+      "update_failed": "Das Bot-Mitglied konnte nicht gespeichert werden",
+      "token_created": "Neues Token erstellt",
+      "token_failed": "Es konnte kein neues Token erstellt werden",
+      "removed": "Bot-Mitglied entfernt",
+      "remove_failed": "Das Bot-Mitglied konnte nicht entfernt werden"
     }
   }
 }

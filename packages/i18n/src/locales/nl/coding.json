@@ -31,7 +31,9 @@
       "cancelled": "Codeertaak geannuleerd",
       "cancel_failed": "Kan de codeertaak niet annuleren",
       "retried": "Codeertaak opnieuw gestart",
-      "retry_failed": "Kan de codeertaak niet opnieuw proberen"
+      "retry_failed": "Kan de codeertaak niet opnieuw proberen",
+      "answered": "Antwoord verstuurd",
+      "answer_failed": "Kan het antwoord niet versturen"
     },
     "errors": {
       "CODING_NOT_CONFIGURED": "Codeertaken zijn niet ingesteld voor dit project. Een projectbeheerder moet ze inschakelen en de repository instellen.",
@@ -44,7 +46,14 @@
       "MACHINE_NOT_JOINED": "Deze machine is nog niet gekoppeld, dus er valt niets goed te keuren.",
       "MACHINE_REVOKED": "Een werkruimtebeheerder heeft deze machine ingetrokken.",
       "forbidden": "Je hebt geen toestemming om dit te doen.",
-      "generic": "Er is iets misgegaan. Probeer het opnieuw."
+      "generic": "Er is iets misgegaan. Probeer het opnieuw.",
+      "NO_OPEN_QUESTION": "De agent heeft nu geen openstaande vraag. Misschien heeft iemand die al beantwoord.",
+      "ANSWER_EMPTY": "Schrijf eerst een antwoord.",
+      "BOT_NOT_ALLOWED": "Botleden kunnen geen machines beheren. Een beheerder van de werkruimte doet dat voor ze.",
+      "BOT_NOT_FOUND": "Dat botlid is niet gevonden. Misschien is het verwijderd.",
+      "BOT_LIMIT": "Deze werkruimte heeft het maximale aantal botleden. Verwijder er eerst een.",
+      "BOT_ROLE_NOT_ALLOWED": "Een botlid kan alleen lid of gast zijn.",
+      "BOT_REMOVED": "Dit botlid is uit de werkruimte verwijderd."
     },
     "panel": {
       "title": "Codeertaken",
@@ -64,7 +73,22 @@
       "progress": "Voortgang",
       "progress_loading": "Voortgang laden...",
       "progress_empty": "Nog geen voortgang.",
-      "progress_load_failed": "De voortgang kon niet worden geladen."
+      "progress_load_failed": "De voortgang kon niet worden geladen.",
+      "branch": "Branch",
+      "opening_pr": "Pull request openen...",
+      "questions": "Vragen van de agent",
+      "open_question": "De agent heeft een vraag",
+      "question_thinking": "De CRM-agent werkt aan een antwoord. Je kunt ook zelf antwoorden.",
+      "question_waiting": "Wacht op een antwoord.",
+      "answer_label": "Je antwoord",
+      "answer_placeholder": "Schrijf je antwoord",
+      "answer_hint": "De agent gaat verder met je antwoord.",
+      "answer": "Antwoorden",
+      "answering": "Versturen...",
+      "answered_by": "Beantwoord door {name}",
+      "answered_by_agent": "Beantwoord door de CRM-agent",
+      "answered_by_unknown": "Beantwoord",
+      "no_answer": "Er kwam geen antwoord"
     },
     "status": {
       "queued": "In wachtrij",
@@ -122,6 +146,17 @@
       "save_failed": "Kan de codeerinstellingen niet opslaan",
       "read_only": "Alleen projectbeheerders kunnen deze instellingen wijzigen.",
       "not_configured": "Codeertaken zijn uitgeschakeld voor dit project. Schakel ze in en stel de repository in zodat leden taken kunnen starten."
+    },
+    "repository": {
+      "title": "Pull requests",
+      "checking": "Repository controleren...",
+      "check_failed": "Kan de repository niet controleren.",
+      "check_again": "Opnieuw controleren",
+      "ready": "Aan. Het CRM kan pull requests openen in deze repository.",
+      "ready_private": "Aan. Het CRM kan pull requests openen in deze privérepository.",
+      "ready_public": "Aan. Het CRM kan pull requests openen in deze openbare repository.",
+      "off": "Uit. Het CRM kan nog geen pull requests openen in deze repository.",
+      "install": "GitHub App installeren"
     }
   },
   "coding_machines": {
@@ -179,7 +214,11 @@
       "copied": "Gekopieerd naar klembord",
       "expires": "De code verloopt op {time}.",
       "after": "Zodra de machine als Wacht op goedkeuring wordt getoond, controleer je de hostnaam en keur je hem goed.",
-      "done": "Klaar"
+      "done": "Klaar",
+      "bot_title": "Machine toevoegen voor een bot",
+      "bot_description": "Kies de bot en geef zijn computer een naam. Daarna krijg je een koppelcode om op die computer te gebruiken.",
+      "bot": "Bot",
+      "bot_placeholder": "Kies een bot"
     },
     "rename_dialog": {
       "title": "Machine hernoemen",
@@ -227,7 +266,86 @@
         "description": "Deze machine van {owner} werkt meteen niet meer en krijgt geen taken meer. Alleen de eigenaar kan hem verwijderen.",
         "confirm": "Intrekken",
         "confirming": "Intrekken..."
-      }
+      },
+      "bot": "Bot",
+      "add_for_bot": "Machine toevoegen voor een bot",
+      "no_bots": "Voeg eerst een botlid met de rol Lid toe om een machine voor een bot toe te voegen.",
+      "approve_bot_description": "De machine meldt host {hostname} ({os}). Keur hem alleen goed als dit de computer is die je voor {owner} hebt ingericht: hij voert de codeertaken van die bot uit."
+    }
+  },
+  "bot_members": {
+    "label": "Botleden",
+    "title": "Botleden",
+    "description": "Bots zijn AI-agents die in deze werkruimte werken zoals leden. Elke bot meldt zich aan met een eigen token. Voeg ze toe aan projecten zoals elk ander lid.",
+    "add": "Botlid toevoegen",
+    "empty": "Nog geen botleden.",
+    "load_failed": "Kan de botleden niet laden.",
+    "badge": "Bot",
+    "columns": {
+      "name": "Naam",
+      "role": "Rol",
+      "status": "Status",
+      "token_last_used": "Token laatst gebruikt"
+    },
+    "role": {
+      "member": "Lid",
+      "guest": "Gast"
+    },
+    "status": {
+      "active": "Actief",
+      "removed": "Verwijderd"
+    },
+    "never_used": "Nooit",
+    "no_token": "Geen token",
+    "actions": {
+      "edit": "Bewerken",
+      "new_token": "Nieuwe token",
+      "remove": "Verwijderen"
+    },
+    "form": {
+      "create_title": "Botlid toevoegen",
+      "edit_title": "{name} bewerken",
+      "create_description": "Geef de bot een naam en een rol. Daarna krijg je zijn token.",
+      "name": "Naam",
+      "name_placeholder": "bijv. Triagebot",
+      "role": "Rol",
+      "role_hint": "Leden kunnen werken in de projecten waaraan ze zijn toegevoegd. Gasten kunnen alleen bekijken en reageren.",
+      "description": "Waar hij voor is",
+      "description_placeholder": "bijv. Sorteert nieuwe bugmeldingen",
+      "create": "Botlid toevoegen",
+      "creating": "Toevoegen...",
+      "save": "Opslaan",
+      "saving": "Opslaan..."
+    },
+    "token_dialog": {
+      "title": "Token voor {name}",
+      "description": "De bot gebruikt deze token om in het CRM te werken. Kopieer hem nu: na het sluiten van dit venster zie je hem niet meer.",
+      "label": "Token",
+      "copy": "Token kopiëren",
+      "copied": "Token gekopieerd",
+      "done": "Klaar"
+    },
+    "new_token_dialog": {
+      "title": "Nieuwe token voor {name}?",
+      "description": "De bot krijgt een nieuwe token. De huidige token werkt meteen niet meer.",
+      "confirm": "Nieuwe token maken",
+      "confirming": "Maken..."
+    },
+    "remove_dialog": {
+      "title": "{name} verwijderen?",
+      "description": "De bot wordt verwijderd uit deze werkruimte en de projecten ervan. Zijn token werkt meteen niet meer.",
+      "confirm": "Verwijderen",
+      "confirming": "Verwijderen..."
+    },
+    "toasts": {
+      "created": "Botlid toegevoegd",
+      "create_failed": "Kan het botlid niet toevoegen",
+      "updated": "Botlid opgeslagen",
+      "update_failed": "Kan het botlid niet opslaan",
+      "token_created": "Nieuwe token gemaakt",
+      "token_failed": "Kan geen nieuwe token maken",
+      "removed": "Botlid verwijderd",
+      "remove_failed": "Kan het botlid niet verwijderen"
     }
   }
 }

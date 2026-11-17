@@ -29,6 +29,8 @@ export interface IUserLite {
   first_name: string;
   id: string;
   is_bot: boolean;
+  /** "EMPLOYAI" for a bot member (an AI agent that is a member like a person); other bots are Plane's own. */
+  bot_type?: string | null;
   last_name: string;
   joining_date?: string;
 }

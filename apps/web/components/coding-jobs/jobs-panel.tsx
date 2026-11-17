@@ -11,7 +11,7 @@ import { Badge } from "@makeplane/propel/components/badge";
 import { Button } from "@makeplane/propel/components/button";
 import { Icon } from "@makeplane/propel/components/icon";
 import { IconButton } from "@makeplane/propel/components/icon-button";
-import { GitPullRequestOutline, RefreshOutline } from "@makeplane/propel/icons";
+import { GitBranchOutline, GitPullRequestOutline, RefreshOutline } from "@makeplane/propel/icons";
 import { setToast } from "@plane/blocks/toast";
 import { useTranslation } from "@plane/i18n";
 import type { TCodingJob } from "@plane/types";
@@ -25,6 +25,7 @@ import { useUser } from "@/hooks/store/user";
 // local imports
 import { codingErrorMessage, isWorkItemEligibleForCoding } from "./helpers";
 import { CodingJobProgress } from "./job-progress";
+import { CodingJobQuestions } from "./job-questions";
 import { useCodingAccess } from "./use-coding-access";
 
 type Props = {
@@ -65,8 +66,9 @@ const isHttpsUrl = (value: string) => {
 
 /**
  * The work item's coding jobs, newest first: status or outcome, the machine it ran on, the latest progress line while
- * it runs and its progress lines on demand, PR link, error reason, who started it and when. While a job is queued or
- * running, the store reloads the jobs every few seconds for as long as the panel is shown.
+ * it runs and its progress lines on demand, the agent's questions (answered here while the job waits on one), PR link
+ * and branch, error reason, who started it and when. While a job is queued, running or waiting for an answer, the store
+ * reloads the jobs every few seconds for as long as the panel is shown.
  * Cancel shows for an active job to the person who started it and to project admins; Retry for a job the API marks
  * `is_retryable`, to members and admins. Guests see the list only.
  */
@@ -219,6 +221,18 @@ export const CodingJobsPanel = observer(function CodingJobsPanel({ workspaceSlug
                     {job.progress}
                   </p>
                 )}
+                {job.status === "running" && job.result_received_at && (
+                  <p data-testid="coding-job-opening-pr" className="text-caption-sm-medium text-secondary">
+                    {t("coding_jobs.panel.opening_pr")}
+                  </p>
+                )}
+                <CodingJobQuestions
+                  workspaceSlug={workspaceSlug}
+                  projectId={projectId}
+                  issueId={issueId}
+                  job={job}
+                  canAnswer={canWrite}
+                />
                 {job.finished_at && (
                   <span className="text-caption-sm-regular text-tertiary">
                     {t("coding_jobs.panel.finished", {
@@ -242,6 +256,18 @@ export const CodingJobsPanel = observer(function CodingJobsPanel({ workspaceSlug
                     <GitPullRequestOutline className="size-3.5 shrink-0" />
                     {t("coding_jobs.panel.pr")}
                   </a>
+                )}
+                {job.pr_branch && (
+                  <span
+                    data-testid="coding-job-branch"
+                    className="flex min-w-0 items-center gap-1 text-caption-sm-regular text-tertiary"
+                  >
+                    <GitBranchOutline className="size-3.5 shrink-0" />
+                    <span className="shrink-0">{t("coding_jobs.panel.branch")}:</span>
+                    <code className="font-mono truncate text-secondary" title={job.pr_branch}>
+                      {job.pr_branch}
+                    </code>
+                  </span>
                 )}
                 {job.status !== "queued" && (
                   <CodingJobProgress

@@ -31,7 +31,9 @@
       "cancelled": "编码任务已取消",
       "cancel_failed": "无法取消编码任务",
       "retried": "编码任务已重新开始",
-      "retry_failed": "无法重试编码任务"
+      "retry_failed": "无法重试编码任务",
+      "answered": "回答已发送",
+      "answer_failed": "无法发送回答"
     },
     "errors": {
       "CODING_NOT_CONFIGURED": "此项目尚未设置编码任务。项目管理员必须启用该功能并设置仓库。",
@@ -44,7 +46,14 @@
       "MACHINE_NOT_JOINED": "此机器尚未加入，因此无需批准。",
       "MACHINE_REVOKED": "此机器已被工作区管理员吊销。",
       "forbidden": "您没有执行此操作的权限。",
-      "generic": "出现错误，请重试。"
+      "generic": "出现错误，请重试。",
+      "NO_OPEN_QUESTION": "代理目前没有待回答的问题。可能已有人回答了。",
+      "ANSWER_EMPTY": "请先填写回答。",
+      "BOT_NOT_ALLOWED": "机器人成员无法管理机器。由工作区管理员代为管理。",
+      "BOT_NOT_FOUND": "未找到该机器人成员。它可能已被移除。",
+      "BOT_LIMIT": "此工作区的机器人成员已达上限。请先移除一个。",
+      "BOT_ROLE_NOT_ALLOWED": "机器人成员只能是成员或访客。",
+      "BOT_REMOVED": "此机器人成员已从工作区移除。"
     },
     "panel": {
       "title": "编码任务",
@@ -64,7 +73,22 @@
       "progress": "进度",
       "progress_loading": "正在加载进度...",
       "progress_empty": "暂无进度。",
-      "progress_load_failed": "无法加载进度。"
+      "progress_load_failed": "无法加载进度。",
+      "branch": "分支",
+      "opening_pr": "正在创建拉取请求...",
+      "questions": "代理的问题",
+      "open_question": "代理有一个问题",
+      "question_thinking": "CRM 代理正在准备回答。你也可以自己回答。",
+      "question_waiting": "正在等待回答。",
+      "answer_label": "你的回答",
+      "answer_placeholder": "填写你的回答",
+      "answer_hint": "代理会根据你的回答继续工作。",
+      "answer": "回答",
+      "answering": "正在发送...",
+      "answered_by": "由 {name} 回答",
+      "answered_by_agent": "由 CRM 代理回答",
+      "answered_by_unknown": "已回答",
+      "no_answer": "没有收到回答"
     },
     "status": {
       "queued": "排队中",
@@ -122,6 +146,17 @@
       "save_failed": "无法保存编码设置",
       "read_only": "只有项目管理员可以更改这些设置。",
       "not_configured": "此项目的编码任务已关闭。请启用该功能并设置仓库，以便成员可以启动任务。"
+    },
+    "repository": {
+      "title": "拉取请求",
+      "checking": "正在检查仓库...",
+      "check_failed": "无法检查仓库。",
+      "check_again": "重新检查",
+      "ready": "已开启。CRM 可以在此仓库中创建拉取请求。",
+      "ready_private": "已开启。CRM 可以在此私有仓库中创建拉取请求。",
+      "ready_public": "已开启。CRM 可以在此公开仓库中创建拉取请求。",
+      "off": "已关闭。CRM 暂时无法在此仓库中创建拉取请求。",
+      "install": "安装 GitHub App"
     }
   },
   "coding_machines": {
@@ -179,7 +214,11 @@
       "copied": "已复制到剪贴板",
       "expires": "代码将于 {time} 过期。",
       "after": "当机器显示为“等待批准”时，请检查其主机名并批准它。",
-      "done": "完成"
+      "done": "完成",
+      "bot_title": "为机器人添加机器",
+      "bot_description": "选择机器人并为它的电脑命名。接下来你会获得一个在该电脑上使用的加入代码。",
+      "bot": "机器人",
+      "bot_placeholder": "选择机器人"
     },
     "rename_dialog": {
       "title": "重命名机器",
@@ -227,7 +266,86 @@
         "description": "{owner} 的这台机器将立即停止工作，不再接收任务。只有其所有者可以移除它。",
         "confirm": "吊销",
         "confirming": "正在吊销..."
-      }
+      },
+      "bot": "机器人",
+      "add_for_bot": "为机器人添加机器",
+      "no_bots": "要为机器人添加机器，请先添加一个角色为“成员”的机器人成员。",
+      "approve_bot_description": "该机器报告的主机为 {hostname}（{os}）。仅当这是你为 {owner} 设置的电脑时才批准：它将运行该机器人的编码任务。"
+    }
+  },
+  "bot_members": {
+    "label": "机器人成员",
+    "title": "机器人成员",
+    "description": "机器人是像成员一样在此工作区中工作的 AI 代理。每个机器人使用自己的令牌登录。可以像其他成员一样将它们添加到项目中。",
+    "add": "添加机器人成员",
+    "empty": "还没有机器人成员。",
+    "load_failed": "无法加载机器人成员。",
+    "badge": "机器人",
+    "columns": {
+      "name": "名称",
+      "role": "角色",
+      "status": "状态",
+      "token_last_used": "令牌上次使用"
+    },
+    "role": {
+      "member": "成员",
+      "guest": "访客"
+    },
+    "status": {
+      "active": "活跃",
+      "removed": "已移除"
+    },
+    "never_used": "从未",
+    "no_token": "无令牌",
+    "actions": {
+      "edit": "编辑",
+      "new_token": "新令牌",
+      "remove": "移除"
+    },
+    "form": {
+      "create_title": "添加机器人成员",
+      "edit_title": "编辑 {name}",
+      "create_description": "为机器人设置名称和角色。接下来你会获得它的令牌。",
+      "name": "名称",
+      "name_placeholder": "例如：分诊机器人",
+      "role": "角色",
+      "role_hint": "成员可以在被添加的项目中工作。访客只能查看和评论。",
+      "description": "用途",
+      "description_placeholder": "例如：整理新的缺陷报告",
+      "create": "添加机器人成员",
+      "creating": "正在添加...",
+      "save": "保存",
+      "saving": "正在保存..."
+    },
+    "token_dialog": {
+      "title": "{name} 的令牌",
+      "description": "机器人使用此令牌在 CRM 中工作。请立即复制：关闭此对话框后将无法再次查看。",
+      "label": "令牌",
+      "copy": "复制令牌",
+      "copied": "令牌已复制",
+      "done": "完成"
+    },
+    "new_token_dialog": {
+      "title": "为 {name} 创建新令牌？",
+      "description": "机器人将获得新令牌。当前令牌会立即失效。",
+      "confirm": "创建新令牌",
+      "confirming": "正在创建..."
+    },
+    "remove_dialog": {
+      "title": "移除 {name}？",
+      "description": "机器人将从此工作区及其项目中移除。它的令牌会立即失效。",
+      "confirm": "移除",
+      "confirming": "正在移除..."
+    },
+    "toasts": {
+      "created": "机器人成员已添加",
+      "create_failed": "无法添加机器人成员",
+      "updated": "机器人成员已保存",
+      "update_failed": "无法保存机器人成员",
+      "token_created": "新令牌已创建",
+      "token_failed": "无法创建新令牌",
+      "removed": "机器人成员已移除",
+      "remove_failed": "无法移除机器人成员"
     }
   }
 }

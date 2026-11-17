@@ -42,6 +42,8 @@ describe("CodingMachineService", () => {
 
     expect((await machines.create("acme", { name: "Laptop" })).join_code).toBe("AAAA-BBBB-CCCC-DDDD");
     expect(post).toHaveBeenLastCalledWith("/api/workspaces/acme/coding-machines/", { name: "Laptop" });
+    await machines.create("acme", { name: "Bot box", owner: "bot1" });
+    expect(post).toHaveBeenLastCalledWith("/api/workspaces/acme/coding-machines/", { name: "Bot box", owner: "bot1" });
     await machines.approve("acme", "m1");
     expect(post).toHaveBeenLastCalledWith("/api/workspaces/acme/coding-machines/m1/approve/", {});
     await machines.revoke("acme", "m1");

@@ -103,4 +103,28 @@ describe("CodingMachineStore", () => {
     await expect(store.fetchMachines("acme")).rejects.toBe(error);
     expect(store.getMachines("acme")).toBeUndefined();
   });
+
+  it("adds a bot member's machine for its owner and keeps it out of the admin's own list", async () => {
+    const created = { ...makeCreated("m9", "Bot box"), owner: "bot1", owner_is_bot: true };
+    const service = fakeMachineService({
+      list: vi.fn().mockResolvedValue([makeMachine("m1")]),
+      listAll: vi.fn().mockResolvedValue([makeMachine("m1")]),
+      create: vi.fn().mockResolvedValue(created),
+      approve: vi.fn().mockResolvedValue(makeMachine("m9", { owner: "bot1", owner_is_bot: true })),
+    });
+    const store = new CodingMachineStore({ service });
+    await store.fetchMachines("acme");
+    await store.fetchAllMachines("acme");
+
+    await store.createMachine("acme", "Bot box", "bot1");
+    await store.approveMachine("acme", "m9");
+
+    expect(service.create).toHaveBeenCalledWith("acme", { name: "Bot box", owner: "bot1" });
+    expect(store.getMachines("acme")?.map((m) => m.id)).toEqual(["m1"]);
+    expect(store.getAllMachines("acme")?.map((m) => [m.id, m.state])).toEqual([
+      ["m1", "active"],
+      ["m9", "active"],
+    ]);
+    expect(store.getAllMachines("acme")?.[1]).not.toHaveProperty("join_code");
+  });
 });

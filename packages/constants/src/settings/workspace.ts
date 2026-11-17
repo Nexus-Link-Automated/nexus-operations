@@ -76,6 +76,13 @@ export const WORKSPACE_SETTINGS: Record<TWorkspaceSettingsTabs, TWorkspaceSettin
     access: [EUserWorkspaceRoles.ADMIN],
     highlight: (pathname: string, baseUrl: string) => pathname === `${baseUrl}/settings/coding-machines/`,
   },
+  "bot-members": {
+    key: "bot-members",
+    i18n_label: "bot_members.label",
+    href: `/settings/bot-members`,
+    access: [EUserWorkspaceRoles.ADMIN],
+    highlight: (pathname: string, baseUrl: string) => pathname === `${baseUrl}/settings/bot-members/`,
+  },
 };
 
 export const WORKSPACE_SETTINGS_ACCESS = Object.fromEntries(
@@ -94,5 +101,6 @@ export const GROUPED_WORKSPACE_SETTINGS: Record<WORKSPACE_SETTINGS_CATEGORY, TWo
     WORKSPACE_SETTINGS["webhooks"],
     WORKSPACE_SETTINGS["ai-providers"],
     WORKSPACE_SETTINGS["coding-machines"],
+    WORKSPACE_SETTINGS["bot-members"],
   ],
 };

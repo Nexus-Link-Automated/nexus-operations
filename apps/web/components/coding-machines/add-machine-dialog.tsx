@@ -22,6 +22,7 @@ import {
 import { Icon } from "@makeplane/propel/components/icon";
 import { IconButton } from "@makeplane/propel/components/icon-button";
 import { InputField } from "@makeplane/propel/components/input-field";
+import { SelectField } from "@makeplane/propel/components/select-field";
 import { CopyOutline } from "@makeplane/propel/icons";
 import { setToast } from "@plane/blocks/toast";
 import { API_BASE_URL } from "@plane/constants";
@@ -33,9 +34,11 @@ import { codingErrorMessage, codingFieldErrors } from "../coding-jobs/helpers";
 import { START_COMMAND, joinCommand } from "./helpers";
 
 type Props = {
-  /** Adds the machine; a refusal is thrown. */
-  onCreate: (name: string) => Promise<TCodingMachineCreated>;
+  /** Adds the machine (for `owner`, a bot member, when bots are offered); a refusal is thrown. */
+  onCreate: (name: string, owner?: string) => Promise<TCodingMachineCreated>;
   onClose: () => void;
+  /** Workspace admins adding a machine for a bot member: the bots to pick from. */
+  bots?: { id: string; name: string }[];
 };
 
 /** The CRM address the machine service joins: where the API is, which is this web app's origin unless the API is
@@ -67,23 +70,25 @@ function CommandLine({ label, command }: { label: string; command: string }) {
 }
 
 /**
- * Adds a machine: asks for its name, then shows the join command with the join code. The code is shown only here,
- * once: closing the dialog drops it.
+ * Adds a machine: asks for its name (and, for a bot member's machine, which bot), then shows the join command with
+ * the join code. The code is shown only here, once: closing the dialog drops it.
  */
-export function AddMachineDialog({ onCreate, onClose }: Props) {
+export function AddMachineDialog({ onCreate, onClose, bots }: Props) {
   const { t } = useTranslation();
+  const forBot = !!bots;
   const [name, setName] = useState("");
+  const [owner, setOwner] = useState<string | null>(null);
   const [error, setError] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [created, setCreated] = useState<TCodingMachineCreated | null>(null);
 
   const handleSubmit = async () => {
     const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!trimmed || (forBot && !owner)) return;
     setError(undefined);
     setIsSubmitting(true);
     try {
-      setCreated(await onCreate(trimmed));
+      setCreated(await (forBot && owner ? onCreate(trimmed, owner) : onCreate(trimmed)));
       setToast({ type: "success", title: t("coding_machines.toasts.added") });
     } catch (caught) {
       const message = codingFieldErrors(caught).name ?? codingErrorMessage(t, caught);
@@ -144,8 +149,14 @@ export function AddMachineDialog({ onCreate, onClose }: Props) {
             <DialogMain>
               <DialogHeader>
                 <DialogHeading>
-                  <DialogTitle>{t("coding_machines.add_dialog.title")}</DialogTitle>
-                  <DialogDescription>{t("coding_machines.add_dialog.description")}</DialogDescription>
+                  <DialogTitle>
+                    {t(forBot ? "coding_machines.add_dialog.bot_title" : "coding_machines.add_dialog.title")}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {t(
+                      forBot ? "coding_machines.add_dialog.bot_description" : "coding_machines.add_dialog.description"
+                    )}
+                  </DialogDescription>
                 </DialogHeading>
               </DialogHeader>
               <DialogBody>
@@ -158,6 +169,18 @@ export function AddMachineDialog({ onCreate, onClose }: Props) {
                     void handleSubmit();
                   }}
                 >
+                  {bots && (
+                    <SelectField<string>
+                      label={t("coding_machines.add_dialog.bot")}
+                      placeholder={t("coding_machines.add_dialog.bot_placeholder")}
+                      size="lg"
+                      width="auto"
+                      options={bots.map((bot) => ({ value: bot.id, label: bot.name }))}
+                      value={owner}
+                      onValueChange={(value) => setOwner(value || null)}
+                      disabled={isSubmitting}
+                    />
+                  )}
                   <InputField
                     id="coding-machine-name"
                     name="name"
@@ -191,7 +214,7 @@ export function AddMachineDialog({ onCreate, onClose }: Props) {
                 size="md"
                 stretch="auto"
                 loading={isSubmitting}
-                disabled={!name.trim()}
+                disabled={!name.trim() || (forBot && !owner)}
                 label={t(isSubmitting ? "coding_machines.add_dialog.creating" : "coding_machines.add_dialog.create")}
               />
             </DialogActions>

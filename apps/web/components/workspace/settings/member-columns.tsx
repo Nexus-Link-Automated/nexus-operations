@@ -27,7 +27,8 @@ import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 
 export interface RowData {
-  member: IWorkspaceMember;
+  // The store passes the member's user here (`IUserLite`), which says whether it is a bot member.
+  member: IWorkspaceMember & { is_bot?: boolean };
   role: EUserPermissions;
   is_active: boolean;
 }
@@ -76,6 +77,7 @@ export function NameColumn(props: NameProps) {
           <span className="truncate">
             {first_name} {last_name}
           </span>
+          {!!rowData.member.is_bot && <Badge variant="purple" size="xs" label={t("bot_members.badge")} />}
         </div>
 
         {!isSuspended && (isAdmin || id === currentUser?.id) && (

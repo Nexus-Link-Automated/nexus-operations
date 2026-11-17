@@ -31,7 +31,9 @@
       "cancelled": "Tugas coding dibatalkan",
       "cancel_failed": "Tidak dapat membatalkan tugas coding",
       "retried": "Tugas coding dimulai lagi",
-      "retry_failed": "Tidak dapat mencoba ulang tugas coding"
+      "retry_failed": "Tidak dapat mencoba ulang tugas coding",
+      "answered": "Jawaban terkirim",
+      "answer_failed": "Tidak dapat mengirim jawaban"
     },
     "errors": {
       "CODING_NOT_CONFIGURED": "Tugas coding belum disiapkan untuk proyek ini. Admin proyek harus mengaktifkannya dan mengatur repositori.",
@@ -44,7 +46,14 @@
       "MACHINE_NOT_JOINED": "Mesin ini belum bergabung, jadi belum ada yang perlu disetujui.",
       "MACHINE_REVOKED": "Mesin ini dicabut oleh admin ruang kerja.",
       "forbidden": "Anda tidak memiliki izin untuk melakukan ini.",
-      "generic": "Terjadi kesalahan. Silakan coba lagi."
+      "generic": "Terjadi kesalahan. Silakan coba lagi.",
+      "NO_OPEN_QUESTION": "Agen sedang tidak punya pertanyaan terbuka. Mungkin seseorang sudah menjawabnya.",
+      "ANSWER_EMPTY": "Tulis jawaban terlebih dahulu.",
+      "BOT_NOT_ALLOWED": "Anggota bot tidak dapat mengelola mesin. Admin ruang kerja yang melakukannya untuk mereka.",
+      "BOT_NOT_FOUND": "Anggota bot itu tidak ditemukan. Mungkin sudah dihapus.",
+      "BOT_LIMIT": "Ruang kerja ini sudah memiliki jumlah anggota bot maksimum. Hapus satu terlebih dahulu.",
+      "BOT_ROLE_NOT_ALLOWED": "Anggota bot hanya dapat menjadi anggota atau tamu.",
+      "BOT_REMOVED": "Anggota bot ini telah dihapus dari ruang kerja."
     },
     "panel": {
       "title": "Tugas coding",
@@ -64,7 +73,22 @@
       "progress": "Progres",
       "progress_loading": "Memuat progres...",
       "progress_empty": "Belum ada progres.",
-      "progress_load_failed": "Tidak dapat memuat progres."
+      "progress_load_failed": "Tidak dapat memuat progres.",
+      "branch": "Cabang",
+      "opening_pr": "Membuka pull request...",
+      "questions": "Pertanyaan dari agen",
+      "open_question": "Agen punya pertanyaan",
+      "question_thinking": "Agen CRM sedang menyiapkan jawaban. Anda bisa menjawabnya sendiri.",
+      "question_waiting": "Menunggu jawaban.",
+      "answer_label": "Jawaban Anda",
+      "answer_placeholder": "Tulis jawaban Anda",
+      "answer_hint": "Agen melanjutkan dengan jawaban Anda.",
+      "answer": "Jawab",
+      "answering": "Mengirim...",
+      "answered_by": "Dijawab oleh {name}",
+      "answered_by_agent": "Dijawab oleh agen CRM",
+      "answered_by_unknown": "Dijawab",
+      "no_answer": "Tidak ada jawaban"
     },
     "status": {
       "queued": "Dalam antrean",
@@ -122,6 +146,17 @@
       "save_failed": "Tidak dapat menyimpan pengaturan coding",
       "read_only": "Hanya admin proyek yang dapat mengubah pengaturan ini.",
       "not_configured": "Tugas coding nonaktif untuk proyek ini. Aktifkan dan atur repositori agar anggota dapat memulai tugas."
+    },
+    "repository": {
+      "title": "Pull request",
+      "checking": "Memeriksa repositori...",
+      "check_failed": "Tidak dapat memeriksa repositori.",
+      "check_again": "Periksa lagi",
+      "ready": "Aktif. CRM dapat membuka pull request di repositori ini.",
+      "ready_private": "Aktif. CRM dapat membuka pull request di repositori privat ini.",
+      "ready_public": "Aktif. CRM dapat membuka pull request di repositori publik ini.",
+      "off": "Nonaktif. CRM belum dapat membuka pull request di repositori ini.",
+      "install": "Pasang GitHub App"
     }
   },
   "coding_machines": {
@@ -179,7 +214,11 @@
       "copied": "Disalin ke papan klip",
       "expires": "Kode kedaluwarsa pada {time}.",
       "after": "Saat mesin tampil sebagai Menunggu persetujuan, periksa nama host-nya lalu setujui.",
-      "done": "Selesai"
+      "done": "Selesai",
+      "bot_title": "Tambah mesin untuk bot",
+      "bot_description": "Pilih bot dan beri nama komputernya. Setelah itu Anda mendapat kode gabung untuk dipakai di komputer itu.",
+      "bot": "Bot",
+      "bot_placeholder": "Pilih bot"
     },
     "rename_dialog": {
       "title": "Ganti nama mesin",
@@ -227,7 +266,86 @@
         "description": "Mesin milik {owner} ini langsung berhenti berfungsi dan tidak menerima tugas lagi. Hanya pemiliknya yang dapat menghapusnya.",
         "confirm": "Cabut",
         "confirming": "Mencabut..."
-      }
+      },
+      "bot": "Bot",
+      "add_for_bot": "Tambah mesin untuk bot",
+      "no_bots": "Untuk menambahkan mesin untuk bot, tambahkan dulu anggota bot dengan peran Anggota.",
+      "approve_bot_description": "Mesin melaporkan host {hostname} ({os}). Setujui hanya jika ini komputer yang Anda siapkan untuk {owner}: mesin ini akan menjalankan tugas coding bot tersebut."
+    }
+  },
+  "bot_members": {
+    "label": "Anggota bot",
+    "title": "Anggota bot",
+    "description": "Bot adalah agen AI yang bekerja di ruang kerja ini seperti anggota. Setiap bot masuk dengan tokennya sendiri. Tambahkan ke proyek seperti anggota lainnya.",
+    "add": "Tambah anggota bot",
+    "empty": "Belum ada anggota bot.",
+    "load_failed": "Tidak dapat memuat anggota bot.",
+    "badge": "Bot",
+    "columns": {
+      "name": "Nama",
+      "role": "Peran",
+      "status": "Status",
+      "token_last_used": "Token terakhir dipakai"
+    },
+    "role": {
+      "member": "Anggota",
+      "guest": "Tamu"
+    },
+    "status": {
+      "active": "Aktif",
+      "removed": "Dihapus"
+    },
+    "never_used": "Belum pernah",
+    "no_token": "Tidak ada token",
+    "actions": {
+      "edit": "Edit",
+      "new_token": "Token baru",
+      "remove": "Hapus"
+    },
+    "form": {
+      "create_title": "Tambah anggota bot",
+      "edit_title": "Edit {name}",
+      "create_description": "Beri bot nama dan peran. Setelah itu Anda mendapat tokennya.",
+      "name": "Nama",
+      "name_placeholder": "mis. Bot triase",
+      "role": "Peran",
+      "role_hint": "Anggota dapat bekerja di proyek tempat mereka ditambahkan. Tamu hanya dapat melihat dan berkomentar.",
+      "description": "Untuk apa",
+      "description_placeholder": "mis. Memilah laporan bug baru",
+      "create": "Tambah anggota bot",
+      "creating": "Menambahkan...",
+      "save": "Simpan",
+      "saving": "Menyimpan..."
+    },
+    "token_dialog": {
+      "title": "Token untuk {name}",
+      "description": "Bot memakai token ini untuk bekerja di CRM. Salin sekarang: Anda tidak akan melihatnya lagi setelah menutup dialog ini.",
+      "label": "Token",
+      "copy": "Salin token",
+      "copied": "Token disalin",
+      "done": "Selesai"
+    },
+    "new_token_dialog": {
+      "title": "Token baru untuk {name}?",
+      "description": "Bot mendapat token baru. Token saat ini langsung berhenti berfungsi.",
+      "confirm": "Buat token baru",
+      "confirming": "Membuat..."
+    },
+    "remove_dialog": {
+      "title": "Hapus {name}?",
+      "description": "Bot dihapus dari ruang kerja ini dan proyek-proyeknya. Tokennya langsung berhenti berfungsi.",
+      "confirm": "Hapus",
+      "confirming": "Menghapus..."
+    },
+    "toasts": {
+      "created": "Anggota bot ditambahkan",
+      "create_failed": "Tidak dapat menambahkan anggota bot",
+      "updated": "Anggota bot disimpan",
+      "update_failed": "Tidak dapat menyimpan anggota bot",
+      "token_created": "Token baru dibuat",
+      "token_failed": "Tidak dapat membuat token baru",
+      "removed": "Anggota bot dihapus",
+      "remove_failed": "Tidak dapat menghapus anggota bot"
     }
   }
 }

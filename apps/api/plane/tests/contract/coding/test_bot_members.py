@@ -106,6 +106,15 @@ class TestLikeAnyMember:
         project_members = admin.get(f"/api/workspaces/{workspace.slug}/projects/{project.id}/members/").json()
         assert bot["id"] in [m["member"] for m in project_members]
 
+    def test_never_made_an_admin_through_the_members_list(self, make_bot, create_user, workspace):
+        bot = make_bot()
+        membership = WorkspaceMember.objects.get(workspace=workspace, member_id=bot["id"])
+        url = f"/api/workspaces/{workspace.slug}/members/{membership.id}/"
+        assert session(create_user).patch(url, {"role": ADMIN}, format="json").status_code == 400
+        assert session(create_user).patch(url, {"role": GUEST}, format="json").status_code == 200
+        member = session(create_user).get(f"/api/workspaces/{workspace.slug}/members/").json()
+        assert [m["member"]["bot_type"] for m in member if m["member"]["id"] == bot["id"]] == ["EMPLOYAI"]
+
     def test_role_changes(self, make_bot, admin, bots_url, project, workspace):
         bot = make_bot()
         ProjectMember.objects.create(project=project, member_id=bot["id"], role=MEMBER, is_active=True)

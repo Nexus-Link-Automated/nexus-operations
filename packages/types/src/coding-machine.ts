@@ -30,6 +30,8 @@ export type TCodingMachine = {
   workspace: string;
   owner: string;
   owner_display_name: string;
+  /** A bot member's machine: workspace admins add, approve, rename and remove it. */
+  owner_is_bot: boolean;
   name: string;
   state: TCodingMachineState;
   /** A heartbeat in the last 45 seconds. */
@@ -57,4 +59,9 @@ export type TCodingMachineCreated = TCodingMachine & {
 };
 
 /** The codes the machine endpoints refuse with (`{"error", "code"}`). */
-export type TCodingMachineErrorCode = "MACHINE_LIMIT" | "MACHINE_NOT_JOINED" | "MACHINE_REVOKED";
+export type TCodingMachineErrorCode =
+  | "MACHINE_LIMIT"
+  | "MACHINE_NOT_JOINED"
+  | "MACHINE_REVOKED"
+  | "BOT_NOT_ALLOWED"
+  | "BOT_NOT_FOUND";

@@ -38,8 +38,11 @@ export interface ICodingMachineStore {
   fetchMachines: (workspaceSlug: string) => Promise<TCodingMachine[]>;
   /** Loads every machine in the workspace. Workspace admins only. */
   fetchAllMachines: (workspaceSlug: string) => Promise<TCodingMachine[]>;
-  /** Adds a machine; the answer carries the join code, which the store does not keep. */
-  createMachine: (workspaceSlug: string, name: string) => Promise<TCodingMachineCreated>;
+  /**
+   * Adds a machine; the answer carries the join code, which the store does not keep. `owner` (a bot member's user
+   * id) adds it for that bot: workspace admins only.
+   */
+  createMachine: (workspaceSlug: string, name: string, owner?: string) => Promise<TCodingMachineCreated>;
   renameMachine: (workspaceSlug: string, machineId: string, name: string) => Promise<TCodingMachine>;
   removeMachine: (workspaceSlug: string, machineId: string) => Promise<void>;
   approveMachine: (workspaceSlug: string, machineId: string) => Promise<TCodingMachine>;
@@ -89,15 +92,15 @@ export class CodingMachineStore implements ICodingMachineStore {
   fetchAllMachines = (workspaceSlug: string) =>
     this.load(workspaceSlug, "all", () => this.service.listAll(workspaceSlug), this.allMachinesMap);
 
-  createMachine = async (workspaceSlug: string, name: string) => {
-    const created = await this.service.create(workspaceSlug, { name });
-    this.apply(workspaceSlug, { machine: withoutJoinCode(created), isOwn: true });
+  createMachine = async (workspaceSlug: string, name: string, owner?: string) => {
+    const created = await this.service.create(workspaceSlug, owner ? { name, owner } : { name });
+    this.apply(workspaceSlug, { machine: withoutJoinCode(created), isOwn: !owner && !created.owner_is_bot });
     return created;
   };
 
   renameMachine = async (workspaceSlug: string, machineId: string, name: string) => {
     const machine = await this.service.rename(workspaceSlug, machineId, { name });
-    this.apply(workspaceSlug, { machine, isOwn: true });
+    this.apply(workspaceSlug, { machine, isOwn: !machine.owner_is_bot });
     return machine;
   };
 
@@ -108,7 +111,7 @@ export class CodingMachineStore implements ICodingMachineStore {
 
   approveMachine = async (workspaceSlug: string, machineId: string) => {
     const machine = await this.service.approve(workspaceSlug, machineId);
-    this.apply(workspaceSlug, { machine, isOwn: true });
+    this.apply(workspaceSlug, { machine, isOwn: !machine.owner_is_bot });
     return machine;
   };
 
@@ -141,7 +144,8 @@ export class CodingMachineStore implements ICodingMachineStore {
 
   /**
    * Puts a changed machine into the lists that hold it, or takes a removed one out. The user's own list takes a
-   * machine only when `isOwn` (added, renamed or approved: owner-only actions) or when it already holds it.
+   * machine only when `isOwn` (added, renamed or approved by its owner; a bot member's machine, which an admin manages,
+   * never is) or when it already holds it.
    */
   private apply(workspaceSlug: string, change: { machine: TCodingMachine; isOwn: boolean } | { removedId: string }) {
     this.version[workspaceSlug] = (this.version[workspaceSlug] ?? 0) + 1;

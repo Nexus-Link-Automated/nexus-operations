@@ -21,6 +21,9 @@ const job = (id: string, overrides: Partial<TCodingJob> = {}): TCodingJob => ({
   outcome: null,
   result: {},
   pr_url: "",
+  pr_branch: "",
+  result_received_at: null,
+  questions: [],
   error_reason: "",
   retry_of: null,
   comment: null,
@@ -60,7 +63,9 @@ function fakeService(overrides: Partial<TCodingJobStoreService> = {}) {
     start: vi.fn(),
     cancel: vi.fn(),
     retry: vi.fn(),
+    answer: vi.fn(),
     getSettings: vi.fn().mockResolvedValue(settings()),
+    getRepository: vi.fn().mockResolvedValue({ pull_requests: true }),
     updateSettings: vi.fn(),
     listEvents: vi.fn().mockResolvedValue({ results: [], has_more: false }),
     ...overrides,
@@ -440,5 +445,47 @@ describe("CodingJobStore", () => {
       expect(service.listEvents).not.toHaveBeenCalled();
       stop();
     });
+  });
+
+  it("answers a job's open question and keeps the updated job", async () => {
+    const waiting = job("j1", { status: "needs_input" });
+    const service = fakeService({
+      list: vi.fn().mockResolvedValue([waiting]),
+      answer: vi.fn().mockResolvedValue({ ...waiting, status: "running", updated_at: "2026-11-14T10:05:00Z" }),
+    });
+    const store = new CodingJobStore({ service });
+    await store.fetchJobs("acme", "p1", "w1");
+
+    await store.answerJob("acme", "p1", "w1", "j1", "Use main.");
+
+    expect(service.answer).toHaveBeenCalledWith("acme", "p1", "w1", "j1", "Use main.");
+    expect(store.getJobs("w1")?.[0].status).toBe("running");
+  });
+
+  it("reloads the jobs when the question was already answered", async () => {
+    const service = fakeService({
+      list: vi.fn().mockResolvedValue([job("j1", { status: "needs_input" })]),
+      answer: vi.fn().mockRejectedValue(refusal(409, "NO_OPEN_QUESTION")),
+    });
+    const store = new CodingJobStore({ service });
+    await store.fetchJobs("acme", "p1", "w1");
+
+    await expect(store.answerJob("acme", "p1", "w1", "j1", "Yes")).rejects.toBeInstanceOf(CodingJobServiceError);
+    await vi.waitFor(() => expect(service.list).toHaveBeenCalledTimes(2));
+  });
+
+  it("loads the repository's pull request status once per project at a time", async () => {
+    const service = fakeService();
+    const store = new CodingJobStore({ service });
+
+    const [first, second] = await Promise.all([
+      store.fetchRepository("acme", "p1"),
+      store.fetchRepository("acme", "p1"),
+    ]);
+
+    expect(first).toBe(second);
+    expect(service.getRepository).toHaveBeenCalledTimes(1);
+    expect(store.getRepository("p1")).toEqual({ pull_requests: true });
+    expect(store.getRepository("p2")).toBeUndefined();
   });
 });

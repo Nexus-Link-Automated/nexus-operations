@@ -31,7 +31,9 @@
       "cancelled": "Programovací úloha byla zrušena",
       "cancel_failed": "Programovací úlohu se nepodařilo zrušit",
       "retried": "Programovací úloha byla znovu spuštěna",
-      "retry_failed": "Programovací úlohu se nepodařilo zopakovat"
+      "retry_failed": "Programovací úlohu se nepodařilo zopakovat",
+      "answered": "Odpověď odeslána",
+      "answer_failed": "Odpověď se nepodařilo odeslat"
     },
     "errors": {
       "CODING_NOT_CONFIGURED": "Programovací úlohy nejsou pro tento projekt nastaveny. Správce projektu je musí zapnout a nastavit repozitář.",
@@ -44,7 +46,14 @@
       "MACHINE_NOT_JOINED": "Tento stroj se ještě nepřipojil, takže není co schvalovat.",
       "MACHINE_REVOKED": "Tento stroj odvolal správce pracovního prostoru.",
       "forbidden": "Nemáte oprávnění k této akci.",
-      "generic": "Něco se pokazilo. Zkuste to prosím znovu."
+      "generic": "Něco se pokazilo. Zkuste to prosím znovu.",
+      "NO_OPEN_QUESTION": "Agent teď nemá žádnou otevřenou otázku. Možná na ni už někdo odpověděl.",
+      "ANSWER_EMPTY": "Nejprve napište odpověď.",
+      "BOT_NOT_ALLOWED": "Členové-boti nemohou spravovat stroje. Dělá to za ně správce pracovního prostoru.",
+      "BOT_NOT_FOUND": "Tento člen-bot nebyl nalezen. Možná byl odebrán.",
+      "BOT_LIMIT": "Tento pracovní prostor už má maximální povolený počet členů-botů. Nejprve jednoho odeberte.",
+      "BOT_ROLE_NOT_ALLOWED": "Člen-bot může být jen člen nebo host.",
+      "BOT_REMOVED": "Tento člen-bot byl z pracovního prostoru odebrán."
     },
     "panel": {
       "title": "Programovací úlohy",
@@ -64,7 +73,22 @@
       "progress": "Průběh",
       "progress_loading": "Načítání průběhu...",
       "progress_empty": "Zatím žádný průběh.",
-      "progress_load_failed": "Průběh se nepodařilo načíst."
+      "progress_load_failed": "Průběh se nepodařilo načíst.",
+      "branch": "Větev",
+      "opening_pr": "Otevírá se pull request...",
+      "questions": "Otázky od agenta",
+      "open_question": "Agent má otázku",
+      "question_thinking": "Agent CRM připravuje odpověď. Můžete odpovědět i sami.",
+      "question_waiting": "Čeká se na odpověď.",
+      "answer_label": "Vaše odpověď",
+      "answer_placeholder": "Napište svou odpověď",
+      "answer_hint": "Agent bude pokračovat podle vaší odpovědi.",
+      "answer": "Odpovědět",
+      "answering": "Odesílání...",
+      "answered_by": "Odpověděl(a) {name}",
+      "answered_by_agent": "Odpověděl agent CRM",
+      "answered_by_unknown": "Zodpovězeno",
+      "no_answer": "Žádná odpověď nepřišla"
     },
     "status": {
       "queued": "Ve frontě",
@@ -122,6 +146,17 @@
       "save_failed": "Nastavení programování se nepodařilo uložit",
       "read_only": "Tato nastavení mohou měnit pouze správci projektu.",
       "not_configured": "Programovací úlohy jsou pro tento projekt vypnuté. Zapněte je a nastavte repozitář, aby členové mohli spouštět úlohy."
+    },
+    "repository": {
+      "title": "Pull requesty",
+      "checking": "Kontroluje se repozitář...",
+      "check_failed": "Repozitář se nepodařilo zkontrolovat.",
+      "check_again": "Zkontrolovat znovu",
+      "ready": "Zapnuto. CRM může v tomto repozitáři otevírat pull requesty.",
+      "ready_private": "Zapnuto. CRM může v tomto soukromém repozitáři otevírat pull requesty.",
+      "ready_public": "Zapnuto. CRM může v tomto veřejném repozitáři otevírat pull requesty.",
+      "off": "Vypnuto. CRM zatím nemůže v tomto repozitáři otevírat pull requesty.",
+      "install": "Nainstalovat GitHub App"
     }
   },
   "coding_machines": {
@@ -179,7 +214,11 @@
       "copied": "Zkopírováno do schránky",
       "expires": "Kód vyprší {time}.",
       "after": "Až se stroj zobrazí jako Čeká na schválení, zkontrolujte jeho název hostitele a schvalte ho.",
-      "done": "Hotovo"
+      "done": "Hotovo",
+      "bot_title": "Přidat stroj pro bota",
+      "bot_description": "Vyberte bota a pojmenujte jeho počítač. Pak dostanete připojovací kód, který na něm použijete.",
+      "bot": "Bot",
+      "bot_placeholder": "Vyberte bota"
     },
     "rename_dialog": {
       "title": "Přejmenovat stroj",
@@ -227,7 +266,86 @@
         "description": "Tento stroj uživatele {owner} okamžitě přestane fungovat a nebude dostávat další úlohy. Odebrat ho může jen jeho vlastník.",
         "confirm": "Odvolat",
         "confirming": "Odvolávání..."
-      }
+      },
+      "bot": "Bot",
+      "add_for_bot": "Přidat stroj pro bota",
+      "no_bots": "Chcete-li přidat stroj pro bota, nejprve přidejte člena-bota s rolí Člen.",
+      "approve_bot_description": "Stroj hlásí hostitele {hostname} ({os}). Schvalte ho, jen pokud je to počítač, který jste připravili pro {owner}: bude spouštět programovací úlohy tohoto bota."
+    }
+  },
+  "bot_members": {
+    "label": "Členové-boti",
+    "title": "Členové-boti",
+    "description": "Boti jsou AI agenti, kteří v tomto pracovním prostoru pracují jako členové. Každý se přihlašuje vlastním tokenem. Přidávejte je do projektů jako kteréhokoli člena.",
+    "add": "Přidat člena-bota",
+    "empty": "Zatím žádní členové-boti.",
+    "load_failed": "Členy-boty se nepodařilo načíst.",
+    "badge": "Bot",
+    "columns": {
+      "name": "Název",
+      "role": "Role",
+      "status": "Stav",
+      "token_last_used": "Token naposledy použit"
+    },
+    "role": {
+      "member": "Člen",
+      "guest": "Host"
+    },
+    "status": {
+      "active": "Aktivní",
+      "removed": "Odebrán"
+    },
+    "never_used": "Nikdy",
+    "no_token": "Žádný token",
+    "actions": {
+      "edit": "Upravit",
+      "new_token": "Nový token",
+      "remove": "Odebrat"
+    },
+    "form": {
+      "create_title": "Přidat člena-bota",
+      "edit_title": "Upravit {name}",
+      "create_description": "Dejte botovi název a roli. Pak dostanete jeho token.",
+      "name": "Název",
+      "name_placeholder": "např. Třídicí bot",
+      "role": "Role",
+      "role_hint": "Členové mohou pracovat v projektech, do kterých jsou přidáni. Hosté mohou jen prohlížet a komentovat.",
+      "description": "K čemu slouží",
+      "description_placeholder": "např. Třídí nová hlášení chyb",
+      "create": "Přidat člena-bota",
+      "creating": "Přidávání...",
+      "save": "Uložit",
+      "saving": "Ukládání..."
+    },
+    "token_dialog": {
+      "title": "Token pro {name}",
+      "description": "Bot tímto tokenem pracuje v CRM. Zkopírujte si ho hned: po zavření tohoto okna ho už neuvidíte.",
+      "label": "Token",
+      "copy": "Kopírovat token",
+      "copied": "Token zkopírován",
+      "done": "Hotovo"
+    },
+    "new_token_dialog": {
+      "title": "Nový token pro {name}?",
+      "description": "Bot dostane nový token. Jeho současný token okamžitě přestane fungovat.",
+      "confirm": "Vytvořit nový token",
+      "confirming": "Vytváření..."
+    },
+    "remove_dialog": {
+      "title": "Odebrat {name}?",
+      "description": "Bot bude odebrán z tohoto pracovního prostoru a jeho projektů. Jeho token okamžitě přestane fungovat.",
+      "confirm": "Odebrat",
+      "confirming": "Odebírání..."
+    },
+    "toasts": {
+      "created": "Člen-bot přidán",
+      "create_failed": "Člena-bota se nepodařilo přidat",
+      "updated": "Člen-bot uložen",
+      "update_failed": "Člena-bota se nepodařilo uložit",
+      "token_created": "Nový token vytvořen",
+      "token_failed": "Nový token se nepodařilo vytvořit",
+      "removed": "Člen-bot odebrán",
+      "remove_failed": "Člena-bota se nepodařilo odebrat"
     }
   }
 }

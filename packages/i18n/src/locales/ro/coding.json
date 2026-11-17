@@ -31,7 +31,9 @@
       "cancelled": "Sarcina de programare a fost anulată",
       "cancel_failed": "Sarcina de programare nu a putut fi anulată",
       "retried": "Sarcina de programare a pornit din nou",
-      "retry_failed": "Sarcina de programare nu a putut fi reîncercată"
+      "retry_failed": "Sarcina de programare nu a putut fi reîncercată",
+      "answered": "Răspuns trimis",
+      "answer_failed": "Răspunsul nu a putut fi trimis"
     },
     "errors": {
       "CODING_NOT_CONFIGURED": "Sarcinile de programare nu sunt configurate pentru acest proiect. Un administrator al proiectului trebuie să le activeze și să seteze repozitoriul.",
@@ -44,7 +46,14 @@
       "MACHINE_NOT_JOINED": "Această mașină nu s-a alăturat încă, deci nu ai ce aproba.",
       "MACHINE_REVOKED": "Această mașină a fost revocată de un administrator al spațiului de lucru.",
       "forbidden": "Nu aveți permisiunea de a face acest lucru.",
-      "generic": "A apărut o problemă. Încercați din nou."
+      "generic": "A apărut o problemă. Încercați din nou.",
+      "NO_OPEN_QUESTION": "Agentul nu are acum nicio întrebare deschisă. Poate cineva a răspuns deja.",
+      "ANSWER_EMPTY": "Scrie mai întâi un răspuns.",
+      "BOT_NOT_ALLOWED": "Membrii bot nu pot gestiona mașini. Un administrator al spațiului de lucru face asta pentru ei.",
+      "BOT_NOT_FOUND": "Membrul bot nu a fost găsit. Poate a fost eliminat.",
+      "BOT_LIMIT": "Acest spațiu de lucru are numărul maxim de membri bot. Elimină mai întâi unul.",
+      "BOT_ROLE_NOT_ALLOWED": "Un membru bot poate fi doar membru sau invitat.",
+      "BOT_REMOVED": "Acest membru bot a fost eliminat din spațiul de lucru."
     },
     "panel": {
       "title": "Sarcini de programare",
@@ -64,7 +73,22 @@
       "progress": "Progres",
       "progress_loading": "Se încarcă progresul...",
       "progress_empty": "Încă nu există progres.",
-      "progress_load_failed": "Progresul nu a putut fi încărcat."
+      "progress_load_failed": "Progresul nu a putut fi încărcat.",
+      "branch": "Ramură",
+      "opening_pr": "Se deschide un pull request...",
+      "questions": "Întrebări de la agent",
+      "open_question": "Agentul are o întrebare",
+      "question_thinking": "Agentul CRM pregătește un răspuns. Poți răspunde și tu.",
+      "question_waiting": "Se așteaptă un răspuns.",
+      "answer_label": "Răspunsul tău",
+      "answer_placeholder": "Scrie răspunsul tău",
+      "answer_hint": "Agentul continuă cu răspunsul tău.",
+      "answer": "Răspunde",
+      "answering": "Se trimite...",
+      "answered_by": "Răspuns de {name}",
+      "answered_by_agent": "Răspuns de agentul CRM",
+      "answered_by_unknown": "Răspuns dat",
+      "no_answer": "Nu a venit niciun răspuns"
     },
     "status": {
       "queued": "În coadă",
@@ -122,6 +146,17 @@
       "save_failed": "Setările de programare nu au putut fi salvate",
       "read_only": "Doar administratorii proiectului pot modifica aceste setări.",
       "not_configured": "Sarcinile de programare sunt dezactivate pentru acest proiect. Activați-le și setați repozitoriul pentru ca membrii să poată porni sarcini."
+    },
+    "repository": {
+      "title": "Pull requesturi",
+      "checking": "Se verifică repozitoriul...",
+      "check_failed": "Repozitoriul nu a putut fi verificat.",
+      "check_again": "Verifică din nou",
+      "ready": "Activat. CRM-ul poate deschide pull requesturi în acest repozitoriu.",
+      "ready_private": "Activat. CRM-ul poate deschide pull requesturi în acest repozitoriu privat.",
+      "ready_public": "Activat. CRM-ul poate deschide pull requesturi în acest repozitoriu public.",
+      "off": "Dezactivat. CRM-ul nu poate deschide încă pull requesturi în acest repozitoriu.",
+      "install": "Instalează GitHub App"
     }
   },
   "coding_machines": {
@@ -179,7 +214,11 @@
       "copied": "Copiat în clipboard",
       "expires": "Codul expiră la {time}.",
       "after": "Când mașina apare ca Așteaptă aprobarea, verifică numele gazdei și aprob-o.",
-      "done": "Gata"
+      "done": "Gata",
+      "bot_title": "Adaugă mașină pentru un bot",
+      "bot_description": "Alege botul și denumește computerul lui. Apoi primești un cod de alăturare de folosit pe el.",
+      "bot": "Bot",
+      "bot_placeholder": "Alege un bot"
     },
     "rename_dialog": {
       "title": "Redenumește mașina",
@@ -227,7 +266,86 @@
         "description": "Această mașină a lui {owner} nu mai funcționează imediat și nu mai primește sarcini. Doar proprietarul ei o poate elimina.",
         "confirm": "Revocă",
         "confirming": "Se revocă..."
-      }
+      },
+      "bot": "Bot",
+      "add_for_bot": "Adaugă mașină pentru un bot",
+      "no_bots": "Pentru a adăuga o mașină pentru un bot, adaugă mai întâi un membru bot cu rolul Membru.",
+      "approve_bot_description": "Mașina raportează gazda {hostname} ({os}). Aprob-o doar dacă este computerul pe care l-ai pregătit pentru {owner}: va rula sarcinile de programare ale acelui bot."
+    }
+  },
+  "bot_members": {
+    "label": "Membri bot",
+    "title": "Membri bot",
+    "description": "Boții sunt agenți AI care lucrează în acest spațiu de lucru ca membrii. Fiecare se autentifică cu propriul token. Adaugă-i în proiecte ca pe orice membru.",
+    "add": "Adaugă membru bot",
+    "empty": "Încă nu există membri bot.",
+    "load_failed": "Membrii bot nu au putut fi încărcați.",
+    "badge": "Bot",
+    "columns": {
+      "name": "Nume",
+      "role": "Rol",
+      "status": "Stare",
+      "token_last_used": "Token folosit ultima dată"
+    },
+    "role": {
+      "member": "Membru",
+      "guest": "Invitat"
+    },
+    "status": {
+      "active": "Activ",
+      "removed": "Eliminat"
+    },
+    "never_used": "Niciodată",
+    "no_token": "Fără token",
+    "actions": {
+      "edit": "Editează",
+      "new_token": "Token nou",
+      "remove": "Elimină"
+    },
+    "form": {
+      "create_title": "Adaugă membru bot",
+      "edit_title": "Editează {name}",
+      "create_description": "Dă-i botului un nume și un rol. Apoi primești tokenul lui.",
+      "name": "Nume",
+      "name_placeholder": "ex. Bot de triere",
+      "role": "Rol",
+      "role_hint": "Membrii pot lucra în proiectele în care sunt adăugați. Invitații pot doar să vadă și să comenteze.",
+      "description": "La ce folosește",
+      "description_placeholder": "ex. Sortează rapoartele noi de bug",
+      "create": "Adaugă membru bot",
+      "creating": "Se adaugă...",
+      "save": "Salvează",
+      "saving": "Se salvează..."
+    },
+    "token_dialog": {
+      "title": "Token pentru {name}",
+      "description": "Botul folosește acest token pentru a lucra în CRM. Copiază-l acum: după ce închizi această fereastră, nu îl vei mai vedea.",
+      "label": "Token",
+      "copy": "Copiază tokenul",
+      "copied": "Token copiat",
+      "done": "Gata"
+    },
+    "new_token_dialog": {
+      "title": "Token nou pentru {name}?",
+      "description": "Botul primește un token nou. Tokenul actual nu mai funcționează imediat.",
+      "confirm": "Creează token nou",
+      "confirming": "Se creează..."
+    },
+    "remove_dialog": {
+      "title": "Elimini {name}?",
+      "description": "Botul este eliminat din acest spațiu de lucru și din proiectele lui. Tokenul nu mai funcționează imediat.",
+      "confirm": "Elimină",
+      "confirming": "Se elimină..."
+    },
+    "toasts": {
+      "created": "Membru bot adăugat",
+      "create_failed": "Membrul bot nu a putut fi adăugat",
+      "updated": "Membru bot salvat",
+      "update_failed": "Membrul bot nu a putut fi salvat",
+      "token_created": "Token nou creat",
+      "token_failed": "Nu s-a putut crea un token nou",
+      "removed": "Membru bot eliminat",
+      "remove_failed": "Membrul bot nu a putut fi eliminat"
     }
   }
 }

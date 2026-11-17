@@ -16,6 +16,7 @@ export const makeMachine = (id: string, overrides: Partial<TCodingMachine> = {})
   workspace: "ws",
   owner: "me",
   owner_display_name: "Me",
+  owner_is_bot: false,
   name: `Machine ${id}`,
   state: "active",
   is_online: true,

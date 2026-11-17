@@ -10,7 +10,7 @@ import { CodingJobServiceError } from "@plane/services";
 import type { TCodingJob } from "@plane/types";
 import { CodingJobStore } from "@/store/coding-job.store";
 import type { TRole } from "./test-utils";
-import { fakeCodingService, makeJob, makeSettings, permissionsFor } from "./test-utils";
+import { fakeCodingService, makeJob, makeQuestion, makeSettings, permissionsFor } from "./test-utils";
 
 const mocks = vi.hoisted(() => ({
   store: undefined as unknown,
@@ -333,6 +333,173 @@ describe("CodingJobsPanel", () => {
 
     expect(await row(0).findByText("coding_jobs.panel.progress_empty")).toBeTruthy();
     expect(await row(1).findByText("coding_jobs.panel.progress_load_failed")).toBeTruthy();
+  });
+
+  it("shows the branch the CRM pushed, and that a pull request is being opened", async () => {
+    await setup([
+      makeJob("j2", {
+        status: "running",
+        ran_on_name: "Laptop",
+        pr_branch: "nexus/fix-bug/1a2b3c4d",
+        result_received_at: "2026-11-14T11:05:00Z",
+        progress: "Opening a pull request.",
+        created_at: "2026-11-14T11:00:00Z",
+      }),
+      makeJob("j1", {
+        status: "finished",
+        outcome: "fixed",
+        is_active: false,
+        pr_url: "https://github.com/acme/app/pull/7",
+        pr_branch: "nexus/fix-bug/9f8e7d6c",
+      }),
+    ]);
+
+    expect(row(0).getByTestId("coding-job-opening-pr").textContent).toBe("coding_jobs.panel.opening_pr");
+    expect(row(0).getByTestId("coding-job-branch").textContent).toContain("nexus/fix-bug/1a2b3c4d");
+    expect(row(0).queryByRole("link", { name: "coding_jobs.panel.pr" })).toBeNull();
+
+    expect(row(1).queryByTestId("coding-job-opening-pr")).toBeNull();
+    expect(row(1).getByRole("link", { name: "coding_jobs.panel.pr" })).toBeTruthy();
+    expect(row(1).getByTestId("coding-job-branch").textContent).toContain("nexus/fix-bug/9f8e7d6c");
+  });
+
+  it("shows no branch when there is none", async () => {
+    await setup([makeJob("j1", { status: "running", ran_on_name: "Laptop" })]);
+    expect(row().queryByTestId("coding-job-branch")).toBeNull();
+    expect(row().queryByTestId("coding-job-opening-pr")).toBeNull();
+  });
+
+  it("lists a job's questions with who answered, the CRM agent, or that no answer came, as plain text", async () => {
+    await setup([
+      makeJob("j1", {
+        status: "running",
+        ran_on_name: "Laptop",
+        questions: [
+          makeQuestion(1, {
+            question: "Which <b>API</b> version?",
+            status: "answered",
+            answer: "Use v2.",
+            answered_by: "u2",
+            answered_by_name: "Ada",
+            answered_at: "2026-11-14T10:03:00Z",
+          }),
+          makeQuestion(2, {
+            question: "Keep the old test?",
+            status: "answered",
+            answer: "Yes, keep it.",
+            answered_by_agent: true,
+            answered_at: "2026-11-14T10:04:00Z",
+          }),
+          makeQuestion(3, { question: "Bump the version?", status: "unanswered" }),
+        ],
+      }),
+    ]);
+
+    const questions = row().getAllByTestId("coding-job-question");
+    expect(questions).toHaveLength(3);
+    expect(questions[0].textContent).toContain("Which <b>API</b> version?");
+    expect(questions[0].querySelector("b")).toBeNull();
+    expect(within(questions[0]).getByText("Use v2.")).toBeTruthy();
+    expect(within(questions[0]).getByText(/coding_jobs.panel.answered_by .*Ada/)).toBeTruthy();
+    expect(within(questions[1]).getByText(/coding_jobs.panel.answered_by_agent/)).toBeTruthy();
+    expect(within(questions[2]).getByText("coding_jobs.panel.no_answer")).toBeTruthy();
+    // Nothing is waiting for an answer, so there is nothing to answer.
+    expect(row().queryByTestId("coding-job-open-question")).toBeNull();
+  });
+
+  it("lets a member answer the open question, then shows the updated job", async () => {
+    const waiting = makeJob("j1", {
+      status: "needs_input",
+      ran_on_name: "Laptop",
+      questions: [makeQuestion(1, { question: "Which branch should I use?", status: "waiting" })],
+    });
+    const service = await setup([waiting], {
+      answer: vi.fn().mockResolvedValue({
+        ...waiting,
+        status: "running",
+        questions: [
+          makeQuestion(1, {
+            question: "Which branch should I use?",
+            status: "answered",
+            answer: "Use main.",
+            answered_by: "me",
+            answered_by_name: "Me",
+            answered_at: "2026-11-14T10:05:00Z",
+          }),
+        ],
+        updated_at: "2026-11-14T10:05:00Z",
+      }),
+    });
+
+    const open = within(row().getByTestId("coding-job-open-question"));
+    expect(open.getByText("Which branch should I use?")).toBeTruthy();
+    const submit = open.getByRole("button", { name: "coding_jobs.panel.answer" });
+    expect(submit.hasAttribute("disabled")).toBe(true);
+
+    fireEvent.change(open.getByLabelText("coding_jobs.panel.answer_label"), { target: { value: "  Use main.  " } });
+    expect(submit.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(service.answer).toHaveBeenCalledWith("acme", "p1", "w1", "j1", "Use main."));
+    expect(await row().findByText("coding_jobs.status.running")).toBeTruthy();
+    expect(row().queryByTestId("coding-job-open-question")).toBeNull();
+    expect(row().getByText(/coding_jobs.panel.answered_by .*Me/)).toBeTruthy();
+    expect(mocks.setToast).toHaveBeenCalledWith({ type: "success", title: "coding_jobs.toasts.answered" });
+  });
+
+  it("shows the open question to guests without a way to answer it", async () => {
+    mocks.role = "guest";
+    await setup([
+      makeJob("j1", {
+        status: "needs_input",
+        ran_on_name: "Laptop",
+        questions: [makeQuestion(1, { status: "thinking" })],
+      }),
+    ]);
+
+    const open = within(row().getByTestId("coding-job-open-question"));
+    expect(open.getByText("Question 1?")).toBeTruthy();
+    expect(open.getByText("coding_jobs.panel.question_thinking")).toBeTruthy();
+    expect(open.queryByRole("textbox")).toBeNull();
+    expect(open.queryByRole("button", { name: "coding_jobs.panel.answer" })).toBeNull();
+  });
+
+  it("shows the refusal when the question was already answered", async () => {
+    await setup([makeJob("j1", { status: "needs_input", ran_on_name: "Laptop", questions: [makeQuestion(1)] })], {
+      answer: vi
+        .fn()
+        .mockRejectedValue(new CodingJobServiceError(409, { error: "No open question.", code: "NO_OPEN_QUESTION" })),
+    });
+
+    const open = within(row().getByTestId("coding-job-open-question"));
+    fireEvent.change(open.getByLabelText("coding_jobs.panel.answer_label"), { target: { value: "Yes" } });
+    fireEvent.click(open.getByRole("button", { name: "coding_jobs.panel.answer" }));
+
+    await waitFor(() =>
+      expect(mocks.setToast).toHaveBeenCalledWith({
+        type: "error",
+        title: "coding_jobs.toasts.answer_failed",
+        message: "coding_jobs.errors.NO_OPEN_QUESTION",
+      })
+    );
+  });
+
+  it("shows the API's own message when a retry hits the job limit", async () => {
+    await setup([failed], {
+      retry: vi
+        .fn()
+        .mockRejectedValue(
+          new CodingJobServiceError(429, { error: "You have 3 jobs running. Wait for one to end.", code: "JOB_LIMIT" })
+        ),
+    });
+
+    fireEvent.click(button("coding_jobs.panel.retry")!);
+
+    await waitFor(() =>
+      expect(mocks.setToast).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "error", message: "You have 3 jobs running. Wait for one to end." })
+      )
+    );
   });
 
   it("follows the work item's jobs while shown and stops when it goes away", async () => {

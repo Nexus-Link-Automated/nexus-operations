@@ -12,6 +12,7 @@ import type {
   TCodingJob,
   TCodingJobEvent,
   TCodingJobStatus,
+  TCodingRepositoryAccess,
   TProjectCodingSettings,
   TProjectCodingSettingsUpdate,
 } from "@plane/types";
@@ -19,7 +20,7 @@ import type {
 /** The REST calls the store makes. `CodingJobService` in the app; a fake in tests. */
 export type TCodingJobStoreService = Pick<
   CodingJobService,
-  "list" | "start" | "cancel" | "retry" | "getSettings" | "updateSettings" | "listEvents"
+  "list" | "start" | "cancel" | "retry" | "answer" | "getSettings" | "getRepository" | "updateSettings" | "listEvents"
 >;
 
 /** How often a shown work item's jobs, and an open job's progress, reload while a job is queued or running. */
@@ -36,7 +37,7 @@ const MAX_EVENT_PAGES = 5;
 const isDocumentHidden = () => typeof document !== "undefined" && document.hidden;
 
 /** Refusals that mean the job list on screen is out of date, so the store reloads it. */
-const STALE_JOB_CODES = new Set(["JOB_ACTIVE", "JOB_NOT_ACTIVE", "JOB_NOT_RETRYABLE"]);
+const STALE_JOB_CODES = new Set(["JOB_ACTIVE", "JOB_NOT_ACTIVE", "JOB_NOT_RETRYABLE", "NO_OPEN_QUESTION"]);
 
 /** A new array, newest job first. */
 const sortNewestFirst = (jobs: Iterable<TCodingJob>) =>
@@ -54,9 +55,12 @@ export interface ICodingJobStore {
   jobsMap: Record<string, TCodingJob[]>;
   /** Job id → its events loaded so far, oldest first. */
   eventsMap: Record<string, TCodingJobEvent[]>;
+  /** Project id → whether pull requests can be opened on its repository, once loaded. */
+  repositoryMap: Record<string, TCodingRepositoryAccess>;
   getSettings: (projectId: string | null | undefined) => TProjectCodingSettings | undefined;
   getJobs: (workItemId: string | null | undefined) => TCodingJob[] | undefined;
   getEvents: (jobId: string | null | undefined) => TCodingJobEvent[] | undefined;
+  getRepository: (projectId: string | null | undefined) => TCodingRepositoryAccess | undefined;
   /** Loads the project's settings. Members and admins only: a guest's 403 is thrown. */
   fetchSettings: (workspaceSlug: string, projectId: string) => Promise<TProjectCodingSettings>;
   /** Project admins only. */
@@ -65,6 +69,11 @@ export interface ICodingJobStore {
     projectId: string,
     data: TProjectCodingSettingsUpdate
   ) => Promise<TProjectCodingSettings>;
+  /**
+   * Asks the API whether pull requests can be opened on the project's repository (it asks GitHub, so it is slow).
+   * Members and admins only. One request per project at a time.
+   */
+  fetchRepository: (workspaceSlug: string, projectId: string) => Promise<TCodingRepositoryAccess>;
   fetchJobs: (workspaceSlug: string, projectId: string, workItemId: string) => Promise<TCodingJob[]>;
   startJob: (
     workspaceSlug: string,
@@ -77,6 +86,14 @@ export interface ICodingJobStore {
   ) => Promise<TCodingJob>;
   cancelJob: (workspaceSlug: string, projectId: string, workItemId: string, jobId: string) => Promise<TCodingJob>;
   retryJob: (workspaceSlug: string, projectId: string, workItemId: string, jobId: string) => Promise<TCodingJob>;
+  /** Answers the job's open question. Members and admins only. */
+  answerJob: (
+    workspaceSlug: string,
+    projectId: string,
+    workItemId: string,
+    jobId: string,
+    text: string
+  ) => Promise<TCodingJob>;
   /** Loads the job's events after the last one loaded (all of them the first time). One request per job at a time. */
   fetchEvents: (
     workspaceSlug: string,
@@ -106,6 +123,7 @@ export class CodingJobStore implements ICodingJobStore {
   settingsMap: Record<string, TProjectCodingSettings> = {};
   jobsMap: Record<string, TCodingJob[]> = {};
   eventsMap: Record<string, TCodingJobEvent[]> = {};
+  repositoryMap: Record<string, TCodingRepositoryAccess> = {};
 
   private service: TCodingJobStoreService;
   // Bumped on every change this store makes to a work item's jobs, so a list request that was already in flight
@@ -117,6 +135,7 @@ export class CodingJobStore implements ICodingJobStore {
   private settingsInFlight: Record<string, Promise<TProjectCodingSettings>> = {};
   private settingsVersion: Record<string, number> = {};
   private eventsInFlight: Record<string, Promise<TCodingJobEvent[]>> = {};
+  private repositoryInFlight: Record<string, Promise<TCodingRepositoryAccess>> = {};
   // Polling key → how many watchers share it and how to stop it.
   private watchers: Record<string, { count: number; stop: () => void }> = {};
 
@@ -125,12 +144,14 @@ export class CodingJobStore implements ICodingJobStore {
       settingsMap: observable,
       jobsMap: observable,
       eventsMap: observable,
+      repositoryMap: observable,
       fetchSettings: action,
       updateSettings: action,
       fetchJobs: action,
       startJob: action,
       cancelJob: action,
       retryJob: action,
+      answerJob: action,
       upsertJob: action,
       setJobs: action,
       appendEvents: action,
@@ -143,6 +164,8 @@ export class CodingJobStore implements ICodingJobStore {
   getJobs = (workItemId: string | null | undefined) => (workItemId ? this.jobsMap[workItemId] : undefined);
 
   getEvents = (jobId: string | null | undefined) => (jobId ? this.eventsMap[jobId] : undefined);
+
+  getRepository = (projectId: string | null | undefined) => (projectId ? this.repositoryMap[projectId] : undefined);
 
   fetchSettings = (workspaceSlug: string, projectId: string) => {
     const inFlight = this.settingsInFlight[projectId];
@@ -161,6 +184,24 @@ export class CodingJobStore implements ICodingJobStore {
         if (this.settingsInFlight[projectId] === request) delete this.settingsInFlight[projectId];
       });
     this.settingsInFlight[projectId] = request;
+    return request;
+  };
+
+  fetchRepository = (workspaceSlug: string, projectId: string) => {
+    const inFlight = this.repositoryInFlight[projectId];
+    if (inFlight) return inFlight;
+    const request = this.service
+      .getRepository(workspaceSlug, projectId)
+      .then((repository) => {
+        runInAction(() => {
+          this.repositoryMap[projectId] = repository;
+        });
+        return repository;
+      })
+      .finally(() => {
+        if (this.repositoryInFlight[projectId] === request) delete this.repositoryInFlight[projectId];
+      });
+    this.repositoryInFlight[projectId] = request;
     return request;
   };
 
@@ -216,6 +257,17 @@ export class CodingJobStore implements ICodingJobStore {
   retryJob = async (workspaceSlug: string, projectId: string, workItemId: string, jobId: string) => {
     try {
       const job = await this.service.retry(workspaceSlug, projectId, workItemId, jobId);
+      this.upsertJob(workItemId, job);
+      return job;
+    } catch (error) {
+      this.afterRefusal(error, workspaceSlug, projectId, workItemId);
+      throw error;
+    }
+  };
+
+  answerJob = async (workspaceSlug: string, projectId: string, workItemId: string, jobId: string, text: string) => {
+    try {
+      const job = await this.service.answer(workspaceSlug, projectId, workItemId, jobId, text);
       this.upsertJob(workItemId, job);
       return job;
     } catch (error) {

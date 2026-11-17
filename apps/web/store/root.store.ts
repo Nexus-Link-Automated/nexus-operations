@@ -26,6 +26,8 @@ import type { IAgentChatStore } from "./agent-chat.store";
 import { AgentChatStore } from "./agent-chat.store";
 import type { IChatStore } from "./chat.store";
 import { ChatStore } from "./chat.store";
+import type { IBotMemberStore } from "./bot-member.store";
+import { BotMemberStore } from "./bot-member.store";
 import type { ICodingJobStore } from "./coding-job.store";
 import { CodingJobStore } from "./coding-job.store";
 import type { ICodingMachineStore } from "./coding-machine.store";
@@ -115,6 +117,7 @@ export class CoreRootStore {
   chat: IChatStore;
   codingJob: ICodingJobStore;
   codingMachine: ICodingMachineStore;
+  botMember: IBotMemberStore;
 
   constructor() {
     this.router = new RouterStore();
@@ -151,6 +154,7 @@ export class CoreRootStore {
     this.chat = new ChatStore();
     this.codingJob = new CodingJobStore();
     this.codingMachine = new CodingMachineStore();
+    this.botMember = new BotMemberStore();
   }
 
   resetOnSignOut() {
@@ -193,6 +197,7 @@ export class CoreRootStore {
     this.chat = new ChatStore();
     this.codingJob = new CodingJobStore();
     this.codingMachine = new CodingMachineStore();
+    this.botMember = new BotMemberStore();
   }
 }
 

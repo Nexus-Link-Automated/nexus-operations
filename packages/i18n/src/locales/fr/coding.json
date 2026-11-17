@@ -31,7 +31,9 @@
       "cancelled": "Tâche de codage annulée",
       "cancel_failed": "Impossible d'annuler la tâche de codage",
       "retried": "Tâche de codage relancée",
-      "retry_failed": "Impossible de relancer la tâche de codage"
+      "retry_failed": "Impossible de relancer la tâche de codage",
+      "answered": "Réponse envoyée",
+      "answer_failed": "Impossible d'envoyer la réponse"
     },
     "errors": {
       "CODING_NOT_CONFIGURED": "Les tâches de codage ne sont pas configurées pour ce projet. Un administrateur du projet doit les activer et définir le dépôt.",
@@ -44,7 +46,14 @@
       "MACHINE_NOT_JOINED": "Cette machine ne s’est pas encore jointe, il n’y a donc rien à approuver.",
       "MACHINE_REVOKED": "Cette machine a été révoquée par un administrateur de l’espace de travail.",
       "forbidden": "Vous n'avez pas l'autorisation d'effectuer cette action.",
-      "generic": "Une erreur s'est produite. Veuillez réessayer."
+      "generic": "Une erreur s'est produite. Veuillez réessayer.",
+      "NO_OPEN_QUESTION": "L'agent n'a pas de question en attente pour le moment. Quelqu'un y a peut-être déjà répondu.",
+      "ANSWER_EMPTY": "Écrivez d'abord une réponse.",
+      "BOT_NOT_ALLOWED": "Les membres bot ne peuvent pas gérer les machines. Un administrateur de l'espace de travail s'en charge pour eux.",
+      "BOT_NOT_FOUND": "Ce membre bot est introuvable. Il a peut-être été supprimé.",
+      "BOT_LIMIT": "Cet espace de travail a atteint le nombre maximal de membres bot. Supprimez-en un d'abord.",
+      "BOT_ROLE_NOT_ALLOWED": "Un membre bot ne peut être que membre ou invité.",
+      "BOT_REMOVED": "Ce membre bot a été supprimé de l'espace de travail."
     },
     "panel": {
       "title": "Tâches de codage",
@@ -64,7 +73,22 @@
       "progress": "Progression",
       "progress_loading": "Chargement de la progression...",
       "progress_empty": "Aucune progression pour l'instant.",
-      "progress_load_failed": "Impossible de charger la progression."
+      "progress_load_failed": "Impossible de charger la progression.",
+      "branch": "Branche",
+      "opening_pr": "Ouverture d'une pull request...",
+      "questions": "Questions de l'agent",
+      "open_question": "L'agent a une question",
+      "question_thinking": "L'agent du CRM prépare une réponse. Vous pouvez aussi répondre vous-même.",
+      "question_waiting": "En attente d'une réponse.",
+      "answer_label": "Votre réponse",
+      "answer_placeholder": "Écrivez votre réponse",
+      "answer_hint": "L'agent continue avec votre réponse.",
+      "answer": "Répondre",
+      "answering": "Envoi...",
+      "answered_by": "Répondu par {name}",
+      "answered_by_agent": "Répondu par l'agent du CRM",
+      "answered_by_unknown": "Répondu",
+      "no_answer": "Aucune réponse reçue"
     },
     "status": {
       "queued": "En file d'attente",
@@ -122,6 +146,17 @@
       "save_failed": "Impossible d'enregistrer les paramètres de codage",
       "read_only": "Seuls les administrateurs du projet peuvent modifier ces paramètres.",
       "not_configured": "Les tâches de codage sont désactivées pour ce projet. Activez-les et définissez le dépôt pour que les membres puissent lancer des tâches."
+    },
+    "repository": {
+      "title": "Pull requests",
+      "checking": "Vérification du dépôt...",
+      "check_failed": "Impossible de vérifier le dépôt.",
+      "check_again": "Vérifier à nouveau",
+      "ready": "Activé. Le CRM peut ouvrir des pull requests sur ce dépôt.",
+      "ready_private": "Activé. Le CRM peut ouvrir des pull requests sur ce dépôt privé.",
+      "ready_public": "Activé. Le CRM peut ouvrir des pull requests sur ce dépôt public.",
+      "off": "Désactivé. Le CRM ne peut pas encore ouvrir de pull requests sur ce dépôt.",
+      "install": "Installer la GitHub App"
     }
   },
   "coding_machines": {
@@ -179,7 +214,11 @@
       "copied": "Copié dans le presse-papiers",
       "expires": "Le code expire le {time}.",
       "after": "Lorsque la machine apparaît comme « En attente d’approbation », vérifiez son nom d’hôte et approuvez-la.",
-      "done": "Terminé"
+      "done": "Terminé",
+      "bot_title": "Ajouter une machine pour un bot",
+      "bot_description": "Choisissez le bot et nommez son ordinateur. Vous recevez ensuite un code d'adhésion à utiliser dessus.",
+      "bot": "Bot",
+      "bot_placeholder": "Choisir un bot"
     },
     "rename_dialog": {
       "title": "Renommer la machine",
@@ -227,7 +266,86 @@
         "description": "Cette machine de {owner} cesse immédiatement de fonctionner et ne reçoit plus de tâches. Seul son propriétaire peut la supprimer.",
         "confirm": "Révoquer",
         "confirming": "Révocation..."
-      }
+      },
+      "bot": "Bot",
+      "add_for_bot": "Ajouter une machine pour un bot",
+      "no_bots": "Pour ajouter une machine pour un bot, ajoutez d'abord un membre bot avec le rôle Membre.",
+      "approve_bot_description": "La machine indique l'hôte {hostname} ({os}). Approuvez-la seulement s'il s'agit de l'ordinateur que vous avez préparé pour {owner} : elle exécutera les tâches de codage de ce bot."
+    }
+  },
+  "bot_members": {
+    "label": "Membres bot",
+    "title": "Membres bot",
+    "description": "Les bots sont des agents IA qui travaillent dans cet espace de travail comme des membres. Chacun se connecte avec son propre token. Ajoutez-les aux projets comme n'importe quel membre.",
+    "add": "Ajouter un membre bot",
+    "empty": "Aucun membre bot pour l'instant.",
+    "load_failed": "Impossible de charger les membres bot.",
+    "badge": "Bot",
+    "columns": {
+      "name": "Nom",
+      "role": "Rôle",
+      "status": "Statut",
+      "token_last_used": "Dernière utilisation du token"
+    },
+    "role": {
+      "member": "Membre",
+      "guest": "Invité"
+    },
+    "status": {
+      "active": "Actif",
+      "removed": "Supprimé"
+    },
+    "never_used": "Jamais",
+    "no_token": "Aucun token",
+    "actions": {
+      "edit": "Modifier",
+      "new_token": "Nouveau token",
+      "remove": "Supprimer"
+    },
+    "form": {
+      "create_title": "Ajouter un membre bot",
+      "edit_title": "Modifier {name}",
+      "create_description": "Donnez au bot un nom et un rôle. Vous recevez ensuite son token.",
+      "name": "Nom",
+      "name_placeholder": "ex. Bot de tri",
+      "role": "Rôle",
+      "role_hint": "Les membres peuvent travailler dans les projets auxquels ils sont ajoutés. Les invités peuvent seulement consulter et commenter.",
+      "description": "À quoi il sert",
+      "description_placeholder": "ex. Trie les nouveaux rapports de bug",
+      "create": "Ajouter un membre bot",
+      "creating": "Ajout...",
+      "save": "Enregistrer",
+      "saving": "Enregistrement..."
+    },
+    "token_dialog": {
+      "title": "Token de {name}",
+      "description": "Le bot utilise ce token pour travailler dans le CRM. Copiez-le maintenant : vous ne le verrez plus après avoir fermé cette fenêtre.",
+      "label": "Token",
+      "copy": "Copier le token",
+      "copied": "Token copié",
+      "done": "Terminé"
+    },
+    "new_token_dialog": {
+      "title": "Nouveau token pour {name} ?",
+      "description": "Le bot reçoit un nouveau token. Son token actuel cesse de fonctionner immédiatement.",
+      "confirm": "Créer un nouveau token",
+      "confirming": "Création..."
+    },
+    "remove_dialog": {
+      "title": "Supprimer {name} ?",
+      "description": "Le bot est retiré de cet espace de travail et de ses projets. Son token cesse de fonctionner immédiatement.",
+      "confirm": "Supprimer",
+      "confirming": "Suppression..."
+    },
+    "toasts": {
+      "created": "Membre bot ajouté",
+      "create_failed": "Impossible d'ajouter le membre bot",
+      "updated": "Membre bot enregistré",
+      "update_failed": "Impossible d'enregistrer le membre bot",
+      "token_created": "Nouveau token créé",
+      "token_failed": "Impossible de créer un nouveau token",
+      "removed": "Membre bot supprimé",
+      "remove_failed": "Impossible de supprimer le membre bot"
     }
   }
 }

@@ -51,6 +51,32 @@ describe("CodingJobService", () => {
     expect(patch).toHaveBeenCalledWith("/api/workspaces/acme/projects/p1/coding-settings/", { enabled: true });
   });
 
+  it("answers a job's open question and reads the repository's pull request status", async () => {
+    const { coding, get, post } = service();
+    post.mockResolvedValue({ data: { id: "j1", status: "running" } });
+    get.mockResolvedValue({ data: { provider: "github", pull_requests: true } });
+
+    expect(await coding.answer("acme", "p1", "w1", "j1", "Use the v2 API.")).toEqual({ id: "j1", status: "running" });
+    expect(post).toHaveBeenLastCalledWith("/api/workspaces/acme/projects/p1/work-items/w1/coding-jobs/j1/answer/", {
+      text: "Use the v2 API.",
+    });
+
+    expect(await coding.getRepository("acme", "p1")).toEqual({ provider: "github", pull_requests: true });
+    expect(get).toHaveBeenLastCalledWith("/api/workspaces/acme/projects/p1/coding-settings/repository/");
+  });
+
+  it("throws a refused answer with its code", async () => {
+    const { coding, post } = service();
+    post.mockRejectedValue({
+      response: { status: 409, data: { error: "No open question.", code: "NO_OPEN_QUESTION" } },
+    });
+
+    const error = await coding.answer("acme", "p1", "w1", "j1", "Yes").catch((e) => e);
+
+    expect(error).toBeInstanceOf(CodingJobServiceError);
+    expect(error.code).toBe("NO_OPEN_QUESTION");
+  });
+
   it("reads a job's events, after a seq when given", async () => {
     const { coding, get } = service();
     const event = { seq: 3, kind: "tool", text: "pytest -q", created_at: "2026-11-17T10:00:00Z" };
