@@ -218,8 +218,18 @@ def installation_id(repo: Repo) -> int | None:
     return found
 
 
+def owner_allowed(repo: Repo) -> bool:
+    """Whether the App may be used for this repository's owner: `GITHUB_APP_ALLOWED_OWNERS` (comma-separated GitHub
+    users or organisations), or any owner when it is not set."""
+    allowed = {name.strip().lower() for name in (getattr(settings, "GITHUB_APP_ALLOWED_OWNERS", "") or "").split(",")}
+    allowed.discard("")
+    return not allowed or repo.owner.lower() in allowed
+
+
 def repo_token(repo: Repo, permissions: dict) -> RepoToken:
     """A new installation token for `repo` alone, with exactly `permissions`. Never stored by the CRM."""
+    if not owner_allowed(repo):
+        raise GitHubError(f"This CRM's GitHub App is not allowed for {repo.owner}'s repositories.")
     installation = installation_id(repo)
     if installation is None:
         raise GitHubError(f"The CRM's GitHub App is not installed on {repo.full_name}.")
@@ -303,4 +313,7 @@ def clone_token(repo_url: str) -> RepoToken | None:
         return token if private else None
     except GitHubError as error:
         logger.warning("coding: no clone token for %s: %s", repo.full_name, error.message)
+        return None
+    except Exception:  # an unexpected answer from GitHub never fails a heartbeat
+        logger.exception("coding: no clone token for %s", repo.full_name)
         return None

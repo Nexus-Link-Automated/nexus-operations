@@ -21,6 +21,7 @@ the job ends as a job error with the reason (never Failed: Failed means only tha
 changes stay in the job's folder on the machine.
 """
 
+import base64
 import logging
 from dataclasses import dataclass
 
@@ -81,6 +82,8 @@ def no_pr_reason(project_id) -> str | None:
         return "the project's repository is not on GitHub, so jobs cannot open pull requests for it"
     if not github.app_configured():
         return "this CRM has no GitHub App set up for opening pull requests"
+    if not github.owner_allowed(repo):
+        return f"this CRM's GitHub App is not allowed for {repo.owner}'s repositories"
     try:
         if github.installation_id(repo) is None:
             return f"the CRM's GitHub App is not installed on {repo.full_name}"
@@ -116,6 +119,9 @@ def repository_access(project_id) -> dict:
     answer["provider"] = "github"
     if not answer["app_configured"]:
         answer["reason"] = "This CRM has no GitHub App set up: ask the instance admin."
+        return answer
+    if not github.owner_allowed(repo):
+        answer["reason"] = f"This CRM's GitHub App is not allowed for {repo.owner}'s repositories."
         return answer
     try:
         installation = github.installation_id(repo)
@@ -236,7 +242,23 @@ def _pull_request_url(repo: Repo, url) -> str:
     return url
 
 
+def _as_text(content: str) -> str | None:
+    """A file's content as text when it is UTF-8 without NUL characters; None for binary content."""
+    raw = base64.b64decode(content)
+    if b"\0" in raw:
+        return None
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
 def _push_and_open(job: CodingJob, changes: CodingJobChanges, data: dict, repo: Repo, default_branch: str) -> Published:
+    workflows = [f["path"] for f in changes.files if f["path"].lower().startswith(".github/workflows/")]
+    if workflows:
+        # The App cannot change CI workflows (no workflows permission), and changes that would run with the
+        # repository's secrets are a person's to make.
+        raise PublishError(f"The job changed CI workflows ({workflows[0]}), which jobs may not push.")
     token = github.repo_token(repo, github.PUSH_PERMISSIONS)
     branch = branch_name(job)
     with github.client(token.token) as http:
@@ -257,6 +279,12 @@ def _push_and_open(job: CodingJob, changes: CodingJobChanges, data: dict, repo: 
         for file in changes.files:
             if file.get("deleted"):
                 entries.append({"path": file["path"], "mode": "100644", "type": "blob", "sha": None})
+                continue
+            text = _as_text(file["content"])
+            if text is not None:
+                # Text goes in the tree itself: one request for all of it, not one per file (GitHub limits how fast
+                # content can be created).
+                entries.append({"path": file["path"], "mode": file["mode"], "type": "blob", "content": text})
                 continue
             blob = github.request(
                 http, "POST", f"{repo.path}/git/blobs", json={"content": file["content"], "encoding": "base64"}
@@ -310,6 +338,29 @@ def _push_and_open(job: CodingJob, changes: CodingJobChanges, data: dict, repo: 
         return Published(pr_url=_pull_request_url(repo, pull.json().get("html_url")), branch=branch)
 
 
+def _keep_orphan(job: CodingJob, published: Published) -> None:
+    """The pull request was opened but the outcome could not be applied (the job ended meanwhile, or an error): the job
+    keeps the link, and the audit trail says what happened."""
+    from plane.coding.audit import record
+
+    # A job that is still active ends now, with the link in its reason; one that ended stays as it ended.
+    _end_with_error(
+        job,
+        f"The pull request {published.pr_url} was opened, but the outcome could not be applied. Review it there.",
+    )
+    CodingJob.all_objects.filter(pk=job.pk, pr_url="").update(pr_url=published.pr_url, pr_branch=published.branch)
+    record(
+        job.workspace_id,
+        "job.pull_request_kept",
+        "job",
+        job.id,
+        actor_name="CRM",
+        project_id=job.project_id,
+        pr_url=published.pr_url,
+        pr_branch=published.branch,
+    )
+
+
 def _end_with_error(job: CodingJob, reason: str) -> None:
     try:
         apply_result(job, {"outcome": JobOutcome.JOB_ERROR.value, "reason": reason[:2000]})
@@ -347,7 +398,13 @@ def publish_job(job_id) -> str | None:
         except GitHubError as error:
             raise PublishError(error.message) from error
         # Unlike the agent's fields, the pull request's link and branch are the CRM's own.
-        apply_result(job, data, pr_url=published.pr_url, pr_branch=published.branch)
+        try:
+            apply_result(job, data, pr_url=published.pr_url, pr_branch=published.branch)
+        except Exception:
+            # The job ended meanwhile (cancelled, or timed out waiting for this): the pull request is open anyway, so
+            # the job keeps its link and the audit trail says so.
+            _keep_orphan(job, published)
+            raise
         return published.pr_url
     except PublishError as error:
         machine = f" on {job.ran_on_name}" if job.ran_on_name else " on the machine"

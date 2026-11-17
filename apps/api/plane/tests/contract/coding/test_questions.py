@@ -249,6 +249,16 @@ class TestPeopleAnswer:
         again = other_member[1].post(self.url(job), {"text": "Web."}, format="json")
         assert again.status_code == 409 and again.json()["code"] == "NO_OPEN_QUESTION"
 
+    def test_agent_sessions_cannot(self, waiting, member, workspace):
+        from plane.db.models.api import AGENT_SESSION_TOKEN_LABEL, APIToken
+
+        job, _, _ = waiting
+        token = APIToken.objects.create(user=member[0], label=AGENT_SESSION_TOKEN_LABEL, workspace=workspace)
+        client = APIClient()
+        client.credentials(HTTP_X_API_KEY=token.token)
+        res = client.post(self.url(job), {"text": "x"}, format="json")
+        assert res.status_code == 403 and res.json()["code"] == "AGENT_SESSION_NOT_ALLOWED"
+
     def test_guests_cannot(self, waiting, guest):
         job, _, _ = waiting
         # A guest does not see another person's work item at all.

@@ -514,6 +514,8 @@ GITHUB_APP_ID = os.environ.get("GITHUB_APP_ID", "")
 GITHUB_APP_SLUG = os.environ.get("GITHUB_APP_SLUG", "")
 GITHUB_APP_PRIVATE_KEY = os.environ.get("GITHUB_APP_PRIVATE_KEY", "")
 GITHUB_APP_PRIVATE_KEY_PATH = os.environ.get("GITHUB_APP_PRIVATE_KEY_PATH", "")
+# Comma-separated GitHub users or organisations whose repositories the App may be used for; empty: any it is on.
+GITHUB_APP_ALLOWED_OWNERS = os.environ.get("GITHUB_APP_ALLOWED_OWNERS", "")
 GITHUB_API_URL = os.environ.get("GITHUB_API_URL", "https://api.github.com")
 GITHUB_WEB_URL = os.environ.get("GITHUB_WEB_URL", "https://github.com")
 

@@ -20,7 +20,7 @@ from plane.app.permissions import WorkspaceUserPermission
 
 from plane.db.models import Project, ProjectMember, ProjectUserProperty, WorkspaceMember
 from plane.bgtasks.project_add_user_email_task import project_add_user_email
-from plane.utils.bot_members import PEOPLE_AND_BOT_MEMBERS
+from plane.utils.bot_members import BOT_NOT_ADMIN, PEOPLE_AND_BOT_MEMBERS, bot_member_ids, is_bot_member
 from plane.utils.host import base_host
 from plane.app.permissions.base import allow_permission, ROLE
 
@@ -75,6 +75,11 @@ class ProjectMemberViewSet(BaseViewSet):
 
         # Create a dictionary of the member_id and their roles
         member_roles = {member.get("member_id"): member.get("role") for member in members}
+
+        # A bot member is never a project admin.
+        bots = bot_member_ids(member_roles)
+        if any(member_roles.get(member) == ROLE.ADMIN.value for member in member_roles if str(member) in bots):
+            return Response({"error": BOT_NOT_ADMIN}, status=status.HTTP_400_BAD_REQUEST)
 
         # check the workspace role of the new user
         for member in member_roles:
@@ -250,6 +255,12 @@ class ProjectMemberViewSet(BaseViewSet):
             member=request.user,
             is_active=True,
         )
+
+        if "role" in request.data and is_bot_member(project_member.member) and request.data.get("role") in (
+            ROLE.ADMIN.value,
+            str(ROLE.ADMIN.value),
+        ):
+            return Response({"error": BOT_NOT_ADMIN}, status=status.HTTP_400_BAD_REQUEST)
 
         if "role" in request.data:
             # Only Admins can modify roles

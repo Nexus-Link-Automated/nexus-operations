@@ -293,7 +293,11 @@ def _add_clone_access(orders: list) -> None:
     for order in orders:
         url = order["repo_url"]
         if url not in tokens:
-            tokens[url] = github.clone_token(url)
+            try:
+                tokens[url] = github.clone_token(url)
+            except Exception:  # never fail the handout: the clone reports what went wrong
+                logger.exception("coding: no clone token for a handout")
+                tokens[url] = None
         if tokens[url] is not None:
             order["clone_token"] = tokens[url].token
 
@@ -364,8 +368,16 @@ def apply_machine_result(
         if crm_only:
             raise InvalidResult({key: ["Set by the CRM, never reported by a machine."] for key in crm_only})
     data = validate_result(job.action, result)
+    machine_name = f"machine {machine.name}"
+    # A result already on its way to a pull request is the job's result: the same one again changes nothing, any
+    # other is refused (apply_result refuses it too, under the job's lock).
+    if job.result_received_at is not None and job.outcome is None:
+        pending = CodingJobChanges.objects.filter(job=job).values_list("result", flat=True).first()
+        if pending == data:
+            return Applied(job, changed=False)
+        raise Conflict("This job already has a different result.", code="RESULT_ALREADY_APPLIED")
     if JobOutcome(data["outcome"]) not in CODE_OUTCOMES:
-        return apply_result(job, data)
+        return apply_result(job, data, from_machine=True, actor_name=machine_name)
     if not changes:
         if changes_note:
             reason = changes_note
@@ -373,10 +385,10 @@ def apply_machine_result(
             reason = "the machine did not send the changed files to the CRM"
         else:
             reason = "the job changed no files"
-        return apply_result(job, data, no_pr_reason=reason)
+        return apply_result(job, data, no_pr_reason=reason, from_machine=True, actor_name=machine_name)
     reason = no_pr_reason(job.project_id)
     if reason:
-        return apply_result(job, data, no_pr_reason=reason)
+        return apply_result(job, data, no_pr_reason=reason, from_machine=True, actor_name=machine_name)
 
     from plane.coding.tasks import publish_coding_job
 
@@ -409,12 +421,16 @@ def apply_machine_result(
 DEFAULT_QUEUE_TTL = timedelta(hours=24)
 
 
-def queue_ttl() -> timedelta:
+def queue_ttl() -> timedelta | None:
+    """How long a job waits for a machine; None (no limit) when set to 0 or less."""
     hours = getattr(settings, "CODING_JOB_QUEUE_TTL_HOURS", None)
     try:
-        return timedelta(hours=float(hours)) if hours else DEFAULT_QUEUE_TTL
+        value = float(hours) if hours not in (None, "") else None
     except (TypeError, ValueError):
         return DEFAULT_QUEUE_TTL
+    if value is None:
+        return DEFAULT_QUEUE_TTL
+    return timedelta(hours=value) if value > 0 else None
 
 
 def expire_jobs(now=None) -> int:
@@ -423,7 +439,8 @@ def expire_jobs(now=None) -> int:
     now = now or timezone.now()
     count = 0
     ttl = queue_ttl()
-    for job in CodingJob.objects.filter(status=JobStatus.QUEUED, created_at__lt=now - ttl):
+    stale = CodingJob.objects.filter(status=JobStatus.QUEUED, created_at__lt=now - ttl) if ttl else []
+    for job in stale:
         hours = round(ttl.total_seconds() / 3600)
         _end(
             job,

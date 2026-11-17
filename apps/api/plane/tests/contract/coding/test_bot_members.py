@@ -222,3 +222,49 @@ class TestTheBotsMachines:
         handed = beat(bot_key, report(agents=(READY,))).json()["jobs"]
         assert [job["id"] for job in handed] == [job_id]
         assert CodingJob.objects.get(pk=job_id).status == JobStatus.RUNNING
+
+
+@pytest.mark.contract
+class TestNeverAnAdmin:
+    def test_not_a_project_admin(self, make_bot, create_user, workspace, project):
+        bot = make_bot()
+        admin = session(create_user)
+        res = admin.post(
+            f"/api/workspaces/{workspace.slug}/projects/{project.id}/members/",
+            {"members": [{"member_id": bot["id"], "role": ADMIN}]},
+            format="json",
+        )
+        assert res.status_code == 400
+        admin.post(
+            f"/api/workspaces/{workspace.slug}/projects/{project.id}/members/",
+            {"members": [{"member_id": bot["id"], "role": MEMBER}]},
+            format="json",
+        )
+        pm = ProjectMember.objects.get(project=project, member_id=bot["id"])
+        res = admin.patch(
+            f"/api/workspaces/{workspace.slug}/projects/{project.id}/members/{pm.id}/", {"role": ADMIN}, format="json"
+        )
+        assert res.status_code == 400
+        assert ProjectMember.objects.get(pk=pm.pk).role == MEMBER
+
+    def test_not_through_the_public_api(self, make_bot, admin, workspace, project):
+        bot = make_bot()
+        url = f"/api/v1/workspaces/{workspace.slug}/projects/{project.id}/members/"
+        assert admin[1].post(url, {"member": bot["id"], "role": ADMIN}, format="json").status_code == 400
+
+    def test_cannot_create_projects(self, make_bot, workspace):
+        bot = make_bot()
+        res = token_client(bot["token"]).post(
+            f"/api/v1/workspaces/{workspace.slug}/projects/", {"name": "Mine", "identifier": "MINE"}, format="json"
+        )
+        assert res.status_code == 403
+
+    def test_cannot_change_coding_settings(self, make_bot, workspace, project, coding_settings):
+        bot = make_bot()
+        ProjectMember.objects.create(project=project, member_id=bot["id"], role=MEMBER, is_active=True)
+        res = token_client(bot["token"]).patch(
+            f"/api/v1/workspaces/{workspace.slug}/projects/{project.id}/coding-settings/",
+            {"enabled": False},
+            format="json",
+        )
+        assert res.status_code == 403

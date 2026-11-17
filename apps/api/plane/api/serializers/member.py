@@ -10,6 +10,7 @@ from plane.db.models import ProjectMember, WorkspaceMember
 from .base import BaseSerializer
 from plane.db.models import User
 from plane.utils.permissions import ROLE
+from plane.utils.bot_members import BOT_NOT_ADMIN, is_bot_member
 
 
 class ProjectMemberSerializer(BaseSerializer):
@@ -44,6 +45,8 @@ class ProjectMemberSerializer(BaseSerializer):
         if role is None and self.instance is not None:
             role = self.instance.role
         member = attrs.get("member") or (self.instance.member if self.instance else None)
+        if is_bot_member(member) and role == ROLE.ADMIN.value:
+            raise serializers.ValidationError({"role": BOT_NOT_ADMIN}, code="INVALID_ROLE")
         slug = self.context.get("slug")
         if role is not None and member is not None and slug:
             workspace_role = (

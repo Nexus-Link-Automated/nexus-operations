@@ -11,7 +11,8 @@ from rest_framework import status
 from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.response import Response
 
-from plane.coding.exceptions import NotFound
+from plane.coding.exceptions import Forbidden, NotFound
+from plane.db.models.api import AGENT_SESSION_TOKEN_LABEL, APIToken
 from plane.coding.models import CodingAction, CodingJob, JobStatus
 from plane.coding.serializers import (
     CodingJobEventSerializer,
@@ -158,6 +159,10 @@ class CodingJobAnswerMixin(_WorkItemJobs):
         of the project. The first answer counts."""
         job = self.get_job()
         self.access.require_write()
+        # An in-app agent works from text anyone in the workspace can write; its answer would steer the coding agent.
+        token = getattr(request, "auth", None)
+        if isinstance(token, str) and APIToken.objects.filter(token=token, label=AGENT_SESSION_TOKEN_LABEL).exists():
+            raise Forbidden("An agent session cannot answer a coding job's question.", code="AGENT_SESSION_NOT_ALLOWED")
         serializer = AnswerSerializer(data=request.data)
         if not serializer.is_valid():
             return self.invalid(serializer.errors)

@@ -54,6 +54,7 @@ from plane.app.permissions import (
     ProjectBasePermission,
     WorkSpaceAdminPermission,
 )
+from plane.utils.bot_members import is_bot_member
 from plane.utils.openapi import (
     project_docs,
     PROJECT_ID_PARAMETER,
@@ -231,6 +232,9 @@ class ProjectListCreateAPIEndpoint(BaseAPIView):
         Create a new project in the workspace with default states and member assignments.
         Automatically adds the creator as admin and sets up default workflow states.
         """
+        # Creating a project makes its creator its admin, which a bot member never is.
+        if is_bot_member(request.user):
+            return Response({"error": "Bot members cannot create projects."}, status=status.HTTP_403_FORBIDDEN)
         try:
             workspace = Workspace.objects.get(slug=slug)
 

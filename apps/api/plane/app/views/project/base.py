@@ -45,6 +45,7 @@ from plane.db.models import (
 from plane.db.models.intake import IntakeIssueStatus
 from plane.utils.host import base_host
 from plane.utils.order_queryset import PROJECT_ORDER_BY_ALLOWLIST, sanitize_order_by
+from plane.utils.bot_members import is_bot_member
 
 
 class ProjectViewSet(BaseViewSet):
@@ -268,6 +269,9 @@ class ProjectViewSet(BaseViewSet):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER], level="WORKSPACE")
     def create(self, request, slug):
         workspace = Workspace.objects.get(slug=slug)
+        # Creating a project makes its creator its admin, which a bot member never is.
+        if is_bot_member(request.user):
+            return Response({"error": "Bot members cannot create projects."}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = ProjectSerializer(data={**request.data}, context={"workspace_id": workspace.id})
         if serializer.is_valid():

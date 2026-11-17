@@ -74,6 +74,12 @@ The CRM, never the machine, pushes a job's changes and opens its pull request, w
 | `GITHUB_APP_PRIVATE_KEY` or `GITHUB_APP_PRIVATE_KEY_PATH` | Its private key (PEM; `\n` in the variable is read as a newline) |
 | `GITHUB_APP_SLUG` | Its name in its URL, for the install link the settings show |
 | `GITHUB_API_URL`, `GITHUB_WEB_URL` | `https://api.github.com` and `https://github.com` unless GitHub Enterprise |
+| `GITHUB_APP_ALLOWED_OWNERS` | Comma-separated GitHub users or organisations the App may be used for; empty: any it is installed on |
+
+Only a **workspace admin** sets or changes a project's repository (`WORKSPACE_ADMIN_REQUIRED` otherwise): anyone who
+may create a project is that project's admin, and the repository decides which code the App reads and pushes to. Bot
+members cannot change coding settings. On an instance shared by teams that must not reach each other's repositories,
+set `GITHUB_APP_ALLOWED_OWNERS`, or install the App only where every workspace admin may send jobs.
 
 The App needs these repository permissions: **Contents: read and write**, **Pull requests: read and write**
 (Metadata: read comes with them). Install it on the repositories whose projects run coding jobs. The project's
@@ -87,7 +93,12 @@ the permissions needed; GitHub ends it after an hour, and the CRM never stores i
   commit of them on the job's starting commit (GitHub's Git Data API: no git on the server), creates the branch
   `nexus/<action>/<first 8 hex of the job id>` (created, never updated, so an existing branch, the default branch
   included, is never moved; a name that is the default branch is refused before anything is sent), and opens a pull
-  request into the project's default branch. A `bug_found` pull request carries the failing test and is a draft. Its
+  request into the project's default branch. A `bug_found` pull request carries the failing test and is a draft.
+  Text files go in the tree itself and only binary ones as separate blobs (GitHub limits how fast content can be
+  created). Changes to `.github/workflows/` are refused with a clear reason: the App has no workflows permission, and
+  CI changes that would run with the repository's secrets are a person's to make. Note that the job's own branch still
+  runs the repository's `push`/`pull_request` CI with whatever secrets those workflows get: keep secrets out of
+  workflows that run on `nexus/**` branches. Its
   title is the work item's key and title; everything a coding agent wrote goes in a fenced code block. Then the
   outcome is applied with `pr_url` and `pr_branch`, and the changes are deleted.
 - **Clone** (contents: read), only for a private repository: in the job's order as `clone_token`.
@@ -142,7 +153,8 @@ job asked something. Jobs carry their `questions` (`seq`, `question`, `status`: 
 ## Bot members (EmployAI agents)
 
 An EmployAI agent is a bot member of a workspace: a `User` with `is_bot` and `bot_type` `EMPLOYAI`, a workspace role
-(member or guest, never admin) and its own access token, scoped to the workspace. It cannot sign in to the web app;
+(member or guest, never admin of the workspace or of any project; it cannot create projects) and its own access
+token, scoped to the workspace. It cannot sign in to the web app;
 it uses the CRM only through the public API and MCP, like any member: project admins add it to projects, its role is
 changed and it is removed from the workspace's members list like anyone (Plane's member endpoints treat EmployAI bots
 as members, `plane.utils.bot_members`), and removing it ends its tokens. The web app shows it with a bot badge.
@@ -174,7 +186,7 @@ and removing it are an admin's too. The bot itself cannot add, approve, rename o
 |---|---|---|
 | `CODING_MAX_ACTIVE_JOBS_PER_USER` | 10 | jobs one person (or bot) may have queued, running or waiting in a workspace; more is 429 `JOB_LIMIT` |
 | `CODING_JOB_STARTS_PER_HOUR` | 60 | starts and retries per person per hour (429) |
-| `CODING_JOB_QUEUE_TTL_HOURS` | 24 | a job no machine took in this long ends as a job error saying so |
+| `CODING_JOB_QUEUE_TTL_HOURS` | 24 | a job no machine took in this long ends as a job error saying so; 0: no limit |
 | `CODING_JOB_TIMEOUT_MINUTES` | 60 | how long a job runs (not counting time waiting for an answer) |
 | `CODING_QUESTION_TIMEOUT_MINUTES` | 30 | how long a question waits for an answer |
 | `CODING_JOB_EVENT_RETENTION_DAYS` | 30 | progress lines of a job are deleted this long after it ended |
@@ -187,7 +199,8 @@ The **audit trail** records, with who did it (a person, a bot member, `machine <
 `job.started`, `job.retried`, `job.cancelled`, `job.handed_out`, `job.finished` (outcome, pull request or reason),
 `question.asked`, `question.answered`, `question.unanswered`, `machine.added`, `machine.joined`, `machine.approved`,
 `machine.renamed`, `machine.removed`, `machine.revoked`, `settings.changed`, `bot.created`, `bot.updated`,
-`bot.token_replaced`, `bot.removed`. Workspace admins read it with `GET /api/v1/workspaces/<slug>/coding-audit/`
+`bot.token_replaced`, `bot.removed`, and `job.pull_request_kept` (a pull request opened after its job had ended: the
+job keeps its link). Workspace admins read it with `GET /api/v1/workspaces/<slug>/coding-audit/`
 (`?action=job` or `job.started`, `?actor=`, `?project=`, `?target=`, `?before=` from `next_before`; 100 per page,
 newest first) or MCP `coding_machine` `audit`.
 

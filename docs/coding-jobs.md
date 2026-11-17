@@ -26,10 +26,13 @@ not be opened) is "Job did not finish" and leaves the work item where it is.
 
 1. **GitHub App** (instance admin, once). Create a GitHub App with repository permissions **Contents: read and
    write** and **Pull requests: read and write**, no webhook. Generate a private key. Give the server
-   `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (or `GITHUB_APP_PRIVATE_KEY_PATH`) and `GITHUB_APP_SLUG`. Install the
-   App on the repositories coding jobs work on. Without it, jobs still run, but their changes stay on the machine
+   `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (or `GITHUB_APP_PRIVATE_KEY_PATH`), `GITHUB_APP_SLUG`, and optionally
+   `GITHUB_APP_ALLOWED_OWNERS` (the GitHub organisations it may be used for). Install the App on the repositories
+   coding jobs work on. Keep CI secrets out of workflows that run on `nexus/**` branches: those branches carry code an
+   agent wrote. Without it, jobs still run, but their changes stay on the machine
    and the comment says why there is no pull request.
-2. **Project settings → Coding jobs** (project admin). Turn coding jobs on, set the repository
+2. **Project settings → Coding jobs**. A workspace admin sets the repository; a project admin turns coding jobs on
+   and sets the rest. Set the repository
    (`https://github.com/<owner>/<repo>`) and the branch jobs start from, and check which columns mean Ready, Failed and
    In review (matched by name unless you choose). **Create Failed column** adds one if the project has none. The page
    says whether jobs can open pull requests, and links the App's install page when it is not installed.

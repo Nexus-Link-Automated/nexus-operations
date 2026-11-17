@@ -405,6 +405,8 @@ def apply_result(
     pr_url: str = "",
     pr_branch: str = "",
     no_pr_reason: str = "",
+    from_machine: bool = False,
+    actor_name: str = "CRM",
 ) -> Applied:
     """Validate `result`, move the work item per the outcomes table, comment on it, and finish the job.
 
@@ -439,6 +441,9 @@ def apply_result(
             raise Conflict("This job already has a different result.", code="RESULT_ALREADY_APPLIED")
         if not job.is_active:
             raise Conflict("This job has ended.", code="JOB_NOT_ACTIVE")
+        if from_machine and job.result_received_at is not None:
+            # Its result already arrived and is on its way to a pull request.
+            raise Conflict("This job already has a different result.", code="RESULT_ALREADY_APPLIED")
 
         # `all_objects`: a work item archived or deleted during the job still gets its job finished.
         issue = Issue.all_objects.select_for_update().get(pk=job.issue_id)
@@ -484,7 +489,7 @@ def apply_result(
             "job.finished",
             "job",
             job.id,
-            actor_name=f"machine {job.ran_on_name}" if job.ran_on_name else "CRM",
+            actor_name=actor_name,
             project_id=job.project_id,
             outcome=outcome.value,
             status=status,

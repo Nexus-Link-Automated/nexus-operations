@@ -250,7 +250,7 @@ class TestPullRequest:
     @pytest.mark.parametrize(
         "fail,words",
         [
-            (r"POST .*/git/blobs$", "refused to store"),
+            (r"POST .*/git/trees$", "refused to store"),
             (r"POST .*/access_tokens$", "refused a token"),
             (r"POST .*/pulls$", "changes are on the branch"),
         ],
@@ -476,4 +476,107 @@ class TestRepositoryEndpoint:
 
     def test_web_route(self, fake, session_client, workspace, project, coding_settings):
         res = session_client.get(f"/api/workspaces/{workspace.slug}/projects/{project.id}/coding-settings/repository/")
+        assert res.status_code == 200
+
+
+@pytest.mark.contract
+class TestReviewFixes:
+    def test_while_publishing_no_other_result_is_taken(self, fake, running, tasks, coding_settings):
+        job, key = running()
+        with mock.patch("plane.coding.tasks.publish_coding_job.delay"), tasks.commit():
+            send(key, job.id, FIXED)
+        res = send(key, job.id, {"outcome": "job_error", "reason": "x"}, changes=None)
+        assert res.status_code == 409 and res.json()["code"] == "RESULT_ALREADY_APPLIED"
+        # The same outcome again, its changes dropped on a retry: nothing changes.
+        res = send(key, job.id, FIXED, changes=None)
+        assert res.status_code == 200 and res.json()["changed"] is False
+        job.refresh_from_db()
+        assert job.outcome is None and job.result_received_at is not None
+
+    def test_a_pull_request_opened_after_the_job_ended_keeps_its_link(
+        self, fake, publish_now, running, tasks, coding_settings
+    ):
+        from plane.coding.exceptions import Conflict
+        from plane.coding.models import CodingAuditEvent
+
+        job, key = running()
+        real = publish.apply_result
+        calls = []
+
+        def first_fails(*args, **kwargs):
+            calls.append(kwargs)
+            if len(calls) == 1:
+                raise Conflict("ended")
+            return real(*args, **kwargs)
+
+        with mock.patch.object(publish, "apply_result", side_effect=first_fails), tasks.commit():
+            send(key, job.id, FIXED)
+        job.refresh_from_db()
+        assert job.pr_url == "https://github.com/example/app/pull/1" and job.pr_branch.startswith("nexus/fix-bug/")
+        assert job.outcome == JobOutcome.JOB_ERROR and "pull/1 was opened" in job.error_reason
+        assert CodingAuditEvent.objects.filter(action="job.pull_request_kept", target_id=job.id).exists()
+
+    def test_ci_workflows_are_not_pushed(self, fake, publish_now, running, tasks, coding_settings):
+        job, key = running()
+        changes = {
+            "base_commit": BASE,
+            "files": [{"path": ".github/workflows/ci.yml", "mode": "100644", "content": b64("on: push\n")}],
+        }
+        with tasks.commit():
+            send(key, job.id, FIXED, changes=changes)
+        job.refresh_from_db()
+        assert job.outcome == JobOutcome.JOB_ERROR and "CI workflows" in job.error_reason
+        assert not fake.calls("POST", r"/access_tokens$")
+
+    def test_text_goes_in_the_tree_and_binary_as_blobs(self, fake, publish_now, running, tasks, coding_settings):
+        job, key = running()
+        changes = {
+            "base_commit": BASE,
+            "files": [
+                {"path": "a.txt", "mode": "100644", "content": b64("hello\n")},
+                {"path": "b.bin", "mode": "100644", "content": base64.b64encode(b"\x00\xff").decode()},
+            ],
+        }
+        with tasks.commit():
+            send(key, job.id, FIXED, changes=changes)
+        assert len(fake.calls("POST", r"/git/blobs$")) == 1
+        (tree,) = fake.calls("POST", r"/git/trees$")
+        assert [e.get("content") for e in tree[2]["tree"] if e["path"] == "a.txt"] == ["hello\n"]
+
+    def test_only_allowed_owners(self, settings, fake, member, make_machine, start, tasks, issue, coding_settings):
+        settings.GITHUB_APP_ALLOWED_OWNERS = "someone-else, another"
+        fake.repos["example/app"].private = True
+        _, key = make_machine(member[0])
+        job = start(member[0])
+        order = run_on(key, job)
+        assert "clone_token" not in order
+        with tasks.commit():
+            send(key, job.id, FIXED)
+        assert "not allowed for example" in IssueComment.objects.get(issue=issue).comment_html
+        assert not fake.calls("POST", r"/access_tokens$")
+
+
+@pytest.mark.contract
+class TestWhoSetsTheRepository:
+    def url(self, workspace, project):
+        return f"/api/v1/workspaces/{workspace.slug}/projects/{project.id}/coding-settings/"
+
+    def test_a_project_admin_who_is_not_a_workspace_admin_cannot(self, make_user, workspace, project, coding_settings):
+        from .conftest import ADMIN, MEMBER
+
+        _, client = make_user(MEMBER, workspace=workspace, project=project, project_role=ADMIN)
+        res = client.patch(
+            self.url(workspace, project), {"repo_url": "https://github.com/other/private"}, format="json"
+        )
+        assert res.status_code == 403 and res.json()["code"] == "WORKSPACE_ADMIN_REQUIRED"
+        # The rest of the settings are still theirs; the same repository again is not a change.
+        res = client.patch(
+            self.url(workspace, project), {"repo_url": coding_settings.repo_url, "enabled": True}, format="json"
+        )
+        assert res.status_code == 200
+
+    def test_a_workspace_admin_can(self, admin, workspace, project, coding_settings):
+        res = admin[1].patch(
+            self.url(workspace, project), {"repo_url": "https://github.com/example/other"}, format="json"
+        )
         assert res.status_code == 200

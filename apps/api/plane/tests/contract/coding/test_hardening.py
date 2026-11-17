@@ -69,6 +69,12 @@ class TestQueueTtl:
         fresh.refresh_from_db()
         assert fresh.status == JobStatus.QUEUED
 
+    def test_zero_means_no_limit(self, settings, member, start, tasks):
+        settings.CODING_JOB_QUEUE_TTL_HOURS = "0"
+        job = start(member[0])
+        CodingJob.objects.filter(pk=job.pk).update(created_at=timezone.now() - timedelta(days=30))
+        assert expire_jobs() == 0
+
 
 @pytest.mark.contract
 class TestAudit:
