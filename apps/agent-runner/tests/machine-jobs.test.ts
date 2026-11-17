@@ -376,7 +376,10 @@ describe("the job manager", () => {
       }
       return { status: 200, body: { status: "finished", outcome: "fixed", changed: true } };
     };
-    const gate = Promise.withResolvers<void>();
+    const gate: { open?: () => void } = {};
+    const held = new Promise<void>((resolve) => {
+      gate.open = resolve;
+    });
     const jobs = new JobManager({
       key: KEY,
       slots: 1,
@@ -384,7 +387,7 @@ describe("the job manager", () => {
       log: memoryLogger(),
       run: async (_job, emit) => {
         for (let i = 0; i < 600; i++) emit({ kind: "status", text: `line ${i}\0` });
-        await gate.promise;
+        await held;
         return { kind: "result", result: { outcome: "fixed", summary: "x" } };
       },
       resultRetryMs: 10,
@@ -392,7 +395,7 @@ describe("the job manager", () => {
     jobs.accept([ORDER]);
     await jobs.flush(); // refused: that batch is dropped, the rest goes on
     await jobs.flush();
-    gate.resolve();
+    gate.open?.();
     await jobs.idle();
     expect(Math.max(...sizes)).toBeLessThanOrEqual(50);
     expect(sizes.length).toBeGreaterThan(2);
