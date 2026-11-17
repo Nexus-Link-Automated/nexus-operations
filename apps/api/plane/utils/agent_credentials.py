@@ -67,7 +67,8 @@ def end_agent_access(memberships):
 
     ``memberships`` is an iterable of ``(workspace_id, user_id)``. Each member's personal
     provider credentials there (API keys and account sign-in records, soft-deleted rows
-    included) are deleted for good, and their agent-session tokens there stop working.
+    included) are deleted for good, and their agent-session tokens there stop working, as do
+    every token of a removed EmployAI bot member.
     The workspace's shared credentials are left alone. Files and sign-ins on the agent
     runner are removed by the agent bridge (see ``AgentOffboardingEndpoint``).
     """
@@ -78,6 +79,10 @@ def end_agent_access(memberships):
         return
     AgentProviderCredential.all_objects.filter(condition, user__isnull=False).delete()
     APIToken.objects.filter(condition, label=AGENT_SESSION_TOKEN_LABEL, is_active=True).update(
+        is_active=False, updated_at=timezone.now()
+    )
+    # An EmployAI bot member (plane.coding.bot_members) acts only with its own tokens: removing it ends them.
+    APIToken.objects.filter(condition, user__is_bot=True, user__bot_type="EMPLOYAI", is_active=True).update(
         is_active=False, updated_at=timezone.now()
     )
 

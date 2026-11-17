@@ -34,6 +34,7 @@ from plane.coding.serializers import (
     JobEventsSerializer,
     JobResultSerializer,
     JoinSerializer,
+    AddMachineSerializer,
     MachineNameSerializer,
 )
 from plane.db.models import Workspace, WorkspaceMember
@@ -94,7 +95,15 @@ class _WorkspaceMachines(CodingEndpointMixin):
         return machine
 
     def get_own_machine(self) -> CodingMachine:
+        """A machine the caller manages: their own, or, for a workspace admin, a bot member's. A bot never manages
+        machines, its own included: an admin adds and approves them for it."""
         machine = self.get_machine()
+        if self.request.user.is_bot:
+            raise Forbidden("A bot member's machines are managed by workspace admins.", code="BOT_NOT_ALLOWED")
+        if machine.owner.is_bot:
+            if not self.is_admin:
+                raise Forbidden("Only workspace admins manage a bot member's machines.")
+            return machine
         if machine.owner_id != self.request.user.id:
             raise Forbidden("Only the machine's owner can do this.")
         self.require_member()
@@ -113,13 +122,23 @@ class CodingMachineListMixin(_WorkspaceMachines):
         return Response(CodingMachineSerializer(mine, many=True).data)
 
     def post(self, request, slug):
-        """Add a machine. The answer carries `join_code` (and `join_code_expires_at`): shown once, never again."""
-        self.require_member()
+        """Add a machine. The answer carries `join_code` (and `join_code_expires_at`): shown once, never again.
+
+        `owner` (a bot member's id) adds one for that bot: workspace admins only. A bot cannot add machines."""
         self.refuse_agent_sessions()
-        serializer = MachineNameSerializer(data=request.data)
+        if request.user.is_bot:
+            raise Forbidden("A bot member's machines are added by workspace admins.", code="BOT_NOT_ALLOWED")
+        serializer = AddMachineSerializer(data=request.data)
         if not serializer.is_valid():
             return self.invalid(serializer.errors)
-        machine, code = machines.add_machine(self.workspace, request.user, serializer.validated_data["name"])
+        data = serializer.validated_data
+        owner = request.user
+        if data.get("owner"):
+            self.require_admin()
+            owner = machines.bot_owner(self.workspace, data["owner"])
+        else:
+            self.require_member()
+        machine, code = machines.add_machine(self.workspace, owner, data["name"])
         return Response(self.payload(machine, join_code=code), status=status.HTTP_201_CREATED)
 
 
@@ -145,9 +164,11 @@ class CodingMachineDetailMixin(_WorkspaceMachines):
         return Response(self.payload(machine))
 
     def delete(self, request, slug, machine_id):
-        """Remove for good. The owner only; the machine's key stops working at once."""
+        """Remove for good. The owner only (a workspace admin for a bot's); the machine's key stops working at once."""
         machine = self.get_machine()
-        if machine.owner_id != request.user.id:
+        if request.user.is_bot or (
+            machine.owner_id != request.user.id and not (machine.owner.is_bot and self.is_admin)
+        ):
             raise Forbidden("Only the machine's owner can remove it. Admins can revoke it.")
         machines.remove(machine)
         return Response(status=status.HTTP_204_NO_CONTENT)

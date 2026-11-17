@@ -20,6 +20,7 @@ It also holds the registry of each person's own machines and hands queued jobs t
 | `a2a.py` | The CRM agent's A2A endpoint: each job is a task; the coding agent's questions arrive here |
 | `questions.py` | Who answers a coding agent's question: the CRM agent from the work item, else a person |
 | `models/question.py` | `CodingJobQuestion`: a question, its answer and who gave it |
+| `bot_members.py`, `models/bot_member.py` | EmployAI agents as bot members: create, role, token, removal |
 | `publish.py` | Pushing a job's changes to its own branch and opening the pull request |
 | `models/changes.py` | `CodingJobChanges`: a finished job's changed files while the CRM pushes them |
 | `models/event.py` | `CodingJobEvent`: a progress line a machine reported |
@@ -135,6 +136,35 @@ the time it waited, and the machine stops its own clock meanwhile. In Messages, 
 their text only to readers who can see the work item; the stored body (searched and exported) says only that a coding
 job asked something. Jobs carry their `questions` (`seq`, `question`, `status`: `thinking`, `waiting`, `answered`,
 `unanswered`; `answer`, `answered_by`, `answered_by_agent`, `answered_by_name`, `asked_at`, `answered_at`).
+
+## Bot members (EmployAI agents)
+
+An EmployAI agent is a bot member of a workspace: a `User` with `is_bot` and `bot_type` `EMPLOYAI`, a workspace role
+(member or guest, never admin) and its own access token, scoped to the workspace. It cannot sign in to the web app;
+it uses the CRM only through the public API and MCP, like any member: project admins add it to projects, its role is
+changed and it is removed from the workspace's members list like anyone (Plane's member endpoints treat EmployAI bots
+as members, `plane.utils.bot_members`), and removing it ends its tokens. The web app shows it with a bot badge.
+
+Workspace admins (people, not bots, and not an in-app agent's session) manage them, under
+`/api/v1/workspaces/<slug>/bot-members/` (and the web app's `/api/...`); MCP tool `bot_member`:
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `bot-members/` | the workspace's bot members, removed ones included |
+| POST | `bot-members/` `{"name", "role"?: 15 \| 5, "description"?}` | creates one; the answer has `token`, shown once (at most 20 per workspace) |
+| GET, PATCH | `bot-members/<id>/` `{"name"?, "role"?, "description"?}` | reads or changes it (a guest's project roles become guest) |
+| DELETE | `bot-members/<id>/` | removes it, as removing any member does |
+| POST | `bot-members/<id>/token/` | a new token, shown once; every earlier one stops working |
+
+A bot member reads as `{"id", "name", "display_name", "description", "role", "is_active", "created_by", "created_at",
+"token_created_at", "token_last_used"}`. The token in an answer is not kept in the API request log.
+
+**Its coding jobs run on its own machines** (decided 2026-11-17), never on a person's or with a person's sign-ins.
+A workspace admin adds a machine for it (`POST coding-machines/` with `"owner": <bot id>`; the bot must be a member,
+not a guest), runs the machine service on the computer meant for it with that join code, and approves it; renaming
+and removing it are an admin's too. The bot itself cannot add, approve, rename or remove machines
+(`BOT_NOT_ALLOWED`). Its jobs then go to its machines exactly as a person's go to theirs. Machines read with
+`owner_is_bot`.
 
 ## Endpoints
 

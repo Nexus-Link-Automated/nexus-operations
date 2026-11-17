@@ -69,6 +69,7 @@ CATALOGUE = [
     "collection",
     "coding_job",
     "coding_machine",
+    "bot_member",
 ]
 
 

@@ -7,6 +7,7 @@
 from plane.api.views.base import BaseAPIView as PublicBaseAPIView
 from plane.app.views.base import BaseAPIView as AppBaseAPIView
 
+from .bot_member import BotMemberDetailMixin, BotMemberListMixin, BotMemberTokenMixin
 from .job import (
     CodingJobAnswerMixin,
     CodingJobCancelMixin,
@@ -141,4 +142,28 @@ class CodingMachineApproveAppEndpoint(CodingMachineApproveMixin, AppBaseAPIView)
 
 
 class CodingMachineRevokeAppEndpoint(CodingMachineRevokeMixin, AppBaseAPIView):
+    pass
+
+
+class BotMemberListAPIEndpoint(BotMemberListMixin, PublicBaseAPIView):
+    pass
+
+
+class BotMemberDetailAPIEndpoint(BotMemberDetailMixin, PublicBaseAPIView):
+    pass
+
+
+class BotMemberTokenAPIEndpoint(BotMemberTokenMixin, PublicBaseAPIView):
+    pass
+
+
+class BotMemberListAppEndpoint(BotMemberListMixin, AppBaseAPIView):
+    pass
+
+
+class BotMemberDetailAppEndpoint(BotMemberDetailMixin, AppBaseAPIView):
+    pass
+
+
+class BotMemberTokenAppEndpoint(BotMemberTokenMixin, AppBaseAPIView):
     pass

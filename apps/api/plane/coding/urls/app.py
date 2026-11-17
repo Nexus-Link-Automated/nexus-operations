@@ -23,6 +23,9 @@ urlpatterns = routes(
         "machine": views.CodingMachineDetailAppEndpoint,
         "machine_approve": views.CodingMachineApproveAppEndpoint,
         "machine_revoke": views.CodingMachineRevokeAppEndpoint,
+        "bots": views.BotMemberListAppEndpoint,
+        "bot": views.BotMemberDetailAppEndpoint,
+        "bot_token": views.BotMemberTokenAppEndpoint,
     },
     prefix="app",
 )

@@ -11,6 +11,7 @@ from .job import (
     StartJobSerializer,
 )
 from .machine import (
+    AddMachineSerializer,
     CodingMachineSerializer,
     HeartbeatSerializer,
     JobEventsSerializer,
@@ -21,6 +22,7 @@ from .machine import (
 from .project_settings import ProjectCodingSettingsUpdateSerializer, settings_payload
 
 __all__ = [
+    "AddMachineSerializer",
     "AnswerSerializer",
     "CodingJobQuestionSerializer",
     "CodingJobEventSerializer",

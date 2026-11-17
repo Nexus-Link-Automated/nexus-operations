@@ -129,7 +129,7 @@ class APITokenLogMiddleware:
         return str(redacted)
 
     # Secrets an answer shows exactly once, which must not be kept in the log: path fragment -> body fields.
-    SECRET_RESPONSE_FIELDS = {"/coding-machines/": ("join_code",)}
+    SECRET_RESPONSE_FIELDS = {"/coding-machines/": ("join_code",), "/bot-members/": ("token",)}
 
     def _redact_response(self, path, body):
         fields = [f for fragment, names in self.SECRET_RESPONSE_FIELDS.items() if fragment in path for f in names]

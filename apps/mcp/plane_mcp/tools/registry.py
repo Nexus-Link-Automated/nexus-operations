@@ -17,6 +17,7 @@ from __future__ import annotations
 from types import ModuleType
 
 from plane_mcp.tools import (
+    bot_member,
     coding_job,
     coding_machine,
     collection,
@@ -84,6 +85,7 @@ RESOURCES: tuple[ModuleType, ...] = (
     collection,
     coding_job,
     coding_machine,
+    bot_member,
 )
 
 

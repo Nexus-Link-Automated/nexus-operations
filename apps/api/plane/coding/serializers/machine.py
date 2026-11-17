@@ -15,6 +15,8 @@ NAME = {"max_length": 80, "trim_whitespace": True, "allow_blank": False}
 
 class CodingMachineSerializer(serializers.ModelSerializer):
     owner_display_name = serializers.CharField(source="owner.display_name", read_only=True)
+    # A bot member's machine: workspace admins manage it.
+    owner_is_bot = serializers.BooleanField(source="owner.is_bot", read_only=True)
     is_online = serializers.BooleanField(read_only=True)
     join_code_expired = serializers.BooleanField(read_only=True)
 
@@ -25,6 +27,7 @@ class CodingMachineSerializer(serializers.ModelSerializer):
             "workspace",
             "owner",
             "owner_display_name",
+            "owner_is_bot",
             "name",
             "state",
             "is_online",
@@ -47,6 +50,11 @@ class CodingMachineSerializer(serializers.ModelSerializer):
 
 class MachineNameSerializer(StrictSerializer):
     name = serializers.CharField(**NAME)
+
+
+class AddMachineSerializer(MachineNameSerializer):
+    # A bot member's id: a workspace admin adds the machine for that bot.
+    owner = serializers.UUIDField(required=False, allow_null=True)
 
 
 # What a machine reports about itself. Bounded, so a machine cannot store anything large; only shown, never trusted.

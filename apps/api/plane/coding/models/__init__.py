@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
+from .bot_member import BOT_TYPE, MAX_BOTS_PER_WORKSPACE, BotMember
 from .changes import CodingJobChanges
 from .event import EVENT_TEXT_MAX, MAX_EVENTS_PER_JOB, CodingJobEvent, EventKind
 from .job import ACTIVE_STATUSES, CodingAction, CodingAgent, CodingJob, JobOutcome, JobStatus
@@ -10,6 +11,9 @@ from .project_settings import ProjectCodingSettings
 from .question import MAX_QUESTIONS_PER_JOB, QUESTION_TEXT_MAX, CodingJobQuestion, QuestionStatus
 
 __all__ = [
+    "BOT_TYPE",
+    "BotMember",
+    "MAX_BOTS_PER_WORKSPACE",
     "ACTIVE_STATUSES",
     "CodingAction",
     "CodingAgent",

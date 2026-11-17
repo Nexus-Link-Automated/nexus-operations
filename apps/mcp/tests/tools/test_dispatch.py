@@ -70,6 +70,7 @@ CONDITIONAL: dict[tuple[str, str], dict[str, object]] = {
     ("release_label", "list"): {},
     # An update has to carry a setting to change.
     ("coding_job", "settings_update"): {"enabled": True},
+    ("bot_member", "update"): {"name": "Renamed"},
 }
 
 # Actions whose guard clause legitimately answers without calling the SDK.

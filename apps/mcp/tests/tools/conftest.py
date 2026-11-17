@@ -13,7 +13,7 @@ os.environ.setdefault("PLANE_WORKSPACE_SLUG", "test")
 
 from plane import PlaneClient  # noqa: E402
 
-from plane_mcp.tools import coding_job, coding_machine  # noqa: E402
+from plane_mcp.tools import bot_member, coding_job, coding_machine  # noqa: E402
 from plane_mcp.tools import register_tools as register_v2  # noqa: E402
 from plane_mcp.tools.registry import RESOURCES, alias_table, unmapped_table  # noqa: E402
 
@@ -85,6 +85,8 @@ def spy(monkeypatch):
     # record those calls the same way, bound against those classes' signatures.
     coding_jobs = coding_job.CodingJobs(PlaneClient(api_key="spy", base_url="http://spy.invalid").config)
     monkeypatch.setattr(coding_job, "coding_jobs", lambda _client: _Namespace(client, coding_jobs, "coding_jobs"))
+    bots = bot_member.BotMembers(PlaneClient(api_key="spy", base_url="http://spy.invalid").config)
+    monkeypatch.setattr(bot_member, "bot_members", lambda _client: _Namespace(client, bots, "bot_members"))
     machines = coding_machine.CodingMachines(PlaneClient(api_key="spy", base_url="http://spy.invalid").config)
     monkeypatch.setattr(
         coding_machine, "coding_machines", lambda _client: _Namespace(client, machines, "coding_machines")

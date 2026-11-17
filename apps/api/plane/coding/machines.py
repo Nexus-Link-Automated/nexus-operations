@@ -65,6 +65,19 @@ def owner_may_use_machines(user, workspace) -> bool:
     ).exists()
 
 
+def bot_owner(workspace, bot_id):
+    """The bot member a workspace admin adds a machine for: an EmployAI bot that is an active member (not a guest)."""
+    from plane.coding.models import BOT_TYPE
+    from plane.db.models import User
+
+    bot = User.objects.filter(pk=bot_id, is_bot=True, bot_type=BOT_TYPE, is_active=True).first()
+    if bot is None or not owner_may_use_machines(bot, workspace):
+        raise CodingError(
+            "owner must be a bot member of this workspace who is a member, not a guest.", code="BOT_NOT_FOUND"
+        )
+    return bot
+
+
 def add_machine(workspace, owner, name: str) -> tuple[CodingMachine, str]:
     """A new pending machine and its join code. The code is returned here and never again."""
     if CodingMachine.objects.filter(workspace=workspace, owner=owner).count() >= MAX_MACHINES_PER_OWNER:

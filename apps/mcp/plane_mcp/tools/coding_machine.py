@@ -22,8 +22,9 @@ ACTIONS = (
     Action(
         "add",
         ("name",),
+        ("owner",),
         note="returns join_code, shown once: pass it to the machine service's join command, never store it; "
-        "single use, 30 min",
+        "single use, 30 min; owner: a bot_member id (admins)",
     ),
     Action("rename", ("machine_id", "name"), note="the owner"),
     Action("approve", ("machine_id",), note="the owner, after it joins"),
@@ -56,8 +57,8 @@ class CodingMachines(BaseResource):
     def retrieve(self, workspace_slug: str, machine_id: str) -> Any:
         return self._get(f"{workspace_slug}/coding-machines/{machine_id}")
 
-    def create(self, workspace_slug: str, name: str) -> Any:
-        return self._post(f"{workspace_slug}/coding-machines", {"name": name})
+    def create(self, workspace_slug: str, name: str, owner: str = "") -> Any:
+        return self._post(f"{workspace_slug}/coding-machines", {"name": name, **({"owner": owner} if owner else {})})
 
     def rename(self, workspace_slug: str, machine_id: str, name: str) -> Any:
         return self._patch(f"{workspace_slug}/coding-machines/{machine_id}", {"name": name})
@@ -86,6 +87,7 @@ def register(mcp: FastMCP) -> None:
         action: Literal["list", "list_all", "get", "add", "rename", "approve", "remove", "revoke"],
         machine_id: str = "",
         name: str = "",
+        owner: str = "",
     ) -> dict[str, Any] | list[dict[str, Any]] | str | None:
         name = name.strip()
         if action == "add":
@@ -106,7 +108,7 @@ def register(mcp: FastMCP) -> None:
             if action == "list_all":
                 return api.list_all(workspace_slug)
             if action == "add":
-                return api.create(workspace_slug, name)
+                return api.create(workspace_slug, name, owner) if owner else api.create(workspace_slug, name)
             if action == "get":
                 return api.retrieve(workspace_slug, machine_id)
             if action == "rename":

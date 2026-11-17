@@ -9,6 +9,8 @@ JOBS = PROJECT + "work-items/<uuid:issue_id>/coding-jobs/"
 JOB = JOBS + "<uuid:job_id>/"
 MACHINES = "workspaces/<str:slug>/coding-machines/"
 MACHINE = MACHINES + "<uuid:machine_id>/"
+BOTS = "workspaces/<str:slug>/bot-members/"
+BOT = BOTS + "<uuid:bot_id>/"
 
 
 def routes(views: dict, prefix: str) -> list:
@@ -45,6 +47,13 @@ def routes(views: dict, prefix: str) -> list:
             MACHINE + "approve/",
             views["machine_approve"].as_view(http_method_names=["post"]),
             name=f"{prefix}-coding-machine-approve",
+        ),
+        path(BOTS, views["bots"].as_view(http_method_names=["get", "post"]), name=f"{prefix}-bot-members"),
+        path(BOT, views["bot"].as_view(http_method_names=["get", "patch", "delete"]), name=f"{prefix}-bot-member"),
+        path(
+            BOT + "token/",
+            views["bot_token"].as_view(http_method_names=["post"]),
+            name=f"{prefix}-bot-member-token",
         ),
         path(
             MACHINE + "revoke/",
