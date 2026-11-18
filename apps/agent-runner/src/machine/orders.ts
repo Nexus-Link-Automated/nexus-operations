@@ -35,8 +35,9 @@ const BRANCH = /^[A-Za-z0-9._/-]{1,255}$/;
 const MIN_TIMEOUT_SECONDS = 60;
 const MAX_TIMEOUT_SECONDS = 24 * 60 * 60;
 const MAX_INSTRUCTIONS = 200_000;
-// A GitHub installation token: it reaches git as a header value, so nothing but these characters.
-const TOKEN = /^[A-Za-z0-9_.-]{1,255}$/;
+// A GitHub installation token: it reaches git as a header value, so nothing but these characters. GitHub's tokens
+// are no longer capped at 255 characters (installation tokens are about 390 now), so the cap leaves room.
+const TOKEN = /^[A-Za-z0-9_.-]{1,4096}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

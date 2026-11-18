@@ -118,7 +118,8 @@ class FakeGitHub:
             repos = [r for r in self.repos.values() if r.installation == int(m[1]) and r.name in names]
             if len(repos) != 1:
                 return httpx.Response(422, json={"message": "There is at least one repository that does not exist"})
-            token = f"ghs_{self._sha('token')[:36]}"
+            # As long as GitHub's real installation tokens (390 characters), which are past the old 255 cap.
+            token = f"ghs_{(self._sha('token') * 7)[:386]}"
             permissions = dict(body.get("permissions") or {})
             granted = {**permissions, "metadata": "read"}
             if self.grant_extra:

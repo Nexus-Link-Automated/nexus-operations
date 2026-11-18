@@ -562,6 +562,11 @@ describe("the job manager", () => {
     await run(withToken.order);
     expect(sandboxes.created[0]!.token).toBe("ghs_readonly123");
     expect(parseOrder({ ...ORDER, clone_token: "bad token\n" }).ok).toBe(false);
+    // GitHub's installation tokens are longer than 255 characters now.
+    const longToken = `ghs_${"aB3_.-".repeat(64)}`;
+    expect(longToken.length).toBeGreaterThan(380);
+    expect(parseOrder({ ...ORDER, clone_token: longToken }).ok).toBe(true);
+    expect(parseOrder({ ...ORDER, clone_token: "x".repeat(4097) }).ok).toBe(false);
     await run(order());
     expect(sandboxes.created[1]!.token).toBeUndefined();
   });
