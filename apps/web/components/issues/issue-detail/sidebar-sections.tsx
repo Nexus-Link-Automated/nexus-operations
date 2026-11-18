@@ -20,6 +20,7 @@ import {
 import { useTranslation } from "@plane/i18n";
 import { calculateTimeAgo, cn, renderFormattedDate } from "@plane/utils";
 // components
+import { CodingJobsPanel } from "@/components/coding-jobs/jobs-panel";
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
 import { EstimateSelect } from "@/components/dropdowns/estimate/estimate-select";
 import { IssueParentSelectRoot } from "@/components/issues/parent-select-root";
@@ -178,6 +179,8 @@ export const IssueDetailSidebarSections = observer(function IssueDetailSidebarSe
           </>
         )}
       </div>
+
+      <CodingJobsPanel workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} />
 
       {auditRows.length > 0 && (
         <div className={cn("flex flex-col gap-1 py-6", { "opacity-60": disabled })}>

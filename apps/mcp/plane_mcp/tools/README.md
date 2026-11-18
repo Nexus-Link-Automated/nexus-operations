@@ -1,6 +1,6 @@
 # The tool surface
 
-**30 tools**, one per Plane resource, each taking an `action` parameter that selects the operation. 207 actions in total.
+**32 tools**, one per Plane resource, each taking an `action` parameter that selects the operation. 222 actions in total.
 
 ```python
 workitem(action="create", project_id=..., name="Fix login")
@@ -8,7 +8,7 @@ workitem(action="list", project_id=..., pql='state__group = "started"')
 cycle(action="archive", project_id=..., cycle_id=...)
 ```
 
-A compact catalogue — 30 tools, ~67k characters — loads fully in every MCP client and leaves the context budget to the conversation.
+A compact catalogue — 32 tools, ~70k characters — loads fully in every MCP client and leaves the context budget to the conversation.
 
 Five parts, in this order:
 
@@ -91,6 +91,8 @@ Where the workspace owns a resource outright, both directions of wrong-scope wri
 
 | Tool | Actions |
 |---|---|
+| `coding_job` | `list` · `get` · `events` · `start` · `cancel` · `retry` · `settings_get` · `settings_update` |
+| `coding_machine` | `list` · `list_all` · `get` · `add` · `rename` · `approve` · `remove` · `revoke` |
 | `collection` | `list` · `retrieve` · `create` · `update` · `delete` · `list_pages` · `search_pages` · `add_pages` · `remove_page` · `list_members` · `add_member` · `update_member` · `remove_member` |
 | `customer` | `list` · `retrieve` · `create` · `update` · `delete` · `list_workitems` · `manage_workitems` |
 | `customer_property` | `list` · `retrieve` · `create` · `update` · `delete` · `get_values` · `set_values` |

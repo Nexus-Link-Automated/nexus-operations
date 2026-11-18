@@ -68,6 +68,7 @@ class MessageSystemEvent(models.TextChoices):
     """What an automatic message announces. Nobody typed it, so nobody can edit it."""
 
     WORK_ITEM_STATE = "work_item_state", "Work item state changes"
+    CODING_QUESTION = "coding_question", "A coding job's question"
 
 
 class AgentNotice(models.TextChoices):

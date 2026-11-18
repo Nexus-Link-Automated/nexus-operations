@@ -6,5 +6,6 @@
     "types": ["node"]
   },
   "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist"]
+  // Fixtures run as separate processes; fake-coding-agent.ts imports the adapters' source, which this project does not build.
+  "exclude": ["node_modules", "dist", "tests/fixtures"]
 }

@@ -1,0 +1,351 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Correggi bug",
+      "write_test": "Scrivi test",
+      "write_and_run_test": "Scrivi ed esegui test"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Attività di coding"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Un agente di coding prova a correggere questo bug e apre una pull request. Una volta corretto, l'elemento di lavoro passa a \"In review\".",
+        "write_test": "Un agente di coding scrive un test per questo elemento di lavoro e apre una pull request. Il test non viene eseguito. L'elemento di lavoro passa poi a \"Ready\".",
+        "write_and_run_test": "Un agente di coding scrive un test e lo esegue. Se il test ha esito positivo, l'elemento di lavoro passa a \"Ready\"; se fallisce perché il codice contiene bug, passa a \"Failed\"."
+      },
+      "agent": "Agente",
+      "machine": "Macchina",
+      "machine_auto": "Automatica",
+      "machine_hint": "Le tue macchine approvate che sono online. Automatica ne sceglie una.",
+      "start": "Avvia attività",
+      "starting": "Avvio..."
+    },
+    "toasts": {
+      "started": "Attività di coding avviata",
+      "start_failed": "Impossibile avviare l'attività di coding",
+      "cancelled": "Attività di coding annullata",
+      "cancel_failed": "Impossibile annullare l'attività di coding",
+      "retried": "Attività di coding riavviata",
+      "retry_failed": "Impossibile riprovare l'attività di coding",
+      "answered": "Risposta inviata",
+      "answer_failed": "Impossibile inviare la risposta"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Le attività di coding non sono configurate per questo progetto. Un amministratore del progetto deve attivarle e impostare il repository.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Le attività di coding non possono essere eseguite su bozze, elementi di lavoro archiviati o elementi di lavoro in attesa in Intake.",
+      "JOB_ACTIVE": "Questo elemento di lavoro ha già un'attività di questo tipo in corso.",
+      "JOB_NOT_ACTIVE": "Questa attività è già terminata, quindi non può essere annullata.",
+      "JOB_NOT_RETRYABLE": "Solo un'attività annullata o non completata può essere riprovata.",
+      "MACHINE_NOT_AVAILABLE": "Quella macchina non è più tra le tue macchine approvate. Scegline un'altra o Automatica.",
+      "MACHINE_LIMIT": "Hai già il numero massimo di macchine consentito in questo workspace. Rimuovine prima una.",
+      "MACHINE_NOT_JOINED": "Questa macchina non si è ancora collegata, quindi non c'è nulla da approvare.",
+      "MACHINE_REVOKED": "Questa macchina è stata revocata da un amministratore del workspace.",
+      "forbidden": "Non hai l'autorizzazione per farlo.",
+      "generic": "Qualcosa è andato storto. Riprova.",
+      "NO_OPEN_QUESTION": "L'agente non ha domande aperte in questo momento. Forse qualcuno ha già risposto.",
+      "ANSWER_EMPTY": "Scrivi prima una risposta.",
+      "BOT_NOT_ALLOWED": "I membri bot non possono gestire le macchine. Lo fa per loro un amministratore del workspace.",
+      "BOT_NOT_FOUND": "Membro bot non trovato. Potrebbe essere stato rimosso.",
+      "BOT_LIMIT": "Questo workspace ha già il numero massimo di membri bot consentito. Rimuovine prima uno.",
+      "BOT_ROLE_NOT_ALLOWED": "Un membro bot può essere solo membro o ospite.",
+      "BOT_REMOVED": "Questo membro bot è stato rimosso dal workspace."
+    },
+    "panel": {
+      "title": "Attività di coding",
+      "refresh": "Aggiorna attività di coding",
+      "empty": "Ancora nessuna attività di coding.",
+      "load_failed": "Impossibile caricare le attività di coding.",
+      "requested_by": "Avviata da {name}",
+      "unknown_user": "Membro sconosciuto",
+      "finished": "Terminata {time}",
+      "error_reason": "Motivo",
+      "pr": "Pull request",
+      "cancel": "Annulla",
+      "retry": "Riprova",
+      "waiting_for_machine": "In attesa di una macchina",
+      "ran_on": "Eseguito su {name}",
+      "started": "Avviato {time}",
+      "progress": "Avanzamento",
+      "progress_loading": "Caricamento dell'avanzamento...",
+      "progress_empty": "Nessun avanzamento per ora.",
+      "progress_load_failed": "Impossibile caricare l'avanzamento.",
+      "branch": "Branch",
+      "opening_pr": "Apertura della pull request...",
+      "questions": "Domande dall'agente",
+      "open_question": "L'agente ha una domanda",
+      "question_thinking": "L'agente del CRM sta preparando una risposta. Puoi rispondere anche tu.",
+      "question_waiting": "In attesa di una risposta.",
+      "answer_label": "La tua risposta",
+      "answer_placeholder": "Scrivi la tua risposta",
+      "answer_hint": "L'agente prosegue con la tua risposta.",
+      "answer": "Rispondi",
+      "answering": "Invio...",
+      "answered_by": "Risposta di {name}",
+      "answered_by_agent": "Risposta dell'agente del CRM",
+      "answered_by_unknown": "Risposta data",
+      "no_answer": "Nessuna risposta ricevuta"
+    },
+    "status": {
+      "queued": "In coda",
+      "running": "In esecuzione",
+      "needs_input": "Richiede input",
+      "finished": "Terminata",
+      "cancelled": "Annullata"
+    },
+    "outcome": {
+      "fixed": "Corretto",
+      "could_not_fix": "Impossibile correggere",
+      "test_written": "Test scritto",
+      "test_passed": "Test superato",
+      "bug_found": "Bug trovato",
+      "job_error": "Non completata"
+    },
+    "event_kind": {
+      "status": "Stato",
+      "message": "Messaggio",
+      "tool": "Strumento",
+      "plan": "Piano"
+    },
+    "settings": {
+      "label": "Attività di coding",
+      "title": "Attività di coding",
+      "description": "Consenti agli agenti di coding di correggere bug e scrivere test a partire dagli elementi di lavoro di questo progetto.",
+      "enabled": "Attività di coding",
+      "enabled_description": "I membri possono avviare \"Correggi bug\", \"Scrivi test\" e \"Scrivi ed esegui test\" sugli elementi di lavoro.",
+      "repo_url": "URL del repository",
+      "repo_url_hint": "L'indirizzo https del repository in cui lavorano gli agenti. Senza credenziali.",
+      "default_branch": "Branch predefinito",
+      "columns_title": "Colonne di esito",
+      "columns_description": "Lo stato in cui ogni esito sposta l'elemento di lavoro.",
+      "column": {
+        "ready": "Pronto",
+        "failed": "Fallito",
+        "in_review": "In revisione"
+      },
+      "column_hint": {
+        "ready": "Dopo che un test è stato scritto, o scritto e superato.",
+        "failed": "Quando un test fallisce perché il codice del prodotto contiene bug.",
+        "in_review": "Dopo che un bug è stato corretto e la relativa pull request è aperta."
+      },
+      "match_by_name": "Corrispondenza per nome (\"{name}\")",
+      "resolves_to": "Ora: {state}",
+      "resolves_to_by_name": "Ora: {state} (corrispondenza per nome)",
+      "resolves_none": "Ora: nessuno stato corrispondente, quindi l'elemento di lavoro resta dov'è.",
+      "create_failed": "Crea colonna Failed",
+      "creating_failed": "Creazione...",
+      "failed_created": "Colonna Failed creata",
+      "create_failed_error": "Impossibile creare la colonna Failed",
+      "save": "Salva modifiche",
+      "saving": "Salvataggio...",
+      "saved": "Impostazioni di coding salvate",
+      "save_failed": "Impossibile salvare le impostazioni di coding",
+      "read_only": "Solo gli amministratori del progetto possono modificare queste impostazioni.",
+      "not_configured": "Le attività di coding sono disattivate per questo progetto. Attivale e imposta il repository affinché i membri possano avviare attività."
+    },
+    "repository": {
+      "title": "Pull request",
+      "checking": "Verifica del repository...",
+      "check_failed": "Impossibile verificare il repository.",
+      "check_again": "Verifica di nuovo",
+      "ready": "Attivo. Il CRM può aprire pull request su questo repository.",
+      "ready_private": "Attivo. Il CRM può aprire pull request su questo repository privato.",
+      "ready_public": "Attivo. Il CRM può aprire pull request su questo repository pubblico.",
+      "off": "Non attivo. Il CRM non può ancora aprire pull request su questo repository.",
+      "install": "Installa la GitHub App"
+    }
+  },
+  "coding_machines": {
+    "label": "Macchine",
+    "title": "Macchine",
+    "description": "I tuoi computer che eseguono le tue attività di coding in {workspace}. Ognuno usa i propri accessi a Codex e Claude e si collega solo in uscita al CRM.",
+    "no_workspace": "Le macchine appartengono a un workspace. Unisciti a un workspace o creane uno per aggiungerne una.",
+    "guest": "Le macchine non sono disponibili per gli ospiti.",
+    "empty": "Nessuna macchina. Aggiungi il tuo computer per eseguire su di esso le tue attività di coding.",
+    "load_failed": "Impossibile caricare le macchine.",
+    "add": "Aggiungi macchina",
+    "state": {
+      "pending": "In attesa di collegamento",
+      "awaiting_approval": "In attesa di approvazione",
+      "active": "Attiva",
+      "revoked": "Revocata"
+    },
+    "online": "Online",
+    "offline": "Offline",
+    "last_seen": "vista {time}",
+    "never_seen": "mai collegata",
+    "host": "Host",
+    "agents": "Agenti",
+    "no_agents": "Nessuno trovato",
+    "agent_signed_in": "accesso effettuato",
+    "agent_not_signed_in": "accesso non effettuato",
+    "agent_not_installed": "non installato",
+    "docker": "Docker",
+    "docker_available": "Disponibile",
+    "docker_unavailable": "Non disponibile",
+    "slots": "Slot liberi",
+    "slots_value": "{free} su {total}",
+    "unknown": "sconosciuto",
+    "pending_hint": "In attesa che la macchina si colleghi con il suo codice. Il codice è valido fino a {time}.",
+    "pending_expired": "Il codice di collegamento è scaduto prima che la macchina lo usasse. Rimuovi questa macchina e aggiungila di nuovo.",
+    "awaiting_hint": "La macchina si è collegata come {hostname}. Se è il tuo computer, approvala così potrà eseguire le tue attività.",
+    "revoked_hint": "Un amministratore del workspace ha revocato questa macchina: non può collegarsi né ricevere attività. Puoi rimuoverla.",
+    "actions": {
+      "approve": "Approva",
+      "rename": "Rinomina",
+      "remove": "Rimuovi"
+    },
+    "add_dialog": {
+      "title": "Aggiungi macchina",
+      "description": "Dai un nome al computer. Poi riceverai un codice di collegamento da usare su di esso.",
+      "name": "Nome",
+      "name_placeholder": "es. Portatile di lavoro",
+      "create": "Aggiungi macchina",
+      "creating": "Aggiunta in corso...",
+      "code_title": "Collega {name}",
+      "code_description": "Esegui questi comandi sulla macchina. Il codice di collegamento funziona una sola volta ed è mostrato solo ora: chiusa questa finestra, non sarà più disponibile.",
+      "step_join": "1. Collegati con il codice",
+      "step_start": "2. Avvia il servizio della macchina",
+      "copy": "Copia",
+      "copied": "Copiato negli appunti",
+      "expires": "Il codice scade il {time}.",
+      "after": "Quando la macchina risulta In attesa di approvazione, controlla il suo hostname e approvala.",
+      "done": "Fatto",
+      "bot_title": "Aggiungi macchina per un bot",
+      "bot_description": "Scegli il bot e dai un nome al suo computer. Poi ricevi un codice di collegamento da usare su di esso.",
+      "bot": "Bot",
+      "bot_placeholder": "Scegli un bot"
+    },
+    "rename_dialog": {
+      "title": "Rinomina macchina",
+      "save": "Salva",
+      "saving": "Salvataggio..."
+    },
+    "approve_dialog": {
+      "title": "Approvare {name}?",
+      "description": "La macchina riporta l'host {hostname} ({os}). Approvala solo se è il tuo computer: eseguirà le tue attività di coding.",
+      "confirm": "Approva",
+      "confirming": "Approvazione..."
+    },
+    "remove_dialog": {
+      "title": "Rimuovere {name}?",
+      "description": "La macchina viene rimossa definitivamente: la sua chiave smette subito di funzionare e non riceve più attività. Per usarla di nuovo, aggiungila di nuovo.",
+      "confirm": "Rimuovi",
+      "confirming": "Rimozione..."
+    },
+    "toasts": {
+      "added": "Macchina aggiunta",
+      "add_failed": "Impossibile aggiungere la macchina",
+      "approved": "Macchina approvata",
+      "approve_failed": "Impossibile approvare la macchina",
+      "renamed": "Macchina rinominata",
+      "rename_failed": "Impossibile rinominare la macchina",
+      "removed": "Macchina rimossa",
+      "remove_failed": "Impossibile rimuovere la macchina",
+      "revoked": "Macchina revocata",
+      "revoke_failed": "Impossibile revocare la macchina"
+    },
+    "admin": {
+      "label": "Macchine",
+      "title": "Macchine",
+      "description": "Tutte le macchine aggiunte dalle persone di questo workspace per le loro attività di coding. Revocarne una la scollega subito: la sua chiave non funziona più e non riceve attività.",
+      "empty": "Nessuno in questo workspace ha ancora aggiunto una macchina.",
+      "owner": "Proprietario",
+      "name": "Macchina",
+      "state": "Stato",
+      "status": "Connessione",
+      "last_seen": "Ultima connessione",
+      "never": "Mai",
+      "revoke": "Revoca",
+      "revoke_dialog": {
+        "title": "Revocare {name}?",
+        "description": "Questa macchina di {owner} smette subito di funzionare e non riceve più attività. Solo il proprietario può rimuoverla.",
+        "confirm": "Revoca",
+        "confirming": "Revoca in corso..."
+      },
+      "bot": "Bot",
+      "add_for_bot": "Aggiungi macchina per un bot",
+      "no_bots": "Per aggiungere una macchina per un bot, aggiungi prima un membro bot con il ruolo Membro.",
+      "approve_bot_description": "La macchina indica l'host {hostname} ({os}). Approvala solo se è il computer che hai preparato per {owner}: eseguirà le attività di coding di quel bot."
+    }
+  },
+  "bot_members": {
+    "label": "Membri bot",
+    "title": "Membri bot",
+    "description": "I bot sono agenti IA che lavorano in questo workspace come membri. Ognuno accede con il proprio token. Aggiungili ai progetti come qualsiasi membro.",
+    "add": "Aggiungi membro bot",
+    "empty": "Ancora nessun membro bot.",
+    "load_failed": "Impossibile caricare i membri bot.",
+    "badge": "Bot",
+    "columns": {
+      "name": "Nome",
+      "role": "Ruolo",
+      "status": "Stato",
+      "token_last_used": "Ultimo uso del token"
+    },
+    "role": {
+      "member": "Membro",
+      "guest": "Ospite"
+    },
+    "status": {
+      "active": "Attivo",
+      "removed": "Rimosso"
+    },
+    "never_used": "Mai",
+    "no_token": "Nessun token",
+    "actions": {
+      "edit": "Modifica",
+      "new_token": "Nuovo token",
+      "remove": "Rimuovi"
+    },
+    "form": {
+      "create_title": "Aggiungi membro bot",
+      "edit_title": "Modifica {name}",
+      "create_description": "Dai al bot un nome e un ruolo. Poi ricevi il suo token.",
+      "name": "Nome",
+      "name_placeholder": "es. Bot di smistamento",
+      "role": "Ruolo",
+      "role_hint": "I membri possono lavorare nei progetti a cui sono aggiunti. Gli ospiti possono solo visualizzare e commentare.",
+      "description": "A cosa serve",
+      "description_placeholder": "es. Ordina le nuove segnalazioni di bug",
+      "create": "Aggiungi membro bot",
+      "creating": "Aggiunta...",
+      "save": "Salva",
+      "saving": "Salvataggio..."
+    },
+    "token_dialog": {
+      "title": "Token per {name}",
+      "description": "Il bot usa questo token per lavorare nel CRM. Copialo ora: dopo aver chiuso questa finestra non lo vedrai più.",
+      "label": "Token",
+      "copy": "Copia token",
+      "copied": "Token copiato",
+      "done": "Fatto"
+    },
+    "new_token_dialog": {
+      "title": "Nuovo token per {name}?",
+      "description": "Il bot riceve un nuovo token. Il token attuale smette subito di funzionare.",
+      "confirm": "Crea nuovo token",
+      "confirming": "Creazione..."
+    },
+    "remove_dialog": {
+      "title": "Rimuovere {name}?",
+      "description": "Il bot viene rimosso da questo workspace e dai suoi progetti. Il suo token smette subito di funzionare.",
+      "confirm": "Rimuovi",
+      "confirming": "Rimozione..."
+    },
+    "toasts": {
+      "created": "Membro bot aggiunto",
+      "create_failed": "Impossibile aggiungere il membro bot",
+      "updated": "Membro bot salvato",
+      "update_failed": "Impossibile salvare il membro bot",
+      "token_created": "Nuovo token creato",
+      "token_failed": "Impossibile creare un nuovo token",
+      "removed": "Membro bot rimosso",
+      "remove_failed": "Impossibile rimuovere il membro bot"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+# Copyright (c) 2023-present Plane Software, Inc. and contributors
+# SPDX-License-Identifier: AGPL-3.0-only
+# See the LICENSE file for details.
+#
+# nexus-machine: connects this computer to the CRM as a coding machine. A systemd *user* unit:
+# it runs as you, with your own Codex and Claude sign-ins, toolchains and docker access.
+# install.sh fills in the @...@ paths and copies it to ~/.config/systemd/user/.
+# It only connects out to the CRM; it listens on no port and has no socket unit.
+
+[Unit]
+Description=Nexus machine service (connects this computer to the CRM for coding jobs)
+
+[Service]
+Type=exec
+# PATH captured at install (so codex, claude and toolchains from nvm, ~/.cargo/bin and the like
+# are found), plus anything you add, e.g. ANTHROPIC_API_KEY. Optional.
+EnvironmentFile=-@ENV_FILE@
+ExecStart="@LAUNCHER@" run
+Restart=on-failure
+RestartSec=10s
+# 78 (EX_CONFIG): not joined yet, or the CRM refused the key for good. Restarting cannot help;
+# join again, then `systemctl --user restart nexus-machine`.
+RestartPreventExitStatus=78
+TimeoutStopSec=30s
+
+# Hardening that needs no user namespaces (so it works in a user unit on any distro) and leaves
+# your home, sign-ins and the docker socket reachable. Filesystem sandboxing (ProtectHome and
+# friends) is left out on purpose: jobs need your home, your sign-ins and your toolchains.
+UMask=0077
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=default.target

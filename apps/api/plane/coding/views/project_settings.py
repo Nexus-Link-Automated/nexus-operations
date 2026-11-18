@@ -1,0 +1,73 @@
+# Copyright (c) 2023-present Plane Software, Inc. and contributors
+# SPDX-License-Identifier: AGPL-3.0-only
+# See the LICENSE file for details.
+
+"""A project's coding settings: members and admins read them, project admins change them."""
+
+from django.db import transaction
+from rest_framework.response import Response
+
+from plane.coding.audit import record
+from plane.coding.exceptions import Forbidden
+from plane.db.models import WorkspaceMember
+from plane.coding.models import ProjectCodingSettings
+from plane.coding.publish import repository_access
+from plane.coding.serializers import ProjectCodingSettingsUpdateSerializer, settings_payload
+
+from .base import CodingEndpointMixin
+
+
+class ProjectCodingSettingsMixin(CodingEndpointMixin):
+    def get(self, request, slug, project_id):
+        self.access.require_reader_of_settings()
+        project = self.access.project
+        return Response(settings_payload(project, ProjectCodingSettings.objects.filter(project=project).first()))
+
+    def patch(self, request, slug, project_id):
+        """Change only the fields sent. A state field takes a state id of this project, or null to match by name."""
+        self.access.require_admin()
+        if request.user.is_bot:
+            raise Forbidden("Bot members cannot change coding settings.", code="BOT_NOT_ALLOWED")
+        project = self.access.project
+        serializer = ProjectCodingSettingsUpdateSerializer(
+            data=request.data, partial=True, context={"project": project}
+        )
+        if not serializer.is_valid():
+            return self.invalid(serializer.errors)
+        current = ProjectCodingSettings.objects.filter(project=project).values_list("repo_url", flat=True).first()
+        if "repo_url" in serializer.validated_data and serializer.validated_data["repo_url"] != (current or ""):
+            # The repository decides which code the CRM's GitHub App reads and pushes to: a workspace admin's call,
+            # not any project admin's (anyone who may create a project is the admin of it).
+            if not WorkspaceMember.objects.filter(
+                workspace_id=project.workspace_id, member=request.user, is_active=True, role__gte=20
+            ).exists():
+                raise Forbidden(
+                    "Only workspace admins can set a project's repository for coding jobs.",
+                    code="WORKSPACE_ADMIN_REQUIRED",
+                )
+        with transaction.atomic():
+            coding_settings, _ = ProjectCodingSettings.objects.select_for_update().get_or_create(project=project)
+            for field, value in serializer.validated_data.items():
+                setattr(coding_settings, field, value)
+            coding_settings.save()
+        record(
+            project.workspace_id,
+            "settings.changed",
+            "project",
+            project.id,
+            actor=request.user,
+            project_id=project.id,
+            **{
+                field: str(value.id) if hasattr(value, "id") else value
+                for field, value in serializer.validated_data.items()
+            },
+        )
+        return Response(settings_payload(project, coding_settings))
+
+
+class ProjectCodingRepositoryMixin(CodingEndpointMixin):
+    def get(self, request, slug, project_id):
+        """Whether the project's jobs can open pull requests: the repository, the CRM's GitHub App and its
+        installation. Members and admins; asks GitHub, so it is not part of the settings themselves."""
+        self.access.require_reader_of_settings()
+        return Response(repository_access(self.access.project.id))

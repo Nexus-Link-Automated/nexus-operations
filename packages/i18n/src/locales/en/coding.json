@@ -1,0 +1,351 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Fix bug",
+      "write_test": "Write test",
+      "write_and_run_test": "Write & run test"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Coding job"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "A coding agent tries to fix this bug and opens a pull request. When it is fixed, the work item moves to In review.",
+        "write_test": "A coding agent writes a test for this work item and opens a pull request. The test is not run. The work item then moves to Ready.",
+        "write_and_run_test": "A coding agent writes a test and runs it. If it passes, the work item moves to Ready; if it fails because the code is buggy, it moves to Failed."
+      },
+      "agent": "Agent",
+      "machine": "Machine",
+      "machine_auto": "Auto",
+      "machine_hint": "Your own approved machines that are online. Auto picks one of them.",
+      "start": "Start job",
+      "starting": "Starting..."
+    },
+    "toasts": {
+      "started": "Coding job started",
+      "start_failed": "Couldn't start the coding job",
+      "cancelled": "Coding job cancelled",
+      "cancel_failed": "Couldn't cancel the coding job",
+      "retried": "Coding job started again",
+      "retry_failed": "Couldn't retry the coding job",
+      "answered": "Answer sent",
+      "answer_failed": "Couldn't send the answer"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Coding jobs are not set up for this project. A project admin must turn them on and set the repository.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Coding jobs can't run on drafts, archived work items or work items waiting in intake.",
+      "JOB_ACTIVE": "This work item already has a job of this kind in progress.",
+      "JOB_NOT_ACTIVE": "This job has already ended, so it can't be cancelled.",
+      "JOB_NOT_RETRYABLE": "Only a cancelled job or one that did not finish can be retried.",
+      "MACHINE_NOT_AVAILABLE": "That machine is no longer one of your approved machines. Pick another one or Auto.",
+      "MACHINE_LIMIT": "You have the most machines allowed in this workspace. Remove one first.",
+      "MACHINE_NOT_JOINED": "This machine hasn't joined yet, so there is nothing to approve.",
+      "MACHINE_REVOKED": "This machine was revoked by a workspace admin.",
+      "forbidden": "You don't have permission to do this.",
+      "generic": "Something went wrong. Please try again.",
+      "NO_OPEN_QUESTION": "The agent has no open question right now. Someone may have answered it already.",
+      "ANSWER_EMPTY": "Write an answer first.",
+      "BOT_NOT_ALLOWED": "Bot members can't manage machines. A workspace admin does it for them.",
+      "BOT_NOT_FOUND": "That bot member was not found. It may have been removed.",
+      "BOT_LIMIT": "This workspace has the most bot members allowed. Remove one first.",
+      "BOT_ROLE_NOT_ALLOWED": "A bot member can only be a member or a guest.",
+      "BOT_REMOVED": "This bot member was removed from the workspace."
+    },
+    "panel": {
+      "title": "Coding jobs",
+      "refresh": "Refresh coding jobs",
+      "empty": "No coding jobs yet.",
+      "load_failed": "Couldn't load the coding jobs.",
+      "requested_by": "Started by {name}",
+      "unknown_user": "Unknown member",
+      "finished": "Finished {time}",
+      "error_reason": "Reason",
+      "pr": "Pull request",
+      "cancel": "Cancel",
+      "retry": "Retry",
+      "waiting_for_machine": "Waiting for a machine",
+      "ran_on": "Ran on {name}",
+      "started": "Started {time}",
+      "progress": "Progress",
+      "progress_loading": "Loading progress...",
+      "progress_empty": "No progress yet.",
+      "progress_load_failed": "Couldn't load the progress.",
+      "branch": "Branch",
+      "opening_pr": "Opening a pull request...",
+      "questions": "Questions from the agent",
+      "open_question": "The agent has a question",
+      "question_thinking": "The CRM agent is working on an answer. You can answer it yourself.",
+      "question_waiting": "Waiting for an answer.",
+      "answer_label": "Your answer",
+      "answer_placeholder": "Write your answer",
+      "answer_hint": "The agent goes on with your answer.",
+      "answer": "Answer",
+      "answering": "Sending...",
+      "answered_by": "Answered by {name}",
+      "answered_by_agent": "Answered by the CRM agent",
+      "answered_by_unknown": "Answered",
+      "no_answer": "No answer came"
+    },
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "needs_input": "Needs input",
+      "finished": "Finished",
+      "cancelled": "Cancelled"
+    },
+    "outcome": {
+      "fixed": "Fixed",
+      "could_not_fix": "Could not fix",
+      "test_written": "Test written",
+      "test_passed": "Test passed",
+      "bug_found": "Bug found",
+      "job_error": "Did not finish"
+    },
+    "event_kind": {
+      "status": "Status",
+      "message": "Message",
+      "tool": "Tool",
+      "plan": "Plan"
+    },
+    "settings": {
+      "label": "Coding jobs",
+      "title": "Coding jobs",
+      "description": "Let coding agents fix bugs and write tests from this project's work items.",
+      "enabled": "Coding jobs",
+      "enabled_description": "Members can start Fix bug, Write test and Write & run test on work items.",
+      "repo_url": "Repository URL",
+      "repo_url_hint": "The https address of the repository the agents work in. No credentials.",
+      "default_branch": "Default branch",
+      "columns_title": "Outcome columns",
+      "columns_description": "The state each outcome moves the work item to.",
+      "column": {
+        "ready": "Ready",
+        "failed": "Failed",
+        "in_review": "In review"
+      },
+      "column_hint": {
+        "ready": "After a test is written, or written and passing.",
+        "failed": "When a test fails because the product code is buggy.",
+        "in_review": "After a bug is fixed and its pull request is open."
+      },
+      "match_by_name": "Match by name (\"{name}\")",
+      "resolves_to": "Now: {state}",
+      "resolves_to_by_name": "Now: {state} (matched by name)",
+      "resolves_none": "Now: no matching state, so the work item stays where it is.",
+      "create_failed": "Create Failed column",
+      "creating_failed": "Creating...",
+      "failed_created": "Failed column created",
+      "create_failed_error": "Couldn't create the Failed column",
+      "save": "Save changes",
+      "saving": "Saving...",
+      "saved": "Coding settings saved",
+      "save_failed": "Couldn't save the coding settings",
+      "read_only": "Only project admins can change these settings.",
+      "not_configured": "Coding jobs are off for this project. Turn them on and set the repository so members can start jobs."
+    },
+    "repository": {
+      "title": "Pull requests",
+      "checking": "Checking the repository...",
+      "check_failed": "Couldn't check the repository.",
+      "check_again": "Check again",
+      "ready": "On. The CRM can open pull requests on this repository.",
+      "ready_private": "On. The CRM can open pull requests on this private repository.",
+      "ready_public": "On. The CRM can open pull requests on this public repository.",
+      "off": "Off. The CRM can't open pull requests on this repository yet.",
+      "install": "Install the GitHub App"
+    }
+  },
+  "coding_machines": {
+    "label": "Machines",
+    "title": "Machines",
+    "description": "Your own computers that run your coding jobs in {workspace}. Each one uses its own Codex and Claude sign-ins and only connects out to the CRM.",
+    "no_workspace": "Machines belong to a workspace. Join or create a workspace to add one.",
+    "guest": "Machines are not available to guests.",
+    "empty": "No machines yet. Add your computer to run your coding jobs on it.",
+    "load_failed": "Couldn't load the machines.",
+    "add": "Add machine",
+    "state": {
+      "pending": "Waiting to join",
+      "awaiting_approval": "Awaiting approval",
+      "active": "Active",
+      "revoked": "Revoked"
+    },
+    "online": "Online",
+    "offline": "Offline",
+    "last_seen": "last seen {time}",
+    "never_seen": "never connected",
+    "host": "Host",
+    "agents": "Agents",
+    "no_agents": "None found",
+    "agent_signed_in": "signed in",
+    "agent_not_signed_in": "not signed in",
+    "agent_not_installed": "not installed",
+    "docker": "Docker",
+    "docker_available": "Available",
+    "docker_unavailable": "Not available",
+    "slots": "Free slots",
+    "slots_value": "{free} of {total}",
+    "unknown": "unknown",
+    "pending_hint": "Waiting for the machine to join with its code. The code is valid until {time}.",
+    "pending_expired": "The join code expired before the machine used it. Remove this machine and add it again.",
+    "awaiting_hint": "The machine joined as {hostname}. If that is your computer, approve it so it can run your jobs.",
+    "revoked_hint": "A workspace admin revoked this machine: it can't connect or get jobs. You can remove it.",
+    "actions": {
+      "approve": "Approve",
+      "rename": "Rename",
+      "remove": "Remove"
+    },
+    "add_dialog": {
+      "title": "Add machine",
+      "description": "Give the computer a name. Next you get a join code to use on it.",
+      "name": "Name",
+      "name_placeholder": "e.g. Work laptop",
+      "create": "Add machine",
+      "creating": "Adding...",
+      "code_title": "Connect {name}",
+      "code_description": "Run these commands on the machine. The join code works once and is shown only now: once you close this dialog, it is gone.",
+      "step_join": "1. Join with the code",
+      "step_start": "2. Start the machine service",
+      "copy": "Copy",
+      "copied": "Copied to clipboard",
+      "expires": "The code expires {time}.",
+      "after": "When the machine shows as Awaiting approval, check its hostname and approve it.",
+      "done": "Done",
+      "bot_title": "Add machine for a bot",
+      "bot_description": "Pick the bot and name its computer. Next you get a join code to use on it.",
+      "bot": "Bot",
+      "bot_placeholder": "Choose a bot"
+    },
+    "rename_dialog": {
+      "title": "Rename machine",
+      "save": "Save",
+      "saving": "Saving..."
+    },
+    "approve_dialog": {
+      "title": "Approve {name}?",
+      "description": "The machine reports host {hostname} ({os}). Approve it only if this is your own computer: it will run your coding jobs.",
+      "confirm": "Approve",
+      "confirming": "Approving..."
+    },
+    "remove_dialog": {
+      "title": "Remove {name}?",
+      "description": "The machine is removed for good: its key stops working at once and it gets no more jobs. To use it again, add it again.",
+      "confirm": "Remove",
+      "confirming": "Removing..."
+    },
+    "toasts": {
+      "added": "Machine added",
+      "add_failed": "Couldn't add the machine",
+      "approved": "Machine approved",
+      "approve_failed": "Couldn't approve the machine",
+      "renamed": "Machine renamed",
+      "rename_failed": "Couldn't rename the machine",
+      "removed": "Machine removed",
+      "remove_failed": "Couldn't remove the machine",
+      "revoked": "Machine revoked",
+      "revoke_failed": "Couldn't revoke the machine"
+    },
+    "admin": {
+      "label": "Machines",
+      "title": "Machines",
+      "description": "Every machine people in this workspace have added to run their coding jobs. Revoking one cuts it off at once: its key stops working and it gets no jobs.",
+      "empty": "No one in this workspace has added a machine yet.",
+      "owner": "Owner",
+      "name": "Machine",
+      "state": "State",
+      "status": "Status",
+      "last_seen": "Last seen",
+      "never": "Never",
+      "revoke": "Revoke",
+      "revoke_dialog": {
+        "title": "Revoke {name}?",
+        "description": "This machine of {owner} stops working at once and gets no more jobs. Only its owner can remove it.",
+        "confirm": "Revoke",
+        "confirming": "Revoking..."
+      },
+      "bot": "Bot",
+      "add_for_bot": "Add machine for a bot",
+      "no_bots": "To add a machine for a bot, first add a bot member with the Member role.",
+      "approve_bot_description": "The machine reports host {hostname} ({os}). Approve it only if this is the computer you set up for {owner}: it will run that bot's coding jobs."
+    }
+  },
+  "bot_members": {
+    "label": "Bot members",
+    "title": "Bot members",
+    "description": "Bots are AI agents that work in this workspace like members. Each one signs in with its own token. Add them to projects like any member.",
+    "add": "Add bot member",
+    "empty": "No bot members yet.",
+    "load_failed": "Couldn't load the bot members.",
+    "badge": "Bot",
+    "columns": {
+      "name": "Name",
+      "role": "Role",
+      "status": "Status",
+      "token_last_used": "Token last used"
+    },
+    "role": {
+      "member": "Member",
+      "guest": "Guest"
+    },
+    "status": {
+      "active": "Active",
+      "removed": "Removed"
+    },
+    "never_used": "Never",
+    "no_token": "No token",
+    "actions": {
+      "edit": "Edit",
+      "new_token": "New token",
+      "remove": "Remove"
+    },
+    "form": {
+      "create_title": "Add bot member",
+      "edit_title": "Edit {name}",
+      "create_description": "Give the bot a name and a role. Next you get its token.",
+      "name": "Name",
+      "name_placeholder": "e.g. Triage bot",
+      "role": "Role",
+      "role_hint": "Members can work in the projects they are added to. Guests can only view and comment.",
+      "description": "What it is for",
+      "description_placeholder": "e.g. Sorts new bug reports",
+      "create": "Add bot member",
+      "creating": "Adding...",
+      "save": "Save",
+      "saving": "Saving..."
+    },
+    "token_dialog": {
+      "title": "Token for {name}",
+      "description": "The bot uses this token to work in the CRM. Copy it now: you won't see it again after you close this dialog.",
+      "label": "Token",
+      "copy": "Copy token",
+      "copied": "Token copied",
+      "done": "Done"
+    },
+    "new_token_dialog": {
+      "title": "New token for {name}?",
+      "description": "The bot gets a new token. Its current token stops working at once.",
+      "confirm": "Create new token",
+      "confirming": "Creating..."
+    },
+    "remove_dialog": {
+      "title": "Remove {name}?",
+      "description": "The bot is removed from this workspace and its projects. Its token stops working at once.",
+      "confirm": "Remove",
+      "confirming": "Removing..."
+    },
+    "toasts": {
+      "created": "Bot member added",
+      "create_failed": "Couldn't add the bot member",
+      "updated": "Bot member saved",
+      "update_failed": "Couldn't save the bot member",
+      "token_created": "New token created",
+      "token_failed": "Couldn't create a new token",
+      "removed": "Bot member removed",
+      "remove_failed": "Couldn't remove the bot member"
+    }
+  }
+}

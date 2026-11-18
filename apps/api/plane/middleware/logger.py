@@ -4,6 +4,7 @@
 
 # Python imports
 import hashlib
+import json
 import hmac
 import logging
 import time
@@ -127,6 +128,24 @@ class APITokenLogMiddleware:
         }
         return str(redacted)
 
+    # Secrets an answer shows exactly once, which must not be kept in the log: path fragment -> body fields.
+    SECRET_RESPONSE_FIELDS = {"/coding-machines/": ("join_code",), "/bot-members/": ("token",)}
+
+    def _redact_response(self, path, body):
+        fields = [f for fragment, names in self.SECRET_RESPONSE_FIELDS.items() if fragment in path for f in names]
+        if not fields or not body:
+            return body
+        try:
+            data = json.loads(body)
+        except (TypeError, ValueError):
+            # Not JSON: keep nothing rather than risk keeping the secret.
+            return "[REDACTED]"
+        if isinstance(data, dict):
+            for field in fields:
+                if field in data:
+                    data[field] = "[REDACTED]"
+        return json.dumps(data)
+
     def process_request(self, request, response, request_body):
         api_key_header = "X-Api-Key"
         api_key = request.headers.get(api_key_header)
@@ -154,7 +173,9 @@ class APITokenLogMiddleware:
                 "query_params": request.META.get("QUERY_STRING", ""),
                 "headers": self._redacted_headers(request),
                 "body": self._safe_decode_body(request_body) if request_body else None,
-                "response_body": self._safe_decode_body(response.content) if response.content else None,
+                "response_body": self._redact_response(request.path, self._safe_decode_body(response.content))
+                if response.content
+                else None,
                 "response_code": response.status_code,
                 "ip_address": get_client_ip(request=request),
                 "user_agent": request.META.get("HTTP_USER_AGENT", None),

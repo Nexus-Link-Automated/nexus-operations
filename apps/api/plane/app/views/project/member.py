@@ -20,6 +20,7 @@ from plane.app.permissions import WorkspaceUserPermission
 
 from plane.db.models import Project, ProjectMember, ProjectUserProperty, WorkspaceMember
 from plane.bgtasks.project_add_user_email_task import project_add_user_email
+from plane.utils.bot_members import BOT_NOT_ADMIN, PEOPLE_AND_BOT_MEMBERS, bot_member_ids, is_bot_member
 from plane.utils.host import base_host
 from plane.app.permissions.base import allow_permission, ROLE
 
@@ -46,7 +47,7 @@ class ProjectMemberViewSet(BaseViewSet):
             .get_queryset()
             .filter(workspace__slug=self.kwargs.get("slug"))
             .filter(project_id=self.kwargs.get("project_id"))
-            .filter(member__is_bot=False)
+            .filter(PEOPLE_AND_BOT_MEMBERS)
             .filter()
             .select_related("project")
             .select_related("member")
@@ -74,6 +75,11 @@ class ProjectMemberViewSet(BaseViewSet):
 
         # Create a dictionary of the member_id and their roles
         member_roles = {member.get("member_id"): member.get("role") for member in members}
+
+        # A bot member is never a project admin.
+        bots = bot_member_ids(member_roles)
+        if any(member_roles.get(member) == ROLE.ADMIN.value for member in member_roles if str(member) in bots):
+            return Response({"error": BOT_NOT_ADMIN}, status=status.HTTP_400_BAD_REQUEST)
 
         # check the workspace role of the new user
         for member in member_roles:
@@ -167,9 +173,9 @@ class ProjectMemberViewSet(BaseViewSet):
     def list(self, request, slug, project_id):
         # Get the list of project members for the project
         project_members = ProjectMember.objects.filter(
+            PEOPLE_AND_BOT_MEMBERS,
             project_id=project_id,
             workspace__slug=slug,
-            member__is_bot=False,
             is_active=True,
             member__member_workspace__workspace__slug=slug,
             member__member_workspace__is_active=True,
@@ -189,10 +195,10 @@ class ProjectMemberViewSet(BaseViewSet):
 
         project_member = (
             ProjectMember.objects.filter(
+                PEOPLE_AND_BOT_MEMBERS,
                 pk=pk,
                 project_id=project_id,
                 workspace__slug=slug,
-                member__is_bot=False,
                 is_active=True,
             )
             .select_related("project", "member", "workspace")
@@ -249,6 +255,12 @@ class ProjectMemberViewSet(BaseViewSet):
             member=request.user,
             is_active=True,
         )
+
+        if "role" in request.data and is_bot_member(project_member.member) and request.data.get("role") in (
+            ROLE.ADMIN.value,
+            str(ROLE.ADMIN.value),
+        ):
+            return Response({"error": BOT_NOT_ADMIN}, status=status.HTTP_400_BAD_REQUEST)
 
         if "role" in request.data:
             # Only Admins can modify roles
@@ -312,10 +324,10 @@ class ProjectMemberViewSet(BaseViewSet):
     @allow_permission([ROLE.ADMIN])
     def destroy(self, request, slug, project_id, pk):
         project_member = ProjectMember.objects.get(
+            PEOPLE_AND_BOT_MEMBERS,
             workspace__slug=slug,
             project_id=project_id,
             pk=pk,
-            member__is_bot=False,
             is_active=True,
         )
         # check requesting user role

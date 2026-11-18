@@ -15,6 +15,8 @@ import { setToast } from "@plane/blocks/toast";
 import { Tooltip } from "@makeplane/propel/components/tooltip";
 import { EIssuesStoreType } from "@plane/types";
 import { generateWorkItemLink, copyTextToClipboard } from "@plane/utils";
+// components
+import { CodingJobActions } from "@/components/coding-jobs/actions";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useIssues } from "@/hooks/store/use-issues";
@@ -129,6 +131,7 @@ export const IssueDetailQuickActions = observer(function IssueDetailQuickActions
     <>
       <div className="flex flex-shrink-0 items-center justify-end">
         <div className="flex flex-wrap items-center gap-2">
+          <CodingJobActions workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} />
           {currentUser && !issue?.archived_at && (
             <IssueSubscription workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} />
           )}

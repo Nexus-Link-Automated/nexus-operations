@@ -1,0 +1,351 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "バグを修正",
+      "write_test": "テストを作成",
+      "write_and_run_test": "テストを作成して実行"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "コーディングジョブ"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "コーディングエージェントがこのバグの修正を試み、プルリクエストを作成します。修正されると、作業項目は In review に移動します。",
+        "write_test": "コーディングエージェントがこの作業項目のテストを作成し、プルリクエストを作成します。テストは実行されません。その後、作業項目は Ready に移動します。",
+        "write_and_run_test": "コーディングエージェントがテストを作成して実行します。テストに合格すると作業項目は Ready に移動し、コードのバグが原因で失敗すると Failed に移動します。"
+      },
+      "agent": "エージェント",
+      "machine": "マシン",
+      "machine_auto": "自動",
+      "machine_hint": "オンラインになっている、承認済みのあなた自身のマシンです。「自動」はその中から 1 台を選びます。",
+      "start": "ジョブを開始",
+      "starting": "開始中..."
+    },
+    "toasts": {
+      "started": "コーディングジョブを開始しました",
+      "start_failed": "コーディングジョブを開始できませんでした",
+      "cancelled": "コーディングジョブをキャンセルしました",
+      "cancel_failed": "コーディングジョブをキャンセルできませんでした",
+      "retried": "コーディングジョブを再開しました",
+      "retry_failed": "コーディングジョブを再試行できませんでした",
+      "answered": "回答を送信しました",
+      "answer_failed": "回答を送信できませんでした"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "このプロジェクトではコーディングジョブが設定されていません。プロジェクト管理者が有効にし、リポジトリを設定する必要があります。",
+      "WORK_ITEM_NOT_ELIGIBLE": "下書き、アーカイブ済みの作業項目、またはインテークで待機中の作業項目ではコーディングジョブを実行できません。",
+      "JOB_ACTIVE": "この作業項目には、同じ種類のジョブがすでに進行中です。",
+      "JOB_NOT_ACTIVE": "このジョブはすでに終了しているため、キャンセルできません。",
+      "JOB_NOT_RETRYABLE": "再試行できるのは、キャンセルされたジョブまたは完了しなかったジョブのみです。",
+      "MACHINE_NOT_AVAILABLE": "そのマシンはもうあなたの承認済みマシンではありません。別のマシンか「自動」を選んでください。",
+      "MACHINE_LIMIT": "このワークスペースで追加できるマシンの上限に達しています。先に 1 台削除してください。",
+      "MACHINE_NOT_JOINED": "このマシンはまだ参加していないため、承認できません。",
+      "MACHINE_REVOKED": "このマシンはワークスペース管理者によって取り消されました。",
+      "forbidden": "この操作を行う権限がありません。",
+      "generic": "問題が発生しました。もう一度お試しください。",
+      "NO_OPEN_QUESTION": "エージェントには現在、未回答の質問はありません。すでに誰かが回答した可能性があります。",
+      "ANSWER_EMPTY": "先に回答を入力してください。",
+      "BOT_NOT_ALLOWED": "ボットメンバーはマシンを管理できません。ワークスペース管理者が代わりに行います。",
+      "BOT_NOT_FOUND": "そのボットメンバーが見つかりません。削除された可能性があります。",
+      "BOT_LIMIT": "このワークスペースのボットメンバーは上限に達しています。先に 1 つ削除してください。",
+      "BOT_ROLE_NOT_ALLOWED": "ボットメンバーの役割はメンバーかゲストのみです。",
+      "BOT_REMOVED": "このボットメンバーはワークスペースから削除されました。"
+    },
+    "panel": {
+      "title": "コーディングジョブ",
+      "refresh": "コーディングジョブを更新",
+      "empty": "コーディングジョブはまだありません。",
+      "load_failed": "コーディングジョブを読み込めませんでした。",
+      "requested_by": "{name} が開始",
+      "unknown_user": "不明なメンバー",
+      "finished": "{time} に完了",
+      "error_reason": "理由",
+      "pr": "プルリクエスト",
+      "cancel": "キャンセル",
+      "retry": "再試行",
+      "waiting_for_machine": "マシンを待っています",
+      "ran_on": "{name} で実行",
+      "started": "{time} に開始",
+      "progress": "進捗",
+      "progress_loading": "進捗を読み込み中...",
+      "progress_empty": "まだ進捗はありません。",
+      "progress_load_failed": "進捗を読み込めませんでした。",
+      "branch": "ブランチ",
+      "opening_pr": "プルリクエストを作成中...",
+      "questions": "エージェントからの質問",
+      "open_question": "エージェントから質問があります",
+      "question_thinking": "CRM エージェントが回答を準備しています。自分で回答することもできます。",
+      "question_waiting": "回答を待っています。",
+      "answer_label": "あなたの回答",
+      "answer_placeholder": "回答を入力",
+      "answer_hint": "エージェントはあなたの回答をもとに作業を続けます。",
+      "answer": "回答",
+      "answering": "送信中...",
+      "answered_by": "{name} が回答",
+      "answered_by_agent": "CRM エージェントが回答",
+      "answered_by_unknown": "回答済み",
+      "no_answer": "回答はありませんでした"
+    },
+    "status": {
+      "queued": "待機中",
+      "running": "実行中",
+      "needs_input": "入力が必要",
+      "finished": "完了",
+      "cancelled": "キャンセル済み"
+    },
+    "outcome": {
+      "fixed": "修正済み",
+      "could_not_fix": "修正できませんでした",
+      "test_written": "テスト作成済み",
+      "test_passed": "テスト合格",
+      "bug_found": "バグを検出",
+      "job_error": "完了しませんでした"
+    },
+    "event_kind": {
+      "status": "ステータス",
+      "message": "メッセージ",
+      "tool": "ツール",
+      "plan": "計画"
+    },
+    "settings": {
+      "label": "コーディングジョブ",
+      "title": "コーディングジョブ",
+      "description": "このプロジェクトの作業項目から、コーディングエージェントがバグを修正し、テストを作成できるようにします。",
+      "enabled": "コーディングジョブ",
+      "enabled_description": "メンバーは作業項目で「バグを修正」「テストを作成」「テストを作成して実行」を開始できます。",
+      "repo_url": "リポジトリ URL",
+      "repo_url_hint": "エージェントが作業するリポジトリの https アドレス。認証情報は含めないでください。",
+      "default_branch": "デフォルトブランチ",
+      "columns_title": "結果の列",
+      "columns_description": "各結果に応じて作業項目を移動する状態。",
+      "column": {
+        "ready": "準備完了",
+        "failed": "失敗",
+        "in_review": "レビュー中"
+      },
+      "column_hint": {
+        "ready": "テストが作成された後、またはテストが作成されて合格した後。",
+        "failed": "プロダクトコードのバグが原因でテストが失敗したとき。",
+        "in_review": "バグが修正され、そのプルリクエストが作成された後。"
+      },
+      "match_by_name": "名前で一致（\"{name}\"）",
+      "resolves_to": "現在: {state}",
+      "resolves_to_by_name": "現在: {state}（名前で一致）",
+      "resolves_none": "現在: 一致する状態がないため、作業項目は現在の場所に留まります。",
+      "create_failed": "Failed 列を作成",
+      "creating_failed": "作成中...",
+      "failed_created": "Failed 列を作成しました",
+      "create_failed_error": "Failed 列を作成できませんでした",
+      "save": "変更を保存",
+      "saving": "保存中...",
+      "saved": "コーディング設定を保存しました",
+      "save_failed": "コーディング設定を保存できませんでした",
+      "read_only": "これらの設定を変更できるのはプロジェクト管理者のみです。",
+      "not_configured": "このプロジェクトではコーディングジョブがオフになっています。メンバーがジョブを開始できるように、有効にしてリポジトリを設定してください。"
+    },
+    "repository": {
+      "title": "プルリクエスト",
+      "checking": "リポジトリを確認中...",
+      "check_failed": "リポジトリを確認できませんでした。",
+      "check_again": "再確認",
+      "ready": "オン。CRM はこのリポジトリでプルリクエストを作成できます。",
+      "ready_private": "オン。CRM はこのプライベートリポジトリでプルリクエストを作成できます。",
+      "ready_public": "オン。CRM はこのパブリックリポジトリでプルリクエストを作成できます。",
+      "off": "オフ。CRM はまだこのリポジトリでプルリクエストを作成できません。",
+      "install": "GitHub App をインストール"
+    }
+  },
+  "coding_machines": {
+    "label": "マシン",
+    "title": "マシン",
+    "description": "{workspace} であなたのコーディングジョブを実行する、あなた自身のコンピューターです。各マシンは自分の Codex と Claude のサインインを使い、CRM へは外向きにのみ接続します。",
+    "no_workspace": "マシンはワークスペースに属します。マシンを追加するには、ワークスペースに参加するか作成してください。",
+    "guest": "ゲストはマシンを利用できません。",
+    "empty": "マシンはまだありません。コンピューターを追加して、そこでコーディングジョブを実行しましょう。",
+    "load_failed": "マシンを読み込めませんでした。",
+    "add": "マシンを追加",
+    "state": {
+      "pending": "参加待ち",
+      "awaiting_approval": "承認待ち",
+      "active": "有効",
+      "revoked": "取り消し済み"
+    },
+    "online": "オンライン",
+    "offline": "オフライン",
+    "last_seen": "最終確認 {time}",
+    "never_seen": "未接続",
+    "host": "ホスト",
+    "agents": "エージェント",
+    "no_agents": "見つかりません",
+    "agent_signed_in": "サインイン済み",
+    "agent_not_signed_in": "未サインイン",
+    "agent_not_installed": "未インストール",
+    "docker": "Docker",
+    "docker_available": "利用可能",
+    "docker_unavailable": "利用不可",
+    "slots": "空きスロット",
+    "slots_value": "{total} 中 {free}",
+    "unknown": "不明",
+    "pending_hint": "マシンがコードで参加するのを待っています。コードの有効期限は {time} です。",
+    "pending_expired": "マシンが使用する前に参加コードの有効期限が切れました。このマシンを削除して、もう一度追加してください。",
+    "awaiting_hint": "マシンは {hostname} として参加しました。あなたのコンピューターであれば、ジョブを実行できるよう承認してください。",
+    "revoked_hint": "ワークスペース管理者がこのマシンを取り消しました。接続もジョブの受け取りもできません。削除できます。",
+    "actions": {
+      "approve": "承認",
+      "rename": "名前を変更",
+      "remove": "削除"
+    },
+    "add_dialog": {
+      "title": "マシンを追加",
+      "description": "コンピューターに名前を付けてください。次に、そのコンピューターで使う参加コードが表示されます。",
+      "name": "名前",
+      "name_placeholder": "例: 仕事用ノートPC",
+      "create": "マシンを追加",
+      "creating": "追加中...",
+      "code_title": "{name} を接続",
+      "code_description": "マシンで次のコマンドを実行してください。参加コードは 1 回だけ有効で、表示されるのは今だけです。このダイアログを閉じると消えます。",
+      "step_join": "1. コードで参加",
+      "step_start": "2. マシンサービスを開始",
+      "copy": "コピー",
+      "copied": "クリップボードにコピーしました",
+      "expires": "コードの有効期限: {time}",
+      "after": "マシンが「承認待ち」と表示されたら、ホスト名を確認して承認してください。",
+      "done": "完了",
+      "bot_title": "ボット用のマシンを追加",
+      "bot_description": "ボットを選び、そのコンピューターに名前を付けます。次に、そのコンピューターで使う参加コードが表示されます。",
+      "bot": "ボット",
+      "bot_placeholder": "ボットを選択"
+    },
+    "rename_dialog": {
+      "title": "マシン名を変更",
+      "save": "保存",
+      "saving": "保存中..."
+    },
+    "approve_dialog": {
+      "title": "{name} を承認しますか?",
+      "description": "マシンはホスト {hostname} ({os}) を報告しています。あなた自身のコンピューターである場合にのみ承認してください。あなたのコーディングジョブを実行します。",
+      "confirm": "承認",
+      "confirming": "承認中..."
+    },
+    "remove_dialog": {
+      "title": "{name} を削除しますか?",
+      "description": "マシンは完全に削除されます。キーはすぐに無効になり、ジョブも受け取らなくなります。再び使うには、もう一度追加してください。",
+      "confirm": "削除",
+      "confirming": "削除中..."
+    },
+    "toasts": {
+      "added": "マシンを追加しました",
+      "add_failed": "マシンを追加できませんでした",
+      "approved": "マシンを承認しました",
+      "approve_failed": "マシンを承認できませんでした",
+      "renamed": "マシン名を変更しました",
+      "rename_failed": "マシン名を変更できませんでした",
+      "removed": "マシンを削除しました",
+      "remove_failed": "マシンを削除できませんでした",
+      "revoked": "マシンを取り消しました",
+      "revoke_failed": "マシンを取り消せませんでした"
+    },
+    "admin": {
+      "label": "マシン",
+      "title": "マシン",
+      "description": "このワークスペースのメンバーがコーディングジョブ用に追加したすべてのマシンです。取り消すとすぐに切断され、キーは無効になり、ジョブも受け取らなくなります。",
+      "empty": "このワークスペースではまだ誰もマシンを追加していません。",
+      "owner": "所有者",
+      "name": "マシン",
+      "state": "状態",
+      "status": "接続",
+      "last_seen": "最終確認",
+      "never": "なし",
+      "revoke": "取り消し",
+      "revoke_dialog": {
+        "title": "{name} を取り消しますか?",
+        "description": "{owner} のこのマシンはすぐに動作を停止し、ジョブを受け取らなくなります。削除できるのは所有者だけです。",
+        "confirm": "取り消し",
+        "confirming": "取り消し中..."
+      },
+      "bot": "ボット",
+      "add_for_bot": "ボット用のマシンを追加",
+      "no_bots": "ボット用のマシンを追加するには、まずメンバーの役割でボットメンバーを追加してください。",
+      "approve_bot_description": "マシンはホスト {hostname} ({os}) を報告しています。{owner} 用に設定したコンピューターである場合にのみ承認してください。そのボットのコーディングジョブを実行します。"
+    }
+  },
+  "bot_members": {
+    "label": "ボットメンバー",
+    "title": "ボットメンバー",
+    "description": "ボットは、このワークスペースでメンバーと同じように作業する AI エージェントです。それぞれ自分のトークンでサインインします。ほかのメンバーと同じようにプロジェクトに追加できます。",
+    "add": "ボットメンバーを追加",
+    "empty": "ボットメンバーはまだいません。",
+    "load_failed": "ボットメンバーを読み込めませんでした。",
+    "badge": "ボット",
+    "columns": {
+      "name": "名前",
+      "role": "役割",
+      "status": "状態",
+      "token_last_used": "トークンの最終使用"
+    },
+    "role": {
+      "member": "メンバー",
+      "guest": "ゲスト"
+    },
+    "status": {
+      "active": "有効",
+      "removed": "削除済み"
+    },
+    "never_used": "なし",
+    "no_token": "トークンなし",
+    "actions": {
+      "edit": "編集",
+      "new_token": "新しいトークン",
+      "remove": "削除"
+    },
+    "form": {
+      "create_title": "ボットメンバーを追加",
+      "edit_title": "{name} を編集",
+      "create_description": "ボットに名前と役割を付けてください。次にトークンが表示されます。",
+      "name": "名前",
+      "name_placeholder": "例: トリアージボット",
+      "role": "役割",
+      "role_hint": "メンバーは追加されたプロジェクトで作業できます。ゲストは閲覧とコメントのみできます。",
+      "description": "用途",
+      "description_placeholder": "例: 新しいバグ報告を振り分ける",
+      "create": "ボットメンバーを追加",
+      "creating": "追加中...",
+      "save": "保存",
+      "saving": "保存中..."
+    },
+    "token_dialog": {
+      "title": "{name} のトークン",
+      "description": "ボットはこのトークンを使って CRM で作業します。今すぐコピーしてください。このダイアログを閉じると二度と表示されません。",
+      "label": "トークン",
+      "copy": "トークンをコピー",
+      "copied": "トークンをコピーしました",
+      "done": "完了"
+    },
+    "new_token_dialog": {
+      "title": "{name} の新しいトークンを作成しますか?",
+      "description": "ボットに新しいトークンが発行されます。現在のトークンはすぐに使えなくなります。",
+      "confirm": "新しいトークンを作成",
+      "confirming": "作成中..."
+    },
+    "remove_dialog": {
+      "title": "{name} を削除しますか?",
+      "description": "ボットはこのワークスペースとそのプロジェクトから削除されます。トークンはすぐに使えなくなります。",
+      "confirm": "削除",
+      "confirming": "削除中..."
+    },
+    "toasts": {
+      "created": "ボットメンバーを追加しました",
+      "create_failed": "ボットメンバーを追加できませんでした",
+      "updated": "ボットメンバーを保存しました",
+      "update_failed": "ボットメンバーを保存できませんでした",
+      "token_created": "新しいトークンを作成しました",
+      "token_failed": "新しいトークンを作成できませんでした",
+      "removed": "ボットメンバーを削除しました",
+      "remove_failed": "ボットメンバーを削除できませんでした"
+    }
+  }
+}

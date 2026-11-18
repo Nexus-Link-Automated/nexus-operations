@@ -1,0 +1,351 @@
+{
+  "coding_jobs": {
+    "actions": {
+      "fix_bug": "Hatayı düzelt",
+      "write_test": "Test yaz",
+      "write_and_run_test": "Test yaz ve çalıştır"
+    },
+    "agents": {
+      "codex": "Codex",
+      "claude": "Claude"
+    },
+    "menu": {
+      "trigger": "Kodlama görevi"
+    },
+    "start_dialog": {
+      "description": {
+        "fix_bug": "Bir kodlama ajanı bu hatayı düzeltmeye çalışır ve bir pull request açar. Hata düzeltildiğinde iş öğesi In review durumuna geçer.",
+        "write_test": "Bir kodlama ajanı bu iş öğesi için bir test yazar ve bir pull request açar. Test çalıştırılmaz. Ardından iş öğesi Ready durumuna geçer.",
+        "write_and_run_test": "Bir kodlama ajanı bir test yazar ve çalıştırır. Test geçerse iş öğesi Ready durumuna geçer; kod hatalı olduğu için başarısız olursa Failed durumuna geçer."
+      },
+      "agent": "Ajan",
+      "machine": "Makine",
+      "machine_auto": "Otomatik",
+      "machine_hint": "Çevrimiçi olan, onaylanmış kendi makineleriniz. Otomatik bunlardan birini seçer.",
+      "start": "Görevi başlat",
+      "starting": "Başlatılıyor..."
+    },
+    "toasts": {
+      "started": "Kodlama görevi başlatıldı",
+      "start_failed": "Kodlama görevi başlatılamadı",
+      "cancelled": "Kodlama görevi iptal edildi",
+      "cancel_failed": "Kodlama görevi iptal edilemedi",
+      "retried": "Kodlama görevi yeniden başlatıldı",
+      "retry_failed": "Kodlama görevi yeniden denenemedi",
+      "answered": "Yanıt gönderildi",
+      "answer_failed": "Yanıt gönderilemedi"
+    },
+    "errors": {
+      "CODING_NOT_CONFIGURED": "Bu proje için kodlama görevleri ayarlanmamış. Bir proje yöneticisinin bunları açması ve repository'yi ayarlaması gerekir.",
+      "WORK_ITEM_NOT_ELIGIBLE": "Kodlama görevleri taslaklarda, arşivlenmiş iş öğelerinde veya alımda bekleyen iş öğelerinde çalışamaz.",
+      "JOB_ACTIVE": "Bu iş öğesinde bu türde devam eden bir görev zaten var.",
+      "JOB_NOT_ACTIVE": "Bu görev zaten sona erdi, bu yüzden iptal edilemez.",
+      "JOB_NOT_RETRYABLE": "Yalnızca iptal edilmiş veya tamamlanmamış bir görev yeniden denenebilir.",
+      "MACHINE_NOT_AVAILABLE": "Bu makine artık onaylı makinelerinizden biri değil. Başka bir makine veya Otomatik seçin.",
+      "MACHINE_LIMIT": "Bu çalışma alanında izin verilen en fazla makine sayısına ulaştınız. Önce birini kaldırın.",
+      "MACHINE_NOT_JOINED": "Bu makine henüz katılmadı, bu yüzden onaylanacak bir şey yok.",
+      "MACHINE_REVOKED": "Bu makine bir çalışma alanı yöneticisi tarafından iptal edildi.",
+      "forbidden": "Bunu yapma izniniz yok.",
+      "generic": "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
+      "NO_OPEN_QUESTION": "Ajanın şu anda açık bir sorusu yok. Biri zaten yanıtlamış olabilir.",
+      "ANSWER_EMPTY": "Önce bir yanıt yazın.",
+      "BOT_NOT_ALLOWED": "Bot üyeler makineleri yönetemez. Bunu onlar adına bir çalışma alanı yöneticisi yapar.",
+      "BOT_NOT_FOUND": "Bu bot üye bulunamadı. Kaldırılmış olabilir.",
+      "BOT_LIMIT": "Bu çalışma alanında izin verilen en fazla sayıda bot üye var. Önce birini kaldırın.",
+      "BOT_ROLE_NOT_ALLOWED": "Bir bot üye yalnızca üye veya misafir olabilir.",
+      "BOT_REMOVED": "Bu bot üye çalışma alanından kaldırıldı."
+    },
+    "panel": {
+      "title": "Kodlama görevleri",
+      "refresh": "Kodlama görevlerini yenile",
+      "empty": "Henüz kodlama görevi yok.",
+      "load_failed": "Kodlama görevleri yüklenemedi.",
+      "requested_by": "{name} tarafından başlatıldı",
+      "unknown_user": "Bilinmeyen üye",
+      "finished": "{time} tamamlandı",
+      "error_reason": "Neden",
+      "pr": "Pull request",
+      "cancel": "İptal et",
+      "retry": "Yeniden dene",
+      "waiting_for_machine": "Bir makine bekleniyor",
+      "ran_on": "{name} üzerinde çalıştı",
+      "started": "{time} başladı",
+      "progress": "İlerleme",
+      "progress_loading": "İlerleme yükleniyor...",
+      "progress_empty": "Henüz ilerleme yok.",
+      "progress_load_failed": "İlerleme yüklenemedi.",
+      "branch": "Dal",
+      "opening_pr": "Pull request açılıyor...",
+      "questions": "Ajandan gelen sorular",
+      "open_question": "Ajanın bir sorusu var",
+      "question_thinking": "CRM ajanı bir yanıt hazırlıyor. İsterseniz kendiniz yanıtlayabilirsiniz.",
+      "question_waiting": "Yanıt bekleniyor.",
+      "answer_label": "Yanıtınız",
+      "answer_placeholder": "Yanıtınızı yazın",
+      "answer_hint": "Ajan yanıtınızla devam eder.",
+      "answer": "Yanıtla",
+      "answering": "Gönderiliyor...",
+      "answered_by": "{name} yanıtladı",
+      "answered_by_agent": "CRM ajanı yanıtladı",
+      "answered_by_unknown": "Yanıtlandı",
+      "no_answer": "Yanıt gelmedi"
+    },
+    "status": {
+      "queued": "Sırada",
+      "running": "Çalışıyor",
+      "needs_input": "Girdi gerekiyor",
+      "finished": "Tamamlandı",
+      "cancelled": "İptal edildi"
+    },
+    "outcome": {
+      "fixed": "Düzeltildi",
+      "could_not_fix": "Düzeltilemedi",
+      "test_written": "Test yazıldı",
+      "test_passed": "Test geçti",
+      "bug_found": "Hata bulundu",
+      "job_error": "Tamamlanmadı"
+    },
+    "event_kind": {
+      "status": "Durum",
+      "message": "Mesaj",
+      "tool": "Araç",
+      "plan": "Plan"
+    },
+    "settings": {
+      "label": "Kodlama görevleri",
+      "title": "Kodlama görevleri",
+      "description": "Kodlama ajanlarının bu projenin iş öğelerinden hataları düzeltmesine ve testler yazmasına izin verin.",
+      "enabled": "Kodlama görevleri",
+      "enabled_description": "Üyeler iş öğelerinde Hatayı düzelt, Test yaz ve Test yaz ve çalıştır işlemlerini başlatabilir.",
+      "repo_url": "Repository URL'si",
+      "repo_url_hint": "Ajanların çalıştığı repository'nin https adresi. Kimlik bilgisi içermemelidir.",
+      "default_branch": "Varsayılan dal",
+      "columns_title": "Sonuç sütunları",
+      "columns_description": "Her sonucun iş öğesini taşıdığı durum.",
+      "column": {
+        "ready": "Hazır",
+        "failed": "Başarısız",
+        "in_review": "İncelemede"
+      },
+      "column_hint": {
+        "ready": "Bir test yazıldıktan veya yazılıp geçtikten sonra.",
+        "failed": "Ürün kodu hatalı olduğu için bir test başarısız olduğunda.",
+        "in_review": "Bir hata düzeltildikten ve pull request'i açıldıktan sonra."
+      },
+      "match_by_name": "Ada göre eşleştir (\"{name}\")",
+      "resolves_to": "Şu an: {state}",
+      "resolves_to_by_name": "Şu an: {state} (ada göre eşleşti)",
+      "resolves_none": "Şu an: eşleşen durum yok, bu yüzden iş öğesi olduğu yerde kalır.",
+      "create_failed": "Failed sütunu oluştur",
+      "creating_failed": "Oluşturuluyor...",
+      "failed_created": "Failed sütunu oluşturuldu",
+      "create_failed_error": "Failed sütunu oluşturulamadı",
+      "save": "Değişiklikleri kaydet",
+      "saving": "Kaydediliyor...",
+      "saved": "Kodlama ayarları kaydedildi",
+      "save_failed": "Kodlama ayarları kaydedilemedi",
+      "read_only": "Bu ayarları yalnızca proje yöneticileri değiştirebilir.",
+      "not_configured": "Bu proje için kodlama görevleri kapalı. Üyelerin görev başlatabilmesi için bunları açın ve repository'yi ayarlayın."
+    },
+    "repository": {
+      "title": "Pull request'ler",
+      "checking": "Repository kontrol ediliyor...",
+      "check_failed": "Repository kontrol edilemedi.",
+      "check_again": "Tekrar kontrol et",
+      "ready": "Açık. CRM bu repository'de pull request açabilir.",
+      "ready_private": "Açık. CRM bu özel repository'de pull request açabilir.",
+      "ready_public": "Açık. CRM bu herkese açık repository'de pull request açabilir.",
+      "off": "Kapalı. CRM bu repository'de henüz pull request açamaz.",
+      "install": "GitHub App'i yükle"
+    }
+  },
+  "coding_machines": {
+    "label": "Makineler",
+    "title": "Makineler",
+    "description": "{workspace} içinde kodlama görevlerinizi çalıştıran kendi bilgisayarlarınız. Her biri kendi Codex ve Claude oturumlarını kullanır ve CRM'e yalnızca dışarıya doğru bağlanır.",
+    "no_workspace": "Makineler bir çalışma alanına aittir. Makine eklemek için bir çalışma alanına katılın veya bir tane oluşturun.",
+    "guest": "Makineler misafirler için kullanılamaz.",
+    "empty": "Henüz makine yok. Kodlama görevlerinizi üzerinde çalıştırmak için bilgisayarınızı ekleyin.",
+    "load_failed": "Makineler yüklenemedi.",
+    "add": "Makine ekle",
+    "state": {
+      "pending": "Katılım bekleniyor",
+      "awaiting_approval": "Onay bekleniyor",
+      "active": "Etkin",
+      "revoked": "İptal edildi"
+    },
+    "online": "Çevrimiçi",
+    "offline": "Çevrimdışı",
+    "last_seen": "son görülme {time}",
+    "never_seen": "hiç bağlanmadı",
+    "host": "Ana makine",
+    "agents": "Ajanlar",
+    "no_agents": "Bulunamadı",
+    "agent_signed_in": "oturum açık",
+    "agent_not_signed_in": "oturum açılmamış",
+    "agent_not_installed": "yüklü değil",
+    "docker": "Docker",
+    "docker_available": "Kullanılabilir",
+    "docker_unavailable": "Kullanılamaz",
+    "slots": "Boş yuvalar",
+    "slots_value": "{total} içinden {free}",
+    "unknown": "bilinmiyor",
+    "pending_hint": "Makinenin koduyla katılması bekleniyor. Kod {time} tarihine kadar geçerli.",
+    "pending_expired": "Katılım kodunun süresi makine kullanmadan doldu. Bu makineyi kaldırıp yeniden ekleyin.",
+    "awaiting_hint": "Makine {hostname} olarak katıldı. Bu sizin bilgisayarınızsa görevlerinizi çalıştırabilmesi için onaylayın.",
+    "revoked_hint": "Bir çalışma alanı yöneticisi bu makineyi iptal etti: bağlanamaz ve görev alamaz. Kaldırabilirsiniz.",
+    "actions": {
+      "approve": "Onayla",
+      "rename": "Yeniden adlandır",
+      "remove": "Kaldır"
+    },
+    "add_dialog": {
+      "title": "Makine ekle",
+      "description": "Bilgisayara bir ad verin. Ardından üzerinde kullanacağınız bir katılım kodu alırsınız.",
+      "name": "Ad",
+      "name_placeholder": "ör. İş dizüstü bilgisayarı",
+      "create": "Makine ekle",
+      "creating": "Ekleniyor...",
+      "code_title": "{name} bağla",
+      "code_description": "Bu komutları makinede çalıştırın. Katılım kodu bir kez çalışır ve yalnızca şimdi gösterilir: bu pencereyi kapattığınızda kaybolur.",
+      "step_join": "1. Kodla katıl",
+      "step_start": "2. Makine hizmetini başlat",
+      "copy": "Kopyala",
+      "copied": "Panoya kopyalandı",
+      "expires": "Kodun süresi {time} tarihinde doluyor.",
+      "after": "Makine Onay bekleniyor olarak göründüğünde ana makine adını kontrol edip onaylayın.",
+      "done": "Bitti",
+      "bot_title": "Bot için makine ekle",
+      "bot_description": "Botu seçin ve bilgisayarına bir ad verin. Ardından o bilgisayarda kullanacağınız bir katılma kodu alırsınız.",
+      "bot": "Bot",
+      "bot_placeholder": "Bir bot seçin"
+    },
+    "rename_dialog": {
+      "title": "Makineyi yeniden adlandır",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor..."
+    },
+    "approve_dialog": {
+      "title": "{name} onaylansın mı?",
+      "description": "Makine {hostname} ({os}) ana makinesini bildiriyor. Yalnızca kendi bilgisayarınızsa onaylayın: kodlama görevlerinizi çalıştıracak.",
+      "confirm": "Onayla",
+      "confirming": "Onaylanıyor..."
+    },
+    "remove_dialog": {
+      "title": "{name} kaldırılsın mı?",
+      "description": "Makine kalıcı olarak kaldırılır: anahtarı hemen çalışmayı bırakır ve artık görev almaz. Yeniden kullanmak için tekrar ekleyin.",
+      "confirm": "Kaldır",
+      "confirming": "Kaldırılıyor..."
+    },
+    "toasts": {
+      "added": "Makine eklendi",
+      "add_failed": "Makine eklenemedi",
+      "approved": "Makine onaylandı",
+      "approve_failed": "Makine onaylanamadı",
+      "renamed": "Makine yeniden adlandırıldı",
+      "rename_failed": "Makine yeniden adlandırılamadı",
+      "removed": "Makine kaldırıldı",
+      "remove_failed": "Makine kaldırılamadı",
+      "revoked": "Makine iptal edildi",
+      "revoke_failed": "Makine iptal edilemedi"
+    },
+    "admin": {
+      "label": "Makineler",
+      "title": "Makineler",
+      "description": "Bu çalışma alanındaki kişilerin kodlama görevleri için eklediği tüm makineler. İptal etmek makineyi hemen keser: anahtarı çalışmaz ve görev almaz.",
+      "empty": "Bu çalışma alanında henüz kimse makine eklemedi.",
+      "owner": "Sahip",
+      "name": "Makine",
+      "state": "Durum",
+      "status": "Bağlantı",
+      "last_seen": "Son görülme",
+      "never": "Hiç",
+      "revoke": "İptal et",
+      "revoke_dialog": {
+        "title": "{name} iptal edilsin mi?",
+        "description": "{owner} kullanıcısının bu makinesi hemen çalışmayı bırakır ve artık görev almaz. Yalnızca sahibi kaldırabilir.",
+        "confirm": "İptal et",
+        "confirming": "İptal ediliyor..."
+      },
+      "bot": "Bot",
+      "add_for_bot": "Bot için makine ekle",
+      "no_bots": "Bot için makine eklemek üzere önce Üye rolüne sahip bir bot üye ekleyin.",
+      "approve_bot_description": "Makine {hostname} ({os}) ana makinesini bildiriyor. Yalnızca {owner} için kurduğunuz bilgisayarsa onaylayın: o botun kodlama görevlerini çalıştıracak."
+    }
+  },
+  "bot_members": {
+    "label": "Bot üyeler",
+    "title": "Bot üyeler",
+    "description": "Botlar, bu çalışma alanında üyeler gibi çalışan yapay zekâ ajanlarıdır. Her biri kendi token'ı ile oturum açar. Onları herhangi bir üye gibi projelere ekleyin.",
+    "add": "Bot üye ekle",
+    "empty": "Henüz bot üye yok.",
+    "load_failed": "Bot üyeler yüklenemedi.",
+    "badge": "Bot",
+    "columns": {
+      "name": "Ad",
+      "role": "Rol",
+      "status": "Durum",
+      "token_last_used": "Token son kullanım"
+    },
+    "role": {
+      "member": "Üye",
+      "guest": "Misafir"
+    },
+    "status": {
+      "active": "Etkin",
+      "removed": "Kaldırıldı"
+    },
+    "never_used": "Hiç",
+    "no_token": "Token yok",
+    "actions": {
+      "edit": "Düzenle",
+      "new_token": "Yeni token",
+      "remove": "Kaldır"
+    },
+    "form": {
+      "create_title": "Bot üye ekle",
+      "edit_title": "{name} düzenle",
+      "create_description": "Bota bir ad ve rol verin. Ardından token'ını alırsınız.",
+      "name": "Ad",
+      "name_placeholder": "ör. Önceliklendirme botu",
+      "role": "Rol",
+      "role_hint": "Üyeler eklendikleri projelerde çalışabilir. Misafirler yalnızca görüntüleyebilir ve yorum yapabilir.",
+      "description": "Ne için",
+      "description_placeholder": "ör. Yeni hata raporlarını sıralar",
+      "create": "Bot üye ekle",
+      "creating": "Ekleniyor...",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor..."
+    },
+    "token_dialog": {
+      "title": "{name} için token",
+      "description": "Bot, CRM'de çalışmak için bu token'ı kullanır. Şimdi kopyalayın: bu pencereyi kapattıktan sonra bir daha göremezsiniz.",
+      "label": "Token",
+      "copy": "Token'ı kopyala",
+      "copied": "Token kopyalandı",
+      "done": "Bitti"
+    },
+    "new_token_dialog": {
+      "title": "{name} için yeni token?",
+      "description": "Bot yeni bir token alır. Mevcut token'ı hemen çalışmayı bırakır.",
+      "confirm": "Yeni token oluştur",
+      "confirming": "Oluşturuluyor..."
+    },
+    "remove_dialog": {
+      "title": "{name} kaldırılsın mı?",
+      "description": "Bot bu çalışma alanından ve projelerinden kaldırılır. Token'ı hemen çalışmayı bırakır.",
+      "confirm": "Kaldır",
+      "confirming": "Kaldırılıyor..."
+    },
+    "toasts": {
+      "created": "Bot üye eklendi",
+      "create_failed": "Bot üye eklenemedi",
+      "updated": "Bot üye kaydedildi",
+      "update_failed": "Bot üye kaydedilemedi",
+      "token_created": "Yeni token oluşturuldu",
+      "token_failed": "Yeni token oluşturulamadı",
+      "removed": "Bot üye kaldırıldı",
+      "remove_failed": "Bot üye kaldırılamadı"
+    }
+  }
+}

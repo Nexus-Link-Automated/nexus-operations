@@ -111,6 +111,7 @@ INSTALLED_APPS = [
     "plane.authentication",
     "plane.nexus",
     "plane.chat",
+    "plane.coding",
     # Third-party things
     "rest_framework",
     "corsheaders",
@@ -492,9 +493,31 @@ CELERY_IMPORTS = (
     "plane.chat.retention",
     # chat exports from God mode
     "plane.chat.export",
+    # coding jobs whose machine went quiet or ran out of time
+    "plane.coding.tasks",
 )
 
 FILE_SIZE_LIMIT = int(os.environ.get("FILE_SIZE_LIMIT", 5242880))
+
+# How long a coding job may run on a machine before it is stopped (plane.coding.dispatch).
+CODING_JOB_TIMEOUT_MINUTES = os.environ.get("CODING_JOB_TIMEOUT_MINUTES", "60")
+# Limits and retention for coding jobs (plane.coding.services, .dispatch, .retention).
+CODING_MAX_ACTIVE_JOBS_PER_USER = os.environ.get("CODING_MAX_ACTIVE_JOBS_PER_USER", "10")
+CODING_JOB_STARTS_PER_HOUR = os.environ.get("CODING_JOB_STARTS_PER_HOUR", "60")
+CODING_JOB_QUEUE_TTL_HOURS = os.environ.get("CODING_JOB_QUEUE_TTL_HOURS", "24")
+CODING_JOB_EVENT_RETENTION_DAYS = os.environ.get("CODING_JOB_EVENT_RETENTION_DAYS", "30")
+CODING_AUDIT_RETENTION_DAYS = os.environ.get("CODING_AUDIT_RETENTION_DAYS", "365")
+# How long a coding agent's question waits for an answer before the job goes on without one (plane.coding.questions).
+CODING_QUESTION_TIMEOUT_MINUTES = os.environ.get("CODING_QUESTION_TIMEOUT_MINUTES", "30")
+# The GitHub App coding jobs push branches and open pull requests with (plane.coding.github). Server-side only.
+GITHUB_APP_ID = os.environ.get("GITHUB_APP_ID", "")
+GITHUB_APP_SLUG = os.environ.get("GITHUB_APP_SLUG", "")
+GITHUB_APP_PRIVATE_KEY = os.environ.get("GITHUB_APP_PRIVATE_KEY", "")
+GITHUB_APP_PRIVATE_KEY_PATH = os.environ.get("GITHUB_APP_PRIVATE_KEY_PATH", "")
+# Comma-separated GitHub users or organisations whose repositories the App may be used for; empty: any it is on.
+GITHUB_APP_ALLOWED_OWNERS = os.environ.get("GITHUB_APP_ALLOWED_OWNERS", "")
+GITHUB_API_URL = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+GITHUB_WEB_URL = os.environ.get("GITHUB_WEB_URL", "https://github.com")
 
 # Unsplash Access key
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY")
