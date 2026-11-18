@@ -113,9 +113,11 @@ describe("the egress proxy", () => {
   });
 
   it("forwards plain HTTP to a public address and refuses the rest", async () => {
-    const upstream = http.createServer((request, response) =>
-      response.end(`got ${request.url} ${request.headers.host}`)
-    );
+    const seen: string[] = [];
+    const upstream = http.createServer((request, response) => {
+      seen.push(`${request.url} ${request.headers.host}`);
+      response.end("ok");
+    });
     const logs: string[] = [];
     const port = await proxyTo(await listen(upstream), logs);
     const get = (url: string) =>
@@ -128,7 +130,8 @@ describe("the egress proxy", () => {
           })
           .on("error", reject);
       });
-    expect(await get("http://public.test/index.json")).toEqual({ status: 200, body: "got /index.json public.test" });
+    expect(await get("http://public.test/index.json")).toEqual({ status: 200, body: "ok" });
+    expect(seen).toEqual(["/index.json public.test"]);
     expect((await get("http://127.0.0.1/")).status).toBe(403);
     expect((await get("http://inside.test/")).status).toBe(403);
   });
